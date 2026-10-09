@@ -86,20 +86,37 @@ pages; physical-controller coverage is still being expanded.
 Install the .NET 8 SDK on Windows, then:
 
 ```powershell
-dotnet publish Companion/Companion.csproj -c Release -r win-x64 `
-  --self-contained true -p:PublishSingleFile=true -o local/public-companion
+python tools/build_public_companion.py
+.\"Start Secret of the Stars Companion.cmd"
 ```
 
-The project pins Windows Desktop runtime 8.0.27 and publishes a self-contained
-WinForms application. Retain the corresponding licenses/notices for any future
-binary distribution. Source-level settings/backend/readiness tests are in
-`Companion/`; successful GUI startup does not certify native gameplay.
+The helper freezes authored inputs, publishes an isolated self-contained
+Windows x64 application, retains .NET/MIT notices and records a
+`compiled_unqualified` source receipt. The project pins Windows Desktop runtime
+8.0.27. The CMD checks the exact recorded EXE before opening Setup; you can also
+open that EXE directly with `--root <repository>`.
 
-**Current integration gap:** `ProfileService` and the historical launch scripts
-require ignored build receipts, a canonical installed executable and copied
-test fixtures. A source-first public ROM/setup/profile path is still required
-before Companion can offer reliable Play/Resume on a fresh clone. The developer
-native run above is the supported source-build route for now.
+In **Setup**, select your supported original ROM, then build the native
+foundation or adopt a prior source-build receipt. The ROM is read and hashed;
+it is never copied into the source tree. Build diagnostics stay under ignored
+`local/`, and cancellation preserves prior builds and selected profiles.
+Adoption creates a fresh profile with autosave disabled and no owner saves.
+**Play** starts at the title; **Resume** accepts an explicitly selected checkpoint
+from that profile and launches a protected copy. Compilation status stays
+visible; adoption does not turn a build into a gameplay-qualified release.
+
+In **Controls**, edit the single player's keyboard and controller game buttons.
+**Hotkeys** supports keyboard names/modifier chords, controller buttons/chords,
+explicit `None`, and all twenty save/load checkpoint slots. Enable hold/toggle
+fast-forward there. **Enhancements** exposes independent XP/gold rates (100–1000%)
+and movement boost (100–300%). Defaults are Tab/R2 for fast-forward and Left
+Shift/L2 for movement. Explicit existing mappings take priority. Unsupported
+scripted movement retains original pace. Changing settings requires the game
+to be closed; Apply validates changed bindings and backs up edited files.
+
+The historical qualified local installation adapter remains supported, but
+public Play/Resume does not require private preview fixtures. Portable packaged
+distribution, broader hardware checks and update/rollback polish remain open.
 
 ## Checks
 

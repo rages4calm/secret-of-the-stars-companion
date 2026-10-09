@@ -40,10 +40,12 @@
 #include "foundation_rules.h"
 #include "foundation_menu.h"
 #include "foundation_wide.h"
+#include "foundation_qol.h"
 
 void GameRunOneFrame(void)
 {
     FoundationRulesInit();
+    FoundationQolInit();
     FoundationMenuBeginFrame();
     FoundationDiagnosticsBeginFrame();
     snes_beam_frame_driver_run_frame();

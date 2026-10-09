@@ -6,6 +6,7 @@
 #include "snes_overlay_draw.h"
 #include "foundation_scale2x.h"
 #include "foundation_journal.h"
+#include "foundation_hotkeys.h"
 #include "foundation_wide.h"
 #include "foundation_wide_actors.h"
 #include "foundation_hd_ui.h"
@@ -18,48 +19,25 @@
 extern Snes *g_snes;
 extern Ppu *g_ppu;
 static int battle_info, experimental_wide, enhanced_pixels, hidden;
-static uint32_t previous_input;
 static unsigned frame_number;
-static atomic_uint hotkey_requests;
 static int input_watch;
 static SDL_Joystick *test_pad;
 static int input_test;
 
-/* Host hotkeys remain available when the player's gameplay source is a pad.
- * Watches may run off the main thread: queue requests, never touch guest state. */
-#if SNESRECOMP_SDL3
-static bool PresentationInput(void *unused, SDL_Event *event) {
-#else
-static int PresentationInput(void *unused, SDL_Event *event) {
-#endif
-    (void)unused;
-    if (event->type == SDL_KEYDOWN && SNESRECOMP_SDL_EVENT_KEY(*event) == SDLK_h &&
-        !SNESRECOMP_SDL_EVENT_REPEAT(*event) &&
-        !(SNESRECOMP_SDL_EVENT_MOD(*event) & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)))
-        atomic_fetch_or(&hotkey_requests, 1);
-    if (event->type == SDL_CONTROLLERBUTTONDOWN &&
-        SNESRECOMP_SDL_EVENT_BUTTON(*event) == SDL_CONTROLLER_BUTTON_RIGHTSTICK)
-        atomic_fetch_or(&hotkey_requests, 2);
-    return true;
-}
-
 void FoundationPresentationReset(void) {
     /* Also called after a modal rewind/browser closes. Discard events queued
      * while gameplay was frozen, including the Select+R3 rewind gesture. */
-    atomic_store(&hotkey_requests, 0);
-    previous_input = 0;
+    FoundationHotkeysReset();
     FoundationWideReset();
 }
 
 void FoundationPresentationShutdown(void) {
-    if (input_watch) SDL_DelEventWatch(PresentationInput, NULL);
     input_watch = 0;
     if (test_pad) { SDL_JoystickClose(test_pad); test_pad = NULL; }
 }
 
 void FoundationPresentationBeforeFrame(void) {
     if (!input_watch) {
-        SDL_AddEventWatch(PresentationInput, NULL);
         input_watch = 1;
         const char *test = getenv("SNESRECOMP_FOUNDATION_HUD_INPUT_TEST");
         input_test = test && !strcmp(test, "keyboard") ? 1 : test && !strcmp(test, "pad") ? 2 : 0;
@@ -137,15 +115,11 @@ int FoundationPresentationScale(void) { return FoundationHdUiEnabled() ? 4 : enh
 
 void FoundationPresentationAfterFrame(const SnesDesktopHostFrameStats *stats) {
     frame_number = stats->frame;
-    uint32_t input = g_snes->input1_currentState;
-    unsigned request = atomic_exchange(&hotkey_requests, 0);
-    int toggle = (request & 1) || ((request & 2) && !(input & SNES_PAD_SELECT)) ||
-                 ((input & SNES_PAD_X) && !(previous_input & SNES_PAD_X));
+    int toggle = FoundationHotkeysConsumeBattleInfo();
     if (battle_info && g_ram[0x20] == 5 && toggle) {
         hidden = !hidden;
         fprintf(stderr, "[foundation] frame %u battle info %s\n", frame_number, hidden ? "hidden" : "shown");
     }
-    previous_input = input;
 }
 
 void FoundationPresentationPrepare(int drawable_w, int drawable_h, int *w, int *h) {
@@ -173,7 +147,7 @@ int FoundationPresentationDraw(uint8_t *dst, size_t pitch, const uint8_t *field,
             int stride = (int)(pitch / 4), x = (w - 240) / 2;
             snes_ovl_fill_rect(pixels, stride, h, x, 6, 240, 18 + count * 12, 0xff080e1c);
             snes_ovl_stroke_rect(pixels, stride, h, x, 6, 240, 18 + count * 12, 0xff809bc8);
-            snes_ovl_draw_text(pixels, stride, h, x + 6, 10, "ENEMY HP H / CLICK R-STICK: HIDE", 0xffffdf78, 1);
+            snes_ovl_draw_text(pixels, stride, h, x + 6, 10, "ENEMY HP - HUD HOTKEY: HIDE", 0xffffdf78, 1);
             int row = 0;
             for (int i = 0; i < 4; ++i) {
                 unsigned offset = 0x6100 + i * 0x1c, id = g_ram[offset];

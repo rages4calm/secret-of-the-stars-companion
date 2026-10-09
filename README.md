@@ -12,7 +12,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools and documentation. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.1.9 / Companion 0.1.2.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation / Companion 0.2.0.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The aim is to give this overlooked RPG a polished PC edition that is easier to play and easier to understand: attractive original pixel art, a genuinely wider world view, reliable controls and audio, and a useful quest journal. The launcher follows the familiar Companion approach used in [EarthBound Companion](https://github.com/rages4calm/earthbound-companion) and [Zelda Companion](https://github.com/rages4calm/zelda-companion).
 
@@ -21,12 +21,13 @@ The aim is to give this overlooked RPG a polished PC edition that is easier to p
 | Area | Implemented behavior | Current limit |
 | --- | --- | --- |
 | Windows foundation | Compiled C/SDL3 host with native game-specific enhancements and guarded original execution | Complete native/AOT game execution is still future work |
-| Companion launcher | Windows settings GUI, explicit title/selected-copy resume, display/audio/control pages and protected settings edits | Public first-run setup is unfinished; the existing Play adapter uses private qualification receipts/fixtures |
+| Companion launcher | ROM validation, source-build progress/cancellation, isolated profiles, explicit title/selected-copy resume and protected settings edits | Requires Windows development tools for the first source build; no public playable download yet |
 | Enhanced pixels | Independently selectable Scale2x-based presentation and fullscreen output | Upscaling preserves original artwork; it is not a replacement HD world pack |
 | Widescreen scenery | Stable 400-pixel canvas, selected original primary/secondary map resources, title panorama and sixteen authored battle-side layouts using original cells | Original 256-pixel center stays exact; unsupported states retain centered imagery and side bars |
 | Widescreen actors | Ordinary party, regular and reserved-slot observers follow original producers and complete OAM transfers | Large/composite/wrapping actors and several natural margin cases still need qualification |
-| Controls | Keyboard and SDL controller input, fullscreen shortcuts and reachable HUD/journal/rewind controls | Seven virtual input profiles pass; broader physical-controller testing remains open |
+| Controls | Editable keyboard/controller game buttons and hotkeys, twenty checkpoint bindings, fullscreen and reachable HUD/journal/rewind controls | Broader physical-controller testing remains open |
 | Menu and battle QoL | Optional faster field menus and a toggleable enemy-HP panel | The HP panel is an authored enhancement, not a bundled ROM hack |
+| Rewards and movement | Independently adjustable 1–10× battle XP/gold; bindable 1–3× field movement boost; hold/toggle fast-forward | Movement accelerates guarded ordinary walking; unsupported/scripted motion keeps original pace |
 | Quest journal | Opening-stage current lead derived from verified original story state; J / left-stick click toggles it | A complete journal with later milestones and deterministic history is not implemented |
 | Audio and stability | Original SNES audio, cached host composition, repaired mosaic overrun and checked audio/OpenGL allocations | Ten finite GPU/audio routes pass; every cutscene and hardware configuration is not certified |
 | Saves and rollback | Guarded checkpoint loading, restore/cache reset and protected copied-save testing | Local state schemas are build-specific; test on copies and keep in-game saves backed up |
@@ -45,15 +46,17 @@ python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (
 
 Install the prerequisites in [BUILDING.md](BUILDING.md) first. The helper fetches the pinned runtime, applies this project's patch, generates code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
 
-The C# launcher can be built separately with .NET 8. Public source-first Companion setup and portable end-user packaging are the next distribution milestone. Existing `Start*.cmd` entries and fixture checkers are development adapters, not a fresh-clone one-click installer.
+Build the self-contained launcher with `python tools/build_public_companion.py`, then open `Start Secret of the Stars Companion.cmd` or the generated Companion EXE. Its Setup page validates your ROM and builds/adopts a fresh native profile without private gameplay fixtures. See [BUILDING.md](BUILDING.md). Historical native preview scripts and fixture checkers remain development adapters.
+
+In **Enhancements**, 100% means the original XP/gold payout; 200% means 2×. Movement boost defaults to **Left Shift / controller L2**, and fast-forward to **Tab / controller R2**. Change these and other bindings in **Controls** and **Hotkeys**; fast-forward can be held or toggled. Existing custom profile bindings are retained. [QoL implementation and limits](docs/FOUNDATION-QOL-2026-10-09.md).
 
 ## Verification and remaining work
 
-The qualified local 0.1.9 build passed 247 map/widescreen gates, ordinary-actor and party-lineage checks, controller/restore checks, seven Direct3D audio routes and three OpenGL audio routes. The guarded map decoder covers 409 selected resource links and 719 active layers. Those are **resource checks, not a count of completed playable maps**. Synthetic actor tests and natural gameplay coverage are recorded separately.
+The integrated 0.2.0 build passed reward/walking and restore proofs, configurable-input checks, 247 map/widescreen gates, controller/checkpoint checks and ten paced Direct3D/OpenGL audio routes. The exact self-contained launcher passed 60 source-first backend and 31 interactive GUI checks, plus all six legacy launch routes. [Release scope](docs/FOUNDATION-QOL-SETUP-2026-10-09.md). The guarded map decoder covers 409 selected resource links and 719 active layers. Those are **resource checks, not a count of completed playable maps**. Synthetic actor tests and natural gameplay coverage are recorded separately.
 
 A new source build receives its own hash and remains unqualified until tested. The public build path has been exercised separately; see [VALIDATION.md](docs/VALIDATION.md) for what was checked and what remains private. Historical foundation documents retain their dates and coverage limits; referenced `local/` reports and fixtures are intentionally not published.
 
-Next priorities are public first-run setup, large/composite/wrapping actors, broader story/cutscene and party coverage, bounded guest-CPU/native-execution work, and additional verified quest-journal milestones. MSU-1 music is conditional on finding and verifying a compatible driver and track map. A replacement HD artwork pack is deferred so it does not stall the playable foundation. [Full roadmap](ROADMAP.md).
+Next priorities are portable distribution and rollback, large/composite/wrapping actors, broader story/cutscene and party coverage, bounded guest-CPU/native-execution work, and additional verified quest-journal milestones. MSU-1 music is conditional on finding and verifying a compatible driver and track map. A replacement HD artwork pack is deferred so it does not stall the playable foundation. [Full roadmap](ROADMAP.md).
 
 ## Contribute
 

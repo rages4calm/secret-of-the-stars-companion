@@ -16,9 +16,16 @@ bytes differ from the initial interpreter-led baseline. Keep the baseline binary
 and evidence; do not promote this into a broad native-coverage claim. Checkpoints
 are specific to this schema and pinned execution build, not portable campaign saves.
 
+Current source is 0.2.0. Read
+`../../docs/FOUNDATION-QOL-2026-10-09.md` for the guarded native reward and
+ordinary-walking hooks and configurable input contract. The source-first build
+helper freezes all 48 authored inputs and the runtime patch in an isolated
+ignored build folder. Public Companion Setup builds/adopts those receipts
+without private fixtures; compilation status remains explicit.
+
 Read `../../docs/FOUNDATION-MAP-RELEASE-2026-10-09.md` and
-`../../docs/FOUNDATION-MAP-WIDE-2026-10-09.md` for installed native 0.1.9 and
-Companion 0.1.2, with exact hashes in the local receipts. Earlier actor and
+`../../docs/FOUNDATION-MAP-WIDE-2026-10-09.md` for historical native 0.1.9 and
+Companion 0.1.2 qualification, with exact hashes in the local receipts. Earlier actor and
 Companion documents describe historical 0.1.6/0.1.1 checkpoints. The shared map
 resource decoder, title panorama and checked battle layouts use a stable
 400-pixel canvas; unsupported states have original centered pixels with side

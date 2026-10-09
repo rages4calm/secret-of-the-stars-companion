@@ -6,12 +6,12 @@ This is active foundation work, not a completed native recompilation.
 
 ## 1. Public first-run setup and packaging
 
-The developer native build helper now assembles source from an owned clean ROM
-in an isolated local folder. Next, connect that flow to Companion: ROM selection
-and validation, generation/build diagnostics, safe profile creation, clear
-build/qualification status, title-first launch and explicit copied-save resume.
-Remove the public Play adapter's dependency on private fixture/checkpoint data.
-Then qualify a portable source-first Windows package with retained dependency
+Companion now connects ROM selection/validation, source-build progress and
+cancellation, isolated profile adoption, explicit compilation status, title-first
+launch and selected copied-save resume. Public Play no longer requires private
+fixture/checkpoint data. XP/gold rates, guarded movement boost and keyboard/
+controller hotkeys are editable in the launcher.
+Next qualify a portable source-first Windows package with retained dependency
 notices, updates and rollback. Do not distribute the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
@@ -19,7 +19,7 @@ notices, updates and rollback. Do not distribute the ROM or generated game code.
 Large B0 sprites have a private registered-callback/PPU composition prototype.
 It passes synthetic metadata/transfer/pixel checks, but needs real guest producer
 and DMA execution, terrain/OBJ overlap and subscreen/half-color qualification.
-It is not enabled in the installed local 0.1.9 build.
+It is not enabled in the 0.2.0 foundation.
 
 Wrapping-world actors need authenticated current-line camera lineage across
 map seams. Original clipping corrections and emitted OAM coordinates differ;
@@ -35,7 +35,9 @@ understood routines into native/AOT code with explicit state/side-effect checks.
 Measure missed guest updates separately from PC frame rate and audio callbacks.
 Only then add bounded title-specific CPU headroom or separated presentation
 where justified. Preserve movement, collision, activation and intentional waits.
-Current guest cycle accounting and game speed remain original.
+Current guest cycle accounting remains original. The optional movement boost
+changes guarded player walking only, and configurable fast-forward explicitly
+accelerates the whole game; neither feature proves a guest slowdown fix.
 
 ## 4. Expand the quest journal
 

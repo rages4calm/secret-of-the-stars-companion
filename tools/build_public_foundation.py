@@ -35,8 +35,12 @@ def main():
         if not shutil.which(tool):raise RuntimeError('Required tool is unavailable: '+tool)
     out=ROOT/'local/source-builds'/time.strftime('%Y%m%d-%H%M%S')
     out.mkdir(parents=True,exist_ok=False)
-    runtime=ROOT/'local/upstream/snesrecomp';patch=ROOT/'patches/runtime-foundation.patch'
-    marker=ROOT/'local/upstream/runtime-patch-receipt.json'
+    patch=out/'runtime-foundation.patch'
+    shutil.copy2(ROOT/'patches/runtime-foundation.patch',patch)
+    # A new patch gets its own checkout. Previously built or intentionally
+    # modified runtimes remain available rather than being reset in place.
+    runtime=ROOT/'local/upstream'/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12])
+    marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     if not runtime.exists():
         runtime.parent.mkdir(parents=True,exist_ok=True)
         print('Fetching pinned runtime and its upstream submodules.',flush=True)
@@ -90,7 +94,7 @@ def main():
     if not binary.exists():raise RuntimeError('Windows executable missing after build.')
     profile=out/'profile';profile.mkdir();shutil.copy2(binary,profile/binary.name)
     (profile/'config.ini').write_text('[Graphics]\nRenderer=direct3d11\nFullscreen=0\nVSync=1\nNewRenderer=0\nWidescreen=0\n[Sound]\nEnableAudio=1\nAudioFreq=32040\nAudioChannels=2\nAudioSamples=512\n[General]\nAutosave=0\nSkipLauncher=1\n',encoding='ascii')
-    (profile/'foundation.ini').write_text('[Enhancements]\nEnhancedPixels=1\nBattleInfo=1\nFastMenus=1\nJournal=1\nExperimentalFieldWide=0\nExperimentalFieldActors=0\nNativeClear=0\nNativeColumns=0\nHdMenuFrames=0\n',encoding='ascii')
+    (profile/'foundation.ini').write_text('[Enhancements]\nEnhancedPixels=1\nBattleInfo=1\nFastMenus=1\nJournal=1\nExperimentalFieldWide=0\nExperimentalFieldActors=0\nNativeClear=0\nNativeColumns=0\nHdMenuFrames=0\nXpMultiplierPercent=100\nGoldMultiplierPercent=100\nMovementSpeedPercent=200\nFastForwardToggle=0\nLegacyControllerGestures=1\n',encoding='ascii')
     assert sha(rom)==expected
     result={'status':'compiled_unqualified','public_build':True,'executable_sha256':sha(binary),
       'version':(project/'VERSION').read_text().strip(),'rom_sha256':expected,'rom_copied':False,
@@ -98,7 +102,7 @@ def main():
       'runtime_pin':RUNTIME_PIN,'runtime_patch_sha256':sha(patch),
       'private_generated_files':[p.relative_to(out).as_posix() for p in (project/'src/gen').rglob('*') if p.is_file()],
       'profile':profile.relative_to(ROOT).as_posix(),
-      'limits':'Fresh developer compilation only; no gameplay qualification or owner installation. Companion setup remains separate.'}
+      'limits':'Fresh developer compilation only; gameplay qualification and owner installation remain separate.'}
     (out/'source-build-receipt.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print('Built: '+str(binary));print('Fresh profile: '+str(profile))
     print('Run from the fresh profile: SecretOfTheStarsSNESRecomp.exe --no-launcher --rom "<your original ROM path>"')

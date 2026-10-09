@@ -1,11 +1,14 @@
 # Secret of the Stars Companion
 
-Windows launcher for the qualified local native foundation. Familiar Companion
+Windows launcher for source-first setup and the qualified local native foundation. Familiar Companion
 navigation and reusable UI patterns come from the owner's EarthBound/Zelda
 projects; this game's settings and launch adapter are title-specific.
 
-`dotnet publish Companion/Companion.csproj -c Release -o local/companion-build`
-builds a self-contained Windows x64 application. The qualified installation
+`python tools/build_public_companion.py` freezes source and
+builds a self-contained Windows x64 application with retained dependency notices
+and an explicit compilation receipt. Setup validates an owned ROM, builds or
+adopts native source receipts and creates isolated title-first profiles without
+private fixtures. The qualified development installation
 lives in `local/companion` and its launcher receipt identifies the exact bytes.
 Launch with the directly double-clickable project-root
 `Secret of the Stars Companion.exe` after qualification. The
@@ -17,7 +20,9 @@ Opening the launcher reads settings. Apply writes only selected known settings
 after validation, optimistic source-hash checks and verified config backups.
 Custom lines/bindings remain; saves are never converted or edited by Apply.
 Play starts at the title; Resume selects an explicit existing checkpoint and
-hands a copy to the original guarded launcher. Preview actions use fresh
+hands a copy to the guarded native launcher. Public profiles launch their exact
+recorded native EXE directly; historical qualified profiles retain the script
+adapter. Preview actions use fresh
 profiles. A running game must be closed before changing its settings.
 
 The optional scene strip is loaded from ignored
@@ -34,6 +39,15 @@ original centered picture and side bars. Original controls and menus stay center
 Untouched mixed custom terrain/actor flags are preserved; changing the checkbox
 intentionally updates both. Campaign coverage and actors beyond regular field
 records still need further qualification. No actor activation is changed.
+
+Controls edits the single player's game buttons; Hotkeys edits keyboard/controller
+actions and all twenty checkpoint slots. Enhancements provides 100–1000% XP/gold
+and a held 100–300% movement boost. Default boost is Left Shift/L2; fast-forward
+is Tab/R2, with a hold/toggle option. Existing custom mappings take priority.
+Unchanged legacy values are retained, and changed conflicting or unknown
+bindings are rejected before writes. Gameplay/native compatibility is gated by
+the selected executable version; old binaries keep working without silently
+accepting unsupported QoL edits.
 
 `--visible-test <report.json>` opens a real on-screen window, verifies native
 visibility, taskbar presence, working-area intersection and its main-window

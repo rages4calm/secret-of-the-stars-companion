@@ -112,6 +112,15 @@ public static class BackendSelfTests
             var paired = ProfileService.ApplyCore(unrelated.Snapshot!, unrelated.Snapshot!.Settings with { ExperimentalFieldWide = true, ExperimentalFieldActors = true }, () => false);
             Check("paired wide/actor settings reach their independent native keys", paired.Success && paired.Snapshot!.Settings.ExperimentalFieldWide && paired.Snapshot.Settings.ExperimentalFieldActors);
             Check("paired edit retains untouched custom terrain flag line", Encoding.UTF8.GetString(File.ReadAllBytes(foundationPath)).Contains("ExperimentalFieldWide = 1 ; custom mixed setting\nExperimentalFieldActors=1\n"));
+            File.AppendAllText(config, "\n[Controller]\nSourceP1=2\nSourceP2=1\n[GamepadMap]\nEnableGamepad1=1\nEnableGamepad2=0\n");
+            var deviceSource = ProfileService.Load(temporaryRoot, profile);
+            var deviceBytes = File.ReadAllBytes(config);
+            var deviceNoOp = ProfileService.ApplyCore(deviceSource, deviceSource.Settings.DeepCopy(), () => false);
+            Check("Device source selection remains byte exact on no-op", deviceNoOp.Success && File.ReadAllBytes(config).AsSpan().SequenceEqual(deviceBytes));
+            var keyboardFallback = ProfileService.ApplyCore(deviceSource, deviceSource.Settings.DeepCopy() with { EnableGamepad = false }, () => false);
+            var fallbackConfig = new IniDocument(File.ReadAllBytes(config));
+            Check("Disabling gamepad-only player1 restores keyboard source", keyboardFallback.Success && fallbackConfig.Get("Controller", "SourceP1") == "1" && fallbackConfig.Get("GamepadMap", "EnableGamepad1") == "0");
+            Check("Player2 custom keyboard source survives unrelated pad disable", fallbackConfig.Get("Controller", "SourceP2") == "1");
         }
         finally
         {

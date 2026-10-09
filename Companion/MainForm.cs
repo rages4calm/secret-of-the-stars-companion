@@ -3,9 +3,10 @@ using SecretOfTheStars.Companion.Core;
 
 namespace SecretOfTheStars.Companion;
 
-public sealed class MainForm : Form
+public sealed partial class MainForm : Form
 {
-    readonly string root,profile;
+    readonly string root;
+    string profile;
     ProfileSnapshot? snapshot;
     GameSettings edited=new();
     bool loading=true,dirty,busy,helperRunning;
@@ -20,6 +21,8 @@ public sealed class MainForm : Form
     readonly Label readiness=Theme.Text("",10,Theme.Muted);
     readonly Label saveHint=Theme.Text("",10,Theme.Muted);
     readonly Label saveList=Theme.Text("",11,Theme.Muted);
+    readonly Label profileFolder=Theme.Text("",10,Theme.Muted);
+    readonly Label qolCapability=Theme.Text("",10,Theme.Muted);
     readonly ComboBox checkpoints=Theme.Combo(480);
     readonly CompanionButton apply=Theme.Button("Apply settings",true,164);
     readonly CompanionButton play=Theme.Button("Start at title",true,200);
@@ -34,15 +37,15 @@ public sealed class MainForm : Form
 
     public MainForm(string root,string? profile=null)
     {
-        this.root=Path.GetFullPath(root);this.profile=Path.GetFullPath(profile??Path.Combine(this.root,"local","player-foundation"));
+        this.root=Path.GetFullPath(root);this.profile=Path.GetFullPath(profile??PublicSetupService.GetSelectedProfile(this.root)??Path.Combine(this.root,"local","player-foundation"));
         Text="Secret of the Stars Companion";ClientSize=new Size(1120,760);MinimumSize=new Size(950,650);
         StartPosition=FormStartPosition.CenterScreen;BackColor=Theme.Canvas;ForeColor=Theme.Ink;Font=Theme.Body();AutoScaleMode=AutoScaleMode.Dpi;
-        BuildShell();BuildPlay();BuildDisplay();BuildAudio();BuildControls();BuildEnhancements();BuildSaves();
+        BuildShell();BuildPlay();BuildSetup();BuildDisplay();BuildAudio();BuildControls();BuildHotkeys();BuildEnhancements();BuildSaves();
         apply.Click+=(_,_)=>ApplySettings();play.Click+=(_,_)=>Launch(LaunchMode.Play);original.Click+=(_,_)=>Launch(LaunchMode.OriginalView);
         resume.Click+=(_,_)=>Launch(LaunchMode.Resume);wide.Click+=(_,_)=>Launch(LaunchMode.WidescreenPreview);hd.Click+=(_,_)=>Launch(LaunchMode.HdMenuPreview);
         refresh.Click+=(_,_)=>ReloadProfile();checkpoints.SelectedIndexChanged+=(_,_)=>{UpdateSaveHint();UpdateEnabled();};
         timer.Tick+=(_,_)=>UpdateEnabled();FormClosed+=(_,_)=>{timer.Stop();timer.Dispose();launcher?.Dispose();};
-        ReloadProfile();ShowPage("play");timer.Start();
+        ReloadProfile();ShowPage(PublicSetupService.GetSelectionProblem(this.root)!=null?"setup":"play");timer.Start();
     }
 
     void BuildShell()
@@ -51,7 +54,7 @@ public sealed class MainForm : Form
         var brand=new Label{Text="Secret of\nthe Stars",Font=Theme.Title(23),ForeColor=Theme.Accent,AutoSize=false,Size=new Size(174,80),Location=new Point(18,25),UseMnemonic=false};
         rail.Controls.Add(brand);rail.Controls.Add(new Label{Text="Companion",Font=Theme.Body(10),ForeColor=Theme.Muted,AutoSize=true,Location=new Point(20,112)});
         int y=157;
-        foreach(var (id,label) in new[]{("play","Play"),("display","Display"),("audio","Audio"),("controls","Controls"),("enhancements","Enhancements"),("saves","Saves")})
+        foreach(var (id,label) in new[]{("play","Play"),("setup","Setup"),("display","Display"),("audio","Audio"),("controls","Controls"),("hotkeys","Hotkeys"),("enhancements","Enhancements"),("saves","Saves")})
         {
             var button=Theme.Button(label,false,174);button.Navigation=true;button.Location=new Point(18,y);button.Size=new Size(174,46);button.Click+=(_,_)=>ShowPage(id);rail.Controls.Add(button);navigation[id]=button;y+=52;
         }
@@ -133,17 +136,20 @@ public sealed class MainForm : Form
         var page=Page("controls","Controls","Controller play is supported. Keep your existing bindings while tuning input.");
         AddCheck(page,"Enable player 1 controller",s=>s.EnableGamepad,(s,v)=>s.EnableGamepad=v);
         AddNumber(page,"Analog stick deadzone (%)","Increase if a stick drifts. Lower values respond to smaller movements.",0,100,1,s=>(int)Math.Round(s.Deadzone*100.0/32767),(s,v)=>s.Deadzone=(int)Math.Round(v*32767.0/100));
-        Section(page,"Menu and display shortcuts");
-        var keys=new TableLayoutPanel{ColumnCount=2,AutoSize=true,Margin=Padding.Empty,BackColor=Theme.Canvas};keys.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,230));keys.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        foreach(var pair in new[]{("Fullscreen","Alt + Enter / F11 / F12"),("Battle information","H / click right stick"),("Current-lead journal","J / click left stick"),("Rewind","F8"),("Close rewind","Escape / Z / controller B")})
-        {int row=keys.RowCount++;keys.RowStyles.Add(new RowStyle(SizeType.AutoSize));keys.Controls.Add(Theme.Text(pair.Item1,11,Theme.Muted),0,row);keys.Controls.Add(Theme.Text(pair.Item2,11),1,row);}
-        page.Add(keys,14);
-        page.Add(Theme.Text("Custom keyboard and controller bindings are preserved when you apply these settings. This page does not reset your controls.",10,Theme.Muted),0);
+        BuildGameplayBindings(page);
+        Section(page,"Game hotkeys");
+        var bindings=Theme.Button("Configure hotkeys",false,230);bindings.Click+=(_,_)=>ShowPage("hotkeys");page.Add(bindings,12);
+        page.Add(Theme.Text("Assign fast-forward, movement boost, fullscreen, journal and checkpoint shortcuts on Hotkeys. Escape always closes the rewind menu.",10,Theme.Muted),0);
     }
 
     void BuildEnhancements()
     {
         var page=Page("enhancements","Enhancements","Optional improvements, with the original presentation available on Play.");
+        page.Add(qolCapability,10);
+        Section(page,"Rewards and movement");
+        AddNumber(page,"Experience rate (%)","100% is the original reward; 200% gives twice the experience earned in battle.",100,1000,25,s=>s.XpMultiplierPercent,(s,v)=>s.XpMultiplierPercent=v);
+        AddNumber(page,"Gold rate (%)","Changes earned battle gold. Purchases, sales and existing savings keep their original amounts.",100,1000,25,s=>s.GoldMultiplierPercent,(s,v)=>s.GoldMultiplierPercent=v);
+        AddNumber(page,"Movement boost (%)","Hold your assigned movement button for faster field travel. 200% is twice the normal movement rate.",100,300,25,s=>s.MovementSpeedPercent,(s,v)=>s.MovementSpeedPercent=v);
         AddFeature(page,"Faster field menus","Shortens checked menu slides and rows while keeping gameplay timing intact.",s=>s.FastMenus,(s,v)=>s.FastMenus=v);
         AddFeature(page,"Battle information","Shows native enemy HP information. Hide it with H or the right stick.",s=>s.BattleInfo,(s,v)=>s.BattleInfo=v);
         AddFeature(page,"Quest journal","Open with J or the left stick. Tracks David's first lead, using your current saved story progress.",s=>s.Journal,(s,v)=>s.Journal=v);
@@ -161,7 +167,7 @@ public sealed class MainForm : Form
         page.Add(Theme.Text("Start at title opens the game's normal title flow. Resume selected copy continues from the checkpoint you choose on Play. A pending restore conflict is reported instead of silently selecting a different checkpoint.",11,Theme.Muted),16);
         var go=Theme.Button("Choose checkpoint on Play",false,255);go.Click+=(_,_)=>ShowPage("play");page.Add(go,20);
         Section(page,"Profile folder");
-        page.Add(Theme.Text(profile,10,Theme.Muted),8);
+        page.Add(profileFolder,8);
         page.Add(Theme.Text("No checkpoint deletion or save migration is performed here. Applying options backs up configuration files.",10,Theme.Muted),0);
     }
 
@@ -192,7 +198,8 @@ public sealed class MainForm : Form
         if(busy)return;
         try
         {
-            snapshot=ProfileService.Load(root,profile);edited=snapshot.Settings with{};loading=true;
+            snapshot=ProfileService.Load(root,profile);edited=snapshot.Settings.DeepCopy();loading=true;
+            profileFolder.Text=profile;
             foreach(var bind in populate)bind(edited);dirty=false;loading=false;
             string? prior=(checkpoints.SelectedItem as SaveChoice)?.Entry.Path;
             checkpoints.Items.Clear();foreach(var save in snapshot.Saves)checkpoints.Items.Add(new SaveChoice(save));
@@ -218,7 +225,7 @@ public sealed class MainForm : Form
         {
             var result=ProfileService.Apply(snapshot,edited);
             if(!result.Success){SetStatus("Settings were not applied",result.Message,true);return;}
-            snapshot=result.Snapshot??ProfileService.Load(root,profile);edited=snapshot.Settings with{};loading=true;foreach(var bind in populate)bind(edited);loading=false;dirty=false;SetStatus("Settings applied",result.Message);
+            snapshot=result.Snapshot??ProfileService.Load(root,profile);edited=snapshot.Settings.DeepCopy();loading=true;foreach(var bind in populate)bind(edited);loading=false;dirty=false;SetStatus("Settings applied",result.Message);
         }
         catch(Exception ex){loading=false;SetStatus("Settings were not applied",ex.Message,true);}
         UpdateEnabled();
@@ -276,10 +283,17 @@ public sealed class MainForm : Form
         if(busy&&!running){busy=false;SetStatus("Game closed","Settings can now be changed and applied.");}
         bool ready=snapshot?.Readiness.Ready==true;
         foreach(var control in settingControls)control.Enabled=snapshot!=null&&!running;
-        apply.Enabled=snapshot!=null&&!running&&dirty;play.Enabled=original.Enabled=wide.Enabled=hd.Enabled=ready&&!running&&!dirty;
+        bool supportsQol=snapshot!=null&&ProfileService.SupportsQol(snapshot);
+        foreach(var control in settingControls)
+            if(control.AccessibleName is "Experience rate (%)" or "Gold rate (%)" or "Movement boost (%)" or "Fast-forward is a toggle" or "Legacy controller menu gestures" or "Movement boost keyboard" or "Movement boost controller" or "Battle information keyboard" or "Battle information controller" or "Quest journal keyboard" or "Quest journal controller")
+                control.Enabled=snapshot!=null&&!running&&supportsQol;
+        qolCapability.Text=supportsQol?"":"Reward rates, movement boost and native hotkey changes require foundation 0.2.0 or newer. Build or select a new compilation on Setup.";
+        apply.Enabled=snapshot!=null&&!running&&dirty;play.Enabled=original.Enabled=ready&&!running&&!dirty;
+        wide.Enabled=hd.Enabled=ready&&!running&&!dirty&&snapshot!=null&&!PublicSetupService.IsSourceProfile(snapshot.ProfileDirectory);
         resume.Enabled=ready&&!running&&!dirty&&checkpoints.SelectedItem is SaveChoice;
         foreach(var button in launchButtons)button.Enabled=ready&&!running&&!dirty;
         checkpoints.Enabled=snapshot!=null&&!running;refresh.Enabled=snapshot!=null&&!running&&!dirty;
+        SetSetupEnabled(!running&&!dirty&&!busy&&!helperRunning);
         if(gameActive){statusTitle.Text="Game is running";statusTitle.ForeColor=Theme.Accent;status.Text="Close the game before changing settings or opening another session.";}
     }
 

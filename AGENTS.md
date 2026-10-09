@@ -2,7 +2,7 @@
 
 This is the public authored-source repository for Secret of the Stars Companion.
 Read README.md, BUILDING.md, ROADMAP.md and docs/VALIDATION.md first.
-The native snapshot is 0.1.9; Companion source is 0.1.2. There is no included
+The native snapshot and Companion source are 0.2.0. There is no included
 installed game, ROM, private evidence fixture or gameplay qualification receipt.
 Historical foundation documents refer to a separate protected local development
 installation; their `local/` artifacts are deliberately excluded here.
@@ -18,7 +18,9 @@ caches. Run tools/check_public_source.py before publication. Do not fabricate
 passing receipts to enable historical launcher adapters.
 
 Keep exact original-center/guest state, original cycle rate, actor activation
-and collision. Unknown wide states must refuse to centered fallback. Validate
+and collision when enhancements are disabled. Explicit reward/ordinary-walking
+modifiers are opt-in; preserve their exact guarded seams and restore behavior.
+Unknown wide states must refuse to centered fallback. Validate
 selected stream/flags, full544-byte OAM packet identity and reset/restore lineage.
 Large B0/composite/wrapping actors remain excluded from the qualified snapshot;
 private synthetic prototypes are not actual guest execution or campaign proof.

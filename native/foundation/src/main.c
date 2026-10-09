@@ -36,6 +36,7 @@
 #include "foundation_clear.h"
 #include "foundation_column_lookup.h"
 #include "foundation_wide_actors.h"
+#include "foundation_hotkeys.h"
 #include "snesrecomp_rom_identity.h"  /* generated from rom_identity.txt */
 
 #ifndef __ANDROID__
@@ -54,6 +55,7 @@
 /* This title has one input seat. Ignore a controller's stale SDL player-2
  * preference rather than silently routing it to an unused guest port. */
 static void FoundationAfterConfig(void) {
+    FoundationHotkeysInit();
     g_config.enable_gamepad[1] = false;
     g_config.player_src[1] = 0;
     FoundationPresentationInit();
@@ -66,6 +68,7 @@ static void FoundationAfterConfig(void) {
 }
 
 static void FoundationBeforeFrame(void) {
+    FoundationHotkeysBeforeFrame();
     FoundationPresentationBeforeFrame();
     FoundationJournalBeforeFrame();
     FoundationLoadingBeforeFrame();
@@ -78,6 +81,7 @@ static void FoundationAfterFrame(const SnesDesktopHostFrameStats *stats) {
     FoundationJournalAfterFrame(stats);
 }
 static void FoundationReset(void) {
+    FoundationHotkeysReset();
     FoundationPresentationReset();
     FoundationJournalReset();
     FoundationLoadingReset();
@@ -85,6 +89,7 @@ static void FoundationReset(void) {
     FoundationColumnLookupReset();
 }
 static void FoundationShutdown(void) {
+    FoundationHotkeysShutdown();
     FoundationLoadingShutdown();
     FoundationClearShutdown();
     FoundationColumnLookupShutdown();
@@ -114,6 +119,7 @@ static const SnesDesktopHostGame kGameHost = {
     .end_sim_frame       = FoundationDiagnosticsRendered,
     .draw_frame          = FoundationPresentationDraw,
     .presentation_scale  = FoundationPresentationScale,
+    .title_hotkey        = FoundationHotkeysCommand,
     /* Battery-backed SRAM shows the launcher's SAVES panel. Leave NULL for a
      * title without one. The path is exe-relative. */
     .sram_path           = "saves/save.srm",
@@ -124,5 +130,6 @@ static const SnesDesktopHostGame kGameHost = {
 #endif
 int main(int argc, char **argv)
 {
+    ConfigUseFoundationHotkeyDefaults();
     return snesrecomp_desktop_main(&kGameHost, argc, argv);
 }

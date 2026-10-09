@@ -91,11 +91,530 @@ index abbcfb0..c1a744c 100644
  #include <stdlib.h>
  #include <string.h>
  #include <stdarg.h>
+diff --git a/runner/src/desktop/config.h b/runner/src/desktop/config.h
+index af56ff1..19f5466 100644
+--- a/runner/src/desktop/config.h
++++ b/runner/src/desktop/config.h
+@@ -44,6 +44,10 @@ enum {
+   /* Reopen the launcher mid-game (SnesDesktopHostGame.in_game_launcher).
+    * Appended for the same reason as SaveStateMenu. */
+   kKeys_OpenLauncher,
++  /* Optional title-owned host actions; appended to preserve slot arithmetic. */
++  kKeys_BattleInfo,
++  kKeys_Journal,
++  kKeys_MovementBoost,
+   kKeys_Total,
+ };
+ 
+@@ -201,6 +205,8 @@ void ParseConfigFile(const char *filename);
+ // the initial parse). Keyboard command map is rebuilt; gamepad map and all
+ // scalar settings are left alone.
+ void ConfigReloadKeyMap(const char *filename);
++/* Opt in before parsing. Other titles retain their existing defaults. */
++void ConfigUseFoundationHotkeyDefaults(void);
+ // Re-apply only the [GamepadMap] button bindings (the launcher's controller
+ // page wrote them after the initial parse). The gamepad command map is
+ // rebuilt; every scalar setting, EnableGamepadN and the deadzone included,
+@@ -214,6 +220,8 @@ bool ConfigKeyMapMigrated(void);
+  * units, 30%) and it was read as the current default instead. The caller
+  * rewrites config.ini once so the file says what the game is using. */
+ bool ConfigDeadzoneMigrated(void);
++/* Unknown/conflicting explicit input bindings in this parse session. */
++unsigned ConfigBindingErrorCount(void);
+ 
+ /* True when config.ini actually named [Controller] SourceP<player+1>. A file
+  * written before this key existed has not said anything about the player's
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+index 397127b..5716eaa 100644
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -248,6 +248,28 @@ static uint32 g_win_flags = SDL_WINDOW_RESIZABLE;
+ static SDL_Window *g_window;
+ 
+ static uint8 g_paused, g_turbo, g_cursor = true;
++static bool g_fast_forward_toggle;
++static bool g_legacy_controller_gestures = true;
++void snesrecomp_desktop_set_legacy_controller_gestures(int enabled) {
++  g_legacy_controller_gestures = enabled != 0;
++}
++static unsigned g_hotkey_holds[kKeys_Total];
++static int g_keyboard_commands[SDL_NUM_SCANCODES];
++void snesrecomp_desktop_set_fast_forward_toggle(int enabled) {
++  g_fast_forward_toggle = enabled != 0;
++  g_turbo = false;
++}
++static void ResetHostHotkeys(void) {
++  int previous_turbo = g_turbo;
++  g_turbo = false;
++  memset(g_hotkey_holds, 0, sizeof(g_hotkey_holds));
++  memset(g_keyboard_commands, 0, sizeof(g_keyboard_commands));
++  if (HostGetenv("HOTKEY_TRACE"))
++    fprintf(stderr, "[host_hotkey] reset active=0 previous=%d\n", previous_turbo);
++  if (g_game && g_game->title_hotkey) {
++    g_game->title_hotkey(kKeys_MovementBoost, 0);
++  }
++}
+ static uint8 g_current_window_scale;
+ static uint32 g_input_state;
+ /* Gamepad-driven SNES controller bits, kept separate from g_input_state
+@@ -411,7 +433,7 @@ static uint64_t g_state_generation;
+ 
+ /* The last field actually presented, kept so an overlay can freeze the guest
+  * and still have something to draw behind itself. Sized like g_my_pixels. */
+-static uint8_t g_frozen_frame[kSnesDesktopMaxFrameWidth * 4 * 240];
++static uint8_t g_frozen_frame[kSnesDesktopMaxFrameWidth * 4 * 4 * 240 * 4];
+ static int g_frozen_w, g_frozen_h;
+ /* The simulated frame the next present shows. Read by SNESRECOMP_SCREENSHOT
+  * and by frame blending, which advances its kept frame once per simulated
+@@ -424,7 +446,7 @@ static unsigned g_present_frame;
+ #if defined(SNESRECOMP_HOST_HAS_BLEND) || SNESRECOMP_FRAME_STAGING_HLE
+ /* Compose where reads are cheap, then upload with a write-only row copy.
+  * The frozen overlay snapshot and optional OSD/blend read this frame. */
+-static uint8 g_frame_stage[kSnesDesktopMaxFrameWidth * 4 * 240];
++static uint8 g_frame_stage[kSnesDesktopMaxFrameWidth * 4 * 4 * 240 * 4];
+ #endif
+ 
+ static GamepadInfo g_gamepad[2];
+@@ -462,6 +484,7 @@ static void FrameBlendConfigure(void) {
+ }
+ 
+ static void GameReset(void) {
++  ResetHostHotkeys();
+   if (g_game->on_reset) g_game->on_reset();
+ #if defined(SNESRECOMP_HOST_HAS_BLEND)
+   if (g_blend) recomp_frame_blend_reset(g_blend);   /* never blend across a jump */
+@@ -1160,8 +1183,10 @@ void RtlDrawPpuFrame(uint8 *pixel_buffer, size_t pitch, uint32 render_flags) {
+      * authentic 256-column raster it composed FROM -- so a wide frame reads
+      * as correct in a capture while the player is looking at something the
+      * capture never saw. Trace builds only; a no-op stub otherwise. */
++    int scale = g_game->presentation_scale ? g_game->presentation_scale() : 1;
++    if (scale < 1 || scale > 4) scale = 1;
+     debug_server_note_composed_frame(pixel_buffer, (unsigned)pitch,
+-                                     g_snes_width, g_snes_height);
++                                     g_snes_width * scale, g_snes_height * scale);
+     return;
+   }
+   debug_server_note_composed_frame(NULL, 0, 0, 0);
+@@ -1236,7 +1261,9 @@ static void WritePpm(const char *path, const uint8 *pixel_buffer, int pitch,
+ static void DrawPpuFrameWithPerf(void) {
+   double profile_start = ProfileStart();
+   PreparePpuFrame();
+-  const int render_scale = 1;
++  int render_scale = g_game->draw_frame && g_game->presentation_scale
++      ? g_game->presentation_scale() : 1;
++  if (render_scale < 1 || render_scale > 4) render_scale = 1;
+   uint8 *present_buffer = 0;
+   int present_pitch = 0;
+ 
+@@ -1464,6 +1491,7 @@ static bool HandleDeviceEvent(const SDL_Event *event) {
+   case SDL_CONTROLLERDEVICEREMOVED:
+     gi = GetGamepadInfo(SNESRECOMP_SDL_EVENT_DEVICE(*event));
+     if (gi) {
++      ResetHostHotkeys();
+       memset(gi, 0, sizeof(GamepadInfo));
+       gi->joystick_id = -1;
+     }
+@@ -1491,6 +1519,7 @@ static bool HandleDeviceEvent(const SDL_Event *event) {
+   case SDL_JOYDEVICEREMOVED:
+     gi = GetGamepadInfo(event->jdevice.which);
+     if (gi && gi->raw_joystick) {
++      ResetHostHotkeys();
+       if (gi->joystick) SDL_JoystickClose(gi->joystick);
+       memset(gi, 0, sizeof(GamepadInfo));
+       gi->joystick_id = -1;
+@@ -1538,6 +1567,9 @@ static void ResetAudioTimeline(void);
+  * the rewind module does not, so the host applies it to both. */
+ static uint32 g_overlay_release_mask;
+ static void OverlayNoteClosed(void) {
++  /* A modal key-down is not dispatched to the guest. Sample it here so a
++   * held keyboard cancel is blocked until release, just like pad cancel. */
++  PollKeyboardControls(snesrecomp_sdl_get_keyboard_state());
+   g_overlay_release_mask |= OverlayNavInputs();
+ }
+ static uint32 OverlayFilterGuestInput(uint32 inputs) {
+@@ -1688,6 +1720,7 @@ static long g_selftest_pad_frame = -2;
+ static int g_selftest_pad_phase;      /* 0 idle, 1 browser, 2 rewind */
+ static int g_selftest_pad_failed;
+ static int g_selftest_pad_opened;     /* bit 1: browser opened, bit 2: rewind */
++static bool g_gameplay_selftest_pad;
+ /* While the self-test is armed, only the virtual pad is opened: a real
+  * controller plugged in would take player 1 and the virtual one would land
+  * on seat 2, where no overlay gesture reads -- and a test that then finds
+@@ -1708,6 +1741,8 @@ static void SelftestPadReleaseAll(void) {
+ }
+ static void OverlaySelftestPadAttach(void) {
+   const char *v = HostGetenv("OVERLAY_SELFTEST_PAD");
++  g_gameplay_selftest_pad = HostGetenv("GAMEPAD_GAMEPLAY_SELFTEST") != NULL;
++  if (g_gameplay_selftest_pad) v = "0";
+   g_selftest_pad_frame = v ? strtol(v, NULL, 0) : -1;
+   if (g_selftest_pad_frame < 0) return;
+ #if SNESRECOMP_SDL3
+@@ -1736,6 +1771,19 @@ static void OverlaySelftestPadMainTick(unsigned frame) {
+    * paces; act once per frame. */
+   if (frame == last_frame) return;
+   last_frame = frame;
++  /* Opt-in fixture: use SDL virtual-device events, never guest input pokes.
++   * The dedicated profile maps south/east to SNES A/B. This title opens its
++   * field menu with B; A enters a submenu and B backs out again. */
++  if (g_gameplay_selftest_pad) {
++    SelftestPadReleaseAll();
++    if (frame >= 10 && frame < 30) SelftestPadSet(SDL_CONTROLLER_BUTTON_DPAD_RIGHT, true);
++    if (frame >= 50 && frame < 70) SelftestPadSet(SDL_CONTROLLER_BUTTON_DPAD_DOWN, true);
++    if (frame >= 90 && frame < 92) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
++    if (frame >= 120 && frame < 122) SelftestPadSet(SDL_CONTROLLER_BUTTON_A, true);
++    if (frame >= 150 && frame < 152) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
++    if (frame >= 180 && frame < 182) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
++    return;
++  }
+   if ((long)frame == g_selftest_pad_frame) {
+     fprintf(stderr, "[overlay_selftest_pad] frame %u: holding Select+R on the pad\n", frame);
+     g_selftest_pad_phase = 1;
+@@ -1772,7 +1820,32 @@ static void OverlaySelftestPadTick(unsigned pump) {
+    * is the SNES B, pad "B" is the SNES A). The east button would be the
+    * SNES A -- load in the browser, commit in rewind -- which is exactly the
+    * wrong one to test "close" with, and this test first did. */
+-  case 14: SelftestPadSet(SDL_CONTROLLER_BUTTON_A, true); break;
++  case 14: {
++    const char *exit_mode = HostGetenv("OVERLAY_SELFTEST_EXIT");
++    if (exit_mode && (strcmp(exit_mode, "escape") == 0 ||
++                      strcmp(exit_mode, "toggle") == 0 ||
++                      strcmp(exit_mode, "cancel") == 0)) {
++      SDL_Event e = {0};
++      int key = strcmp(exit_mode, "toggle") == 0
++          ? (g_selftest_pad_phase == 1 ? SDLK_F7 : SDLK_F8)
++          : strcmp(exit_mode, "cancel") == 0 ? SDLK_z : SDLK_ESCAPE;
++      /* The browser's toggle/cancel key paths are outside this rewind check. */
++      if (g_selftest_pad_phase == 1) key = SDLK_ESCAPE;
++      e.type = SDL_KEYDOWN;
++#if SNESRECOMP_SDL3
++      e.key.key = key;
++#else
++      e.key.keysym.sym = key;
++#endif
++      SDL_PushEvent(&e);
++    } else {
++      /* Find the actual cancel binding, including a customized face layout. */
++      for (int b = SDL_CONTROLLER_BUTTON_A; b <= SDL_CONTROLLER_BUTTON_Y; b++)
++        if (FindCmdForGamepadButton(RemapSdlButton(b), 0) == kKeys_Controls + 7)
++          SelftestPadSet(b, true);
++    }
++    break;
++  }
+   case 40:
+     fprintf(stderr, "[overlay_selftest_pad] FAIL: %s did not close from the pad within 40 pumps\n",
+             g_selftest_pad_phase == 1 ? "save-state browser" : "rewind");
+@@ -1910,7 +1983,13 @@ static void RunSavestateMenuLoop(bool *running) {
+ }
+ 
+ static void RewindKeyDown(int key, int repeat) {
+-  (void)repeat;
++  /* Match the player's cancel key and let the opener toggle the panel closed.
++   * Holding the opener must not immediately close its own new panel. */
++  if (!repeat && (snesrecomp_sdl_scancode_from_key(key) == keybinds_get()->p1.b ||
++      FindCmdForSdlKey(key, SDL_GetModState()) == kKeys_Rewind)) {
++    snes_rewind_close();
++    return;
++  }
+   switch (key) {
+   case SDLK_LEFT:   snes_rewind_step(-1); break;
+   case SDLK_RIGHT:  snes_rewind_step(+1); break;
+@@ -1993,6 +2072,7 @@ static _Thread_local bool g_audio_consumer_stalled;
+ static _Thread_local uint64_t g_audio_stalled_callback;
+ static uint64_t g_audio_callback_count;  /* protected by g_audio_mutex */
+ static bool g_audio_primed;  /* protected by g_audio_mutex */
++static FILE *g_audio_capture;
+ #define HOST_AUDIO_PREFILL 2136u
+ #define HOST_AUDIO_HIGH_WATER 4096u
+ #if SNESRECOMP_SDL3
+@@ -2003,6 +2083,20 @@ static uint8 *g_audio_stream_buffer;
+ static size_t g_audio_stream_buffer_size;
+ #endif
+ 
++/* Called before unpausing the device; publish only a complete allocation. */
++static bool AllocateAudioBuffer(int frequency, int channels) {
++  if (frequency <= 0 || channels != 2) return false;
++  uint64_t frames = (534ULL * (uint64_t)frequency + 32040 / 2) / 32040;
++  if (!frames || frames > INT_MAX ||
++      frames > SIZE_MAX / ((size_t)channels * sizeof(int16))) return false;
++  uint8 *buffer = (uint8 *)calloc((size_t)frames * channels * sizeof(int16), 1);
++  if (!buffer) return false;
++  g_frames_per_block = (int)frames;
++  g_audio_channels = (uint8)channels;
++  g_audiobuffer = g_audiobuffer_cur = g_audiobuffer_end = buffer;
++  return true;
++}
++
+ static void ResetAudioTimeline(void) {
+   RtlApuLock();
+   g_audiobuffer_end = g_audiobuffer_cur;
+@@ -2053,6 +2147,8 @@ void RtlApuUnlock(void) {
+ /* Backend-agnostic mixer body. SDL2 calls it from its pull callback; SDL3 calls
+  * it to fill a scratch buffer that is then pushed into the audio stream. */
+ static void FillAudioBuffer(Uint8 *stream, int len) {
++  Uint8 *capture_start = stream;
++  int capture_size = len;
+   /* Boot-stage marker: proves the audio thread reached the mixer at
+    * least once (the "crashed before the first sound" class of report). */
+   static SDL_atomic_t first_cb;
+@@ -2097,6 +2193,7 @@ static void FillAudioBuffer(Uint8 *stream, int len) {
+     stream += n;
+     len -= n;
+   }
++  if (g_audio_capture) fwrite(capture_start, 1, capture_size, g_audio_capture);
+   SDL_UnlockMutex(g_audio_mutex);
+ }
+ 
+@@ -3041,6 +3138,13 @@ int snesrecomp_desktop_main(const SnesDesktopHostGame *game, int argc, char **ar
+   /* Before after_config, so a port that wants to inspect the parsed rewind
+    * settings sees the same opt-in the writer will honour. */
+   if (game->rewind_settings) ConfigEnableRewindKeys();
++  /* Read-only developer/launcher probe: no ROM, profile writes, SDL window,
++   * native initialization or forged gameplay receipt is involved. */
++  if (HostGetenv("CHECK_BINDINGS")) {
++    unsigned errors = ConfigBindingErrorCount();
++    fprintf(stdout, "{\"binding_errors\":%u,\"rom_read\":false}\n", errors);
++    return errors ? 2 : 0;
++  }
+   if (game->after_config) game->after_config();
+   ApplyVolume();
+   /* SNESRECOMP_KEYMAP_DUMP=1: what the system hotkeys resolved to, for a
+@@ -3528,6 +3632,8 @@ error_reading:;
+   }
+ 
+   int audio_output_rate = 0;
++  const char *capture_path = HostGetenv("AUDIO_OUTPUT_RAW");
++  if (capture_path) g_audio_capture = fopen(capture_path, "wb");
+   if (g_config.enable_audio) {
+     /* Enumerate output devices into the breadcrumb ring: which device
+      * SDL picks (and what else was available) is exactly the per-machine
+@@ -3573,13 +3679,23 @@ error_reading:;
+       printf("Failed to open audio device: %s\n", SDL_GetError());
+       return 1;
+     }
+-    g_audio_channels = 2;
++    if (!AllocateAudioBuffer(have.freq, have.channels)) {
++      host_report_breadcrumb("audio buffer allocation/layout FAILED: freq=%d ch=%d",
++                             have.freq, have.channels);
++      fprintf(stderr, "Failed to allocate a valid stereo audio buffer\n");
++#if SNESRECOMP_SDL3
++      SDL_DestroyAudioStream(g_audio_stream);
++      g_audio_stream = NULL;
++#else
++      SDL_CloseAudioDevice(g_audio_device);
++#endif
++      g_audio_device = 0;
++      return 1;
++    }
+     /* The SPC's native rate is 32040 Hz (1.024 MHz / 32), not 32000. The
+      * consumer converts onto the device rate and cannot infer it. */
+     RtlSetAudioOutputRate(have.freq);
+     audio_output_rate = have.freq;
+-    g_frames_per_block = (534 * have.freq + 32040 / 2) / 32040;
+-    g_audiobuffer = (uint8 *)calloc(g_frames_per_block * have.channels * sizeof(int16), 1);
+     host_report_breadcrumb(
+         "audio device opened: freq=%d (want %d) ch=%d samples=%d frames_per_block=%d",
+         have.freq, want.freq, have.channels,
+@@ -3609,7 +3725,7 @@ error_reading:;
+    * file is one-shot -- a later plain launch must not resume it again. */
+   if (args.resume_state) {
+     bool resumed = RtlLoadSnapshot(args.resume_state);
+-    if (resumed) GameReset();
++    if (resumed) { GameReset(); ResetAudioTimeline(); }
+     host_report_breadcrumb("resume state %s: %s", resumed ? "loaded" : "FAILED to load (kept)",
+                            args.resume_state);
+     if (resumed) remove(args.resume_state);
+@@ -3718,6 +3834,7 @@ error_reading:;
+           break;
+         }
+ #endif
++        if (SNESRECOMP_SDL_EVENT_REPEAT(event)) break;
+         HandleInput(SNESRECOMP_SDL_EVENT_KEY(event),
+                     SNESRECOMP_SDL_EVENT_MOD(event), true);
+         break;
+@@ -3729,11 +3846,35 @@ error_reading:;
+         running = false;
+         exit_reason = "SDL_QUIT event";
+         break;
++#if SNESRECOMP_SDL3
++      case SDL_EVENT_WINDOW_FOCUS_LOST:
++#else
++      case SDL_WINDOWEVENT:
++        if (event.window.event != SDL_WINDOWEVENT_FOCUS_LOST) break;
++#endif
++        ResetHostHotkeys();
++        g_input_state = g_pad_buttons = 0;
++        break;
+       }
+     }
+     if (!running)
+       break;
+     OverlaySelftestPadMainTick(frameCtr);
++    /* Opt-in desktop fixture: exercise configured fullscreen shortcuts through
++     * the normal key resolver and verify SDL's actual window flag. */
++    if (HostGetenv("FULLSCREEN_SELFTEST")) {
++      static unsigned last_test_frame = ~0u;
++      if (frameCtr != last_test_frame && (frameCtr == 30 || frameCtr == 90 ||
++          frameCtr == 120 || frameCtr == 150)) {
++        last_test_frame = frameCtr;
++        int key = frameCtr == 30 ? SDLK_F11 : frameCtr == 90 ? SDLK_F11
++                : frameCtr == 120 ? SDLK_F12 : SDLK_RETURN;
++        HandleInput(key, frameCtr == 150 ? KMOD_ALT : 0, true);
++        HandleInput(key, frameCtr == 150 ? KMOD_ALT : 0, false);
++        fprintf(stderr, "[fullscreen_selftest] frame %u fullscreen=%d\n", frameCtr,
++                !!(SDL_GetWindowFlags(g_window) & SNESRECOMP_SDL_WINDOW_FULLSCREEN_DESKTOP));
++      }
++    }
+     /* SNESRECOMP_VOLUME_DEMO=<frame>: press VolumeDown once at that frame, so
+      * a headless screenshot can show the bar. */
+     {
+@@ -3793,7 +3934,7 @@ error_reading:;
+           snes_savestate_menu_poll_nav(human, SDL_GetTicks());
+         } else if (!snes_netplay_menu_paused()) {
+           (void)snes_savestate_menu_poll_open(g_savestate_menu_hotkey
+-              ? (SNES_PAD_SELECT | SNES_PAD_R) : human);
++              ? (SNES_PAD_SELECT | SNES_PAD_R) : g_legacy_controller_gestures ? human : 0);
+         }
+         g_savestate_menu_hotkey = 0;
+         if (snes_netplay_menu_ready() && !snes_savestate_menu_is_open())
+@@ -4050,7 +4191,7 @@ error_reading:;
+     g_rewind_hotkey = 0;
+     /* Exactly ONE poll_open per frame: it latches the previous word to edge
+      * detect on, so a second call in the same frame eats the edge. */
+-    (void)snes_savestate_menu_poll_open(human);
++    (void)snes_savestate_menu_poll_open(g_legacy_controller_gestures ? human : 0);
+     if (g_savestate_menu_hotkey) {
+       g_savestate_menu_hotkey = 0;
+       if (!snes_savestate_menu_is_open())
+@@ -4067,6 +4208,13 @@ error_reading:;
+      * iteration that opened a panel consumed a script frame the guest never
+      * saw, and every later scripted press landed a frame early. */
+     inputs |= TickScript();
++    if (g_gameplay_selftest_pad) {
++      static uint32 last_inputs = ~0u;
++      if (inputs != last_inputs) {
++        fprintf(stderr, "[gamepad_gameplay_selftest] frame %u guest_input=%03x\n", frameCtr, inputs);
++        last_inputs = inputs;
++      }
++    }
+     if (g_script_quit) {
+       running = false;
+       exit_reason = g_script_failed ? "script until timed out" : "script quit";
+@@ -4244,6 +4392,7 @@ error_reading:;
+   SDL_CloseAudioDevice(g_audio_device);
+ #endif
+   SDL_DestroyMutex(g_audio_mutex);
++  if (g_audio_capture) { fclose(g_audio_capture); g_audio_capture = NULL; }
+   free(g_audiobuffer);
+ 
+   g_renderer_funcs.Destroy();
+@@ -4307,6 +4456,7 @@ static void HandleCommand(uint32 j, bool pressed) {
+     return;
+   }
+ 
++#if defined(SNES_HAS_LOBBY_CLIENT)
+   if (g_netplay_session) {
+     switch (j) {
+     case kKeys_SaveStateMenu:
+@@ -4321,8 +4471,26 @@ static void HandleCommand(uint32 j, bool pressed) {
+     }
+   }
+ 
++#endif
++
+   if (j == kKeys_Turbo) {
+-    g_turbo = pressed;
++    unsigned previous = g_hotkey_holds[j];
++    if (pressed) ++g_hotkey_holds[j];
++    else if (g_hotkey_holds[j]) --g_hotkey_holds[j];
++    if (g_fast_forward_toggle) {
++      if (pressed && !previous) g_turbo = !g_turbo;
++    } else g_turbo = g_hotkey_holds[j] != 0;
++    if (HostGetenv("HOTKEY_TRACE"))
++      fprintf(stderr, "[host_hotkey] Turbo pressed=%d active=%d toggle=%d\n",
++              pressed, g_turbo, g_fast_forward_toggle);
++    return;
++  }
++  if (j >= kKeys_BattleInfo && j <= kKeys_MovementBoost) {
++    unsigned previous = g_hotkey_holds[j];
++    if (pressed) ++g_hotkey_holds[j];
++    else if (g_hotkey_holds[j]) --g_hotkey_holds[j];
++    if (g_game->title_hotkey && (!!previous != !!g_hotkey_holds[j]))
++      g_game->title_hotkey(j, g_hotkey_holds[j] != 0);
+     return;
+   }
+ 
+@@ -4391,7 +4559,28 @@ static void HandleCommand(uint32 j, bool pressed) {
+ }
+ 
+ static void HandleInput(int keyCode, int keyMod, bool pressed) {
+-  int j = FindCmdForSdlKey(keyCode, (SDL_Keymod)keyMod);
++  /* A modifier bound as a physical button does not modify itself. */
++  if (keyCode == SDLK_LSHIFT || keyCode == SDLK_RSHIFT) keyMod &= ~KMOD_SHIFT;
++  if (keyCode == SDLK_LCTRL || keyCode == SDLK_RCTRL) keyMod &= ~KMOD_CTRL;
++  if (keyCode == SDLK_LALT || keyCode == SDLK_RALT) keyMod &= ~KMOD_ALT;
++  SDL_Scancode scan = snesrecomp_sdl_scancode_from_key(keyCode);
++  int j;
++  if ((unsigned)scan >= SDL_NUM_SCANCODES) return;
++  if (pressed) {
++    if (g_keyboard_commands[scan]) return;
++    j = FindCmdForSdlKey(keyCode, (SDL_Keymod)keyMod);
++    g_keyboard_commands[scan] = j;
++  } else {
++    /* Releasing a modifier before its key must still release the old action. */
++    j = g_keyboard_commands[scan];
++    g_keyboard_commands[scan] = 0;
++    if (!j) {
++      /* Modal browsers deliver control keydowns directly, without recording
++       * a host action. Their keyup must still release those control bits. */
++      int control = FindCmdForSdlKey(keyCode, (SDL_Keymod)keyMod);
++      if (control >= kKeys_Controls && control <= kKeys_ControlsP2_Last) j = control;
++    }
++  }
+   if (j != 0)
+     HandleCommand(j, pressed);
+ }
+@@ -4531,6 +4720,17 @@ static void SetPadButtonOrFallthrough(uint32 j, bool pressed) {
+   }
+   if (g_overlay_modal)
+     return;   /* a panel owns the screen: no state loads behind it */
++  if (pressed && (j == kKeys_BattleInfo || j == kKeys_Journal)) {
++    /* An enabled legacy system gesture owns its complete chord, so R3 does
++     * not also queue a HUD toggle while Select+R3 opens rewind. Explicitly
++     * disabling that gesture leaves the chord available to the title map. */
++    const PadGesture *gestures[] = { &g_rewind_gesture, &g_launcher_gesture };
++    for (unsigned i = 0; i < 2; ++i) {
++      const PadGesture *g = gestures[i];
++      if (g->ok && (OverlayNavInputs() & g->pad) == g->pad &&
++          (g_gamepad[0].modifiers & g->raw) == g->raw) return;
++    }
++  }
+   HandleCommand(j, pressed);
+ }
+ 
+@@ -4538,6 +4738,18 @@ static void HandleGamepadInput(GamepadInfo *gi, int button, bool pressed) {
+   if (!!(gi->modifiers & (1 << button)) == pressed)
+     return;
+   gi->modifiers ^= 1 << button;
++  if (!pressed) {
++    /* Held commands stop when any required chord modifier is released. */
++    for (int b = 0; b < kGamepadBtn_Count; ++b) {
++      int old = gi->last_cmd[b];
++      if (b != button && (gi->modifiers & (1u << b)) &&
++          (old == kKeys_Turbo || old == kKeys_MovementBoost) &&
++          FindCmdForGamepadButton(b + gi->index * kGamepadBtn_Count, gi->modifiers) != old) {
++        SetPadButtonOrFallthrough(old, false);
++        gi->last_cmd[b] = 0;
++      }
++    }
++  }
+   if (pressed)
+     gi->last_cmd[button] = FindCmdForGamepadButton(button + gi->index * kGamepadBtn_Count, gi->modifiers);
+   if (gi->last_cmd[button] != 0)
 diff --git a/runner/src/desktop/host_main.h b/runner/src/desktop/host_main.h
-index 03b6f06..e0a6297 100644
+index 03b6f06..7c9640e 100644
 --- a/runner/src/desktop/host_main.h
 +++ b/runner/src/desktop/host_main.h
-@@ -197,6 +197,10 @@ typedef struct SnesDesktopHostGame {
+@@ -197,6 +197,13 @@ typedef struct SnesDesktopHostGame {
    /* After the gameplay loop ends, before SDL resources are destroyed or a
     * relaunch begins. Stop title-owned workers here. No further frames run. */
    void (*on_shutdown)(void);
@@ -103,9 +622,223 @@ index 03b6f06..e0a6297 100644
 +   * stay logical; draw_frame writes width*scale by height*scale into dst.
 +   * Hosts without a custom draw_frame always retain scale 1. */
 +  int (*presentation_scale)(void);
++  /* Optional, configuration-resolved title actions (desktop/config.h).
++   * Called on the main thread with deduplicated press/release edges. */
++  void (*title_hotkey)(unsigned command, int pressed);
  } SnesDesktopHostGame;
  
  /* The whole program. Returns the process exit code. */
+@@ -211,6 +218,10 @@ void snesrecomp_desktop_set_widescreen(int enabled);
+ /* Ask the host to reset its pacing clock at the next opportunity (a title
+  * that just changed its presentation settings). */
+ void snesrecomp_desktop_request_clock_reset(void);
++/* Changes only explicitly requested Turbo behavior; default remains hold. */
++void snesrecomp_desktop_set_fast_forward_toggle(int enabled);
++/* Title policy; off frees the legacy Select system-menu chords for rebinding. */
++void snesrecomp_desktop_set_legacy_controller_gestures(int enabled);
+ 
+ #ifdef __cplusplus
+ }
+diff --git a/runner/src/desktop/mmx_config.c b/runner/src/desktop/mmx_config.c
+index 3757ebf..6f0d598 100644
+--- a/runner/src/desktop/mmx_config.c
++++ b/runner/src/desktop/mmx_config.c
+@@ -18,7 +18,11 @@ enum {
+ };
+ 
+ Config g_config;
++static unsigned s_binding_errors;
++static bool s_parsing_gamepad_binding;
++unsigned ConfigBindingErrorCount(void) { return s_binding_errors; }
+ static bool s_state_menu_defaults;
++static bool s_foundation_hotkey_defaults;
+ /* Set when a [KeyMap] line carried a binding this framework used to GENERATE
+  * as its default and has since changed; the line is read as the new default
+  * and WriteConfigFile rewrites it, so the file stops disagreeing with the
+@@ -86,6 +90,12 @@ void ConfigUseStateMenuDefaults(void) {
+ void ConfigUseInGameLauncherDefaults(void) {
+   kDefaultKbdControls[kKeys_OpenLauncher] = C(SDLK_l);
+ }
++void ConfigUseFoundationHotkeyDefaults(void) {
++  s_foundation_hotkey_defaults = true;
++  kDefaultKbdControls[kKeys_BattleInfo] = _(SDLK_h);
++  kDefaultKbdControls[kKeys_Journal] = _(SDLK_j);
++  kDefaultKbdControls[kKeys_MovementBoost] = _(SDLK_LSHIFT);
++}
+ #undef _
+ #undef A
+ #undef C
+@@ -106,6 +116,7 @@ static const KeyNameId kKeyNameId[] = {
+   S(Fullscreen), S(Reset),
+   S(Pause), S(PauseDimmed), S(Turbo), S(WindowBigger), S(WindowSmaller), S(VolumeUp), S(VolumeDown), S(DisplayPerf), S(ToggleRenderer), S(ToggleWidescreen),
+   S(SaveStateMenu), S(Rewind), S(Screenshot), S(OpenLauncher),
++  S(BattleInfo), S(Journal), S(MovementBoost),
+ };
+ #undef S
+ #undef M
+@@ -117,6 +128,7 @@ static uint16 keymap_hash_first[255];
+ static KeyMapHashEnt *keymap_hash;
+ static int keymap_hash_size;
+ static bool has_keynameid[countof(kKeyNameId)];
++static bool has_gamepad_command[kKeys_Total];
+ 
+ static bool KeyMapHash_Add(uint16 key, uint16 cmd) {
+   if (!key)
+@@ -143,6 +155,7 @@ static bool KeyMapHash_Add(uint16 key, uint16 cmd) {
+   while (*cur) {
+     KeyMapHashEnt *ent = &keymap_hash[*cur - 1];
+     if (ent->key == key) {
++      if (ent->cmd == cmd) { keymap_hash_size--; return true; }
+       /* Launcher-editable menu actions take precedence over legacy slot
+        * shortcuts, independently of config line/default registration order. */
+       bool new_menu = cmd == kKeys_SaveStateMenu || cmd == kKeys_Rewind;
+@@ -222,11 +235,14 @@ static void ParseKeyArray(char *value, int cmd, int size) {
+       key_with_mod = 0; key = SDLK_KP_MINUS; s_keymap_migrated = true;
+     }
+     if (key == SDLK_UNKNOWN) {
++      ++s_binding_errors;
+       fprintf(stderr, "Unknown key: '%s'\n", s);
+       continue;
+     }
+-    if (!KeyMapHash_Add(key_with_mod | REMAP_SDL_KEYCODE(key), cmd))
++    if (!KeyMapHash_Add(key_with_mod | REMAP_SDL_KEYCODE(key), cmd)) {
++      ++s_binding_errors;
+       fprintf(stderr, "Duplicate key: '%s'\n", s);
++    }
+   }
+ }
+ 
+@@ -248,6 +264,16 @@ static int CountBits32(uint32 n) {
+ }
+ 
+ static void GamepadMap_Add(int button, uint32 modifiers, uint16 cmd) {
++  if (s_parsing_gamepad_binding) {
++    for (int e = joymap_first[button]; e; e = joymap_ents[e - 1].next) {
++      const GamepadMapEnt *old = &joymap_ents[e - 1];
++      if (old->modifiers == modifiers && old->cmd != cmd) {
++        ++s_binding_errors;
++        fprintf(stderr, "Conflicting gamepad command ids: %u / %u\n", old->cmd, cmd);
++        break;
++      }
++    }
++  }
+   /* Grow every 64 entries, which is the 64 this grows BY. The test was
+    * `(joymap_size & 0xff) == 0` -- a check every 256 against an allocation of
+    * 64 -- so entry 64 wrote one element past the block and quietly corrupted
+@@ -312,10 +338,11 @@ static const uint8 kDefaultGamepadCmds[] = {
+ };
+ 
+ static void ParseGamepadArray(int gamepad, char *value, int cmd, int size) {
++  s_parsing_gamepad_binding = true;
+   char *s;
+   int i = 0;
+   for (; i < size && (s = NextDelim(&value, ',')) != NULL; i++, cmd += (cmd != 0)) {
+-    if (*s == 0)
++    if (*s == 0 || StringEqualsNoCase(s, "None") || StringEqualsNoCase(s, "(unbound)"))
+       continue;
+     int gamepad_cur = gamepad;
+     uint32 modifiers = 0;
+@@ -323,6 +350,7 @@ static void ParseGamepadArray(int gamepad, char *value, int cmd, int size) {
+     for (;;) {
+       int button = ParseGamepadButtonName(&ss);
+       if (button == kGamepadBtn_Invalid) BAD: {
++        ++s_binding_errors;
+         fprintf(stderr, "Unknown gamepad button: '%s'\n", s);
+         break;
+       }
+@@ -355,6 +383,18 @@ static void RegisterDefaultKeys(void) {
+     for (int i = 0; i < countof(kDefaultGamepadCmds); i++)
+       GamepadMap_Add(kDefaultGamepadCmds[i] + kGamepadBtn_Count, 0, kKeys_ControlsP2 + i);
+   }
++  if (s_foundation_hotkey_defaults) {
++    /* An explicit even-unbound action always wins over the title default. */
++    if (!has_gamepad_command[kKeys_BattleInfo] && !FindCmdForGamepadButton(kGamepadBtn_R3, 0))
++      GamepadMap_Add(kGamepadBtn_R3, 0, kKeys_BattleInfo);
++    if (!has_gamepad_command[kKeys_Journal] && !FindCmdForGamepadButton(kGamepadBtn_L3, 0))
++      GamepadMap_Add(kGamepadBtn_L3, 0, kKeys_Journal);
++    if (!has_gamepad_command[kKeys_Turbo] && !FindCmdForGamepadButton(kGamepadBtn_R2, 0))
++      GamepadMap_Add(kGamepadBtn_R2, 0, kKeys_Turbo);
++    if (!has_gamepad_command[kKeys_MovementBoost] && !FindCmdForGamepadButton(kGamepadBtn_L2, 0))
++      GamepadMap_Add(kGamepadBtn_L2, 0, kKeys_MovementBoost);
++  }
++  s_parsing_gamepad_binding = false;
+ }
+ 
+ static int GetIniSection(const char *s) {
+@@ -458,6 +498,7 @@ static bool HandleIniConfig(int section, const char *key, char *value) {
+       for (int i = 0; i < countof(kKeyNameId); i++) {
+         if (StringEqualsNoCase(key, kKeyNameId[i].name)) {
+           int id = kKeyNameId[i].id;
++          if (id < kKeys_Total) has_gamepad_command[id] = true;
+           has_assigned_joypad_controls |= (id == kKeys_Controls) ? 1 : (id == kKeys_ControlsP2) ? 2 : 0;
+           ParseGamepadArray(id == kKeys_ControlsP2 ? 1 : 0, value, kKeyNameId[i].id, kKeyNameId[i].size);
+           return true;
+@@ -774,6 +815,7 @@ void ConfigReloadGamepadMap(const char *filename) {
+   joymap_ents = NULL;
+   joymap_size = 0;
+   has_assigned_joypad_controls = 0;
++  memset(has_gamepad_command, 0, sizeof(has_gamepad_command));
+ 
+   ReloadSection(filename, "[GamepadMap]", 5, true);
+ 
+diff --git a/runner/src/desktop/opengl.c b/runner/src/desktop/opengl.c
+index e9063a7..3eaeb5c 100644
+--- a/runner/src/desktop/opengl.c
++++ b/runner/src/desktop/opengl.c
+@@ -29,6 +29,8 @@
+ #include "sdl_compat.h"
+ 
+ #include <stdio.h>
++#include <limits.h>
++#include <stdint.h>
+ #include <stdbool.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -268,6 +270,10 @@ static void OpenGLRenderer_Reconfigure(void) {
+ }
+ 
+ static void OpenGLRenderer_Destroy(void) {
++  free(g_screen_buffer);
++  g_screen_buffer = NULL;
++  g_screen_buffer_size = 0;
++  g_draw_width = g_draw_height = 0;
+ }
+ 
+ static void OpenGLRenderer_GetOutputSize(int *width, int *height) {
+@@ -361,14 +367,20 @@ static bool DrawScreenshotFlash(double elapsed_seconds) {
+ }
+ 
+ static void OpenGLRenderer_BeginDraw(int width, int height, uint8 **pixels, int *pitch) {
++  g_draw_width = g_draw_height = 0;
++  if (!pixels || !pitch) return;
++  *pixels = NULL;
++  *pitch = 0;
++  if (width <= 0 || height <= 0 || width > INT_MAX / 4 ||
++      (size_t)height > SIZE_MAX / 4 / (size_t)width) return;
+   size_t size = (size_t)width * (size_t)height;
+-
+-  if (size > g_screen_buffer_size) {
+-    g_screen_buffer_size = size;
++  if (size > g_screen_buffer_size || !g_screen_buffer) {
++    uint8 *buffer = (uint8 *)malloc(size * 4);
++    if (!buffer) return;
+     free(g_screen_buffer);
+-    g_screen_buffer = (uint8 *)malloc(size * 4);
++    g_screen_buffer = buffer;
++    g_screen_buffer_size = size;
+   }
+-
+   g_draw_width = width;
+   g_draw_height = height;
+   *pixels = g_screen_buffer;
+@@ -376,6 +388,7 @@ static void OpenGLRenderer_BeginDraw(int width, int height, uint8 **pixels, int
+ }
+ 
+ static void OpenGLRenderer_EndDraw(void) {
++  if (!g_screen_buffer || g_draw_width <= 0 || g_draw_height <= 0) return;
+   int drawable_width, drawable_height;
+ 
+   snesrecomp_sdl_get_drawable_size(g_window, &drawable_width, &drawable_height);
 diff --git a/runner/src/snes/dma.c b/runner/src/snes/dma.c
 index 9fb6639..fa9e256 100644
 --- a/runner/src/snes/dma.c
@@ -688,352 +1421,3 @@ index 7ab7311..8f2856c 100644
      if (!s_open || repeat)
          return;
      /* SDLK_* is unsigned under SDL3 and signed under SDL2. Cast at every
-diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
---- a/runner/src/desktop/host_main.c
-+++ b/runner/src/desktop/host_main.c
-@@ -411,7 +411,7 @@
- 
- /* The last field actually presented, kept so an overlay can freeze the guest
-  * and still have something to draw behind itself. Sized like g_my_pixels. */
--static uint8_t g_frozen_frame[kSnesDesktopMaxFrameWidth * 4 * 240];
-+static uint8_t g_frozen_frame[kSnesDesktopMaxFrameWidth * 4 * 4 * 240 * 4];
- static int g_frozen_w, g_frozen_h;
- /* The simulated frame the next present shows. Read by SNESRECOMP_SCREENSHOT
-  * and by frame blending, which advances its kept frame once per simulated
-@@ -424,7 +424,7 @@
- #if defined(SNESRECOMP_HOST_HAS_BLEND) || SNESRECOMP_FRAME_STAGING_HLE
- /* Compose where reads are cheap, then upload with a write-only row copy.
-  * The frozen overlay snapshot and optional OSD/blend read this frame. */
--static uint8 g_frame_stage[kSnesDesktopMaxFrameWidth * 4 * 240];
-+static uint8 g_frame_stage[kSnesDesktopMaxFrameWidth * 4 * 4 * 240 * 4];
- #endif
- 
- static GamepadInfo g_gamepad[2];
-@@ -1160,8 +1160,10 @@
-      * authentic 256-column raster it composed FROM -- so a wide frame reads
-      * as correct in a capture while the player is looking at something the
-      * capture never saw. Trace builds only; a no-op stub otherwise. */
-+    int scale = g_game->presentation_scale ? g_game->presentation_scale() : 1;
-+    if (scale < 1 || scale > 4) scale = 1;
-     debug_server_note_composed_frame(pixel_buffer, (unsigned)pitch,
--                                     g_snes_width, g_snes_height);
-+                                     g_snes_width * scale, g_snes_height * scale);
-     return;
-   }
-   debug_server_note_composed_frame(NULL, 0, 0, 0);
-@@ -1236,7 +1238,9 @@
- static void DrawPpuFrameWithPerf(void) {
-   double profile_start = ProfileStart();
-   PreparePpuFrame();
--  const int render_scale = 1;
-+  int render_scale = g_game->draw_frame && g_game->presentation_scale
-+      ? g_game->presentation_scale() : 1;
-+  if (render_scale < 1 || render_scale > 4) render_scale = 1;
-   uint8 *present_buffer = 0;
-   int present_pitch = 0;
- 
-@@ -1538,6 +1542,9 @@
-  * the rewind module does not, so the host applies it to both. */
- static uint32 g_overlay_release_mask;
- static void OverlayNoteClosed(void) {
-+  /* A modal key-down is not dispatched to the guest. Sample it here so a
-+   * held keyboard cancel is blocked until release, just like pad cancel. */
-+  PollKeyboardControls(snesrecomp_sdl_get_keyboard_state());
-   g_overlay_release_mask |= OverlayNavInputs();
- }
- static uint32 OverlayFilterGuestInput(uint32 inputs) {
-@@ -1688,6 +1695,7 @@
- static int g_selftest_pad_phase;      /* 0 idle, 1 browser, 2 rewind */
- static int g_selftest_pad_failed;
- static int g_selftest_pad_opened;     /* bit 1: browser opened, bit 2: rewind */
-+static bool g_gameplay_selftest_pad;
- /* While the self-test is armed, only the virtual pad is opened: a real
-  * controller plugged in would take player 1 and the virtual one would land
-  * on seat 2, where no overlay gesture reads -- and a test that then finds
-@@ -1708,6 +1716,8 @@
- }
- static void OverlaySelftestPadAttach(void) {
-   const char *v = HostGetenv("OVERLAY_SELFTEST_PAD");
-+  g_gameplay_selftest_pad = HostGetenv("GAMEPAD_GAMEPLAY_SELFTEST") != NULL;
-+  if (g_gameplay_selftest_pad) v = "0";
-   g_selftest_pad_frame = v ? strtol(v, NULL, 0) : -1;
-   if (g_selftest_pad_frame < 0) return;
- #if SNESRECOMP_SDL3
-@@ -1736,6 +1746,19 @@
-    * paces; act once per frame. */
-   if (frame == last_frame) return;
-   last_frame = frame;
-+  /* Opt-in fixture: use SDL virtual-device events, never guest input pokes.
-+   * The dedicated profile maps south/east to SNES A/B. This title opens its
-+   * field menu with B; A enters a submenu and B backs out again. */
-+  if (g_gameplay_selftest_pad) {
-+    SelftestPadReleaseAll();
-+    if (frame >= 10 && frame < 30) SelftestPadSet(SDL_CONTROLLER_BUTTON_DPAD_RIGHT, true);
-+    if (frame >= 50 && frame < 70) SelftestPadSet(SDL_CONTROLLER_BUTTON_DPAD_DOWN, true);
-+    if (frame >= 90 && frame < 92) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
-+    if (frame >= 120 && frame < 122) SelftestPadSet(SDL_CONTROLLER_BUTTON_A, true);
-+    if (frame >= 150 && frame < 152) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
-+    if (frame >= 180 && frame < 182) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
-+    return;
-+  }
-   if ((long)frame == g_selftest_pad_frame) {
-     fprintf(stderr, "[overlay_selftest_pad] frame %u: holding Select+R on the pad\n", frame);
-     g_selftest_pad_phase = 1;
-@@ -1772,7 +1795,32 @@
-    * is the SNES B, pad "B" is the SNES A). The east button would be the
-    * SNES A -- load in the browser, commit in rewind -- which is exactly the
-    * wrong one to test "close" with, and this test first did. */
--  case 14: SelftestPadSet(SDL_CONTROLLER_BUTTON_A, true); break;
-+  case 14: {
-+    const char *exit_mode = HostGetenv("OVERLAY_SELFTEST_EXIT");
-+    if (exit_mode && (strcmp(exit_mode, "escape") == 0 ||
-+                      strcmp(exit_mode, "toggle") == 0 ||
-+                      strcmp(exit_mode, "cancel") == 0)) {
-+      SDL_Event e = {0};
-+      int key = strcmp(exit_mode, "toggle") == 0
-+          ? (g_selftest_pad_phase == 1 ? SDLK_F7 : SDLK_F8)
-+          : strcmp(exit_mode, "cancel") == 0 ? SDLK_z : SDLK_ESCAPE;
-+      /* The browser's toggle/cancel key paths are outside this rewind check. */
-+      if (g_selftest_pad_phase == 1) key = SDLK_ESCAPE;
-+      e.type = SDL_KEYDOWN;
-+#if SNESRECOMP_SDL3
-+      e.key.key = key;
-+#else
-+      e.key.keysym.sym = key;
-+#endif
-+      SDL_PushEvent(&e);
-+    } else {
-+      /* Find the actual cancel binding, including a customized face layout. */
-+      for (int b = SDL_CONTROLLER_BUTTON_A; b <= SDL_CONTROLLER_BUTTON_Y; b++)
-+        if (FindCmdForGamepadButton(RemapSdlButton(b), 0) == kKeys_Controls + 7)
-+          SelftestPadSet(b, true);
-+    }
-+    break;
-+  }
-   case 40:
-     fprintf(stderr, "[overlay_selftest_pad] FAIL: %s did not close from the pad within 40 pumps\n",
-             g_selftest_pad_phase == 1 ? "save-state browser" : "rewind");
-@@ -1910,7 +1958,13 @@
- }
- 
- static void RewindKeyDown(int key, int repeat) {
--  (void)repeat;
-+  /* Match the player's cancel key and let the opener toggle the panel closed.
-+   * Holding the opener must not immediately close its own new panel. */
-+  if (!repeat && (snesrecomp_sdl_scancode_from_key(key) == keybinds_get()->p1.b ||
-+      FindCmdForSdlKey(key, SDL_GetModState()) == kKeys_Rewind)) {
-+    snes_rewind_close();
-+    return;
-+  }
-   switch (key) {
-   case SDLK_LEFT:   snes_rewind_step(-1); break;
-   case SDLK_RIGHT:  snes_rewind_step(+1); break;
-@@ -1993,6 +2047,7 @@
- static _Thread_local uint64_t g_audio_stalled_callback;
- static uint64_t g_audio_callback_count;  /* protected by g_audio_mutex */
- static bool g_audio_primed;  /* protected by g_audio_mutex */
-+static FILE *g_audio_capture;
- #define HOST_AUDIO_PREFILL 2136u
- #define HOST_AUDIO_HIGH_WATER 4096u
- #if SNESRECOMP_SDL3
-@@ -2002,6 +2057,20 @@
- static uint8 *g_audio_stream_buffer;
- static size_t g_audio_stream_buffer_size;
- #endif
-+
-+/* Called before unpausing the device; publish only a complete allocation. */
-+static bool AllocateAudioBuffer(int frequency, int channels) {
-+  if (frequency <= 0 || channels != 2) return false;
-+  uint64_t frames = (534ULL * (uint64_t)frequency + 32040 / 2) / 32040;
-+  if (!frames || frames > INT_MAX ||
-+      frames > SIZE_MAX / ((size_t)channels * sizeof(int16))) return false;
-+  uint8 *buffer = (uint8 *)calloc((size_t)frames * channels * sizeof(int16), 1);
-+  if (!buffer) return false;
-+  g_frames_per_block = (int)frames;
-+  g_audio_channels = (uint8)channels;
-+  g_audiobuffer = g_audiobuffer_cur = g_audiobuffer_end = buffer;
-+  return true;
-+}
- 
- static void ResetAudioTimeline(void) {
-   RtlApuLock();
-@@ -2053,6 +2122,8 @@
- /* Backend-agnostic mixer body. SDL2 calls it from its pull callback; SDL3 calls
-  * it to fill a scratch buffer that is then pushed into the audio stream. */
- static void FillAudioBuffer(Uint8 *stream, int len) {
-+  Uint8 *capture_start = stream;
-+  int capture_size = len;
-   /* Boot-stage marker: proves the audio thread reached the mixer at
-    * least once (the "crashed before the first sound" class of report). */
-   static SDL_atomic_t first_cb;
-@@ -2097,6 +2168,7 @@
-     stream += n;
-     len -= n;
-   }
-+  if (g_audio_capture) fwrite(capture_start, 1, capture_size, g_audio_capture);
-   SDL_UnlockMutex(g_audio_mutex);
- }
- 
-@@ -3528,6 +3600,8 @@
-   }
- 
-   int audio_output_rate = 0;
-+  const char *capture_path = HostGetenv("AUDIO_OUTPUT_RAW");
-+  if (capture_path) g_audio_capture = fopen(capture_path, "wb");
-   if (g_config.enable_audio) {
-     /* Enumerate output devices into the breadcrumb ring: which device
-      * SDL picks (and what else was available) is exactly the per-machine
-@@ -3573,13 +3647,23 @@
-       printf("Failed to open audio device: %s\n", SDL_GetError());
-       return 1;
-     }
--    g_audio_channels = 2;
-+    if (!AllocateAudioBuffer(have.freq, have.channels)) {
-+      host_report_breadcrumb("audio buffer allocation/layout FAILED: freq=%d ch=%d",
-+                             have.freq, have.channels);
-+      fprintf(stderr, "Failed to allocate a valid stereo audio buffer\n");
-+#if SNESRECOMP_SDL3
-+      SDL_DestroyAudioStream(g_audio_stream);
-+      g_audio_stream = NULL;
-+#else
-+      SDL_CloseAudioDevice(g_audio_device);
-+#endif
-+      g_audio_device = 0;
-+      return 1;
-+    }
-     /* The SPC's native rate is 32040 Hz (1.024 MHz / 32), not 32000. The
-      * consumer converts onto the device rate and cannot infer it. */
-     RtlSetAudioOutputRate(have.freq);
-     audio_output_rate = have.freq;
--    g_frames_per_block = (534 * have.freq + 32040 / 2) / 32040;
--    g_audiobuffer = (uint8 *)calloc(g_frames_per_block * have.channels * sizeof(int16), 1);
-     host_report_breadcrumb(
-         "audio device opened: freq=%d (want %d) ch=%d samples=%d frames_per_block=%d",
-         have.freq, want.freq, have.channels,
-@@ -3609,7 +3693,7 @@
-    * file is one-shot -- a later plain launch must not resume it again. */
-   if (args.resume_state) {
-     bool resumed = RtlLoadSnapshot(args.resume_state);
--    if (resumed) GameReset();
-+    if (resumed) { GameReset(); ResetAudioTimeline(); }
-     host_report_breadcrumb("resume state %s: %s", resumed ? "loaded" : "FAILED to load (kept)",
-                            args.resume_state);
-     if (resumed) remove(args.resume_state);
-@@ -3734,6 +3818,20 @@
-     if (!running)
-       break;
-     OverlaySelftestPadMainTick(frameCtr);
-+    /* Opt-in desktop fixture: exercise configured fullscreen shortcuts through
-+     * the normal key resolver and verify SDL's actual window flag. */
-+    if (HostGetenv("FULLSCREEN_SELFTEST")) {
-+      static unsigned last_test_frame = ~0u;
-+      if (frameCtr != last_test_frame && (frameCtr == 30 || frameCtr == 90 ||
-+          frameCtr == 120 || frameCtr == 150)) {
-+        last_test_frame = frameCtr;
-+        int key = frameCtr == 30 ? SDLK_F11 : frameCtr == 90 ? SDLK_F11
-+                : frameCtr == 120 ? SDLK_F12 : SDLK_RETURN;
-+        HandleInput(key, frameCtr == 150 ? KMOD_ALT : 0, true);
-+        fprintf(stderr, "[fullscreen_selftest] frame %u fullscreen=%d\n", frameCtr,
-+                !!(SDL_GetWindowFlags(g_window) & SNESRECOMP_SDL_WINDOW_FULLSCREEN_DESKTOP));
-+      }
-+    }
-     /* SNESRECOMP_VOLUME_DEMO=<frame>: press VolumeDown once at that frame, so
-      * a headless screenshot can show the bar. */
-     {
-@@ -4067,6 +4165,13 @@
-      * iteration that opened a panel consumed a script frame the guest never
-      * saw, and every later scripted press landed a frame early. */
-     inputs |= TickScript();
-+    if (g_gameplay_selftest_pad) {
-+      static uint32 last_inputs = ~0u;
-+      if (inputs != last_inputs) {
-+        fprintf(stderr, "[gamepad_gameplay_selftest] frame %u guest_input=%03x\n", frameCtr, inputs);
-+        last_inputs = inputs;
-+      }
-+    }
-     if (g_script_quit) {
-       running = false;
-       exit_reason = g_script_failed ? "script until timed out" : "script quit";
-@@ -4244,6 +4349,7 @@
-   SDL_CloseAudioDevice(g_audio_device);
- #endif
-   SDL_DestroyMutex(g_audio_mutex);
-+  if (g_audio_capture) { fclose(g_audio_capture); g_audio_capture = NULL; }
-   free(g_audiobuffer);
- 
-   g_renderer_funcs.Destroy();
-@@ -4307,6 +4413,7 @@
-     return;
-   }
- 
-+#if defined(SNES_HAS_LOBBY_CLIENT)
-   if (g_netplay_session) {
-     switch (j) {
-     case kKeys_SaveStateMenu:
-@@ -4320,6 +4427,8 @@
-       return; /* Pause the game with synchronized SNES Start instead. */
-     }
-   }
-+
-+#endif
- 
-   if (j == kKeys_Turbo) {
-     g_turbo = pressed;
-diff --git a/runner/src/desktop/opengl.c b/runner/src/desktop/opengl.c
---- a/runner/src/desktop/opengl.c
-+++ b/runner/src/desktop/opengl.c
-@@ -29,6 +29,8 @@
- #include "sdl_compat.h"
- 
- #include <stdio.h>
-+#include <limits.h>
-+#include <stdint.h>
- #include <stdbool.h>
- #include <stdlib.h>
- #include <string.h>
-@@ -268,6 +270,10 @@
- }
- 
- static void OpenGLRenderer_Destroy(void) {
-+  free(g_screen_buffer);
-+  g_screen_buffer = NULL;
-+  g_screen_buffer_size = 0;
-+  g_draw_width = g_draw_height = 0;
- }
- 
- static void OpenGLRenderer_GetOutputSize(int *width, int *height) {
-@@ -361,14 +367,20 @@
- }
- 
- static void OpenGLRenderer_BeginDraw(int width, int height, uint8 **pixels, int *pitch) {
-+  g_draw_width = g_draw_height = 0;
-+  if (!pixels || !pitch) return;
-+  *pixels = NULL;
-+  *pitch = 0;
-+  if (width <= 0 || height <= 0 || width > INT_MAX / 4 ||
-+      (size_t)height > SIZE_MAX / 4 / (size_t)width) return;
-   size_t size = (size_t)width * (size_t)height;
--
--  if (size > g_screen_buffer_size) {
-+  if (size > g_screen_buffer_size || !g_screen_buffer) {
-+    uint8 *buffer = (uint8 *)malloc(size * 4);
-+    if (!buffer) return;
-+    free(g_screen_buffer);
-+    g_screen_buffer = buffer;
-     g_screen_buffer_size = size;
--    free(g_screen_buffer);
--    g_screen_buffer = (uint8 *)malloc(size * 4);
--  }
--
-+  }
-   g_draw_width = width;
-   g_draw_height = height;
-   *pixels = g_screen_buffer;
-@@ -376,6 +388,7 @@
- }
- 
- static void OpenGLRenderer_EndDraw(void) {
-+  if (!g_screen_buffer || g_draw_width <= 0 || g_draw_height <= 0) return;
-   int drawable_width, drawable_height;
- 
-   snesrecomp_sdl_get_drawable_size(g_window, &drawable_width, &drawable_height);

@@ -1,6 +1,7 @@
 /* First-stage current lead, derived only from original guest state.
  * No ROM/guest writes, completion guesses or external seen-event history. */
 #include "foundation_journal.h"
+#include "foundation_hotkeys.h"
 #include "common_rtl.h"
 #include "snes/snes.h"
 #include "snes_overlay_draw.h"
@@ -13,28 +14,10 @@
 extern Snes *g_snes;
 static int enabled, visible, has_lead, watch_installed, input_test;
 static unsigned frame_number;
-static atomic_uint requests;
 static SDL_Joystick *test_pad;
 static FILE *trace;
 
-#if SNESRECOMP_SDL3
-static bool JournalInput(void *unused, SDL_Event *event) {
-#else
-static int JournalInput(void *unused, SDL_Event *event) {
-#endif
-    (void)unused;
-    if (event->type == SDL_KEYDOWN && SNESRECOMP_SDL_EVENT_KEY(*event) == SDLK_j &&
-        !SNESRECOMP_SDL_EVENT_REPEAT(*event) &&
-        !(SNESRECOMP_SDL_EVENT_MOD(*event) & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)))
-        atomic_fetch_or(&requests, 1);
-    if (event->type == SDL_CONTROLLERBUTTONDOWN &&
-        SNESRECOMP_SDL_EVENT_BUTTON(*event) == SDL_CONTROLLER_BUTTON_LEFTSTICK)
-        atomic_fetch_or(&requests, 2);
-    return true;
-}
-
 void FoundationJournalReset(void) {
-    atomic_store(&requests, 0);
     visible = has_lead = 0;
 }
 
@@ -57,13 +40,12 @@ void FoundationJournalInit(void) {
     env = getenv("SNESRECOMP_FOUNDATION_JOURNAL_TRACE");
     if (env && *env) trace = fopen(env, "w");
     if (trace) fprintf(trace, "frame,mode,stage,flags,enabled,visible,has_lead\n");
-    fprintf(stderr, "[foundation] journal enabled=%d; J / click L-stick\n", enabled);
+    fprintf(stderr, "[foundation] journal enabled=%d; configurable Journal hotkey\n", enabled);
     FoundationJournalReset();
 }
 
 void FoundationJournalBeforeFrame(void) {
     if (!watch_installed && (enabled || input_test)) {
-        SDL_AddEventWatch(JournalInput, NULL);
         watch_installed = 1;
         if (input_test == 2) {
 #if SNESRECOMP_SDL3
@@ -112,10 +94,7 @@ void FoundationJournalBeforeFrame(void) {
 void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
     frame_number = stats->frame;
     has_lead = FoundationJournalHasLead(g_ram[0x5372], g_ram[0x5360]);
-    unsigned request = atomic_exchange(&requests, 0);
-    /* Select+L3 belongs to the host launcher; keep that chord exclusive. */
-    int toggle = (request & 1) || ((request & 2) &&
-                 !(g_snes->input1_currentState & SNES_PAD_SELECT));
+    int toggle = FoundationHotkeysConsumeJournal();
     if (enabled && g_ram[0x20] == 1 && toggle) {
         visible = !visible;
         fprintf(stderr, "[foundation] frame %u journal %s\n", frame_number, visible ? "shown" : "hidden");
@@ -136,7 +115,7 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
     snes_ovl_fill_rect(pixels, stride, h, x, 6, 240, 75, 0xff080e1c);
     snes_ovl_stroke_rect(pixels, stride, h, x, 6, 240, 75, 0xff809bc8);
     snes_ovl_draw_text(pixels, stride, h, x + 6, 11,
-                       "JOURNAL J / L-STICK: CLOSE", 0xffffdf78, 1);
+                       "JOURNAL - JOURNAL HOTKEY: CLOSE", 0xffffdf78, 1);
     if (lead) {
         snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
                            "Seek the Crest of Stars", 0xfff0f3fa, 1);
@@ -153,7 +132,6 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
 }
 
 void FoundationJournalShutdown(void) {
-    if (watch_installed) SDL_DelEventWatch(JournalInput, NULL);
     watch_installed = 0;
     if (test_pad) { SDL_JoystickClose(test_pad); test_pad = NULL; }
     if (trace) { fclose(trace); trace = NULL; }

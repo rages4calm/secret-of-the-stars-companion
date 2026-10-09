@@ -1,6 +1,37 @@
 # Validation scope — 2026-10-09
 
-## Qualified local foundation
+## Current 0.2.0 foundation and launcher
+
+The integrated 0.2.0 native executable has SHA-256
+`9241f79ea1a685e0932282c300081a90f9becf503f9a17c5fe6a94b34a08a7e0`.
+It was built from all 48 frozen authored inputs and runtime patch
+`526f7d87b5cf736ce8b57da9db5f4435cce8d33ed1686a587a6a02ca66d73318`.
+The source build receipt remains `compiled_unqualified`; focused qualification
+is separate private evidence tied to that exact executable.
+
+On that artifact, 104 finite reward/walking checks, 21 actual-C guard tests,
+21 restore/menu/opening checks, 23 input/overlay checks, three ROM-free binding
+probes and 247 map/widescreen gates passed. The original-rate battle guest
+captures match 0.1.9. Actual victory payouts, four walking directions, collision
+endpoints, field transitions, held keyboard/virtual-controller parity and
+before/after-award restores were checked. These counts are separate bounded
+proofs, not additive campaign coverage.
+
+The new source-first Companion path passed 60 backend and 31 interactive GUI
+checks against the real 0.2.0 native receipt. Checks cover ROM validation,
+isolated adoption, busy/cancel/failing build behavior, title/selected-copy launch,
+QoL round trips, binding validation, protected Apply and both window sizes.
+Compilation receipts stay distinct from gameplay qualification. The original
+ROM, owner settings and source checkpoints are protected by hash checks.
+
+Seven Direct3D and three OpenGL paced audio routes passed on the exact artifact,
+with no steady audio underflows. The final self-contained launcher also passed
+all six legacy launch routes before protected local installation. See the
+[QoL/setup release](FOUNDATION-QOL-SETUP-2026-10-09.md) for their scope.
+Automated virtual input does not replace physical-controller testing; finite
+routes do not certify the campaign. [QoL seams and limits](FOUNDATION-QOL-2026-10-09.md).
+
+## Historical 0.1.9 qualification
 
 The local foundation 0.1.9 executable has SHA-256
 `0d2c8fc78be6907e1eb96166672ee14b4927e84821d5d8be1bc5d999772d9490`.
@@ -28,7 +59,7 @@ and finite GPU/audio routes. Automated audio checks are not comprehensive
 listening tests. Physical controllers and other graphics/audio hardware still
 need focused testing.
 
-## Public source build
+## Initial public source build (historical)
 
 The developer helper was exercised from this public source tree against the
 specified owner-provided ROM. It fetched the pinned runtime and submodules,
@@ -45,17 +76,17 @@ controller input or campaign coverage for this new binary. Companion's source
 also published successfully as a self-contained Windows .NET 8 application;
 compilation alone does not resolve the first-run integration gap.
 
-This is a separate build from the qualified local executable above. Its receipt
+This was a separate build from the qualified local executable above. Its receipt
 is deliberately **compiled_unqualified**. Neither executable nor generated
-code is published. Public Companion Play/Resume integration still needs a
-source-first setup path; the existing adapters depend on private receipts and
-copied fixtures. See [BUILDING.md](../BUILDING.md).
+code is published. The earlier first-run integration gap is now closed by
+source-first Setup; legacy preview adapters still depend on private fixtures.
+See [BUILDING.md](../BUILDING.md).
 
 ## What the ROM-free source checker checks
 
 The ROM-free checker checks exactly the Git-tracked file set, excludes private
 payload paths and binary types, checks recognizable credential formats,
-parses Python source, verifies 44 foundation and 13 Companion authored-file
+parses Python source, verifies 48 foundation and 19 Companion authored-file
 hashes, checks the pinned runtime/patch and verifies nine verbatim notice
 hashes. It also checks links in the public entry documents.
 

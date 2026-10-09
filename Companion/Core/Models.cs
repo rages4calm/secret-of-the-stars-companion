@@ -21,7 +21,21 @@ public sealed record GameSettings
     public bool HdMenuFrames { get; set; }
     public bool ExperimentalFieldWide { get; set; }
     public bool ExperimentalFieldActors { get; set; }
+    public int XpMultiplierPercent { get; set; } = 100;
+    public int GoldMultiplierPercent { get; set; } = 100;
+    public int MovementSpeedPercent { get; set; } = 200;
+    public bool FastForwardToggle { get; set; }
+    public bool LegacyControllerGestures { get; set; } = true;
+    public Dictionary<string, HotkeyBinding> HotkeyBindings { get; set; } = HotkeyCatalog.CreateBindings();
+    public Dictionary<string, string> GameplayKeys { get; set; } = HotkeyCatalog.CreateGameplayKeys();
+    public GameSettings DeepCopy() => this with
+    {
+        HotkeyBindings = new(HotkeyBindings, StringComparer.Ordinal),
+        GameplayKeys = new(GameplayKeys, StringComparer.Ordinal)
+    };
 }
+
+public sealed record HotkeyBinding(string Keyboard, string Controller);
 
 public sealed record ReadinessInfo(bool Ready, string Message);
 public sealed record SaveEntry(string Label, string Path, DateTime LastWriteTimeUtc, long Size)

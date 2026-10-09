@@ -3,13 +3,47 @@ $ErrorActionPreference = 'Stop'
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + ';' + $env:PSModulePath
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $receiptPath = Join-Path $taskRoot 'local/evidence/companion-receipt.json'
-if (!(Test-Path -LiteralPath $receiptPath)) { throw 'Companion has not been qualified and installed yet.' }
-$receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-$binary = Join-Path $taskRoot 'local/companion/Secret of the Stars Companion.exe'
-if (!$receipt.qualified -or (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $receipt.executable_sha256) {
-    throw 'Companion differs from its qualified receipt. Retain settings and requalify the changed artifact.'
+$publicSource = $false
+if (Test-Path -LiteralPath $receiptPath) {
+    $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+    $binary = Join-Path $taskRoot 'local/companion/Secret of the Stars Companion.exe'
+    if (!$receipt.qualified -or !(Test-Path -LiteralPath $binary) -or (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $receipt.executable_sha256) {
+        throw 'Companion differs from its qualified receipt. Retain settings and requalify the changed artifact.'
+    }
+} else {
+    $receiptPath = Join-Path $taskRoot 'local/public-companion/source-companion-receipt.json'
+    if (!(Test-Path -LiteralPath $receiptPath)) {
+        $builder = Join-Path $taskRoot 'tools/build_public_companion.py'
+        if (!(Test-Path -LiteralPath $builder)) { throw 'Public Companion build helper is missing. Restore the source checkout; profiles are preserved.' }
+        & python -u $builder
+        if ($LASTEXITCODE -ne 0) { throw 'Public Companion build failed. Install the .NET 8 SDK and inspect the builder diagnostics; profiles are preserved.' }
+    }
+    $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+    $binary = [IO.Path]::GetFullPath([string]$receipt.executable)
+    $allowed = [IO.Path]::GetFullPath((Join-Path $taskRoot 'local/public-companion')).TrimEnd('\') + '\'
+    if (!$binary.StartsWith($allowed, [StringComparison]::OrdinalIgnoreCase)) { throw 'Public Companion receipt points outside its isolated build folder.' }
+    if ($receipt.status -ne 'compiled_unqualified' -or !$receipt.public_build -or $receipt.component -ne 'Companion' -or
+        !(Test-Path -LiteralPath $binary -PathType Leaf) -or (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $receipt.executable_sha256) {
+        throw 'Public Companion differs from its source compilation receipt. Build a fresh candidate; existing profiles are preserved.'
+    }
+    $manifest = Join-Path $taskRoot 'Companion/authored-files.json'
+    if (!(Test-Path -LiteralPath $manifest)) { throw 'Companion authored source manifest is missing. Existing builds and profiles are preserved.' }
+    if ($receipt.source_manifest_sha256 -ne (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant()) {
+        Write-Output 'Companion source snapshot changed. Building a new isolated GUI; the previous executable and profiles are preserved.'
+        & python -u (Join-Path $taskRoot 'tools/build_public_companion.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Updated Companion source did not build. Inspect diagnostics; previous builds and profiles are preserved.' }
+        $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+        $binary = [IO.Path]::GetFullPath([string]$receipt.executable)
+        if (!$binary.StartsWith($allowed, [StringComparison]::OrdinalIgnoreCase) -or $receipt.status -ne 'compiled_unqualified' -or
+            !(Test-Path -LiteralPath $binary -PathType Leaf) -or (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $receipt.executable_sha256 -or
+            $receipt.source_manifest_sha256 -ne (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant()) {
+            throw 'Updated Companion source receipt could not be verified. Existing profiles are preserved.'
+        }
+    }
+    $publicSource = $true
 }
 $arguments = @('--root', ('"' + $taskRoot + '"'))
+if ($publicSource) { $arguments += '--setup' }
 if ($ProfileDirectory) { $arguments += @('--profile', ('"' + [IO.Path]::GetFullPath($ProfileDirectory) + '"')) }
 if ($VerifyCaptureDirectory) {
     $arguments += @('--capture', ('"' + [IO.Path]::GetFullPath($VerifyCaptureDirectory) + '"'))

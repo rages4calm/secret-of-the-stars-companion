@@ -1,10 +1,10 @@
 {
   "snapshot_date": "2026-10-09",
-  "native_version": "0.1.9",
-  "companion_version": "0.1.2",
+  "native_version": "0.2.0",
+  "companion_version": "0.2.0",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
-  "runtime_patch_sha256": "f469f3f19a2f7a66c2284f2cd080cd2c38af214a49c28f0e23b5e586e9cd7726",
+  "runtime_patch_sha256": "526f7d87b5cf736ce8b57da9db5f4435cce8d33ed1686a587a6a02ca66d73318",
   "verbatim_notices": {
     "SNESRECOMP-POLYFORM-NONCOMMERCIAL-1.0.0.txt": "133629d3a7fa3543e96e27cc8c03c27dd6cd6c395e0a02fc1eda307d1d206cc6",
     "SNESRECOMP-THIRD-PARTY-ATTRIBUTION.md": "658c77d6836e309d95ef84cbabc0e59a894542431ead73c5ee346c6eccd73482",

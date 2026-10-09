@@ -15,7 +15,7 @@ public static class ProfileService
     public static ProfileSnapshot Load(string root, string? profile = null)
     {
         root = Path.GetFullPath(root);
-        profile = Path.GetFullPath(string.IsNullOrWhiteSpace(profile) ? Path.Combine(root, "local", "player-foundation") :
+        profile = Path.GetFullPath(string.IsNullOrWhiteSpace(profile) ? PublicSetupService.GetSelectedProfile(root) ?? Path.Combine(root, "local", "player-foundation") :
             Path.IsPathRooted(profile) ? profile : Path.Combine(root, profile));
         RejectReparse(profile);
         var files = new Dictionary<string, FileIdentity>(Paths);
@@ -25,15 +25,27 @@ public static class ProfileService
         Track(files, Path.Combine(root, "local", "native-proof", GameName, "build", GameName + ".exe"));
         Track(files, Path.Combine(root, "local", "inputs", "clean-usa.sfc"));
         Track(files, Path.Combine(profile, GameName + ".exe"));
+        Track(files, Path.Combine(profile, PublicSetupService.ManifestName));
+        if (files[Path.Combine(profile, PublicSetupService.ManifestName)].Exists)
+        {
+            var source = PublicSetupService.ReadProfile(profile);
+            var receiptPath = PublicSetupService.RequireInside(source.ReceiptPath, Path.Combine(root, "local", "source-builds"));
+            PublicSetupService.RejectLinkedPath(source.RomPath);
+            Track(files, receiptPath); Track(files, Path.GetFullPath(source.RomPath));
+            Track(files, Path.Combine(Path.GetDirectoryName(receiptPath)!, "build", GameName + ".exe"));
+        }
         foreach (var script in new[] { "Start-Foundation.ps1", "Start-LikadoPreview.ps1", "Start-HdMenuPreview.ps1" })
             Track(files, Path.Combine(root, "tools", script));
         var config = new IniDocument(files[Path.Combine(profile, "config.ini")].Bytes);
         var foundation = new IniDocument(files[Path.Combine(profile, "foundation.ini")].Bytes);
-        var settings = ReadSettings(config, foundation);
+        var bindings = new IniDocument(files[Path.Combine(profile, "keybinds.ini")].Bytes);
+        var settings = ReadSettings(config, foundation, bindings);
+        if (!SupportsQol(profile, files) && config.Get("GamepadMap", "Turbo") is null)
+            settings.HotkeyBindings["Turbo"] = settings.HotkeyBindings["Turbo"] with { Controller = "None" };
         var snapshot = new ProfileSnapshot
         {
             RootDirectory = root, ProfileDirectory = profile, Settings = settings,
-            OriginalSettings = settings with { }, Files = files,
+            OriginalSettings = settings.DeepCopy(), Files = files,
             Readiness = CheckReadiness(root, profile, files), Saves = ReadSaves(profile)
         };
         return snapshot;
@@ -73,6 +85,8 @@ public static class ProfileService
         try
         {
             Validate(settings, snapshot.OriginalSettings);
+            if (!SupportsQol(snapshot) && QolChanged(settings, snapshot.OriginalSettings))
+                throw new InvalidOperationException("These reward, movement and configurable overlay options require native foundation 0.2.0 or newer. Build and select the current source in Setup first. Existing settings and saves are preserved.");
             EnsureUnchanged(snapshot);
             if (running()) throw new InvalidOperationException("Close this profile's game before applying settings.");
             RejectReparse(snapshot.ProfileDirectory);
@@ -87,6 +101,22 @@ public static class ProfileService
                 if (!documents.TryGetValue(path, out var document))
                 { document = new IniDocument(snapshot.Files[path].Bytes); documents[path] = document; }
                 document.Set(section, key, item.Value, file == "foundation.ini");
+            }
+            // A previous in-game launcher can explicitly select gamepad-only
+            // input. Disabling that pad must restore keyboard input for player1;
+            // leave unchanged device assignments and unrelated edits byte exact.
+            var configPath = Path.Combine(snapshot.ProfileDirectory, "config.ini");
+            var originalConfig = new IniDocument(snapshot.Files[configPath].Bytes);
+            foreach (var (oldEnabled, enabled, source, replacement) in new[]
+            {
+                (snapshot.OriginalSettings.EnableGamepad, settings.EnableGamepad, "SourceP1", "1"),
+                (snapshot.OriginalSettings.EnableGamepad2, settings.EnableGamepad2, "SourceP2", "0")
+            })
+            {
+                if (oldEnabled == enabled || enabled || originalConfig.Get("Controller", source) != "2") continue;
+                if (!documents.TryGetValue(configPath, out var configDocument))
+                { configDocument = new IniDocument(snapshot.Files[configPath].Bytes); documents[configPath] = configDocument; }
+                configDocument.Set("Controller", source, replacement);
             }
             var changes = documents.Select(d => (Original: snapshot.Files[d.Key], Bytes: d.Value.ToBytes()))
                 .Where(d => !d.Original.Bytes.AsSpan().SequenceEqual(d.Bytes)).ToArray();
@@ -167,6 +197,8 @@ public static class ProfileService
         if (IsGameRunning(snapshot)) throw new InvalidOperationException("This profile's game is already running.");
         var refreshed = Load(snapshot.RootDirectory, snapshot.ProfileDirectory);
         if (!refreshed.Readiness.Ready) throw new InvalidOperationException(refreshed.Readiness.Message);
+        if (snapshot.Files[Path.Combine(snapshot.ProfileDirectory, PublicSetupService.ManifestName)].Exists)
+            return BuildSourceLaunch(snapshot, request);
         var script = request.Mode switch
         {
             LaunchMode.WidescreenPreview => "Start-LikadoPreview.ps1",
@@ -213,6 +245,71 @@ public static class ProfileService
         return start; // ArgumentList, never a shell command assembled from profile/save paths.
     }
 
+    public static bool SupportsQol(ProfileSnapshot snapshot) => SupportsQol(snapshot.ProfileDirectory, snapshot.Files);
+
+    private static bool SupportsQol(string profile, IReadOnlyDictionary<string, FileIdentity> files)
+    {
+        try
+        {
+            string? version;
+            if (files.TryGetValue(Path.Combine(profile, PublicSetupService.ManifestName), out var manifest) && manifest.Exists)
+            {
+                var source = JsonSerializer.Deserialize<SourceProfile>(manifest.Bytes) ?? throw new InvalidOperationException("Source manifest is invalid.");
+                using var receipt = JsonDocument.Parse(files[source.ReceiptPath].Bytes);
+                version = receipt.RootElement.GetProperty("version").GetString();
+            }
+            else
+            {
+                var receipt = files.Values.FirstOrDefault(f => f.Path.EndsWith(Path.Combine("local", "evidence", "build-receipt.json"), StringComparison.OrdinalIgnoreCase));
+                if (receipt?.Exists != true) return false;
+                using var json = JsonDocument.Parse(receipt.Bytes); version = json.RootElement.TryGetProperty("release_version", out var release) ? release.GetString() : null;
+            }
+            return Version.TryParse(version, out var parsed) && parsed >= new Version(0, 2, 0);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException) { return false; }
+    }
+
+    private static bool QolChanged(GameSettings value, GameSettings original) =>
+        value.XpMultiplierPercent != original.XpMultiplierPercent || value.GoldMultiplierPercent != original.GoldMultiplierPercent ||
+        value.MovementSpeedPercent != original.MovementSpeedPercent || value.FastForwardToggle != original.FastForwardToggle ||
+        value.LegacyControllerGestures != original.LegacyControllerGestures ||
+        new[] { "BattleInfo", "Journal", "MovementBoost" }.Any(name => value.HotkeyBindings.GetValueOrDefault(name) != original.HotkeyBindings.GetValueOrDefault(name));
+
+    private static ProcessStartInfo BuildSourceLaunch(ProfileSnapshot snapshot, LaunchRequest request)
+    {
+        if (!Enum.IsDefined(request.Mode)) throw new ArgumentException("Unknown launch mode.");
+        if (request.Mode != LaunchMode.Resume && request.SavePath is not null) throw new ArgumentException("A checkpoint is accepted only for explicit Resume.");
+        if (request.Mode is LaunchMode.HdMenuPreview or LaunchMode.WidescreenPreview)
+            throw new InvalidOperationException("Private scene previews are not part of public setup. Set the optional presentation choices in Display, then start at the title.");
+        var source = PublicSetupService.ReadProfile(snapshot.ProfileDirectory);
+        var start = new ProcessStartInfo(Path.Combine(snapshot.ProfileDirectory, GameName + ".exe"))
+        {
+            WorkingDirectory = snapshot.ProfileDirectory, UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true, RedirectStandardError = true
+        };
+        foreach (var argument in new[] { "--no-launcher", "--rom", source.RomPath }) start.ArgumentList.Add(argument);
+        foreach (var key in start.Environment.Keys.Where(k => k.StartsWith("SNESRECOMP_", StringComparison.OrdinalIgnoreCase)).ToArray()) start.Environment.Remove(key);
+        var windows = Environment.GetEnvironmentVariable("SystemRoot") ?? Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        start.Environment["PATH"] = Path.Combine(windows, "System32") + ";" + windows;
+        if (request.Mode == LaunchMode.OriginalView)
+        {
+            foreach (var enhancement in new[] { "BATTLE_INFO", "ENHANCED_PIXELS", "WIDE", "WIDE_ACTORS", "FAST_MENUS", "JOURNAL", "NATIVE_CLEAR", "NATIVE_COLUMNS", "HD_MENU_FRAMES" })
+                start.Environment["SNESRECOMP_FOUNDATION_" + enhancement] = "0";
+            foreach (var modifier in new[] { "XP_PERCENT", "GOLD_PERCENT", "MOVEMENT_PERCENT" }) start.Environment["SNESRECOMP_FOUNDATION_" + modifier] = "100";
+        }
+        if (request.Mode == LaunchMode.Resume)
+        {
+            var save = RequireSave(snapshot, request.SavePath);
+            var pending = Path.Combine(snapshot.ProfileDirectory, "companion-resume.state"); RejectReparse(pending);
+            if (File.Exists(pending)) throw new InvalidOperationException("A pending resume copy is preserved. Resolve it before selecting another checkpoint.");
+            File.Copy(save.Path, pending, false);
+            if (Hash(File.ReadAllBytes(pending)) != save.Sha256 || Hash(File.ReadAllBytes(save.Path)) != save.Sha256)
+                throw new IOException("Checkpoint changed while preparing Resume. Its source and the pending copy are preserved.");
+            start.ArgumentList.Add("--resume-state"); start.ArgumentList.Add(pending);
+        }
+        return start;
+    }
+
     private static SaveEntry RequireSave(ProfileSnapshot snapshot, string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Choose a saved checkpoint for Resume.");
@@ -241,6 +338,21 @@ public static class ProfileService
     {
         try
         {
+            var sourceManifest = files[Path.Combine(profile, PublicSetupService.ManifestName)];
+            if (sourceManifest.Exists)
+            {
+                var source = PublicSetupService.ReadProfile(profile);
+                var build = PublicSetupService.CheckBuild(root, source.ReceiptPath);
+                if (files[build.ReceiptPath].Sha256 != source.ReceiptSha256 || build.ExecutableSha256 != source.ExecutableSha256)
+                    return new(false, "Source build receipt changed. Existing profile and saves are preserved; adopt a new build through Setup.");
+                var installedSource = files[Path.Combine(profile, GameName + ".exe")];
+                if (!installedSource.Exists || installedSource.Sha256 != source.ExecutableSha256)
+                    return new(false, "Source profile executable differs from its recorded compilation.");
+                var ownedRom = files[Path.GetFullPath(source.RomPath)];
+                if (!ownedRom.Exists || ownedRom.Bytes.LongLength != 1572864 || ownedRom.Sha256 != RomHash)
+                    return new(false, "Selected owned ROM is missing or changed. Re-select the exact clean USA ROM through Setup.");
+                return new(true, "Source build ready: compilation verified; gameplay unqualified. Play starts at the title and Resume uses a selected copied checkpoint.");
+            }
             var receipt = files[ReceiptPath(root)];
             if (!receipt.Exists) return new(false, "Foundation build receipt is missing.");
             using var document = JsonDocument.Parse(receipt.Bytes);
@@ -260,12 +372,14 @@ public static class ProfileService
             }
             return new(true, "Qualified foundation ready. Play starts at the title; Resume uses only the selected copied checkpoint.");
         }
-        catch (Exception error) when (error is JsonException or InvalidOperationException or KeyNotFoundException)
+        catch (Exception error) when (error is JsonException or InvalidOperationException or KeyNotFoundException or IOException or UnauthorizedAccessException)
         { return new(false, "Build receipt is invalid: " + error.Message); }
     }
 
-    private static GameSettings ReadSettings(IniDocument config, IniDocument foundation) => new()
+    private static GameSettings ReadSettings(IniDocument config, IniDocument foundation, IniDocument bindings)
     {
+        var settings = new GameSettings
+        {
         Fullscreen = Bool(config.Get("Graphics", "Fullscreen"), false), WindowScale = Number(config.Get("Graphics", "WindowScale"), 4),
         VSync = Bool(config.Get("Graphics", "VSync"), true), Renderer = config.Get("Graphics", "Renderer") ?? "direct3d11",
         NoSpriteLimits = Bool(config.Get("Graphics", "NoSpriteLimits"), false), EnableAudio = Bool(config.Get("Sound", "EnableAudio"), true),
@@ -275,14 +389,32 @@ public static class ProfileService
         FastMenus = Bool(foundation.Get("Enhancements", "FastMenus", true), true), Journal = Bool(foundation.Get("Enhancements", "Journal", true), true),
         HdMenuFrames = Bool(foundation.Get("Enhancements", "HdMenuFrames", true), false),
         ExperimentalFieldWide = Bool(foundation.Get("Enhancements", "ExperimentalFieldWide", true), false),
-        ExperimentalFieldActors = Bool(foundation.Get("Enhancements", "ExperimentalFieldActors", true), false)
-    };
+        ExperimentalFieldActors = Bool(foundation.Get("Enhancements", "ExperimentalFieldActors", true), false),
+        XpMultiplierPercent = Number(foundation.Get("Enhancements", "XpMultiplierPercent", true), 100),
+        GoldMultiplierPercent = Number(foundation.Get("Enhancements", "GoldMultiplierPercent", true), 100),
+        MovementSpeedPercent = Number(foundation.Get("Enhancements", "MovementSpeedPercent", true), 200),
+        FastForwardToggle = Bool(foundation.Get("Enhancements", "FastForwardToggle", true), false),
+        LegacyControllerGestures = Bool(foundation.Get("Enhancements", "LegacyControllerGestures", true), true),
+        HotkeyBindings = HotkeyCatalog.CreateBindings(), GameplayKeys = HotkeyCatalog.CreateGameplayKeys()
+        };
+        foreach (var name in settings.HotkeyBindings.Keys.ToArray())
+        {
+            var fallback = settings.HotkeyBindings[name];
+            settings.HotkeyBindings[name] = new HotkeyBinding(config.Get("KeyMap", name) ?? fallback.Keyboard,
+                config.Get("GamepadMap", name) ?? fallback.Controller);
+        }
+        foreach (var name in settings.GameplayKeys.Keys.ToArray())
+        {
+            var parts = name.Split(':'); settings.GameplayKeys[name] = bindings.Get(parts[0], parts[1]) ?? settings.GameplayKeys[name];
+        }
+        return settings;
+    }
 
     private static Dictionary<(string File, string Section, string Key), string> Values(GameSettings settings)
     {
         string B(bool value) => value ? "1" : "0";
         string N(int value) => value.ToString(CultureInfo.InvariantCulture);
-        return new()
+        var result = new Dictionary<(string File, string Section, string Key), string>
         {
             [("config.ini", "Graphics", "Fullscreen")] = B(settings.Fullscreen), [("config.ini", "Graphics", "WindowScale")] = N(settings.WindowScale),
             [("config.ini", "Graphics", "VSync")] = B(settings.VSync), [("config.ini", "Graphics", "Renderer")] = settings.Renderer,
@@ -293,8 +425,23 @@ public static class ProfileService
             [("foundation.ini", "Enhancements", "FastMenus")] = B(settings.FastMenus), [("foundation.ini", "Enhancements", "Journal")] = B(settings.Journal),
             [("foundation.ini", "Enhancements", "HdMenuFrames")] = B(settings.HdMenuFrames),
             [("foundation.ini", "Enhancements", "ExperimentalFieldWide")] = B(settings.ExperimentalFieldWide),
-            [("foundation.ini", "Enhancements", "ExperimentalFieldActors")] = B(settings.ExperimentalFieldActors)
+            [("foundation.ini", "Enhancements", "ExperimentalFieldActors")] = B(settings.ExperimentalFieldActors),
+            [("foundation.ini", "Enhancements", "XpMultiplierPercent")] = N(settings.XpMultiplierPercent),
+            [("foundation.ini", "Enhancements", "GoldMultiplierPercent")] = N(settings.GoldMultiplierPercent),
+            [("foundation.ini", "Enhancements", "MovementSpeedPercent")] = N(settings.MovementSpeedPercent),
+            [("foundation.ini", "Enhancements", "FastForwardToggle")] = B(settings.FastForwardToggle),
+            [("foundation.ini", "Enhancements", "LegacyControllerGestures")] = B(settings.LegacyControllerGestures)
         };
+        foreach (var binding in settings.HotkeyBindings)
+        {
+            if (binding.Key is not ("Controls" or "ControlsP2")) result[("config.ini", "KeyMap", binding.Key)] = binding.Value.Keyboard;
+            result[("config.ini", "GamepadMap", binding.Key)] = binding.Value.Controller;
+        }
+        foreach (var binding in settings.GameplayKeys)
+        {
+            var parts = binding.Key.Split(':'); result[("keybinds.ini", parts[0], parts[1])] = binding.Value;
+        }
+        return result;
     }
     private static bool Bool(string? value, bool fallback) => value?.ToLowerInvariant() switch
     { "1" or "true" or "yes" or "on" or "2" => true, "0" or "false" or "no" or "off" => false, _ => fallback };
@@ -309,6 +456,10 @@ public static class ProfileService
         if (value.Renderer != old.Renderer && value.Renderer is not ("direct3d11" or "opengl" or "software"))
             throw new ArgumentException("Choose Direct3D 11, OpenGL or software rendering.");
         if (value.Renderer is null || value.Renderer.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0) throw new ArgumentException("Renderer must be a single setting value.");
+        if (value.XpMultiplierPercent != old.XpMultiplierPercent && value.XpMultiplierPercent is < 100 or > 1000) throw new ArgumentException("XP rate must be 100 to 1000 percent.");
+        if (value.GoldMultiplierPercent != old.GoldMultiplierPercent && value.GoldMultiplierPercent is < 100 or > 1000) throw new ArgumentException("Gold rate must be 100 to 1000 percent.");
+        if (value.MovementSpeedPercent != old.MovementSpeedPercent && value.MovementSpeedPercent is < 100 or > 300) throw new ArgumentException("Movement boost must be 100 to 300 percent.");
+        HotkeyCatalog.Validate(value, old);
     }
     private static string ReceiptPath(string root) => Path.Combine(root, "local", "evidence", "build-receipt.json");
     private static bool HasExited(Process process) { try { return process.HasExited; } catch (InvalidOperationException) { return true; } }
