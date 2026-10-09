@@ -1,64 +1,52 @@
 # Public repository instructions
 
-Current owner steering authorizes disposable staged story flags/progression
-and coordinates for focused development. This supersedes older requirements
-to wait for natural later-game fixtures. Record explicit edits/source hashes,
-use isolated copies and original loaders/producers, and distinguish staged
-execution from natural campaign coverage. Owner data, gameplay guards and
-release qualification remain protected. tools/stage_foundation_checkpoint.py
-creates fresh private evidence states; never publish the resulting states.
-Read docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md for current execution
-evidence. Older zero-constructor/fixture claims below describe earlier probes.
+Current source is native 0.2.1 / Companion 0.3.0. Read README.md, BUILDING.md,
+ROADMAP.md, docs/VALIDATION.md and docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md.
+This checkout contains authored source; owner ROMs, generated code and private
+qualification evidence are separate local data. Preserve compilation receipt
+status: fresh public builds are compiled_unqualified until separately tested.
 
-This is the public authored-source repository for Secret of the Stars Companion.
-Read README.md, BUILDING.md, ROADMAP.md and docs/VALIDATION.md first.
-The native snapshot is 0.2.0; Companion source is 0.3.0. There is no included
-installed game, ROM, private evidence fixture or gameplay qualification receipt.
-Historical foundation documents refer to a separate protected local development
-installation; their `local/` artifacts are deliberately excluded here.
-Historical actor probes: docs/FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md,
-docs/FOUNDATION-B0-MODE-ACQUISITION-2026-10-09.md and
-docs/FOUNDATION-WRAPPING-VISIBLE-SOURCE-2026-10-09.md.
-experiments/b0 is uninstalled and excluded from the canonical48-input snapshot.
-Actual ordinary interpreter/DMA checks do not establish natural B0 execution;
-the two original B0 constructors remain unreached. Preserve experimental receipt
-status/public_buildfalse and normal Setup refusal. Algos acquisition message0607
-is identified; its field caller/natural fixture is still missing. Stage17 and
-clear selector9 are required for the later ordinary wrapping payload.
-Read docs/FOUNDATION-JOURNAL-CREST-ASSESSMENT-2026-10-09.md before journal work;
-generic item40 insertion/possession is not a verified historical completion rule.
-Current continuation: docs/FOUNDATION-PACKAGE-UPDATES-2026-10-09.md and
-docs/FOUNDATION-ACTOR-ALLOCATION-2026-10-09.md. Preserve cloned-profile
-updates, selection-only rollback and conservative checkpoint/ABI declarations.
-The naturally reached wrapping record resolves transparent artwork; do not
-mistake its coordinate/guard proof for visible wrapping-sprite qualification.
-Actual selected-source/base stores and original B0 refusal are now observed;
-the same VRAM has visible party art.
-Read docs/FOUNDATION-B0-SCENE-WRITERS-2026-10-09.md for original dispatcher gates.
-Natural bit80 acquisition
-and selector6 exit remain unqualified. Require actual activation, nontransparent
-art and completed packet identity before enabling these actor families.
+Owner authorizes focused agents and disposable staged story flags/coordinates.
+Assign explicit file/task ownership; agents must not revert others' edits.
+Use copied checkpoints and copied executables in isolated profile folders,
+record explicit edits/input hashes, and run original loaders/producers.
+The executable anchors settings beside itself; cwd alone does not isolate a test.
+Use tools/stage_foundation_checkpoint.py and read the staged progression document.
+Staged execution does not certify natural campaign progression or quest awards.
 
-Preserve the original handoff decisions: enhanced original pixels and true
-widescreen first; replacement HD world assets deferred; MSU-1 only after a
-compatible verified driver/track map exists. Complete native/AOT execution,
-campaign coverage and guest CPU enhancements remain open.
+The canonical50 inputs include the combined guarded actor observer and current
+Starcrest possession. Preserve original constructors, graphics, activation,
+collision and completed544-byte packet/descriptor/phase identity. Only strict
+authenticated families receive margin drawing. The B0 contract is nonwrapping;
+its travel proxy remains center-only. Wrapping B0/A8 and unknown resources,
+HDMA and unqualified discontinuities remain refused. Actual terrain seam tests
+preserve center/fallback; they do not show visible actors crossing the seam.
+Earlier B0 experiment documents retain historical zero-constructor claims.
+Experimental receipts remain public_buildfalse and refused by normal Setup.
 
-Do not commit ROMs, generated game bodies/headers, extracted assets or audio,
-saves/states, binary game builds, private memory dumps or unlicensed research
-caches. Run tools/check_public_source.py before publication. Do not fabricate
-passing receipts to enable historical launcher adapters.
+Journal current possession recomputes both inventories after restore/removal;
+do not equate it with durable completion or David's unrelated bit40. Original
+award/history and later leads remain open. JournalPossession0 disables the line;
+production env SNESRECOMP_FOUNDATION_JOURNAL_POSSESSION explicitly overrides it.
 
-Keep exact original-center/guest state, original cycle rate, actor activation
-and collision when enhancements are disabled. Explicit reward/ordinary-walking
-modifiers are opt-in; preserve their exact guarded seams and restore behavior.
-Unknown wide states must refuse to centered fallback. Validate
-selected stream/flags, full544-byte OAM packet identity and reset/restore lineage.
-Large B0/composite/wrapping actors remain excluded from the qualified snapshot;
-private synthetic prototypes are not actual guest execution or campaign proof.
+Preserve original enhanced-pixel/widescreen-first direction; replacement world
+HD art is deferred. MSU-1 needs a verified compatible driver/track map first.
+CPU budgets and cycle accounting remain original. Complete native/AOT execution,
+guest slowdown enhancements and full campaign/hardware certification remain open.
+Reward/walking modifiers stay opt-in at their exact guarded seams. Original View
+must keep original rates/center. Protect newest owner saves/settings by hash;
+never migrate, advance or convert owner checkpoints during release tests.
 
-For source changes, preserve authored manifest structure and update deliberate
-hash changes. Build into fresh ignored local folders; preserve existing runtime
-edits and owner profiles. Keep runtime PolyForm and Companion MIT boundaries.
-Owner authorizes focused agent delegation. Agents must have explicit file/task
-ownership and must not revert others' changes.
+Preserve source-profile cloning, selection-only rollback, source/profile/selector
+locks and stale/linked/pending-Resume refusal. Different binaries require explicit
+compatible checkpoint/SRAM formats and matching execution ABI. Keep retained
+profiles and newer progress separate. Configured profile paths are absolute.
+
+Build into fresh ignored local folders and preserve edited runtime checkouts.
+Update deliberate authored-file hashes without resetting private generated trees.
+Do not commit ROMs, generated bodies/headers, extracted assets/audio, saves/states,
+binary game builds, private dumps or unlicensed caches. Run
+tools/check_public_source.py before publication; never fabricate qualification
+receipts to enable launch adapters. Keep native/runtime PolyForm and GUI MIT
+boundaries and retained notices intact. Keep paced audio runs free of synchronous
+forensic dumps and separate physical input/listening claims from automated tests.

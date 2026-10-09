@@ -14,6 +14,7 @@
 extern Snes *g_snes;
 static int enabled, visible, has_lead, watch_installed, input_test;
 static unsigned frame_number;
+static int possession_enabled;
 static SDL_Joystick *test_pad;
 static FILE *trace;
 
@@ -22,6 +23,7 @@ void FoundationJournalReset(void) {
 }
 
 void FoundationJournalInit(void) {
+    possession_enabled = 1;
     char line[128], key[64]; int value;
     FILE *file = fopen("foundation.ini", "r");
     if (file) {
@@ -30,6 +32,7 @@ void FoundationJournalInit(void) {
             size_t len = strlen(key);
             while (len && (key[len-1] == ' ' || key[len-1] == '\t')) key[--len] = 0;
             if (!strcmp(key, "Journal")) enabled = value == 1;
+            if (!strcmp(key, "JournalPossession")) possession_enabled = value == 1;
         }
         fclose(file);
     }
@@ -39,7 +42,9 @@ void FoundationJournalInit(void) {
     input_test = env && !strcmp(env, "keyboard") ? 1 : env && !strcmp(env, "pad") ? 2 : 0;
     env = getenv("SNESRECOMP_FOUNDATION_JOURNAL_TRACE");
     if (env && *env) trace = fopen(env, "w");
-    if (trace) fprintf(trace, "frame,mode,stage,flags,enabled,visible,has_lead\n");
+    env = getenv("SNESRECOMP_FOUNDATION_JOURNAL_POSSESSION");
+    if (env) possession_enabled = !strcmp(env, "1");
+    if (trace) fprintf(trace, "frame,mode,stage,flags,enabled,visible,has_lead,inventory_groups\n");
     fprintf(stderr, "[foundation] journal enabled=%d; configurable Journal hotkey\n", enabled);
     FoundationJournalReset();
 }
@@ -100,8 +105,9 @@ void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
         fprintf(stderr, "[foundation] frame %u journal %s\n", frame_number, visible ? "shown" : "hidden");
     }
     if (trace) {
-        fprintf(trace, "%u,%u,%u,%u,%d,%d,%d\n", frame_number, g_ram[0x20],
-                g_ram[0x5372], g_ram[0x5360], enabled, visible, has_lead);
+        fprintf(trace, "%u,%u,%u,%u,%d,%d,%d,%u\n", frame_number, g_ram[0x20],
+                g_ram[0x5372], g_ram[0x5360], enabled, visible, has_lead,
+                JournalPossessionGroups(g_ram, 0x20000));
         fflush(trace);
     }
 }
@@ -112,11 +118,21 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
     int lead = FoundationJournalHasLead(g_ram[0x5372], g_ram[0x5360]);
     uint32_t *pixels = (uint32_t *)dst;
     int stride = (int)(pitch / 4), x = (w - 240) / 2;
+    unsigned groups = possession_enabled ? JournalPossessionGroups(g_ram, 0x20000) : 0;
     snes_ovl_fill_rect(pixels, stride, h, x, 6, 240, 75, 0xff080e1c);
     snes_ovl_stroke_rect(pixels, stride, h, x, 6, 240, 75, 0xff809bc8);
     snes_ovl_draw_text(pixels, stride, h, x + 6, 11,
+                       groups ? "JOURNAL - HOTKEY: CLOSE" :
                        "JOURNAL - JOURNAL HOTKEY: CLOSE", 0xffffdf78, 1);
-    if (lead) {
+    if (groups) {
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
+                           "STARCREST: HELD NOW", 0xfff0f3fa, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
+                           groups == 3 ? "Both inventory groups" : groups == 2 ?
+                           "Second inventory group" : "First inventory group", 0xfff0f3fa, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 57,
+                           "In your pack now", 0xfff0f3fa, 1);
+    } else if (lead) {
         snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
                            "Seek the Crest of Stars", 0xfff0f3fa, 1);
         snes_ovl_draw_text(pixels, stride, h, x + 6, 45,

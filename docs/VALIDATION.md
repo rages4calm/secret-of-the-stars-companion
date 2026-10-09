@@ -1,6 +1,17 @@
 # Validation scope — 2026-10-09
 
-## Current staged development
+## Current integrated 0.2.1
+
+The canonical 50-input build integrates guarded parked/travel Algos,
+strictly selected later wrapping-map actors and current Starcrest possession.
+Exact executable `912e7d1c4c053c7be7cc1589825e78dcff647210c98e8b5d725edbb3fa432e06`
+passes fresh actor, journal, controller/QoL/menu/checkpoint and actual world-edge
+checks. The observed edge discontinuities preserve the original center and
+refuse stale margins; no visible actor-edge crossing was certified.
+[Integrated qualification and precise limits](FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md).
+The dated earlier sections below preserve their original artifact scopes.
+
+## Earlier staged development
 
 The combined candidate
 `23e3fdb43ab277b18d7c91004f4e07e7e9a8fe6a06a4e67ba283a02a036cc38b`
@@ -51,7 +62,7 @@ checks are bounded and separate from campaign/hardware qualification. Native
 0.2.0 and owner saves/settings are unchanged.
 See [packaging and profile updates](FOUNDATION-PACKAGE-UPDATES-2026-10-09.md).
 
-## Current 0.2.0 foundation
+## Earlier 0.2.0 foundation
 
 The integrated 0.2.0 native executable has SHA-256
 `9241f79ea1a685e0932282c300081a90f9becf503f9a17c5fe6a94b34a08a7e0`.

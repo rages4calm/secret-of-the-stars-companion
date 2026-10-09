@@ -77,6 +77,10 @@ off. It does not load, convert or advance an existing owner save. In that
 profile's `foundation.ini`, enable both `ExperimentalFieldWide=1` and
 `ExperimentalFieldActors=1` to exercise the experimental wide presentation.
 Unsupported states retain the original centered picture with side bars.
+The 0.2.1 snapshot includes guarded Algos/selected world-map actor policies.
+Journal current possession defaults on within the existing Journal feature;
+`JournalPossession=0` in foundation.ini disables its inventory line.
+See [integrated scope](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md) for the finite checks and remaining gaps.
 
 The engine's default input and hotkeys may differ from an already configured
 Companion installation. See its local configuration and the source settings

@@ -65,7 +65,9 @@ def main():
         shutil.copy2(path,project/'src'/path.name)
     if args.experiment in ('b0', 'b0-travel', 'combined'):
         cmake_file = project/'CMakeLists.txt'
-        cmake_file.write_text(cmake_file.read_text().replace('    src/foundation_wide_actors.c','    src/foundation_wide_actors.c\n    src/foundation_large_actor_canary.c'))
+        cmake_text = cmake_file.read_text()
+        if '    src/foundation_large_actor_canary.c' not in cmake_text:
+            cmake_file.write_text(cmake_text.replace('    src/foundation_wide_actors.c','    src/foundation_wide_actors.c\n    src/foundation_large_actor_canary.c'))
     version = 'experimental-'+args.experiment+'-v1'
     env=os.environ.copy(); env['PATH']=str(Path(cache['CMAKE_C_COMPILER']).parent)+';'+str(Path(cache['CMAKE_MAKE_PROGRAM']).parent)+';'+env.get('PATH','')
     configure=[cache.get('CMAKE_COMMAND',shutil.which('cmake')),'-S',str(project),'-B',str(out/'build'),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',

@@ -20,40 +20,21 @@ Do not distribute the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
 
-Disposable staged progression is now authorized. The
-[staged assessment](docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md) reaches
-original parked/travel Algos and visible later wrapping-map actor loaders, independently
-of natural campaign completion. A combined experimental build now reruns the
-focused actor and paced GPU/audio checks. Extend its broader contexts and complete
-release-adoption checks; the canonical installed guards remain.
+The [integrated 0.2.1 foundation](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md) includes
+guarded parked Algos and the strictly selected later world-map ship observer.
+Original-loader staged checks preserve original pixels/guest state and completed
+packet identity. Actual world-edge walking preserves terrain/center and falls
+back at stale-raster discontinuities. Visible actors were far from those seams;
+an authenticated visible actor crossing remains the next focused proof.
 
-The separate large-B0 prototype now has actual original parked producer/DMA
-and visible-margin checks. A travel variant verifies the body's fixed slots and
-reserved shadow packet through four directions and restore. Broader terrain/OBJ
-overlap, subscreen/half-color and vehicle contexts still need qualification.
-Neither is enabled in the 0.2.0 foundation.
-
-Wrapping-world actors need authenticated current-line camera lineage across
-map seams. Original clipping corrections and emitted OAM coordinates differ;
-simply removing the wrap guard is insufficient. Add bounded natural seam,
-multi-party and reserved-slot margin fixtures, then broader story/cutscene and
-effect coverage. Keep exact original center and safe fallback until each family
-qualifies. Resource enumeration alone does not certify a campaign.
-The [natural allocation trace](docs/FOUNDATION-ACTOR-ALLOCATION-2026-10-09.md)
-proves that one naturally selected world record uses transparent artwork and
-executes the original reserved-B0 refusal. A different naturally selected visible
-source was reached with staged progression; further camera movement of the
-same earlier blank entry is insufficient.
-The [Algos acquisition chain](docs/FOUNDATION-B0-MODE-ACQUISITION-2026-10-09.md)
-now identifies its original message/bootstrap and travel/exit modes. The exact
-selecting field event and a natural checkpoint remain missing. A later ordinary
-[wrapping source](docs/FOUNDATION-WRAPPING-VISIBLE-SOURCE-2026-10-09.md) requires
-stage 17 and clear flag selector 9. The new staged entry fixture reaches it
-through the original loader; natural campaign entry remains separate.
-The [experimental B0 module](experiments/b0/README.md) builds separately from
-the canonical snapshot. Actual ordinary and staged original B0 guest/DMA
-fidelity now pass. Keep synthetic raster, staged execution and natural campaign
-checks distinct. Integrate these prototypes only after combined release checks.
+Extend coherent multi-party, reserved-slot, vehicle, effect and cutscene contexts.
+Keep original activation/collision, exact center and fallback while each new
+family qualifies. Broad terrain/OBJ overlap and subscreen/half-color contexts
+remain incomplete. Resource enumeration does not certify a campaign.
+The [staged assessment](docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md)
+retains the separate experimental provenance and original-loader recipes.
+Natural Algos acquisition and later world-map story entry remain separate from
+staged execution. Experimental build receipts stay refused by normal Setup.
 
 ## 3. Native execution and original slowdown
 
@@ -68,12 +49,12 @@ accelerates the whole game; neither feature proves a guest slowdown fix.
 
 ## 4. Expand the quest journal
 
-An isolated current-Starcrest-possession card reads both original inventories
+The integrated current-Starcrest-possession card reads both original inventories
 and recomputes after restore. It is useful current-state evidence, while the
 original award, completion event and full journal history still need separate
 proof. Staged item fixtures are now authorized for these focused checks.
 
-The current journal exposes one verified opening-stage lead. Add natural Crest
+The current journal also exposes one verified opening-stage lead. Add natural Crest
 acquisition and later dialogue/progression fixtures; verify actual item/story
 writers before enabling completion rules. Define deterministic event history,
 new-game reset, cold restore and rewind behavior. Avoid spoilers or an external

@@ -15,6 +15,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     for name in ('exe', 'reference', 'rom', 'fixture', 'runtime', 'cc', 'out', 'evidence-root'):
         p.add_argument('--'+name, type=Path, required=True)
+    p.add_argument('--feature-env', choices=('SNESRECOMP_EXPERIMENTAL_JOURNAL_POSSESSION',
+        'SNESRECOMP_FOUNDATION_JOURNAL_POSSESSION'), default='SNESRECOMP_EXPERIMENTAL_JOURNAL_POSSESSION')
     a = p.parse_args()
     a.exe = a.exe.resolve(strict=True); a.reference = a.reference.resolve(strict=True)
     a.fixture = a.fixture.resolve(strict=True); a.rom = a.rom.resolve(strict=True)
@@ -77,8 +79,8 @@ def main():
         env.update(SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy', SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS='1',
             SNESRECOMP_DUMP_DIR=str(directory/'dump'), SNESRECOMP_FOUNDATION_JOURNAL_INPUT_TEST=method,
             SNESRECOMP_FOUNDATION_JOURNAL_TRACE=str(directory/'journal.csv'),
-            SNESRECOMP_EXPERIMENTAL_JOURNAL_POSSESSION=str(possession),
             SNESRECOMP_FOUNDATION_PRESENT_CAPTURE=str(directory/'present.bgrx'), SNESRECOMP_FOUNDATION_CAPTURE_AT=str(capture))
+        env[a.feature_env] = str(possession)
         if method == 'pad':
             # This already-qualified hook gives its virtual device an explicit
             # player index when a physical controller is also connected.

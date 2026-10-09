@@ -1,8 +1,11 @@
+/* Combined isolated travel-B0 and selected scene0 ordinary wrapping prototype.
+ * Unsupported contexts remain refused; canonical installed source is unchanged. */
 /* Validated field draw-record cache. No guest reads through bus helpers, writes,
  * opcode redirects, actor activation or clock changes. Metadata becomes live
  * only with the original complete OAM packet, never at producer-frame time. */
 #include "foundation_wide_actors.h"
 #include "foundation_field.h"
+#include "foundation_large_actor_canary.h"
 #include "common_rtl.h"
 #include "cpu_state.h"
 #include "sha256.h"
@@ -22,11 +25,12 @@ enum { kParty = 5, kRegular = 19, kAppendRegular = 17, kActors = kParty + kRegul
 typedef struct Actor {
     uint16_t world_x, world_y, base, words[4];
     int16_t screen_x, screen_y;
-    uint8_t present, flags, phase, party;
+    uint8_t present, flags, phase, party, travel_proxy;
     uint32_t descriptor;
 } Actor;
 typedef struct Packet {
     Actor actors[kActors];
+    LargeReplay large;
     uint8_t bytes[kPacketBytes];
     uint32_t seen, expected, epoch, producer_frame;
     unsigned count;
@@ -39,12 +43,15 @@ static int configured, enabled, initialized, installed, identity, sequence, sequ
 static int transfer_valid;
 static unsigned generation, next_epoch, frame_pieces, frame_pixels, total_captured, total_packets;
 static unsigned total_pieces, total_pixels, rejects;
+static unsigned long long probe_hits[9], probe_dma_start, probe_dma_complete;
+static const uint32_t probe_pcs[9] = {0x01d8b1,0x01d917,0x01d989,0x01db68,0x01d988,0x01da56,0x01dab6,0x01db2c,0x01de29};
 static uint64_t drawn_piece_bits[2];
 static const uint8_t *bound_rom;
 static size_t bound_size;
 static FILE *trace;
-static PpuExtraObject objects[kPieces];
-static uint16_t colors[kPieces][64];
+static PpuExtraObject objects[kPieces + 2];
+static uint16_t colors[kPieces + 2][256];
+static uint16_t large_colors[2][256];
 static const uint8_t clean_hash[32] = {
     0x7d,0xa4,0xa3,0xcf,0xa5,0xde,0x4b,0xb4,0x72,0x2a,0x6e,0x2a,0x42,0xc2,0x6a,0xae,
     0x32,0x2b,0x5e,0x66,0x8f,0x16,0x45,0xd8,0xc8,0x70,0xfb,0x99,0xe6,0x08,0x06,0x00
@@ -65,6 +72,42 @@ static int PartyGate(int value, unsigned stop) {
     unsigned v = (uint16_t)value;
     return v >= 0x1f9 || v < stop;
 }
+/* Original DAxx gate adds the world period only in A, never in DP16/18.
+ * Packet validation therefore retains raw coordinates even on this branch. */
+static int RegularGate(int value, unsigned stop, int wrap) {
+    unsigned raw = (uint16_t)value;
+    if (raw >= 0xfff1) return 1;
+    if (wrap && raw >= 0x8000) raw = (raw + 3584) & 0xffff;
+    return raw < stop;
+}
+static int WorldDistance(int value, int center) {
+    int d = value - center;
+    if (d < -1792) d += 3584;
+    if (d >= 1792) d -= 3584;
+    return d;
+}
+static int WrappingResource(const Ppu *ppu) {
+    if (!g_ram[0x407]) return 0;
+    if (!ppu || !g_snes || !g_snes->dma || R16(0x40e) || g_ram[0x407] != 1 ||
+        g_ram[0x400] || g_ram[0x5372] != 17 || (g_ram[0x5361] & 0x40) ||
+        R16(0x46d) != 0x0e0e || R16(0x46f) != 0x0404 ||
+        R24(0x500) != 0x038758 || R24(0x503) != 0x038f58 ||
+        R24(0x506) != 0x0a8418 || R24(0x509) != 0x0a8818 ||
+        R24(0x513) != 0x09a85c || R24(0x516) != 0x099700 ||
+        R24(0x537) != 0x098110 || R24(0x55c) != 0x098210 ||
+        ppu->bgmode != 9 || PPU_mosaicSize(ppu) > 1 || ppu->setini) return 0;
+    for (unsigned i = 0; i < 8; ++i)
+        if (g_snes->dma->channel[i].hdmaActive) return 0;
+    /* No arbitrary other ordinary allocations become qualified by flags. */
+    for (unsigned i = 0; i < kRegular; ++i) {
+        unsigned at = 0x4100 + 25 * i;
+        if (i < 2) {
+            if (g_ram[at] != (i ? 0 : 2) || R16(at + 1) != 1536 ||
+                R16(at + 3) != (i ? 544 : 528) || R16(at + 5) != 0x0598) return 0;
+        } else if (g_ram[at] != 255) return 0;
+    }
+    return 1;
+}
 static int Period512(int value, int center) {
     return ((value - center + 256) & 511) + center - 256;
 }
@@ -75,7 +118,7 @@ static void Row(const char *event, const Packet *packet, const CpuState *cpu, in
     unsigned party_count = 0;
     for (unsigned i = 0; i < kParty; ++i) party_count += packet->actors[i].present != 0;
     const Actor *member = &packet->actors[0];
-    fprintf(trace, "%s,%u,%u,%u,%d,%u,%u,%u,%u,%u,%u,%u,%u,%d,%d,%u,%u,%u,%u,%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%d,%d,%u\n",
+    fprintf(trace, "%s,%u,%u,%u,%d,%u,%u,%u,%u,%u,%u,%u,%u,%d,%d,%u,%u,%u,%u,%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%d,%d,%u",
         event, snes_frame_counter, generation, packet->epoch, packet->valid, packet->count,
         packet->seen, frame_pieces, frame_pixels, 0x414b, target->flags, target->phase,
         target->descriptor, target->screen_x, target->screen_y,
@@ -85,6 +128,13 @@ static void Row(const char *event, const Packet *packet, const CpuState *cpu, in
         packet->start_slot, packet->mask, g_ppu ? PPU_objPriority(g_ppu) : 0,
         party_count, packet->seen & 31u, packet->party_end_slot, member->descriptor,
         member->screen_x, member->screen_y, member->phase);
+    const Actor *r0 = &packet->actors[kParty], *r1 = &packet->actors[kParty + 1];
+    uint8_t packet_hash[32];
+    sha256_compute(packet->bytes, sizeof(packet->bytes), packet_hash);
+    fprintf(trace, ",%d,%d,%u,%u,%u,%u,", packet->camera_x, packet->camera_y,
+        r0->descriptor, r0->phase, r1->descriptor, r1->phase);
+    for (unsigned i = 0; i < 32; ++i) fprintf(trace, "%02x", packet_hash[i]);
+    fputc('\n', trace);
     fflush(trace);
 }
 
@@ -112,7 +162,8 @@ int FoundationWideActorsEnabled(void) { return enabled; }
 static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
-        g_ram[0x401] == 12 && !g_ram[0x407] && !R16(0x471) && !R16(0x473);
+        g_ram[0x401] == 12 && (!g_ram[0x407] || WrappingResource(ppu)) &&
+        !R16(0x471) && !R16(0x473);
 }
 
 static void Resource(const Ppu *ppu, uint8_t key[48]) {
@@ -145,7 +196,7 @@ void FoundationWideActorsBeforeFrame(void) {
         FoundationWideActorsReset(); bound_rom = g_rom; bound_size = size;
         if (g_rom && size == 1572864) {
             uint8_t hash[32]; sha256_compute(g_rom, size, hash);
-            identity = !memcmp(hash, clean_hash, sizeof(hash));
+            identity = !memcmp(hash, clean_hash, sizeof(hash)) && LargeBindRom(g_rom, size);
         }
     }
     if ((sequence || queued.valid || transfer_valid || displayed.valid) &&
@@ -174,7 +225,29 @@ static void Reject(const char *why, const CpuState *cpu) {
     Row(why, &producing, cpu, 0);
 }
 
+static LargeView LargeInput(const Ppu *ppu) {
+    return (LargeView){g_ram, 131072, ppu->renderVram ? ppu->renderVram : ppu->vram,
+        ppu->cgram, 32768, 256, ppu->obsel, PPU_objPriority(ppu), ppu->setini,
+        Scene(ppu)};
+}
+
+/* Exact original signed-travel initializer: the A8 party-0 shadow occupies
+ * fixed compact slots 124..127, while party-1 B0 writes fixed slots 0/1.
+ * This is not a general A8 acceptance rule or a new sprite activation policy.
+ * The original 01:D95A cursor save/restore means the proxy never advances 046B.
+ * Checked original primary-party mode and fixed center coordinates only. */
+static int KnownTravelProxy(unsigned index) {
+    return !g_ram[0x407] && index == 0 && g_ram[0x409] == 0x82 && g_ram[0x4b6] == 0 &&
+        g_ram[0x4000] <= 3 && g_ram[0x4000] == g_ram[0x4012] &&
+        R16(0x4003) == 0xa8 && R16(0x4015) == 0xb0 &&
+        R16(0x4001) == 0x7080 && R16(0x4013) == 0x4078 &&
+        g_ram[0x4005] == 0 && g_ram[0x4017] == 0 &&
+        g_ram[0x4009] == g_ram[0x4000] && g_ram[0x401b] == 0x42 &&
+        g_ram[0x4024] == 255 && g_ram[0x4036] == 255 && g_ram[0x4048] == 255;
+}
+
 static void Observe(CpuState *cpu, uint32_t pc) {
+    for (unsigned i=0;i<9;++i) if (probe_pcs[i]==pc) ++probe_hits[i];
     if ((!enabled && !trace) || !identity) return;
     if (pc == 0x01d8b1) {
         memset(&producing, 0, sizeof(producing)); sequence_done = party_done = 0;
@@ -187,12 +260,20 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (cursor != 0x30 || R16(0x0e34) != 0x10 || R16(0x0e38) != 0x201 ||
             R16(0x0e10) != producing.mask) sequence = 0;
         if (g_ppu) Resource(g_ppu, producing.resource);
+        /* The existing B0 contract intentionally refuses wrapping.
+         * Ordinary wrapping has its own strict resource/packet proof. */
+        if (sequence && !g_ram[0x407]) {
+            LargeView view = LargeInput(g_ppu);
+            if (!LargeBegin(&producing.large, &view, g_ram + 0x2200, kPacketBytes)) sequence = 0;
+        }
         for (unsigned i = 0; i < kParty; ++i) {
             unsigned at = 0x4000 + i * 18;
             if (g_ram[at] != 255) {
                 unsigned base = R16(at + 3), gfx = base + g_ram[at] * 2 + (g_ram[at + 10] >> 7);
-                if (g_ram[at] > 3 || base == 0xb0 || (gfx & 0xfff8) == 0xa8 ||
-                    gfx >= (0xd800 - 0x9800) / 8) sequence = 0;
+                if ((g_ram[0x407] && (base == 0xb0 || (gfx & 0xfff8) == 0xa8)) ||
+                    (base != 0xb0 && (g_ram[at] > 3 ||
+                    ((gfx & 0xfff8) == 0xa8 && !KnownTravelProxy(i)) ||
+                    gfx >= (0xd800 - 0x9800) / 8))) sequence = 0;
                 else producing.expected |= 1u << i;
             }
         }
@@ -200,8 +281,9 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             unsigned at = 0x4100 + i * 25;
             if (g_ram[at] != 255) {
                 unsigned base = R16(at + 5), gfx = base + g_ram[at] * 2 + (g_ram[0x475] >> 7);
-                if (g_ram[at] > 3 || base == 0xb0 ||
-                    gfx >= (0xd800 - 0x9800) / 8) sequence = 0;
+                if ((g_ram[0x407] && base == 0xb0) ||
+                    (base != 0xb0 && (g_ram[at] > 3 ||
+                    gfx >= (0xd800 - 0x9800) / 8))) sequence = 0;
                 else producing.expected |= 1u << (kParty + i);
             }
         }
@@ -211,7 +293,28 @@ static void Observe(CpuState *cpu, uint32_t pc) {
     }
     if (!sequence) return;
     if (!SameResource(g_ppu, &producing)) { Reject("reject_resource", cpu); return; }
-    if (pc == 0x01d917) {
+    if (pc == 0x01d989 || pc == 0x01db68) {
+        if (g_ram[0x407]) { Reject("reject_wrapping_large", cpu); return; }
+        enum LargeFamily family = pc == 0x01d989 ? LARGE_PARTY : LARGE_REGULAR;
+        unsigned index = g_ram[family == LARGE_PARTY ? 0x0e13 : 0x0e14];
+        unsigned rank = (family == LARGE_PARTY ? 0 : kParty) + index;
+        if ((family == LARGE_PARTY ? party_done : !party_done) ||
+            index >= (family == LARGE_PARTY ? kParty : kRegular) ||
+            !(producing.expected & (1u << rank)) || (producing.seen & (1u << rank))) {
+            Reject("reject_large_order", cpu); return;
+        }
+        LargeView view = LargeInput(g_ppu);
+        LargeSeam seam = { .pc = pc, .caller = R24(cpu->S + 1), .record_pointer = R24(0x0e1c),
+            .descriptor = R24(0x0e1f), .d = cpu->D, .s = cpu->S, .y = cpu->Y,
+            .base = R16(0x0e1a), .mask = R16(0x0e10), .coordinate_x = R16(0x0e02),
+            .coordinate_y = R16(0x0e00), .pb = cpu->PB, .db = cpu->DB,
+            .m = cpu->m_flag, .x = cpu->x_flag, .decimal = cpu->_flag_D, .emulation = cpu->emulation };
+        if (!LargeCapture(&producing.large, &view, &seam, family, index)) {
+            Reject("reject_large_capture", cpu); return;
+        }
+        producing.seen |= 1u << rank; ++producing.count; ++total_captured;
+        Row("large_capture", &producing, cpu, 1);
+    } else if (pc == 0x01d917) {
         unsigned index = g_ram[0x0e13], at = 0x4000 + index * 18;
         if (party_done || !Context(cpu, 0x01d865, 1) || index >= kParty || cpu->Y != 2 ||
             R24(0x0e1c) != 0x7e0000 + at || R16(0x0e1a) != R16(at + 3) ||
@@ -220,6 +323,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         }
         Actor *actor = &producing.actors[index];
         actor->present = actor->party = 1; actor->flags = g_ram[at];
+        actor->travel_proxy = KnownTravelProxy(index);
         actor->phase = g_ram[at + 10] >> 7; actor->base = R16(at + 3);
         actor->world_x = g_ram[at + 1] | ((g_ram[at + 5] & 1) << 8);
         actor->world_y = g_ram[at + 2] | ((g_ram[at + 5] & 2) << 7);
@@ -228,7 +332,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         actor->descriptor = 0x0e9800 + gfx * 8;
         if (actor->screen_x != Signed(actor->world_x) ||
             actor->screen_y != Signed(actor->world_y - 1) || actor->base == 0xb0 ||
-            (gfx & 0xfff8) == 0xa8 || actor->flags > 3 ||
+            ((gfx & 0xfff8) == 0xa8 && !actor->travel_proxy) || actor->flags > 3 ||
             actor->descriptor < 0x0e9800 || actor->descriptor + 8 > 0x0ed800 ||
             R16(0x0e10) != producing.mask) {
             Reject("reject_party_descriptor", cpu); return;
@@ -245,7 +349,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         unsigned slot = 12;
         for (unsigned index = 0; index < kParty; ++index) {
             const Actor *actor = &producing.actors[index];
-            if (actor->present && PartyGate(actor->screen_x, 255) && PartyGate(actor->screen_y, 239))
+            if (actor->present && !actor->travel_proxy &&
+                PartyGate(actor->screen_x, 255) && PartyGate(actor->screen_y, 239))
                 slot += 4;
         }
         if (R16(0x46b) != slot * 4) { Reject("reject_party_cursor", cpu); return; }
@@ -298,8 +403,29 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             Actor *actor = &producing.actors[index];
             if (index == kParty && slot != producing.start_slot) { Reject("reject_party_regular_cursor", cpu); return; }
             if (!actor->present) continue;
+            if (actor->travel_proxy) {
+                /* DE82's temporary compact cursor, not the append cursor.
+                 * Verify all four original low words and their small-size bits
+                 * before sealing the same complete 544-byte packet. */
+                if (index != 0 || !KnownTravelProxy(index)) {
+                    Reject("reject_travel_proxy_context", cpu); return;
+                }
+                for (unsigned part = 0; part < 4; ++part) {
+                    unsigned proxy_slot = 124 + part;
+                    unsigned at = 0x2200 + proxy_slot * 4;
+                    unsigned high = (g_ram[0x2400 + proxy_slot / 4] >>
+                                     (proxy_slot % 4 * 2)) & 3;
+                    if (g_ram[at] != 128 + (part & 1) * 8 ||
+                        g_ram[at + 1] != 111 + (part >> 1) * 8 ||
+                        R16(at + 2) != actor->words[part] || high != 0) {
+                        Reject("reject_travel_proxy_packet", cpu); return;
+                    }
+                }
+                continue;
+            }
             if (actor->party ? (!PartyGate(actor->screen_x, 255) || !PartyGate(actor->screen_y, 239)) :
-                               (!Gate(actor->screen_x, 255) || !Gate(actor->screen_y, 239))) continue;
+                               (!RegularGate(actor->screen_x, 255, producing.resource[30]) ||
+                                !RegularGate(actor->screen_y, 239, producing.resource[30]))) continue;
             if (slot >= 124) { Reject("reject_capacity", cpu); return; }
             for (unsigned part = 0; part < 4; ++part, ++slot) {
                 int x = actor->screen_x + ((part & 1) * 8);
@@ -318,7 +444,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         unsigned reserved_slot = 4;
         for (unsigned index = kParty + kAppendRegular; index < kActors; ++index) {
             const Actor *actor = &producing.actors[index];
-            if (!actor->present || !Gate(actor->screen_x, 255) || !Gate(actor->screen_y, 239)) continue;
+            if (!actor->present || !RegularGate(actor->screen_x, 255, producing.resource[30]) ||
+                !RegularGate(actor->screen_y, 239, producing.resource[30])) continue;
             for (unsigned part = 0; part < 4; ++part, ++reserved_slot) {
                 int x = actor->screen_x + ((part & 1) * 8);
                 int y = actor->screen_y - 1 + ((part >> 1) * 8);
@@ -342,6 +469,9 @@ static void Observe(CpuState *cpu, uint32_t pc) {
                 Reject("reject_reserved_park", cpu); return;
             }
         }
+        if (producing.large.writers && !LargeSeal(&producing.large, g_ram + 0x2200, kPacketBytes)) {
+            Reject("reject_large_staging", cpu); return;
+        }
         memcpy(producing.bytes, g_ram + 0x2200, kPacketBytes);
         producing.valid = 1; queued = producing; sequence = sequence_done = 0;
         Row("staging_ready", &queued, cpu, 1);
@@ -355,6 +485,7 @@ static int PacketMatches(const Ppu *ppu, const uint8_t *bytes) {
 }
 
 static void NotifyDma(const Dma *dma, int channel, const DmaChannel *start, bool complete) {
+    if (start && start->bAdr==4) { if (complete) ++probe_dma_complete; else ++probe_dma_start; }
     if ((!enabled && !trace) || !start || start->bAdr != 4) return;
     if (!complete) {
         transfer_valid = Scene(g_ppu) && channel == 7 && start->aBank == 0x7e &&
@@ -368,6 +499,14 @@ static void NotifyDma(const Dma *dma, int channel, const DmaChannel *start, bool
     } else {
         int match = transfer_valid && dma && dma->snes && Scene(dma->snes->ppu) &&
             SameResource(dma->snes->ppu, &transfer) && PacketMatches(dma->snes->ppu, transfer.bytes);
+        if (match && transfer.large.writers) {
+            uint8_t bytes[kPacketBytes];
+            for (unsigned i = 0; i < 256; ++i) { bytes[2*i] = dma->snes->ppu->oam[i]; bytes[2*i+1] = dma->snes->ppu->oam[i] >> 8; }
+            memcpy(bytes + 512, dma->snes->ppu->highOam, 32);
+            LargeTransfer notification = {channel, start->aBank, start->aAdr, start->size,
+                start->bAdr, start->mode, start->fromB, start->fixed, start->decrement, complete};
+            match = LargeComplete(&transfer.large, &notification, bytes, sizeof(bytes));
+        }
         if (match) { displayed = transfer; ++total_packets; }
         else memset(&displayed, 0, sizeof(displayed));
         Row("dma_complete", match ? &displayed : &transfer, NULL, match);
@@ -382,10 +521,12 @@ void FoundationWideActorsInit(void) {
     enabled = env ? !strcmp(env, "1") : configured;
     const char *path = getenv("SNESRECOMP_FOUNDATION_ACTORS_TRACE");
     if (path) trace = fopen(path, "w");
-    if (trace) fputs("event,frame,generation,epoch,packet_valid,cached_actors,seen_mask,side_pieces,side_pixels,target_record,target_flags,target_phase,target_descriptor,target_x,target_y,cpu_d,cpu_db,cpu_m,cpu_x,packet_match,producer_frame,scene,start_slot,mask,rotation,party_count,party_seen,party_end_slot,party0_descriptor,party0_x,party0_y,party0_phase\n", trace);
+    if (trace) fputs("event,frame,generation,epoch,packet_valid,cached_actors,seen_mask,side_pieces,side_pixels,target_record,target_flags,target_phase,target_descriptor,target_x,target_y,cpu_d,cpu_db,cpu_m,cpu_x,packet_match,producer_frame,scene,start_slot,mask,rotation,party_count,party_seen,party_end_slot,party0_descriptor,party0_x,party0_y,party0_phase,packet_camera_x,packet_camera_y,regular0_descriptor,regular0_phase,regular1_descriptor,regular1_phase,packet_sha256\n", trace);
     if (enabled || trace) {
         installed = interp_bridge_add_pre_opcode_hook(0x01d8b1, Observe) &&
             interp_bridge_add_pre_opcode_hook(0x01d917, Observe) &&
+            interp_bridge_add_pre_opcode_hook(0x01d989, Observe) &&
+            interp_bridge_add_pre_opcode_hook(0x01db68, Observe) &&
             interp_bridge_add_pre_opcode_hook(0x01d988, Observe) &&
             interp_bridge_add_pre_opcode_hook(0x01da56, Observe) &&
             interp_bridge_add_pre_opcode_hook(0x01dab6, Observe) &&
@@ -407,15 +548,41 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
         !Scene(source) || !SameResource(source, &displayed) || !PacketMatches(source, displayed.bytes)) return 0;
     int cx = displayed.camera_x + ((source->hScroll[0] - (displayed.camera_x & 1023) + 512) & 1023) - 512;
     int cy = displayed.camera_y + ((source->vScroll[0] - (displayed.camera_y & 1023) + 512) & 1023) - 512;
+    int dx = cx - displayed.camera_x, dy = cy - displayed.camera_y;
+    int wrap = displayed.resource[30] != 0;
+    if (wrap) {
+        /* Authenticate the live raster against its wrapped primary reference.
+         * The displayed actor records and packet remain immutable. Reject an
+         * unknown raster offset rather than unwrap against stale packet lows. */
+        int live_x = R16(0x2ad), live_y = R16(0x2af);
+        if (live_x >= 3584 || live_y >= 3584 ||
+            displayed.camera_x < 0 || displayed.camera_x >= 3584 ||
+            displayed.camera_y < 0 || displayed.camera_y >= 3584) return 0;
+        /* The interior fixture does not qualify stale-packet raster timing
+         * across an actual world edge. Refuse that jump until an edge proof. */
+        if (live_x - displayed.camera_x < -8 || live_x - displayed.camera_x > 8 ||
+            live_y - displayed.camera_y < -8 || live_y - displayed.camera_y > 8) return 0;
+        int latch_dx = ((source->hScroll[0] - (live_x & 1023) + 512) & 1023) - 512;
+        int latch_dy = ((source->vScroll[0] - (live_y & 1023) + 512) & 1023) - 512;
+        if (latch_dx < -8 || latch_dx > 8 || latch_dy < -8 || latch_dy > 8) return 0;
+        cx = live_x + latch_dx; cy = live_y + latch_dy;
+        dx = WorldDistance(live_x, displayed.camera_x) + latch_dx;
+        dy = WorldDistance(live_y, displayed.camera_y) + latch_dy;
+        if (dx < -8 || dx > 8 || dy < -8 || dy > 8) return 0;
+    }
     unsigned count = 0;
     for (unsigned index = 0; index < kActors; ++index) {
         const Actor *actor = &displayed.actors[index];
-        if (!actor->present) continue;
+        /* The checked A8 shadow is entirely in the original center. Its
+         * reserved packet words participate in identity, never side drawing. */
+        if (!actor->present || actor->travel_proxy) continue;
         for (unsigned part = 0; part < 4; ++part) {
-            int x = (actor->party ? Period512(actor->screen_x, 128) - (cx - displayed.camera_x) :
-                                   Signed(actor->world_x - cx)) + ((part & 1) * 8);
-            int y = (actor->party ? Period512(actor->screen_y, 112) - (cy - displayed.camera_y) :
-                                   Signed(actor->world_y - cy) - 1) + ((part >> 1) * 8);
+            int x = (actor->party ? Period512(actor->screen_x, 128) - dx :
+                     wrap ? WorldDistance(actor->world_x - cx, 128) + 128 :
+                            Signed(actor->world_x - cx)) + ((part & 1) * 8);
+            int y = (actor->party ? Period512(actor->screen_y, 112) - dy :
+                     wrap ? WorldDistance(actor->world_y - cy, 112) + 111 :
+                            Signed(actor->world_y - cy) - 1) + ((part >> 1) * 8);
             if ((int)line - 1 < y || (int)line - 1 >= y + 8 || x >= 328 || x + 8 <= -72 ||
                 (x >= 0 && x + 8 <= 256)) continue;
             unsigned bits_index = index * 4 + part;
@@ -449,6 +616,24 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
             }
         }
     }
+    if (!wrap && displayed.large.writers) {
+        LargeView view = LargeInput(source); LargePiece pieces[2];
+        unsigned extra = LargePrepare(&displayed.large, &view, displayed.bytes, kPacketBytes,
+            cx - displayed.camera_x, cy - displayed.camera_y, line, pieces, large_colors);
+        for (unsigned part = 0; part < extra; ++part) {
+            LargePiece piece = pieces[part]; unsigned slot = piece.slot;
+            memcpy(colors[count], large_colors[part], sizeof(large_colors[part]));
+            objects[count] = (PpuExtraObject){.x = piece.x, .y = piece.y, .width = 16, .height = 16,
+                .stride = 16, .priority = (piece.word >> 12) & 3, .math = !!(piece.word & 0x0800),
+                .oamSlot = slot, .order = slot + 1, .pixels = colors[count]};
+            ++count;
+            unsigned bits_index = kPieces + slot;
+            uint64_t bit = (uint64_t)1 << (bits_index & 63);
+            if (!(drawn_piece_bits[bits_index >> 6] & bit)) {
+                drawn_piece_bits[bits_index >> 6] |= bit; ++frame_pieces; ++total_pieces;
+            }
+        }
+    }
     if (!count) return 0;
     /* This PPU is the private margin picture. Never promote stale native OAM
      * there. Original guest OBJ evaluation already ran at authentic width. */
@@ -464,6 +649,8 @@ void FoundationWideActorsDrawResult(unsigned pixels) { frame_pixels += pixels; t
 void FoundationWideActorsEndDraw(void) { Row("frame", &displayed, NULL, displayed.valid); }
 
 void FoundationWideActorsShutdown(void) {
+    for (unsigned i=0;i<9;++i) fprintf(stderr,"[b0_live_probe] pc=%06X hits=%llu\n",probe_pcs[i],probe_hits[i]);
+    fprintf(stderr,"[b0_live_probe] dma_start=%llu dma_complete=%llu\n",probe_dma_start,probe_dma_complete);
     fprintf(stderr, "[foundation_wide_actors] captured=%u packets=%u side_pieces=%u side_pixels=%u rejects=%u resets=%u\n",
             total_captured, total_packets, total_pieces, total_pixels, rejects, generation);
     if (trace) fclose(trace);

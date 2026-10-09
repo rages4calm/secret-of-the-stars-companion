@@ -1,5 +1,9 @@
 # Focused staged progression — 2026-10-09
 
+Historical experiment snapshot: the guarded combined policy is now integrated
+into native 0.2.1. Read [current release](FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md) for new exact-build checks and world-edge fallback evidence.
+The experimental build receipts described below remain excluded from normal Setup.
+
 The owner authorized advancing gameplay and setting disposable test flags to
 accelerate foundation work. Earlier instructions to wait for natural later-game
 checkpoints no longer limit development. Staged states remain a distinct evidence

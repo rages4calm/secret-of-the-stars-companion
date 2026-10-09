@@ -1,0 +1,213 @@
+/* Private read-only B0 host contract. No guest opcode, activation or timing work. */
+#include "foundation_large_actor_canary.h"
+#include "sha256.h"
+#include <string.h>
+static const uint8_t *bound_rom;
+static size_t bound_size;
+static int identity;
+static const uint8_t clean_hash[32] = {
+    0x7d,0xa4,0xa3,0xcf,0xa5,0xde,0x4b,0xb4,0x72,0x2a,0x6e,0x2a,0x42,0xc2,0x6a,0xae,
+    0x32,0x2b,0x5e,0x66,0x8f,0x16,0x45,0xd8,0xc8,0x70,0xfb,0x99,0xe6,0x08,0x06,0x00
+};
+static unsigned Read16(const uint8_t *data, unsigned at) {
+    return data[at] | (unsigned)data[at + 1] << 8;
+}
+static int Signed(unsigned value) { return (int16_t)value; }
+static int Nearest512(int value, int center) {
+    return ((value - center + 256) & 511) + center - 256;
+}
+static unsigned RomWord(unsigned address) {
+    unsigned offset = (address >> 16) * 32768 + (address & 32767);
+    return Read16(bound_rom, offset);
+}
+static void Resource(const LargeView *view, uint8_t key[34]) {
+    memcpy(key, view->ram + 0x500, 12);
+    memcpy(key + 12, view->ram + 0x513, 6);
+    memcpy(key + 18, view->ram + 0x537, 3);
+    memcpy(key + 21, view->ram + 0x55c, 3);
+    memcpy(key + 24, view->ram + 0x46d, 4);
+    memcpy(key + 28, view->ram + 0x40e, 2);
+    key[30] = view->ram[0x407]; key[31] = !!view->ram[0x400];
+    key[32] = view->ram[0x401]; key[33] = view->obsel;
+}
+static int SameResource(const LargeReplay *state, const LargeView *view) {
+    uint8_t key[34]; Resource(view, key);
+    return !memcmp(state->resource, key, sizeof(key));
+}
+static int Overlap(const void *a, size_t an, const void *b, size_t bn) {
+    if (!a || !b || !an || !bn) return 0;
+    uintptr_t av = (uintptr_t)a, bv = (uintptr_t)b;
+    return av <= bv ? bv - av < an : av - bv < bn;
+}
+static int InputAlias(const LargeView *view, const void *output, size_t bytes) {
+    return Overlap(output, bytes, view->ram, view->ram_size) ||
+        Overlap(output, bytes, view->vram, view->vram_words * sizeof(uint16_t)) ||
+        Overlap(output, bytes, view->cgram, view->cgram_words * sizeof(uint16_t)) ||
+        Overlap(output, bytes, bound_rom, bound_size);
+}
+static int ViewValid(const LargeView *view) {
+    return identity && view && view->ram && view->ram_size == 131072 &&
+        view->vram && view->vram_words == 32768 && view->cgram && view->cgram_words == 256 &&
+        view->field_eligible && view->obsel == 3 && !view->rotation && !view->setini &&
+        view->ram[0x20] == 1 && view->ram[0x401] == 12 && !view->ram[0x407] &&
+        !Read16(view->ram, 0x471) && !Read16(view->ram, 0x473);
+}
+int LargeBindRom(const uint8_t *rom, size_t size) {
+    if (rom != bound_rom || size != bound_size) {
+        bound_rom = rom; bound_size = size; identity = 0;
+        if (rom && size == 1572864) {
+            uint8_t hash[32]; sha256_compute(rom, size, hash);
+            identity = !memcmp(hash, clean_hash, sizeof(hash));
+        }
+    }
+    return identity;
+}
+void LargeReset(LargeReplay *state) {
+    if (!state) return;
+    unsigned generation = state->generation + 1;
+    memset(state, 0, sizeof(*state)); state->generation = generation;
+}
+int LargeBegin(LargeReplay *state, const LargeView *view,
+               const uint8_t *staging, size_t size) {
+    if (!state) return 0;
+    LargeReset(state);
+    if (!ViewValid(view) || !staging || size != LARGE_PACKET_BYTES ||
+        staging[0] != 0x80 || staging[1] != 0xf0 || staging[4] != 0x80 || staging[5] != 0xf0)
+        return 0;
+    memcpy(state->expected_low, staging, 8);
+    Resource(view, state->resource);
+    state->valid = 1;
+    return 1;
+}
+static int Reject(LargeReplay *state) {
+    if (state) state->valid = state->sealed = state->displayed = 0;
+    return 0;
+}
+int LargeCapture(LargeReplay *state, const LargeView *view,
+                 const LargeSeam *seam, enum LargeFamily family, unsigned index) {
+    if (!state || !state->valid || state->sealed || !ViewValid(view) || !SameResource(state, view) || !seam ||
+        (family != LARGE_PARTY && family != LARGE_REGULAR) ||
+        index >= (family == LARGE_PARTY ? 5u : 19u)) return Reject(state);
+    const uint8_t *ram = view->ram;
+    unsigned at = (family == LARGE_PARTY ? 0x4000 : 0x4100) + index * (family == LARGE_PARTY ? 18 : 25);
+    unsigned base = Read16(ram, at + (family == LARGE_PARTY ? 3 : 5));
+    unsigned descriptor = 0x0e9800 + base * 8 + ram[at] * 4;
+    unsigned mask = ram[0x400] ? 0xefff : 0xffff;
+    if (seam->pc != (family == LARGE_PARTY ? 0x01d989u : 0x01db68u) ||
+        seam->caller != (family == LARGE_PARTY ? 0x01d865u : 0x01d86fu) ||
+        seam->pb != 1 || seam->db != 1 || seam->d != 0x0e00 || seam->s >= 0x1ffd ||
+        seam->m || !seam->x || seam->y != 3 || seam->decimal || seam->emulation ||
+        seam->record_pointer != 0x7e0000 + at || seam->base != base ||
+        base != 0xb0 || ram[at] == 255 || seam->mask != mask ||
+        descriptor < 0x0e9800 || descriptor + 4 > 0x0ed800)
+        return Reject(state);
+    LargeActor actor = {0}; actor.family = family; actor.index = index;
+    actor.pose = ram[at]; actor.descriptor = descriptor;
+    actor.camera_x = Signed(Read16(ram, 0x2ad)); actor.camera_y = Signed(Read16(ram, 0x2af));
+    int x, y;
+    if (family == LARGE_PARTY) {
+        actor.world_x = ram[at + 1] | ((ram[at + 5] & 1) << 8);
+        actor.world_y = ram[at + 2] | ((ram[at + 5] & 2) << 7);
+        x = actor.world_x; y = Signed(actor.world_y - 1);
+    } else {
+        actor.world_x = Read16(ram, at + 1); actor.world_y = Read16(ram, at + 3);
+        x = Signed(actor.world_x - actor.camera_x);
+        y = Signed(actor.world_y - actor.camera_y) - 1;
+        if (seam->descriptor != descriptor || seam->coordinate_x != (uint16_t)x ||
+            seam->coordinate_y != (uint16_t)(y + 1)) return Reject(state);
+    }
+    unsigned high = 0;
+    for (unsigned part = 0; part < 2; ++part) {
+        LargePiece *piece = &actor.pieces[part]; piece->slot = part;
+        piece->x = Signed(x + part * 16); piece->y = Signed(y);
+        piece->word = RomWord(descriptor + part * 2) & mask;
+        unsigned raw_x = (uint16_t)piece->x, raw_y = (uint16_t)piece->y;
+        unsigned threshold = family == LARGE_PARTY ? 0x1f9 : 0xfff1;
+        piece->emitted = (raw_x >= threshold || raw_x < 255) &&
+                         (raw_y >= threshold || raw_y < 239);
+        if (piece->emitted) {
+            high |= (2 | ((raw_x >> 8) & 1)) << (part * 2);
+            state->expected_low[part * 4] = raw_x;
+            state->expected_low[part * 4 + 1] = raw_y;
+            state->expected_low[part * 4 + 2] = piece->word;
+            state->expected_low[part * 4 + 3] = piece->word >> 8;
+        }
+    }
+    if (state->writers && (family < state->last.family ||
+        (family == state->last.family && index <= state->last.index))) return Reject(state);
+    if (state->writers && (!actor.pieces[0].emitted || !actor.pieces[1].emitted)) {
+        state->collision = 1;
+        return Reject(state); /* earlier low words may survive with smaller size bits */
+    }
+    if (state->writers) state->collision = 1;
+    state->last = actor; state->expected_high = high; ++state->writers;
+    return 1;
+}
+int LargeSeal(LargeReplay *state, const uint8_t *staging, size_t size) {
+    if (!state || !state->valid || !state->writers || !staging || size != LARGE_PACKET_BYTES ||
+        memcmp(staging, state->expected_low, 8) || staging[512] != state->expected_high)
+        return Reject(state);
+    memcpy(state->bytes, staging, LARGE_PACKET_BYTES); state->sealed = 1;
+    return 1;
+}
+int LargeComplete(LargeReplay *state, const LargeTransfer *transfer,
+                  const uint8_t *actual, size_t size) {
+    if (!state || !state->valid || !state->sealed || !transfer ||
+        transfer->channel != 7 || transfer->bank != 0x7e || transfer->address != 0x2200 ||
+        transfer->size != LARGE_PACKET_BYTES || transfer->b_address != 4 ||
+        transfer->mode || transfer->from_b || transfer->fixed || transfer->decrement || !transfer->complete ||
+        size != LARGE_PACKET_BYTES || !actual ||
+        memcmp(actual, state->bytes, LARGE_PACKET_BYTES)) return Reject(state);
+    state->displayed = 1;
+    return 1;
+}
+int LargeDecode(const LargeView *view, uint16_t word, uint16_t pixels[LARGE_PIXELS]) {
+    if (!ViewValid(view) || !pixels || !view->vram || view->vram_words != 32768 ||
+        !view->cgram || view->cgram_words != 256) return 0;
+    if (InputAlias(view, pixels, LARGE_PIXELS * sizeof(uint16_t))) return 0;
+    unsigned base = word & 0x100 ? 0x7000 : 0x6000;
+    unsigned palette = 128 + 16 * ((word >> 9) & 7);
+    for (unsigned row = 0; row < 16; ++row) {
+        unsigned sy = word & 0x8000 ? 15 - row : row;
+        for (unsigned col = 0; col < 16; ++col) {
+            unsigned sx = word & 0x4000 ? 15 - col : col;
+            unsigned tile = ((((word & 255) >> 4) + (sy >> 3)) << 4) |
+                            (((word & 15) + (sx >> 3)) & 15);
+            unsigned at = (base + tile * 16 + (sy & 7)) & 0x7fff;
+            uint32_t planes = view->vram[at] | (uint32_t)view->vram[(at + 8) & 0x7fff] << 16;
+            unsigned bit = 7 - (sx & 7);
+            unsigned pixel = ((planes >> bit) & 1) | ((planes >> (bit + 7)) & 2) |
+                ((planes >> (bit + 14)) & 4) | ((planes >> (bit + 21)) & 8);
+            pixels[row * 16 + col] = pixel ? 0x8000 | (view->cgram[palette + pixel] & 0x7fff) : 0;
+        }
+    }
+    return 1;
+}
+unsigned LargePrepare(const LargeReplay *state, const LargeView *view,
+                      const uint8_t *actual, size_t size,
+                      int dx, int dy, unsigned line,
+                      LargePiece output[2], uint16_t pixels[2][LARGE_PIXELS]) {
+    if (!state || !state->valid || !state->displayed || !ViewValid(view) || !SameResource(state, view) || !actual ||
+        size != LARGE_PACKET_BYTES || memcmp(actual, state->bytes, size) || !output || !pixels ||
+        line < 1 || line > 224 || dx < -512 || dx > 511 || dy < -512 || dy > 511) return 0;
+    if (InputAlias(view, output, sizeof(LargePiece) * 2) ||
+        InputAlias(view, pixels, sizeof(uint16_t) * 2 * LARGE_PIXELS) ||
+        Overlap(output, sizeof(LargePiece) * 2, pixels, sizeof(uint16_t) * 2 * LARGE_PIXELS) ||
+        Overlap(output, sizeof(LargePiece) * 2, actual, size) ||
+        Overlap(pixels, sizeof(uint16_t) * 2 * LARGE_PIXELS, actual, size) ||
+        Overlap(output, sizeof(LargePiece) * 2, state, sizeof(*state)) ||
+        Overlap(pixels, sizeof(uint16_t) * 2 * LARGE_PIXELS, state, sizeof(*state))) return 0;
+    unsigned count = 0;
+    for (unsigned part = 0; part < 2; ++part) {
+        LargePiece piece = state->last.pieces[part];
+        if (state->last.family == LARGE_PARTY) {
+            piece.x = Nearest512(piece.x, 128); piece.y = Nearest512(piece.y, 112);
+        }
+        piece.x -= dx; piece.y -= dy;
+        if ((int)line - 1 < piece.y || (int)line - 1 >= piece.y + 16 ||
+            piece.x >= 328 || piece.x + 16 <= -72 || (piece.x >= 0 && piece.x + 16 <= 256)) continue;
+        if (!LargeDecode(view, piece.word, pixels[count])) return 0;
+        output[count++] = piece;
+    }
+    return count;
+}

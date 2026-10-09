@@ -1,5 +1,9 @@
 # Combined presentation integration experiment
 
+Historical experiment snapshot: the guarded combined policy is now integrated
+into native 0.2.1. Read [current release](../../docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md) for new exact-build checks and world-edge fallback evidence.
+The experimental build receipts described below remain excluded from normal Setup.
+
 This isolated candidate combines the exact qualified actor experiment sources:
 
 - `../b0-travel/foundation_wide_actors.c`: SHA256 `eed0b34c27987999afd42e98e662887fb4d69015028bfa181dad6bd2bc1aee5f`.
