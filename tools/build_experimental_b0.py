@@ -20,7 +20,7 @@ def main():
     parser.add_argument('--base-receipt', type=Path, required=True)
     parser.add_argument('--rom', type=Path, required=True)
     parser.add_argument('--jobs', type=int, default=8)
-    parser.add_argument('--experiment', choices=('b0', 'b0-travel', 'wrapping', 'journal'), default='b0')
+    parser.add_argument('--experiment', choices=('b0', 'b0-travel', 'wrapping', 'journal', 'combined'), default='b0')
     args = parser.parse_args()
     if not 1 <= args.jobs <= 64: raise ValueError('--jobs must be 1..64')
     base_receipt = inside(args.base_receipt, ROOT/'local/source-builds')
@@ -47,8 +47,10 @@ def main():
     protected = {p:sha(p) for p in [rom,base_receipt,base/'build/SecretOfTheStarsSNESRecomp.exe',marker_path,
         *(base/'project').rglob('*')] if p.is_file()}
     experimental_names = ('foundation_journal.c', 'foundation_journal.h') if args.experiment == 'journal' else ('foundation_wide_actors.c',)
+    if args.experiment == 'combined':
+        experimental_names += ('foundation_journal.c', 'foundation_journal.h')
     experimental_inputs = {ROOT/'experiments'/args.experiment/name: sha(ROOT/'experiments'/args.experiment/name) for name in experimental_names}
-    if args.experiment in ('b0', 'b0-travel'):
+    if args.experiment in ('b0', 'b0-travel', 'combined'):
         experimental_inputs.update({ROOT/'tools'/name: sha(ROOT/'tools'/name) for name in ('foundation_large_actor_canary.c','foundation_large_actor_canary.h')})
     protected.update(experimental_inputs)
     out = ROOT/('local/experimental-'+args.experiment)/time.strftime('%Y%m%d-%H%M%S'); out.mkdir(parents=True,exist_ok=False)
@@ -61,7 +63,7 @@ def main():
     module = ROOT/'experiments'/args.experiment/experimental_names[0]
     for path in experimental_inputs:
         shutil.copy2(path,project/'src'/path.name)
-    if args.experiment in ('b0', 'b0-travel'):
+    if args.experiment in ('b0', 'b0-travel', 'combined'):
         cmake_file = project/'CMakeLists.txt'
         cmake_file.write_text(cmake_file.read_text().replace('    src/foundation_wide_actors.c','    src/foundation_wide_actors.c\n    src/foundation_large_actor_canary.c'))
     version = 'experimental-'+args.experiment+'-v1'

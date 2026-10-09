@@ -7,9 +7,45 @@ category: they establish execution of the original loaders and constructors,
 not natural campaign progression or a verified quest award.
 
 The normal installed foundation remains 0.2.0 and Companion remains 0.3.0.
-These separate experimental builds do not change the owner installation.
+These separate and combined experimental builds do not change the owner installation.
 Original ROMs, saves and settings remain protected. The canonical 48-input native
 manifest, guest cycle accounting and runtime patch remain unchanged.
+
+## Combined integration candidate
+
+The frozen combined artifact is
+`23e3fdb43ab277b18d7c91004f4e07e7e9a8fe6a06a4e67ba283a02a036cc38b`.
+It includes the checked parked/travel B0 policy, selected ordinary wrapping
+family and unchanged experimental possession-journal modules. The large-sprite
+contract remains nonwrapping; the strict ordinary wrapping route is separate.
+The original installed source and its 48-input manifest remain unchanged.
+
+The combined artifact independently reruns all 31 parked/travel B0 checks,
+78 ordinary actor gates and the 17-route/12-check wrapping suite. Those wrapping
+routes preserve 224 guest comparisons, 32 original-center surfaces and all
+3,791 independently decoded margin pixels. Earlier standalone results are not
+used as substitutes for these combined executions. The combined journal also
+passes all 101 integration checks across 33 native runs and 199 tests of the
+same inline predicate, including indexed SDL virtual-controller input,
+in-process restoration to absence, restart and canonical off/no-item parity.
+Eight separate negative replays preserve 84 core guest comparisons and twelve
+original-center surfaces. The unsupported stage-zero wrapping family and
+wrapping B0/A8 party contexts yield no qualified packets. The deliberately
+incoherent postloader-camera fixture remains a negative terrain test and adds
+no actor-margin pixels; it is not a corrected gameplay scene.
+
+Four separate paced Direct3D/audio routes on this same artifact cover parked
+margins, wrapping margins, four-direction travel and a keyboard journal toggle.
+Each holds about 60.03 presentations/second with no measured steady audio
+underflows, missing frames or audible overflow. This remains finite local
+hardware evidence rather than listening or campaign certification.
+
+Build the excluded [combined experiment](../experiments/combined/README.md)
+with `--experiment combined` after a matching canonical source build. Its
+receipt remains `compiled_unqualified_experimental`, `public_build: false`,
+and normal Companion Setup refuses it. Broad party/vehicle contexts, actual
+world-edge timing, natural item/vehicle awards and installed release adoption
+remain separate work.
 
 ## Disposable checkpoint tooling
 

@@ -23,8 +23,9 @@ Do not distribute the ROM or generated game code.
 Disposable staged progression is now authorized. The
 [staged assessment](docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md) reaches
 original parked/travel Algos and visible later wrapping-map actor loaders, independently
-of natural campaign completion. Extend those exact prototypes and integrate only
-after their combined release checks; the canonical installed guards remain.
+of natural campaign completion. A combined experimental build now reruns the
+focused actor and paced GPU/audio checks. Extend its broader contexts and complete
+release-adoption checks; the canonical installed guards remain.
 
 The separate large-B0 prototype now has actual original parked producer/DMA
 and visible-margin checks. A travel variant verifies the body's fixed slots and

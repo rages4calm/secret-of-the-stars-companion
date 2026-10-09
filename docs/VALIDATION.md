@@ -2,6 +2,14 @@
 
 ## Current staged development
 
+The combined candidate
+`23e3fdb43ab277b18d7c91004f4e07e7e9a8fe6a06a4e67ba283a02a036cc38b`
+independently passes 31 parked/travel B0 checks, 78 ordinary actor gates, the
+17-route wrapping suite, 101 journal integration/199 predicate checks and four
+paced Windows GPU/audio routes. Each paced
+route holds about 60.03 presentations/second with no measured steady audio
+underflows. This combined experiment remains excluded from normal installation.
+
 Disposable progression now reaches actual original parked-Algos and later
 wrapping-map actor loaders. Independent original-art/complete-OAM checks and
 original-center/guest parity pass on separate experimental builds. Staged travel
