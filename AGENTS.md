@@ -1,12 +1,22 @@
 # Public repository instructions
 
+Current owner steering authorizes disposable staged story flags/progression
+and coordinates for focused development. This supersedes older requirements
+to wait for natural later-game fixtures. Record explicit edits/source hashes,
+use isolated copies and original loaders/producers, and distinguish staged
+execution from natural campaign coverage. Owner data, gameplay guards and
+release qualification remain protected. tools/stage_foundation_checkpoint.py
+creates fresh private evidence states; never publish the resulting states.
+Read docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md for current execution
+evidence. Older zero-constructor/fixture claims below describe earlier probes.
+
 This is the public authored-source repository for Secret of the Stars Companion.
 Read README.md, BUILDING.md, ROADMAP.md and docs/VALIDATION.md first.
 The native snapshot is 0.2.0; Companion source is 0.3.0. There is no included
 installed game, ROM, private evidence fixture or gameplay qualification receipt.
 Historical foundation documents refer to a separate protected local development
 installation; their `local/` artifacts are deliberately excluded here.
-Latest actor continuation: docs/FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md,
+Historical actor probes: docs/FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md,
 docs/FOUNDATION-B0-MODE-ACQUISITION-2026-10-09.md and
 docs/FOUNDATION-WRAPPING-VISIBLE-SOURCE-2026-10-09.md.
 experiments/b0 is uninstalled and excluded from the canonical48-input snapshot.

@@ -60,7 +60,7 @@ A new source build receives its own hash and remains unqualified until tested. T
 
 Next priorities are large/composite/wrapping actors, broader story/cutscene and party coverage, bounded guest-CPU/native-execution work, additional verified quest-journal milestones, and broader package/hardware checks. Automatic GUI release updates remain open. MSU-1 music is conditional on finding and verifying a compatible driver and track map. A replacement HD artwork pack is deferred so it does not stall the playable foundation. [Full roadmap](ROADMAP.md).
 
-Contributors can separately build the [experimental B0 module](experiments/b0/README.md). Its real ordinary guest/DMA comparisons pass, while naturally activated B0 art remains unqualified; it is excluded from the normal build. [Integration scope](docs/FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md).
+Contributors can separately build the [experimental B0 module](experiments/b0/README.md). Disposable staged progression now reaches actual parked Algos constructors and visible later world-map actors through the original loaders. Separate journal work reads current Starcrest possession. These prototypes remain excluded from the normal build; staged evidence does not certify natural story progression. [Current staged assessment and developer tooling](docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md) · [Earlier integration scope](docs/FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md).
 
 ## Contribute
 

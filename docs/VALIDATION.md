@@ -1,6 +1,22 @@
 # Validation scope — 2026-10-09
 
-## Uninstalled B0 experiment
+## Current staged development
+
+Disposable progression now reaches actual original parked-Algos and later
+wrapping-map actor loaders. Independent original-art/complete-OAM checks and
+original-center/guest parity pass on separate experimental builds. Staged travel
+also passes 16 checks of the original body/reserved-shadow packet, four poses,
+restoration and unchanged original center, plus 78 ordinary actor gates. Final wrapping
+candidate `6592943bd6a84e43a3a27c534d9563c7159c20da82e0573933330df7d9187444`
+also passes 78 ordinary actor gates and a paced Windows margin route with no
+steady audio underflows. An isolated current-Starcrest-possession card passes
+101 integration checks/33 native processes and 199 same-predicate controls.
+Normal installed native 0.2.0 / Companion 0.3.0 remain unchanged. Staged states
+do not certify natural campaign progression; world-edge crossings, original
+Crest award/history and combined release integration remain open.
+[Current scope, exact candidates and staging tools](FOUNDATION-STAGED-PROGRESSION-2026-10-09.md).
+
+## Earlier uninstalled B0 experiment
 
 The separate experimental helper compiled executable SHA-256
 `98fdf7fa43207feed5af791def8ee510ac3f36f0a46be9df32ead3019c3af021`.

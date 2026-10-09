@@ -24,6 +24,11 @@ the original build, profiles and ROM. Generated code stays local. Its experiment
 receipt cannot be adopted by normal Companion Setup and carries no gameplay
 qualification. A successful build does not remove the natural-fixture gap.
 
+New owner authorization permits disposable staged progression. Actual original
+parked-B0 loader/constructor execution, opaque margin pixels and cold/rollback
+state now pass focused checks on this exact helper candidate. The canonical
+module remains unchanged. See the [current staged assessment](../../docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md).
+
 The separately checked private candidate passed genuine ordinary guest/DMA and
 existing actor/menu/restore proofs, while the two B0 constructors remained
 unreached. Its synthetic B0 raster proof remains a distinct scope. See

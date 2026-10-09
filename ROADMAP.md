@@ -20,10 +20,17 @@ Do not distribute the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
 
-Large B0 sprites have a private registered-callback/PPU composition prototype.
-It passes synthetic metadata/transfer/pixel checks, but needs real guest producer
-and DMA execution, terrain/OBJ overlap and subscreen/half-color qualification.
-It is not enabled in the 0.2.0 foundation.
+Disposable staged progression is now authorized. The
+[staged assessment](docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md) reaches
+original parked/travel Algos and visible later wrapping-map actor loaders, independently
+of natural campaign completion. Extend those exact prototypes and integrate only
+after their combined release checks; the canonical installed guards remain.
+
+The separate large-B0 prototype now has actual original parked producer/DMA
+and visible-margin checks. A travel variant verifies the body's fixed slots and
+reserved shadow packet through four directions and restore. Broader terrain/OBJ
+overlap, subscreen/half-color and vehicle contexts still need qualification.
+Neither is enabled in the 0.2.0 foundation.
 
 Wrapping-world actors need authenticated current-line camera lineage across
 map seams. Original clipping corrections and emitted OAM coordinates differ;
@@ -34,16 +41,18 @@ qualifies. Resource enumeration alone does not certify a campaign.
 The [natural allocation trace](docs/FOUNDATION-ACTOR-ALLOCATION-2026-10-09.md)
 proves that one naturally selected world record uses transparent artwork and
 executes the original reserved-B0 refusal. A different naturally selected visible
-source is needed; further camera movement of the same blank entry is insufficient.
+source was reached with staged progression; further camera movement of the
+same earlier blank entry is insufficient.
 The [Algos acquisition chain](docs/FOUNDATION-B0-MODE-ACQUISITION-2026-10-09.md)
 now identifies its original message/bootstrap and travel/exit modes. The exact
 selecting field event and a natural checkpoint remain missing. A later ordinary
 [wrapping source](docs/FOUNDATION-WRAPPING-VISIBLE-SOURCE-2026-10-09.md) requires
-stage 17 and clear flag selector 9. No stage 17 fixture is established.
+stage 17 and clear flag selector 9. The new staged entry fixture reaches it
+through the original loader; natural campaign entry remains separate.
 The [experimental B0 module](experiments/b0/README.md) builds separately from
-the canonical snapshot. Actual ordinary guest/DMA fidelity passes; original B0
-constructors remain unreached. Keep synthetic B0 raster and actual ordinary
-guest checks distinct. Do not enable the experimental module in normal builds.
+the canonical snapshot. Actual ordinary and staged original B0 guest/DMA
+fidelity now pass. Keep synthetic raster, staged execution and natural campaign
+checks distinct. Integrate these prototypes only after combined release checks.
 
 ## 3. Native execution and original slowdown
 
@@ -57,6 +66,11 @@ changes guarded player walking only, and configurable fast-forward explicitly
 accelerates the whole game; neither feature proves a guest slowdown fix.
 
 ## 4. Expand the quest journal
+
+An isolated current-Starcrest-possession card reads both original inventories
+and recomputes after restore. It is useful current-state evidence, while the
+original award, completion event and full journal history still need separate
+proof. Staged item fixtures are now authorized for these focused checks.
 
 The current journal exposes one verified opening-stage lead. Add natural Crest
 acquisition and later dialogue/progression fixtures; verify actual item/story

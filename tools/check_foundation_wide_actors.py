@@ -37,7 +37,10 @@ def actor_trace(directory):
     path=directory/'actors.csv'
     if not path.exists():raise ValueError('Actor trace not emitted: '+str(path))
     rows=list(csv.DictReader(path.open()))
-    return [{key:(value if key=='event' else int(value,0)) for key,value in row.items()} for row in rows]
+    for row in rows:
+        if 'packet_sha256' in row and not re.fullmatch(r'[0-9a-f]{64}', row['packet_sha256']):
+            raise ValueError('Invalid optional packet digest in actor trace')
+    return [{key:(value if key in ('event','packet_sha256') else int(value,0)) for key,value in row.items()} for row in rows]
 
 
 def qualify_trace(rows):
