@@ -35,9 +35,15 @@ The [natural allocation trace](docs/FOUNDATION-ACTOR-ALLOCATION-2026-10-09.md)
 proves that one naturally selected world record uses transparent artwork and
 executes the original reserved-B0 refusal. A different naturally selected visible
 source is needed; further camera movement of the same blank entry is insufficient.
-The [B0 scene chain](docs/FOUNDATION-B0-SCENE-WRITERS-2026-10-09.md) needs a
-naturally reached bit-80 mode or already established source scene, followed by
-the original return/activation path. Its story trigger remains unresolved.
+The [Algos acquisition chain](docs/FOUNDATION-B0-MODE-ACQUISITION-2026-10-09.md)
+now identifies its original message/bootstrap and travel/exit modes. The exact
+selecting field event and a natural checkpoint remain missing. A later ordinary
+[wrapping source](docs/FOUNDATION-WRAPPING-VISIBLE-SOURCE-2026-10-09.md) requires
+stage 17 and clear flag selector 9. No stage 17 fixture is established.
+The [experimental B0 module](experiments/b0/README.md) builds separately from
+the canonical snapshot. Actual ordinary guest/DMA fidelity passes; original B0
+constructors remain unreached. Keep synthetic B0 raster and actual ordinary
+guest checks distinct. Do not enable the experimental module in normal builds.
 
 ## 3. Native execution and original slowdown
 
@@ -57,6 +63,9 @@ acquisition and later dialogue/progression fixtures; verify actual item/story
 writers before enabling completion rules. Define deterministic event history,
 new-game reset, cold restore and rewind behavior. Avoid spoilers or an external
 append-only log that remembers a future state after rollback.
+The [Crest assessment](docs/FOUNDATION-JOURNAL-CREST-ASSESSMENT-2026-10-09.md)
+establishes item identity and generic insertion/removal, but not the title-specific
+award or durable completion event. Opening victories are not a Crest fixture.
 
 ## 5. Audio and presentation polish
 

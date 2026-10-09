@@ -6,6 +6,17 @@ The native snapshot is 0.2.0; Companion source is 0.3.0. There is no included
 installed game, ROM, private evidence fixture or gameplay qualification receipt.
 Historical foundation documents refer to a separate protected local development
 installation; their `local/` artifacts are deliberately excluded here.
+Latest actor continuation: docs/FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md,
+docs/FOUNDATION-B0-MODE-ACQUISITION-2026-10-09.md and
+docs/FOUNDATION-WRAPPING-VISIBLE-SOURCE-2026-10-09.md.
+experiments/b0 is uninstalled and excluded from the canonical48-input snapshot.
+Actual ordinary interpreter/DMA checks do not establish natural B0 execution;
+the two original B0 constructors remain unreached. Preserve experimental receipt
+status/public_buildfalse and normal Setup refusal. Algos acquisition message0607
+is identified; its field caller/natural fixture is still missing. Stage17 and
+clear selector9 are required for the later ordinary wrapping payload.
+Read docs/FOUNDATION-JOURNAL-CREST-ASSESSMENT-2026-10-09.md before journal work;
+generic item40 insertion/possession is not a verified historical completion rule.
 Current continuation: docs/FOUNDATION-PACKAGE-UPDATES-2026-10-09.md and
 docs/FOUNDATION-ACTOR-ALLOCATION-2026-10-09.md. Preserve cloned-profile
 updates, selection-only rollback and conservative checkpoint/ABI declarations.

@@ -1,5 +1,18 @@
 # Validation scope — 2026-10-09
 
+## Uninstalled B0 experiment
+
+The separate experimental helper compiled executable SHA-256
+`98fdf7fa43207feed5af791def8ee510ac3f36f0a46be9df32ead3019c3af021`.
+That exact candidate passes 78 ordinary actor gates/13 finite routes and separate
+133 guest comparisons/16 full host surfaces against installed 0.2.0. Actual
+ordinary interpreter/DMA execution is positive; original B0 constructors have
+zero hits. The same source's separate host B0 oracle passes 56 synthetic cases
+and 1,806,336 pixels. These scopes do not combine into natural B0 qualification.
+The module is outside canonical source/builds and normal Companion adoption.
+Installed native/Companion artifacts are unchanged.
+[Exact integration and limits](FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md).
+
 ## Current Companion 0.3.0
 
 The exact self-contained GUI has SHA-256

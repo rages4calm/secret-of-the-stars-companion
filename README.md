@@ -60,6 +60,8 @@ A new source build receives its own hash and remains unqualified until tested. T
 
 Next priorities are large/composite/wrapping actors, broader story/cutscene and party coverage, bounded guest-CPU/native-execution work, additional verified quest-journal milestones, and broader package/hardware checks. Automatic GUI release updates remain open. MSU-1 music is conditional on finding and verifying a compatible driver and track map. A replacement HD artwork pack is deferred so it does not stall the playable foundation. [Full roadmap](ROADMAP.md).
 
+Contributors can separately build the [experimental B0 module](experiments/b0/README.md). Its real ordinary guest/DMA comparisons pass, while naturally activated B0 art remains unqualified; it is excluded from the normal build. [Integration scope](docs/FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md).
+
 ## Contribute
 
 Small, focused contributions are welcome: renderer fixes, reverse-engineering notes, controller checks, bounded replay tools, verified journal events and documentation. Please report a reproducible route rather than feeling obliged to play the whole game again. [Contribution guide](CONTRIBUTING.md) · [Report a bug](https://github.com/rages4calm/secret-of-the-stars-companion/issues/new?template=bug-report.yml).
