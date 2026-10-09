@@ -1,0 +1,3 @@
+snesrecomp=7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0
+rbengine=2a03e73693acee0fb78076ea058642c931bef12e
+recomp-net=e0849f4fc70aa58be5adedbc1f1d9f1fc5a4d6d6

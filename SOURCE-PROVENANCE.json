@@ -1,0 +1,20 @@
+{
+  "snapshot_date": "2026-10-09",
+  "native_version": "0.1.9",
+  "companion_version": "0.1.2",
+  "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
+  "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
+  "runtime_patch_sha256": "f469f3f19a2f7a66c2284f2cd080cd2c38af214a49c28f0e23b5e586e9cd7726",
+  "verbatim_notices": {
+    "SNESRECOMP-POLYFORM-NONCOMMERCIAL-1.0.0.txt": "133629d3a7fa3543e96e27cc8c03c27dd6cd6c395e0a02fc1eda307d1d206cc6",
+    "SNESRECOMP-THIRD-PARTY-ATTRIBUTION.md": "658c77d6836e309d95ef84cbabc0e59a894542431ead73c5ee346c6eccd73482",
+    "DOTNET-LICENSE.txt": "d7a68596ab69b06f51ca278a6545148e4269a9381c26d597c13df5d88e08cf5b",
+    "WINDOWS-DESKTOP-LICENSE.txt": "a89886665765362eb77e0f8e26602c924520041d1711b2eedc136434fe4d01ab",
+    "DOTNET-THIRD-PARTY-NOTICES.txt": "b60b2912da28eaa6518593c9e2efb5334ee062d3c42e80d8fdfa806b3dc52977",
+    "color-lut/LICENSE-APACHE-2.0.txt": "e797586fb13910fb433449532bc747c1a3b5acaded1b7b41390b20699b591998",
+    "color-lut/LICENSE-MIT.txt": "0c05b316b25f93fe8a869d5c16619bb84b2fab6b8b3488356f2cfb9441cd97a8",
+    "color-lut/LICENSE-POLYFORM-NONCOMMERCIAL-1.0.0.txt": "540ade389a94d810b7dd63ceaaf429c274ded672cc2bf17781e2cc9bc59efb6f",
+    "color-lut/README.md": "3528d1637feae2e8773d637ed04a11067d4a5b2226fd5b34742432cdd1908855"
+  },
+  "limits": "Authored source snapshot only. ROM, generated game bodies, extracted assets and private qualification data are excluded."
+}

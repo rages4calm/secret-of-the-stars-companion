@@ -1,0 +1,26 @@
+# ROM identity for Secret of the Stars — the single source of truth.
+#
+# Read by three consumers, so a revision change is made once, here:
+#   - the build   (CMake generates snesrecomp_rom_identity.h from this file)
+#   - tools/regen.sh
+#   - .github/workflows/release.yml
+#
+# Format is `key = value`, one per line; `#` starts a comment. Values may be
+# quoted. Leaving a digest empty means the build cannot verify a ROM it is
+# handed — it will say so rather than accept it.
+
+display_name    = Secret of the Stars
+rom_file        = clean-usa.sfc
+# Every digest of the bare image (copier header stripped), so the Retro
+# catalog can take a submission's identity from this file rather than ask
+# the submitter to hash the ROM again. The build verifies on crc32/sha256.
+expected_crc32  = ef968ed1
+expected_md5    = d26babb046182e3a564fb1bdddce7e42
+expected_sha1   = 958a0a835e2e39f382cb37a99098a3cdd4812cf7
+expected_sha256 = 7da4a3cfa5de4bb4722a6e2a42c26aae322b5e668f1645d8c870fb99e6080600
+rom_size        = 1572864
+mapping         = lorom
+region          = USA
+# What a mod package's [[target]] game_id must name to apply to this title
+# (snesrecomp/docs/MOD_PACKAGES.md). Stable across revisions on purpose.
+game_id         = secretofthestars-usa

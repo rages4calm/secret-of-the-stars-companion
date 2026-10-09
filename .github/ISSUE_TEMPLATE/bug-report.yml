@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a focused gameplay, display, audio, controller or setup issue.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Please do not attach ROMs, extracted assets/audio, saves, generated game code or raw memory dumps. Short reproducible routes and sanitized logs are welcome."
+  - type: input
+    id: build
+    attributes:
+      label: Source commit or build hash
+      description: Include whether this is your own developer build or a known local qualified build.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and settings
+      description: Windows version, renderer, controller/input device and enhancement flags.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Short reproduction route
+      description: Starting point, actions, expected result and actual result. Does original view behave differently?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized log excerpt
+      description: Remove private paths or personal information; do not post secrets or raw game memory.

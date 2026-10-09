@@ -1,0 +1,34 @@
+# Companion reuse
+
+The launcher adapts visual/navigation patterns from EarthBound Companion's
+original `Program.cs` Theme, action buttons and navigation, under Carl Prewitt
+Jr.'s original Companion license. Copyright (c) 2026 Carl Prewitt Jr.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+This reuse does not include GPL-marked Redux conversion/setup, randomizers,
+original game content, third-party engine code or another game's assets.
+WinForms/.NET are supplied by Microsoft's SDK/runtime, whose bundled runtime
+notices apply to self-contained publishing. Native game/runtime notices remain
+separate from this launcher.
+# Bundled .NET runtime
+
+The self-contained Windows build uses Microsoft .NET and Windows Desktop
+runtime 8.0.27. The installed companion folder includes their original license
+texts and the .NET third-party notices copied from the restored runtime packages.

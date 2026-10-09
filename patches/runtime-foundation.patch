@@ -1,0 +1,1039 @@
+diff --git a/runner/src/beam_frame_driver.c b/runner/src/beam_frame_driver.c
+index d6086b3..1f46416 100644
+--- a/runner/src/beam_frame_driver.c
++++ b/runner/src/beam_frame_driver.c
+@@ -269,3 +269,13 @@ void snes_beam_frame_driver_reset(void) {
+   s_resume_pc = 0;
+   s_wai_halted = false;
+ }
++
++void snes_beam_frame_driver_get_position(uint32_t *pc, uint32_t *wai) {
++  *pc = s_resume_pc;
++  *wai = s_wai_halted ? 1u : 0u;
++}
++
++void snes_beam_frame_driver_set_position(uint32_t pc, uint32_t wai) {
++  s_resume_pc = pc;
++  s_wai_halted = wai != 0;
++}
+diff --git a/runner/src/beam_frame_driver.h b/runner/src/beam_frame_driver.h
+index 60804fc..b934e85 100644
+--- a/runner/src/beam_frame_driver.h
++++ b/runner/src/beam_frame_driver.h
+@@ -28,5 +28,9 @@ void snes_beam_frame_driver_draw_ppu_frame_observed(
+     SnesBeamRasterObserver *observer, void *context);
+ /* Forget the booted machine: the next frame starts from the reset vector. */
+ void snes_beam_frame_driver_reset(void);
++/* Frame-boundary execution position; the hardware blob does not contain it. */
++#include <stdint.h>
++void snes_beam_frame_driver_get_position(uint32_t *pc, uint32_t *wai);
++void snes_beam_frame_driver_set_position(uint32_t pc, uint32_t wai);
+ 
+ #endif /* SNESRECOMP_BEAM_FRAME_DRIVER_H */
+diff --git a/runner/src/common_rtl.c b/runner/src/common_rtl.c
+index 8a0b04d..73597b3 100644
+--- a/runner/src/common_rtl.c
++++ b/runner/src/common_rtl.c
+@@ -241,6 +241,29 @@ void RtlEnableExtendedFrameTiming(void) {
+   g_extended_frame_timing = true;
+ }
+ 
++void RtlGetAudioFrameClock(uint64_t out[4]) {
++  out[0] = g_apu_frame_clock.start_master;
++  out[1] = g_apu_frame_clock.start_guest;
++  out[2] = g_apu_frame_clock.next_guest;
++  out[3] = g_apu_frame_clock.last_duration;
++}
++
++void RtlSetAudioFrameClock(const uint64_t in[4]) {
++  g_apu_frame_clock = (RtlApuFrameClock){in[0], in[1], in[2], in[3]};
++}
++
++void RtlRecoverLegacyAudioFrameClock(void) {
++  /* Older title checkpoints carry the APU bus mapping but omit this clock.
++   * Recover the completed guest origin from the restored producer clock.
++   * New checkpoints save the exact four values instead. */
++  Apu *apu = g_snes->apu;
++  uint64_t guest = apu->portTimeValid && apu->portClock >= apu->portTargetAnchor
++      ? apu->portGuestAnchor + apu->portClock - apu->portTargetAnchor
++      : (uint64_t)snes_frame_counter * RTL_APU_CYCLES_PER_FRAME;
++  g_apu_frame_clock = (RtlApuFrameClock){g_cpu.master_cycles, guest, guest,
++                                       RTL_APU_CYCLES_PER_FRAME};
++}
++
+ bool rtl_apu_extended_frame_timing(void) {
+   return g_extended_frame_timing;
+ }
+diff --git a/runner/src/common_rtl.h b/runner/src/common_rtl.h
+index 1b13e0c..d275fd3 100644
+--- a/runner/src/common_rtl.h
++++ b/runner/src/common_rtl.h
+@@ -342,6 +342,10 @@ size_t RtlStateBytesRemaining(struct SaveLoadInfo *sli);
+  * the caller, so an incomplete snapshot is never reported as saved/loaded. */
+ void RtlStateStreamFail(struct SaveLoadInfo *sli);
+ void RtlApplyExecutionState(void);
++/* Extended frame audio clock must follow a cold-loaded execution snapshot. */
++void RtlGetAudioFrameClock(uint64_t out[4]);
++void RtlSetAudioFrameClock(const uint64_t in[4]);
++void RtlRecoverLegacyAudioFrameClock(void);
+ /* Host timeline invalidation after a successful load or reset. */
+ uint64_t RtlStateGeneration(void);
+ size_t RtlSaveSnapshotToMemory(void *data, size_t capacity);
+diff --git a/runner/src/debug_server.c b/runner/src/debug_server.c
+index abbcfb0..c1a744c 100644
+--- a/runner/src/debug_server.c
++++ b/runner/src/debug_server.c
+@@ -30,6 +30,7 @@ typedef int socket_t;
+ #endif
+ 
+ #include <stdio.h>
++#include <errno.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <stdarg.h>
+diff --git a/runner/src/desktop/host_main.h b/runner/src/desktop/host_main.h
+index 03b6f06..e0a6297 100644
+--- a/runner/src/desktop/host_main.h
++++ b/runner/src/desktop/host_main.h
+@@ -197,6 +197,10 @@ typedef struct SnesDesktopHostGame {
+   /* After the gameplay loop ends, before SDL resources are destroyed or a
+    * relaunch begins. Stop title-owned workers here. No further frames run. */
+   void (*on_shutdown)(void);
++  /* Optional game compositor output scale, 1 through 4. Guest raster dimensions
++   * stay logical; draw_frame writes width*scale by height*scale into dst.
++   * Hosts without a custom draw_frame always retain scale 1. */
++  int (*presentation_scale)(void);
+ } SnesDesktopHostGame;
+ 
+ /* The whole program. Returns the process exit code. */
+diff --git a/runner/src/snes/dma.c b/runner/src/snes/dma.c
+index 9fb6639..fa9e256 100644
+--- a/runner/src/snes/dma.c
++++ b/runner/src/snes/dma.c
+@@ -15,6 +15,14 @@
+ 
+ extern Ppu *g_ppu;
+ static DmaVramNotifyHook g_vram_notify_hook;
++static DmaTransferNotifyHook g_transfer_notify_hook;
++
++void dma_set_transfer_notify_hook(DmaTransferNotifyHook hook) {
++  g_transfer_notify_hook = hook;
++}
++void dma_reset_transfer_notify_state(Dma *dma) {
++  if (dma) dma->observerArmed = dma->observerStarted = 0;
++}
+ 
+ /* Debug logging gate: set SNESRECOMP_DMA_DEBUG=1 to enable the DMA config /
+  * CGRAM / S-DD1 arm trace. Off by default — the trace fires for every DMA
+@@ -60,6 +68,7 @@ void dma_free(Dma* dma) {
+ }
+ 
+ void dma_reset(Dma* dma) {
++  dma->observerArmed = dma->observerStarted = 0;
+   dma->hdmaPendingInit = 0;
+   for(int i = 0; i < 8; i++) {
+     dma->channel[i].bAdr = 0xff;
+@@ -106,6 +115,9 @@ void dma_saveload(Dma *dma, SaveLoadInfo *sli) {
+   memcpy(dma->channel, wire, sizeof(dma->channel));
+   memcpy(&dma->dmaTimer, wire + timer, sizeof(dma->dmaTimer));
+   memcpy(&dma->dmaBusy, wire + timer + 4, sizeof(dma->dmaBusy));
++  /* A loaded partial packet has no trustworthy original source descriptor.
++   * Do not resurrect pending host metadata from the previous execution. */
++  if (sli->peek) dma->observerArmed = dma->observerStarted = 0;
+ }
+ 
+ uint8_t dma_read(Dma* dma, uint16_t adr) {
+@@ -274,6 +286,12 @@ void dma_doDma(Dma* dma) {
+   }
+ 
+   // do channel i
++  if (g_transfer_notify_hook && (dma->observerArmed & (1u << i)) &&
++      !(dma->observerStarted & (1u << i))) {
++    dma->observerStart[i] = dma->channel[i];
++    dma->observerStarted |= (uint8_t)(1u << i);
++    g_transfer_notify_hook(dma, i, &dma->observerStart[i], false);
++  }
+   g_ppu_wlog_src = kPpuWlogDma;
+   dma_transferByte(
+     dma, dma->channel[i].aAdr, dma->channel[i].aBank,
+@@ -290,6 +308,10 @@ void dma_doDma(Dma* dma) {
+     dma->channel[i].offIndex = 0; // reset offset index
+     dma->channel[i].dmaActive = false;
+     dma->dmaTimer += 8; // 8 cycle overhead per channel
++    if (g_transfer_notify_hook && (dma->observerStarted & (1u << i)))
++      g_transfer_notify_hook(dma, i, &dma->observerStart[i], true);
++    dma->observerArmed &= (uint8_t)~(1u << i);
++    dma->observerStarted &= (uint8_t)~(1u << i);
+   }
+ }
+ 
+@@ -510,6 +532,10 @@ bool dma_source_is_offmap(int cart_type, bool from_b, uint8_t a_bank,
+ }
+ 
+ void dma_startDma(Dma* dma, uint8_t val, bool hdma) {
++  if (!hdma) {
++    dma->observerArmed = g_transfer_notify_hook ? val : 0;
++    dma->observerStarted = 0;
++  }
+   /* Checked HERE, when the channel is armed, and not once per transferred
+    * byte as it used to be.
+    *
+diff --git a/runner/src/snes/dma.h b/runner/src/snes/dma.h
+index f55baf8..df48c5f 100644
+--- a/runner/src/snes/dma.h
++++ b/runner/src/snes/dma.h
+@@ -38,6 +38,15 @@ typedef struct DmaChannel {
+   uint8_t offIndex;
+ } DmaChannel;
+ 
++/* Read-only host observer for regular DMA packet lineage. These notifications
++ * do not change guest bus accesses or timing, and exclude HDMA. START observes
++ * the original channel immediately before its first byte; COMPLETE follows
++ * its final byte and normal channel updates. Never write through dma/start. */
++typedef void (*DmaTransferNotifyHook)(const Dma *dma, int channel,
++                                     const DmaChannel *start, bool complete);
++void dma_set_transfer_notify_hook(DmaTransferNotifyHook hook);
++void dma_reset_transfer_notify_state(Dma *dma);
++
+ struct Dma {
+   Snes* snes;
+   /* Transient state for channels enabled between frame initializations. Keep
+@@ -51,6 +60,10 @@ struct Dma {
+    * savestate layout byte-identical. That is also the honest place for it --
+    * it is transient within-frame sequencing, not guest-visible state. */
+   uint8_t hdmaPendingInit;
++  /* Host-only transfer lineage, before the serialized channel region. Partial
++   * restored transfers are deliberately unobservable until a fresh arm. */
++  DmaChannel observerStart[8];
++  uint8_t observerArmed, observerStarted;
+   DmaChannel channel[8];
+   uint32_t dmaTimer;
+   bool dmaBusy;
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+index c1e48eb..529c0c7 100644
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -429,6 +429,110 @@ static struct {
+ static int s_pre_opcode_hook_count;
+ static int s_pre_opcode_redirect_valid;
+ static uint32_t s_pre_opcode_redirect_pc24;
++static CpuState *s_pre_opcode_callback_cpu;
++static CpuState *s_native_instruction_cpu;
++static bool s_native_instruction_committed;
++extern unsigned long long g_interp_bridge_steps;
++
++/* Shared by interpreted and title-owned native instruction completion. Bus
++ * timing is accumulated separately so PPU/DMA effects retain the original bus
++ * path. Native transactions do not count as interpreted instruction coverage. */
++static void bridge_charge_instruction(CpuState *cpu, unsigned cycles,
++                                      unsigned bus_cycles, uint64_t bus_master,
++                                      bool interpreted) {
++    unsigned internal = cycles > bus_cycles ? cycles - bus_cycles : 0;
++    uint64_t master = bus_master + (uint64_t)internal * 6u;
++    if (interpreted) g_interp_bridge_steps++;
++    cpu->cycles += cycles;
++    cpu->master_cycles += master;
++    snes_refresh_charge();
++    cpu->coprocessor_master_cycles = cpu->master_cycles;
++    if (g_snes) snes_sync_master_clock(g_snes, cpu->master_cycles);
++    if (g_snes && g_snes->cart) cart_sync_coprocessors(g_snes->cart, cpu->master_cycles);
++#ifdef SNES_COSIM
++    if (!cosim_apu_shared_clock())
++#endif
++    {
++        if (rtl_apu_extended_frame_timing() ||
++            !interp_bridge_use_absolute_apu_timeline(
++                rtl_apu_frame_timeline_active(),
++                g_snes && cart_has_sa1(g_snes->cart), false)) {
++            s_apu_pending_master += master;
++            if (s_apu_pending_master >= bridge_bounce_flush_thresh()) bridge_apu_flush(cpu);
++        }
++    }
++}
++
++bool interp_bridge_native_begin(CpuState *cpu) {
++    if (!cpu || s_pre_opcode_callback_cpu != cpu || s_native_instruction_cpu ||
++        s_interp_bus_timing_active) return false;
++    s_native_instruction_cpu = cpu;
++    s_interp_bus_cycles = 0;
++    s_interp_bus_master = 0;
++    s_interp_bus_timing_active = 1;
++    return true;
++}
++
++static void bridge_native_require(CpuState *cpu) {
++    if (s_pre_opcode_callback_cpu != cpu || s_native_instruction_cpu != cpu ||
++        !s_interp_bus_timing_active) {
++        fputs("Invalid native instruction transaction\n", stderr);
++        abort();
++    }
++}
++
++uint8_t interp_bridge_native_read8(CpuState *cpu, uint32_t address) {
++    bridge_native_require(cpu);
++    return bridge_bus_read(cpu, address);
++}
++
++uint8_t interp_bridge_native_rom_fetch8(CpuState *cpu, uint32_t address) {
++    bridge_native_require(cpu);
++    unsigned bank = (address >> 16) & 255;
++    if ((address & 0xffff) < 0x8000 || bank == 0x7e || bank == 0x7f) {
++        fputs("Invalid uncharged native ROM fetch\n", stderr);
++        abort();
++    }
++    /* Enhancement accounting applies only to instruction ROM fetches. The
++     * original read path still supplies the value and updates open bus. */
++    s_interp_bus_timing_active = 0;
++    uint8_t value = bridge_bus_read(cpu, address);
++    s_interp_bus_timing_active = 1;
++    return value;
++}
++
++void interp_bridge_native_write16(CpuState *cpu, uint32_t address, uint16_t value) {
++    bridge_native_require(cpu);
++    if (!bridge_bus_write_word(cpu, address, (address & 0xff0000u) | ((address + 1) & 0xffffu), value, false)) {
++        bridge_bus_write(cpu, address, (uint8_t)value);
++        bridge_bus_write(cpu, (address & 0xff0000u) | ((address + 1) & 0xffffu), (uint8_t)(value >> 8));
++    }
++}
++
++void interp_bridge_native_commit(CpuState *cpu, unsigned cycles, uint32_t next_pc24) {
++    bridge_native_require(cpu);
++    if (!cycles || cycles < s_interp_bus_cycles) {
++        fputs("Invalid native instruction cycle charge\n", stderr);
++        abort();
++    }
++    s_interp_bus_timing_active = 0;
++    s_native_instruction_cpu = NULL;
++    s_native_instruction_committed = true;
++    bridge_charge_instruction(cpu, cycles, s_interp_bus_cycles, s_interp_bus_master, false);
++    interp_bridge_pre_opcode_redirect(next_pc24);
++}
++
++static void bridge_progress_checkpoint(CpuState *cpu, bool auto_quiescent,
++                                      uint64_t *write_epoch, uint64_t *dynamic_epoch,
++                                      long *steps) {
++    if (auto_quiescent && (*write_epoch != g_interp_bridge_write_epoch ||
++                          *dynamic_epoch != s_interp_dynamic_progress_epoch)) {
++        *write_epoch = g_interp_bridge_write_epoch;
++        *dynamic_epoch = s_interp_dynamic_progress_epoch;
++        bridge_apu_flush(cpu);
++        *steps = 0;
++    }
++}
+ 
+ bool interp_bridge_add_pre_opcode_hook(uint32_t pc24, InterpPreOpcodeHook hook) {
+     if (!hook) return false;
+@@ -1980,7 +2084,15 @@ static int _interp_run_core(CpuState *cpu, uint32_t entry_pc24,
+                 if (s_pre_opcode_hooks[hi].pc24 == key) {
+                     sync_interp_to_cpu(&in, cpu);
+                     s_pre_opcode_redirect_valid = 0;
++                    s_native_instruction_committed = false;
++                    CpuState *previous_callback = s_pre_opcode_callback_cpu;
++                    s_pre_opcode_callback_cpu = cpu;
+                     s_pre_opcode_hooks[hi].hook(cpu, pc_before);
++                    if (s_native_instruction_cpu) {
++                        fputs("Uncommitted native instruction transaction\n", stderr);
++                        abort();
++                    }
++                    s_pre_opcode_callback_cpu = previous_callback;
+                     sync_cpu_to_interp(cpu, &in);
+                     if (s_pre_opcode_redirect_valid) {
+                         in.k = (uint8_t)((s_pre_opcode_redirect_pc24 >> 16) & 0xFF);
+@@ -1996,7 +2108,12 @@ static int _interp_run_core(CpuState *cpu, uint32_t entry_pc24,
+              * original PC (later hooks composed on it do not run). Continuing
+              * with the old pc_before would execute one opcode and classify
+              * another, and could miss a terminal RTS. */
+-            if (redirected) continue;
++            if (redirected) {
++                if (s_native_instruction_committed)
++                    bridge_progress_checkpoint(cpu, auto_quiescent,
++                        &progress_write_epoch, &progress_dynamic_epoch, &steps);
++                continue;
++            }
+         }
+         /* Opt-in control-flow tripwire: game code normally executes from the
+          * LoROM $8000-$FFFF half of a bank.  If a return/jump crosses from ROM
+@@ -2468,41 +2585,8 @@ static int _interp_run_core(CpuState *cpu, uint32_t entry_pc24,
+             static unsigned checkpoint_opcodes;
+             if (!(++checkpoint_opcodes & 16383u)) Tier2CoverageTick(snes_frame_counter);
+         }
+-        {
+-            unsigned _internal = (unsigned)_cyc > s_interp_bus_cycles
+-                               ? (unsigned)_cyc - s_interp_bus_cycles : 0;
+-            uint64_t _master = s_interp_bus_master + (uint64_t)_internal * 6u;
+-            g_interp_bridge_steps++;
+-            cpu->cycles        += (uint64_t)_cyc;
+-            cpu->master_cycles += _master;
+-            /* DRAM refresh tax — shared watermark with the AOT tier's
+-             * WatchdogCheck charge; see common_cpu_infra.c. */
+-            snes_refresh_charge();
+-            cpu->coprocessor_master_cycles = cpu->master_cycles;
+-            if (g_snes) snes_sync_master_clock(g_snes, cpu->master_cycles);
+-            if (g_snes && g_snes->cart)
+-                cart_sync_coprocessors(g_snes->cart, cpu->master_cycles);
+-#ifdef SNES_COSIM
+-            /* Shared APU clock (common_rtl.h): the guest-time advance is a
+-             * per-side clock (master-cycle accounting differs between the
+-             * interp and compiled models), so under SNES_COSIM_APU_SHARED the
+-             * SPC is paced ONLY by the HW-touch estimate — identical on both
+-             * sides of an A/B pair. The opcode's own port access (if any)
+-             * paces via rtl_accumulate_apu_catchup like compiled code. */
+-            if (!cosim_apu_shared_clock())
+-#endif
+-            {
+-                /* Guest-time APU, batched (see bridge_apu_flush): accumulate;
+-                 * convert on APU-port access / ~4096 master / exits. */
+-                if (rtl_apu_extended_frame_timing() ||
+-                    !interp_bridge_use_absolute_apu_timeline(
+-                        rtl_apu_frame_timeline_active(),
+-                        g_snes && cart_has_sa1(g_snes->cart), false)) {
+-                    s_apu_pending_master += _master;
+-                    if (s_apu_pending_master >= bridge_bounce_flush_thresh()) bridge_apu_flush(cpu);
+-                }
+-            }
+-        }
++        bridge_charge_instruction(cpu, (unsigned)_cyc, s_interp_bus_cycles,
++                                  s_interp_bus_master, true);
+ 
+         /* Env-gated per-instruction cycle watch (SNESRECOMP_CYC_WATCH="lo-hi"
+          * hex pc24): log the LLE charge components for each interpreted
+@@ -2531,19 +2615,10 @@ static int _interp_run_core(CpuState *cpu, uint32_t entry_pc24,
+                                        : 0) * 6u));
+         }
+ 
+-        if (auto_quiescent &&
+-            (progress_write_epoch != g_interp_bridge_write_epoch ||
+-             progress_dynamic_epoch != s_interp_dynamic_progress_epoch)) {
+-            progress_write_epoch=g_interp_bridge_write_epoch;
+-            progress_dynamic_epoch=s_interp_dynamic_progress_epoch;
+-            /* Flush accumulated SPC time on every progress checkpoint so the
+-             * SPC700 keeps pace during boot handshakes (Star Ocean: SPC700
+-             * upload → poll $2140 for response).  Without this the SPC only
+-             * advances at port accesses and threshold crossings, which may
+-             * leave it frozen during long code sequences. */
+-            bridge_apu_flush(cpu);
+-            steps=0;
+-        }
++        /* Preserve the same APU flush and step-cap progress checkpoint for
++         * interpreted and title-owned native instructions. */
++        bridge_progress_checkpoint(cpu, auto_quiescent,
++            &progress_write_epoch, &progress_dynamic_epoch, &steps);
+ 
+         /* WAI: halt until the host delivers NMI/IRQ. Without this yield the
+          * next opcode runs immediately (waiting is never consulted), so games
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+index e01e3ba..8dd18cd 100644
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -149,6 +149,24 @@ void interp_bridge_set_pre_opcode_hook(uint32_t pc24,
+ bool interp_bridge_add_pre_opcode_hook(uint32_t pc24, InterpPreOpcodeHook hook);
+ void interp_bridge_pre_opcode_redirect(uint32_t pc24);
+ 
++/* One title-owned native instruction inside a pre-op callback. These bus
++ * accesses and the commit share the interpreter's clock/device/APU accounting.
++ * The caller must validate its entire instruction/context before begin, fetch
++ * the original bytes through read8, and commit once. Commit redirects to the
++ * next architectural PC; the outer bridge rechecks IRQ/deadline before it.
++ * No nested transactions or accesses outside the matching callback are valid.
++ * Original-cost callers use read8 for fetches; the explicitly optional ROM
++ * fetch policy below has a separate contract. Never batch instruction edges. */
++bool interp_bridge_native_begin(CpuState *cpu);
++uint8_t interp_bridge_native_read8(CpuState *cpu, uint32_t address);
++/* Explicit enhancement policy: fetch verified ROM bytes/open-bus values
++ * without charging the obsolete instruction-fetch bus cost. Hardware/PPU
++ * accesses must still use the paced transaction methods. The title must opt
++ * in and prove semantic/timing effects separately from original-cost parity. */
++uint8_t interp_bridge_native_rom_fetch8(CpuState *cpu, uint32_t address);
++void interp_bridge_native_write16(CpuState *cpu, uint32_t address, uint16_t value);
++void interp_bridge_native_commit(CpuState *cpu, unsigned cycles, uint32_t next_pc24);
++
+ /*
+  * Run the interpreter over guest code at entry_pc24, in the context of `cpu`.
+  * `cpu` is updated in place. Returns:
+diff --git a/runner/src/snes/ppu.c b/runner/src/snes/ppu.c
+index 25dcfe0..d2bc6be 100644
+--- a/runner/src/snes/ppu.c
++++ b/runner/src/snes/ppu.c
+@@ -691,13 +691,30 @@ static inline void ClearBackdrop(const Ppu *ppu, PpuPixelPrioBufs *buf) {
+     *(uint64*)&buf->data[i] = 0x0500050005000500;
+ }
+ 
+-// mosaicModulo is sized for the logical 256-wide screen, but widescreen window
+-// edges can fall in the border (negative on the left, >=256 on the right).
+-// Clamp the lookup so the rare mosaic+widescreen combination stays in-bounds;
+-// border mosaic alignment is approximate but never reads out of range. With
+-// extra==0 (authentic) every index is already in [0,256), so this is a no-op.
+-static inline uint8 PpuMosaicAt(Ppu *ppu, int i) {
+-  return ppu->mosaicModulo[(unsigned)i < (unsigned)kPpuXPixels ? i : (i < 0 ? 0 : kPpuXPixels - 1)];
++/* Raster replay can change MOSAIC after pre-render line zero. This table is
++ * derived rendering state and must describe the register file being drawn,
++ * rather than a previous field's block size. Its existing zero-origin phase
++ * and vertical sample convention remain unchanged. */
++static void PpuRefreshMosaicModulo(Ppu *ppu) {
++  int mod = PPU_mosaicSize(ppu);
++  if (mod == ppu->lastMosaicModulo)
++    return;
++  ppu->lastMosaicModulo = mod;
++  for (int i = 0, j = 0; i < countof(ppu->mosaicModulo); i++) {
++    ppu->mosaicModulo[i] = i - j;
++    j = (j + 1 == mod ? 0 : j + 1);
++  }
++}
++
++/* Preserve the cached logical-screen phase and extend that same block grid
++ * into renderer-owned margins. Clamping a right-margin sample to x=255 made
++ * the next run negative; the signed modulo extension always advances 1..16. */
++static inline int PpuMosaicAt(Ppu *ppu, int i) {
++  if ((unsigned)i < (unsigned)kPpuXPixels)
++    return ppu->mosaicModulo[i];
++  int mod = PPU_mosaicSize(ppu), phase = i % mod;
++  if (phase < 0) phase += mod;
++  return i - phase;
+ }
+ 
+ /* Frame of the last OAM ring snapshot; see the note in ppu_runLine. Debug
+@@ -803,14 +820,7 @@ void ppu_runLine(Ppu* ppu, int line) {
+     debug_server_on_oam_render();
+   }
+   if(line == 0) {
+-    if (PPU_mosaicSize(ppu) != ppu->lastMosaicModulo) {
+-      int mod = PPU_mosaicSize(ppu);
+-      ppu->lastMosaicModulo = mod;
+-      for (int i = 0, j = 0; i < countof(ppu->mosaicModulo); i++) {
+-        ppu->mosaicModulo[i] = i - j;
+-        j = (j + 1 == mod ? 0 : j + 1);
+-      }
+-    }
++    PpuRefreshMosaicModulo(ppu);
+ 
+ 
+     // pre-render line
+@@ -1695,6 +1705,8 @@ static void PpuDrawBackground_4bpp_mosaic(Ppu *ppu,
+     if (win.bits & (1 << windex))
+       continue;  // layer is disabled for this window part
+     int sx = win.edges[windex];
++    if (win.edges[windex + 1] <= sx)
++      continue;
+     int ws_sx = sx;
+     PpuZbufType *dstz = dstbuf->data + sx + kPpuExtraLeftRight;
+     PpuZbufType *dstz_end = dstbuf->data + win.edges[windex + 1] + kPpuExtraLeftRight;
+@@ -1713,17 +1725,16 @@ static void PpuDrawBackground_4bpp_mosaic(Ppu *ppu,
+       if (tile & 0x4000) bits >>= x, GET_PIXEL(); else bits <<= x, GET_PIXEL_HFLIP();
+       if (pixel) {
+         pixel += ((tile & 0x1c00) >> kPaletteShift);
+-        int i = 0;
+-        do {
++        for (int i = 0; i < w; i++) {
+           if (VIEWPORT_ALLOWED(i) && z > dstz[i])
+             dstz[i] = pixel + z;
+-        } while (++i != w);
++        }
+       }
+       dstz += w, x += w, ws_sx += w;
+       for (; x >= 8; x -= 8)
+         tp = (tp != tp_last) ? tp + 1 : tp_next;
+       w = mosaic_size;
+-    } while (dstz_end - dstz != 0);
++    } while (dstz < dstz_end);
+   }
+ #undef WS_TILE
+ #undef READ_BITS
+@@ -1989,6 +2000,8 @@ static void PpuDrawBackground_2bpp_mosaic(Ppu *ppu, PpuPixelPrioBufs *dstbuf, in
+     if (win.bits & (1 << windex))
+       continue;  // layer is disabled for this window part
+     int sx = win.edges[windex];
++    if (win.edges[windex + 1] <= sx)
++      continue;
+     PpuZbufType *dstz = dstbuf->data + sx + kPpuExtraLeftRight;
+     PpuZbufType *dstz_end = dstbuf->data + win.edges[windex + 1] + kPpuExtraLeftRight;
+     uint x = sx + ppu->hScroll[layer];
+@@ -2006,17 +2019,16 @@ static void PpuDrawBackground_2bpp_mosaic(Ppu *ppu, PpuPixelPrioBufs *dstbuf, in
+       if (tile & 0x4000) bits >>= x, GET_PIXEL(); else bits <<= x, GET_PIXEL_HFLIP();
+       if (pixel) {
+         pixel += ((tile & 0x1c00) >> kPaletteShift);
+-        uint i = 0;
+-        do {
++        for (int i = 0; i < w; i++) {
+           if (z > dstz[i])
+             dstz[i] = pixel + z;
+-        } while (++i != w);
++        }
+       }
+       dstz += w, x += w;
+       for (; x >= 8; x -= 8)
+         tp = (tp != tp_last) ? tp + 1 : tp_next;
+       w = mosaic_size;
+-    } while (dstz_end - dstz != 0);
++    } while (dstz < dstz_end);
+   }
+ #undef READ_BITS
+ #undef GET_PIXEL
+@@ -2053,6 +2065,8 @@ static void PpuDrawBackground_mode7(Ppu *ppu, PpuPixelPrioBufs *dstbuf, uint y,
+     if (win.bits & (1 << windex))
+       continue;  // layer is disabled for this window part
+     int x = win.edges[windex], x2 = win.edges[windex + 1], tile;
++    if (x2 <= x)
++      continue;
+     PpuZbufType *dstz = dstbuf->data + x + kPpuExtraLeftRight;
+     PpuZbufType *dstz_end = dstbuf->data + x2 + kPpuExtraLeftRight;
+     uint32 rx = PPU_m7xFlip(ppu) ? 255 - x : x;
+@@ -2075,10 +2089,9 @@ static void PpuDrawBackground_mode7(Ppu *ppu, PpuPixelPrioBufs *dstbuf, uint y,
+         }
+         uint8 pixel = PpuRenderVram(ppu)[tile * 64 + (ypos >> 8 & 7) * 8 + (xpos >> 8 & 7)] >> 8;
+         if (pixel) {
+-          int i = 0;
+-          do dstz[i] = pixel + z; while (++i != w);
++          for (int i = 0; i < w; i++) dstz[i] = pixel + z;
+         }
+-      } while (xpos += dx * w, ypos += dy * w, dstz += w, w = PPU_mosaicSize(ppu), dstz_end - dstz != 0);
++      } while (xpos += dx * w, ypos += dy * w, dstz += w, w = PPU_mosaicSize(ppu), dstz < dstz_end);
+     } else {
+       do {
+         if ((uint32)(xpos | ypos) > outside_value) {
+@@ -2341,6 +2354,7 @@ static void PpuDrawBackgrounds(Ppu *ppu, int y, bool sub) {
+ }
+ 
+ static NOINLINE void PpuDrawWholeLine(Ppu *ppu, uint y) {
++  PpuRefreshMosaicModulo(ppu);
+   PpuClearOverlayRenderLine(ppu, y);
+   if (PPU_forcedBlank(ppu)) {
+     uint8 *dst = &ppu->renderBuffer[(y - 1) * ppu->renderPitch];
+diff --git a/runner/src/snes_rewind.c b/runner/src/snes_rewind.c
+index 3507658..494600f 100644
+--- a/runner/src/snes_rewind.c
++++ b/runner/src/snes_rewind.c
+@@ -378,6 +378,8 @@ static void strip_hints(void) {
+                          120, btn_y, 'B', SNES_OVL_COL_B);
+     snes_ovl_draw_text(s_strip, RW_STRIP_W, RW_STRIP_H,
+                        144, btn_y + 5, "BACK", 0xFFE2E5EBu, 1);
++    snes_ovl_draw_text(s_strip, RW_STRIP_W, RW_STRIP_H,
++                       220, btn_y + 5, "ESC CLOSE", 0xFFE2E5EBu, 1);
+ }
+ 
+ int snes_rewind_overlay_image(const uint32_t **pixels, int *w, int *h) {
+diff --git a/runner/src/snes_savestate_menu.c b/runner/src/snes_savestate_menu.c
+index 7ab7311..8f2856c 100644
+--- a/runner/src/snes_savestate_menu.c
++++ b/runner/src/snes_savestate_menu.c
+@@ -33,7 +33,9 @@
+ #include "snes_savestate_menu.h"
+ #include "snes_overlay_draw.h"
+ #include "snes_osd.h"
++#if defined(SNES_HAS_LOBBY_CLIENT)
+ #include "netplay/snes_netplay.h"
++#endif
+ 
+ #include "common_rtl.h"
+ #include "desktop/sdl_compat.h"
+@@ -368,8 +370,10 @@ static void menu_move(int delta)
+ static void menu_submit(int save)
+ {
+     char path[256];
++#if defined(SNES_HAS_LOBBY_CLIENT)
+     if (snes_netplay_active() &&
+         (!snes_netplay_is_host() || !snes_netplay_menu_ready())) return;
++#endif
+     RtlEnsureSaveDir();
+     slot_path(s_selected, path, sizeof(path));
+     if (save) {
+@@ -396,6 +400,7 @@ static void menu_submit(int save)
+         snes_osd_push_slot_empty(s_selected);
+         return;
+     }
++#if defined(SNES_HAS_LOBBY_CLIENT)
+     if (snes_netplay_active()) {
+         if (!snes_netplay_menu_load(s_selected)) {
+             set_status("LOAD FAILED: SLOT %02d", s_selected);
+@@ -405,6 +410,7 @@ static void menu_submit(int save)
+         snes_savestate_menu_close();
+         return;
+     }
++#endif
+     if (!RtlLoadSnapshot(path)) {
+         set_status("LOAD FAILED: SLOT %02d", s_selected);
+         return;
+@@ -450,7 +456,9 @@ int snes_savestate_menu_poll_open(uint32_t inputs)
+         return 0;
+     if ((prev & SSM_OPEN_GESTURE) == SSM_OPEN_GESTURE)
+         return 0;
++#if defined(SNES_HAS_LOBBY_CLIENT)
+     if (snes_netplay_active() && !snes_netplay_menu_open()) return 0;
++#endif
+     s_open = 1;
+     s_status[0] = '\0';
+     s_thumbs_scanned = 0;
+@@ -465,11 +473,13 @@ void snes_savestate_menu_poll_nav(uint32_t inputs, uint32_t ticks_ms)
+     uint32_t pressed;
+     int dir;
+ 
++#if defined(SNES_HAS_LOBBY_CLIENT)
+     if (snes_netplay_active() &&
+         (!snes_netplay_is_host() || !snes_netplay_menu_ready())) {
+         s_prev_inputs = inputs;
+         return;
+     }
++#endif
+     if (!s_open) {
+         s_prev_inputs = inputs;
+         return;
+@@ -528,8 +538,10 @@ void snes_savestate_menu_handle_key(int key, int repeat)
+ {
+     int slot = -1;
+ 
++#if defined(SNES_HAS_LOBBY_CLIENT)
+     if (snes_netplay_active() &&
+         (!snes_netplay_is_host() || !snes_netplay_menu_ready())) return;
++#endif
+     if (!s_open || repeat)
+         return;
+     /* SDLK_* is unsigned under SDL3 and signed under SDL2. Cast at every
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -411,7 +411,7 @@
+ 
+ /* The last field actually presented, kept so an overlay can freeze the guest
+  * and still have something to draw behind itself. Sized like g_my_pixels. */
+-static uint8_t g_frozen_frame[kSnesDesktopMaxFrameWidth * 4 * 240];
++static uint8_t g_frozen_frame[kSnesDesktopMaxFrameWidth * 4 * 4 * 240 * 4];
+ static int g_frozen_w, g_frozen_h;
+ /* The simulated frame the next present shows. Read by SNESRECOMP_SCREENSHOT
+  * and by frame blending, which advances its kept frame once per simulated
+@@ -424,7 +424,7 @@
+ #if defined(SNESRECOMP_HOST_HAS_BLEND) || SNESRECOMP_FRAME_STAGING_HLE
+ /* Compose where reads are cheap, then upload with a write-only row copy.
+  * The frozen overlay snapshot and optional OSD/blend read this frame. */
+-static uint8 g_frame_stage[kSnesDesktopMaxFrameWidth * 4 * 240];
++static uint8 g_frame_stage[kSnesDesktopMaxFrameWidth * 4 * 4 * 240 * 4];
+ #endif
+ 
+ static GamepadInfo g_gamepad[2];
+@@ -1160,8 +1160,10 @@
+      * authentic 256-column raster it composed FROM -- so a wide frame reads
+      * as correct in a capture while the player is looking at something the
+      * capture never saw. Trace builds only; a no-op stub otherwise. */
++    int scale = g_game->presentation_scale ? g_game->presentation_scale() : 1;
++    if (scale < 1 || scale > 4) scale = 1;
+     debug_server_note_composed_frame(pixel_buffer, (unsigned)pitch,
+-                                     g_snes_width, g_snes_height);
++                                     g_snes_width * scale, g_snes_height * scale);
+     return;
+   }
+   debug_server_note_composed_frame(NULL, 0, 0, 0);
+@@ -1236,7 +1238,9 @@
+ static void DrawPpuFrameWithPerf(void) {
+   double profile_start = ProfileStart();
+   PreparePpuFrame();
+-  const int render_scale = 1;
++  int render_scale = g_game->draw_frame && g_game->presentation_scale
++      ? g_game->presentation_scale() : 1;
++  if (render_scale < 1 || render_scale > 4) render_scale = 1;
+   uint8 *present_buffer = 0;
+   int present_pitch = 0;
+ 
+@@ -1538,6 +1542,9 @@
+  * the rewind module does not, so the host applies it to both. */
+ static uint32 g_overlay_release_mask;
+ static void OverlayNoteClosed(void) {
++  /* A modal key-down is not dispatched to the guest. Sample it here so a
++   * held keyboard cancel is blocked until release, just like pad cancel. */
++  PollKeyboardControls(snesrecomp_sdl_get_keyboard_state());
+   g_overlay_release_mask |= OverlayNavInputs();
+ }
+ static uint32 OverlayFilterGuestInput(uint32 inputs) {
+@@ -1688,6 +1695,7 @@
+ static int g_selftest_pad_phase;      /* 0 idle, 1 browser, 2 rewind */
+ static int g_selftest_pad_failed;
+ static int g_selftest_pad_opened;     /* bit 1: browser opened, bit 2: rewind */
++static bool g_gameplay_selftest_pad;
+ /* While the self-test is armed, only the virtual pad is opened: a real
+  * controller plugged in would take player 1 and the virtual one would land
+  * on seat 2, where no overlay gesture reads -- and a test that then finds
+@@ -1708,6 +1716,8 @@
+ }
+ static void OverlaySelftestPadAttach(void) {
+   const char *v = HostGetenv("OVERLAY_SELFTEST_PAD");
++  g_gameplay_selftest_pad = HostGetenv("GAMEPAD_GAMEPLAY_SELFTEST") != NULL;
++  if (g_gameplay_selftest_pad) v = "0";
+   g_selftest_pad_frame = v ? strtol(v, NULL, 0) : -1;
+   if (g_selftest_pad_frame < 0) return;
+ #if SNESRECOMP_SDL3
+@@ -1736,6 +1746,19 @@
+    * paces; act once per frame. */
+   if (frame == last_frame) return;
+   last_frame = frame;
++  /* Opt-in fixture: use SDL virtual-device events, never guest input pokes.
++   * The dedicated profile maps south/east to SNES A/B. This title opens its
++   * field menu with B; A enters a submenu and B backs out again. */
++  if (g_gameplay_selftest_pad) {
++    SelftestPadReleaseAll();
++    if (frame >= 10 && frame < 30) SelftestPadSet(SDL_CONTROLLER_BUTTON_DPAD_RIGHT, true);
++    if (frame >= 50 && frame < 70) SelftestPadSet(SDL_CONTROLLER_BUTTON_DPAD_DOWN, true);
++    if (frame >= 90 && frame < 92) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
++    if (frame >= 120 && frame < 122) SelftestPadSet(SDL_CONTROLLER_BUTTON_A, true);
++    if (frame >= 150 && frame < 152) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
++    if (frame >= 180 && frame < 182) SelftestPadSet(SDL_CONTROLLER_BUTTON_B, true);
++    return;
++  }
+   if ((long)frame == g_selftest_pad_frame) {
+     fprintf(stderr, "[overlay_selftest_pad] frame %u: holding Select+R on the pad\n", frame);
+     g_selftest_pad_phase = 1;
+@@ -1772,7 +1795,32 @@
+    * is the SNES B, pad "B" is the SNES A). The east button would be the
+    * SNES A -- load in the browser, commit in rewind -- which is exactly the
+    * wrong one to test "close" with, and this test first did. */
+-  case 14: SelftestPadSet(SDL_CONTROLLER_BUTTON_A, true); break;
++  case 14: {
++    const char *exit_mode = HostGetenv("OVERLAY_SELFTEST_EXIT");
++    if (exit_mode && (strcmp(exit_mode, "escape") == 0 ||
++                      strcmp(exit_mode, "toggle") == 0 ||
++                      strcmp(exit_mode, "cancel") == 0)) {
++      SDL_Event e = {0};
++      int key = strcmp(exit_mode, "toggle") == 0
++          ? (g_selftest_pad_phase == 1 ? SDLK_F7 : SDLK_F8)
++          : strcmp(exit_mode, "cancel") == 0 ? SDLK_z : SDLK_ESCAPE;
++      /* The browser's toggle/cancel key paths are outside this rewind check. */
++      if (g_selftest_pad_phase == 1) key = SDLK_ESCAPE;
++      e.type = SDL_KEYDOWN;
++#if SNESRECOMP_SDL3
++      e.key.key = key;
++#else
++      e.key.keysym.sym = key;
++#endif
++      SDL_PushEvent(&e);
++    } else {
++      /* Find the actual cancel binding, including a customized face layout. */
++      for (int b = SDL_CONTROLLER_BUTTON_A; b <= SDL_CONTROLLER_BUTTON_Y; b++)
++        if (FindCmdForGamepadButton(RemapSdlButton(b), 0) == kKeys_Controls + 7)
++          SelftestPadSet(b, true);
++    }
++    break;
++  }
+   case 40:
+     fprintf(stderr, "[overlay_selftest_pad] FAIL: %s did not close from the pad within 40 pumps\n",
+             g_selftest_pad_phase == 1 ? "save-state browser" : "rewind");
+@@ -1910,7 +1958,13 @@
+ }
+ 
+ static void RewindKeyDown(int key, int repeat) {
+-  (void)repeat;
++  /* Match the player's cancel key and let the opener toggle the panel closed.
++   * Holding the opener must not immediately close its own new panel. */
++  if (!repeat && (snesrecomp_sdl_scancode_from_key(key) == keybinds_get()->p1.b ||
++      FindCmdForSdlKey(key, SDL_GetModState()) == kKeys_Rewind)) {
++    snes_rewind_close();
++    return;
++  }
+   switch (key) {
+   case SDLK_LEFT:   snes_rewind_step(-1); break;
+   case SDLK_RIGHT:  snes_rewind_step(+1); break;
+@@ -1993,6 +2047,7 @@
+ static _Thread_local uint64_t g_audio_stalled_callback;
+ static uint64_t g_audio_callback_count;  /* protected by g_audio_mutex */
+ static bool g_audio_primed;  /* protected by g_audio_mutex */
++static FILE *g_audio_capture;
+ #define HOST_AUDIO_PREFILL 2136u
+ #define HOST_AUDIO_HIGH_WATER 4096u
+ #if SNESRECOMP_SDL3
+@@ -2002,6 +2057,20 @@
+ static uint8 *g_audio_stream_buffer;
+ static size_t g_audio_stream_buffer_size;
+ #endif
++
++/* Called before unpausing the device; publish only a complete allocation. */
++static bool AllocateAudioBuffer(int frequency, int channels) {
++  if (frequency <= 0 || channels != 2) return false;
++  uint64_t frames = (534ULL * (uint64_t)frequency + 32040 / 2) / 32040;
++  if (!frames || frames > INT_MAX ||
++      frames > SIZE_MAX / ((size_t)channels * sizeof(int16))) return false;
++  uint8 *buffer = (uint8 *)calloc((size_t)frames * channels * sizeof(int16), 1);
++  if (!buffer) return false;
++  g_frames_per_block = (int)frames;
++  g_audio_channels = (uint8)channels;
++  g_audiobuffer = g_audiobuffer_cur = g_audiobuffer_end = buffer;
++  return true;
++}
+ 
+ static void ResetAudioTimeline(void) {
+   RtlApuLock();
+@@ -2053,6 +2122,8 @@
+ /* Backend-agnostic mixer body. SDL2 calls it from its pull callback; SDL3 calls
+  * it to fill a scratch buffer that is then pushed into the audio stream. */
+ static void FillAudioBuffer(Uint8 *stream, int len) {
++  Uint8 *capture_start = stream;
++  int capture_size = len;
+   /* Boot-stage marker: proves the audio thread reached the mixer at
+    * least once (the "crashed before the first sound" class of report). */
+   static SDL_atomic_t first_cb;
+@@ -2097,6 +2168,7 @@
+     stream += n;
+     len -= n;
+   }
++  if (g_audio_capture) fwrite(capture_start, 1, capture_size, g_audio_capture);
+   SDL_UnlockMutex(g_audio_mutex);
+ }
+ 
+@@ -3528,6 +3600,8 @@
+   }
+ 
+   int audio_output_rate = 0;
++  const char *capture_path = HostGetenv("AUDIO_OUTPUT_RAW");
++  if (capture_path) g_audio_capture = fopen(capture_path, "wb");
+   if (g_config.enable_audio) {
+     /* Enumerate output devices into the breadcrumb ring: which device
+      * SDL picks (and what else was available) is exactly the per-machine
+@@ -3573,13 +3647,23 @@
+       printf("Failed to open audio device: %s\n", SDL_GetError());
+       return 1;
+     }
+-    g_audio_channels = 2;
++    if (!AllocateAudioBuffer(have.freq, have.channels)) {
++      host_report_breadcrumb("audio buffer allocation/layout FAILED: freq=%d ch=%d",
++                             have.freq, have.channels);
++      fprintf(stderr, "Failed to allocate a valid stereo audio buffer\n");
++#if SNESRECOMP_SDL3
++      SDL_DestroyAudioStream(g_audio_stream);
++      g_audio_stream = NULL;
++#else
++      SDL_CloseAudioDevice(g_audio_device);
++#endif
++      g_audio_device = 0;
++      return 1;
++    }
+     /* The SPC's native rate is 32040 Hz (1.024 MHz / 32), not 32000. The
+      * consumer converts onto the device rate and cannot infer it. */
+     RtlSetAudioOutputRate(have.freq);
+     audio_output_rate = have.freq;
+-    g_frames_per_block = (534 * have.freq + 32040 / 2) / 32040;
+-    g_audiobuffer = (uint8 *)calloc(g_frames_per_block * have.channels * sizeof(int16), 1);
+     host_report_breadcrumb(
+         "audio device opened: freq=%d (want %d) ch=%d samples=%d frames_per_block=%d",
+         have.freq, want.freq, have.channels,
+@@ -3609,7 +3693,7 @@
+    * file is one-shot -- a later plain launch must not resume it again. */
+   if (args.resume_state) {
+     bool resumed = RtlLoadSnapshot(args.resume_state);
+-    if (resumed) GameReset();
++    if (resumed) { GameReset(); ResetAudioTimeline(); }
+     host_report_breadcrumb("resume state %s: %s", resumed ? "loaded" : "FAILED to load (kept)",
+                            args.resume_state);
+     if (resumed) remove(args.resume_state);
+@@ -3734,6 +3818,20 @@
+     if (!running)
+       break;
+     OverlaySelftestPadMainTick(frameCtr);
++    /* Opt-in desktop fixture: exercise configured fullscreen shortcuts through
++     * the normal key resolver and verify SDL's actual window flag. */
++    if (HostGetenv("FULLSCREEN_SELFTEST")) {
++      static unsigned last_test_frame = ~0u;
++      if (frameCtr != last_test_frame && (frameCtr == 30 || frameCtr == 90 ||
++          frameCtr == 120 || frameCtr == 150)) {
++        last_test_frame = frameCtr;
++        int key = frameCtr == 30 ? SDLK_F11 : frameCtr == 90 ? SDLK_F11
++                : frameCtr == 120 ? SDLK_F12 : SDLK_RETURN;
++        HandleInput(key, frameCtr == 150 ? KMOD_ALT : 0, true);
++        fprintf(stderr, "[fullscreen_selftest] frame %u fullscreen=%d\n", frameCtr,
++                !!(SDL_GetWindowFlags(g_window) & SNESRECOMP_SDL_WINDOW_FULLSCREEN_DESKTOP));
++      }
++    }
+     /* SNESRECOMP_VOLUME_DEMO=<frame>: press VolumeDown once at that frame, so
+      * a headless screenshot can show the bar. */
+     {
+@@ -4067,6 +4165,13 @@
+      * iteration that opened a panel consumed a script frame the guest never
+      * saw, and every later scripted press landed a frame early. */
+     inputs |= TickScript();
++    if (g_gameplay_selftest_pad) {
++      static uint32 last_inputs = ~0u;
++      if (inputs != last_inputs) {
++        fprintf(stderr, "[gamepad_gameplay_selftest] frame %u guest_input=%03x\n", frameCtr, inputs);
++        last_inputs = inputs;
++      }
++    }
+     if (g_script_quit) {
+       running = false;
+       exit_reason = g_script_failed ? "script until timed out" : "script quit";
+@@ -4244,6 +4349,7 @@
+   SDL_CloseAudioDevice(g_audio_device);
+ #endif
+   SDL_DestroyMutex(g_audio_mutex);
++  if (g_audio_capture) { fclose(g_audio_capture); g_audio_capture = NULL; }
+   free(g_audiobuffer);
+ 
+   g_renderer_funcs.Destroy();
+@@ -4307,6 +4413,7 @@
+     return;
+   }
+ 
++#if defined(SNES_HAS_LOBBY_CLIENT)
+   if (g_netplay_session) {
+     switch (j) {
+     case kKeys_SaveStateMenu:
+@@ -4320,6 +4427,8 @@
+       return; /* Pause the game with synchronized SNES Start instead. */
+     }
+   }
++
++#endif
+ 
+   if (j == kKeys_Turbo) {
+     g_turbo = pressed;
+diff --git a/runner/src/desktop/opengl.c b/runner/src/desktop/opengl.c
+--- a/runner/src/desktop/opengl.c
++++ b/runner/src/desktop/opengl.c
+@@ -29,6 +29,8 @@
+ #include "sdl_compat.h"
+ 
+ #include <stdio.h>
++#include <limits.h>
++#include <stdint.h>
+ #include <stdbool.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -268,6 +270,10 @@
+ }
+ 
+ static void OpenGLRenderer_Destroy(void) {
++  free(g_screen_buffer);
++  g_screen_buffer = NULL;
++  g_screen_buffer_size = 0;
++  g_draw_width = g_draw_height = 0;
+ }
+ 
+ static void OpenGLRenderer_GetOutputSize(int *width, int *height) {
+@@ -361,14 +367,20 @@
+ }
+ 
+ static void OpenGLRenderer_BeginDraw(int width, int height, uint8 **pixels, int *pitch) {
++  g_draw_width = g_draw_height = 0;
++  if (!pixels || !pitch) return;
++  *pixels = NULL;
++  *pitch = 0;
++  if (width <= 0 || height <= 0 || width > INT_MAX / 4 ||
++      (size_t)height > SIZE_MAX / 4 / (size_t)width) return;
+   size_t size = (size_t)width * (size_t)height;
+-
+-  if (size > g_screen_buffer_size) {
++  if (size > g_screen_buffer_size || !g_screen_buffer) {
++    uint8 *buffer = (uint8 *)malloc(size * 4);
++    if (!buffer) return;
++    free(g_screen_buffer);
++    g_screen_buffer = buffer;
+     g_screen_buffer_size = size;
+-    free(g_screen_buffer);
+-    g_screen_buffer = (uint8 *)malloc(size * 4);
+-  }
+-
++  }
+   g_draw_width = width;
+   g_draw_height = height;
+   *pixels = g_screen_buffer;
+@@ -376,6 +388,7 @@
+ }
+ 
+ static void OpenGLRenderer_EndDraw(void) {
++  if (!g_screen_buffer || g_draw_width <= 0 || g_draw_height <= 0) return;
+   int drawable_width, drawable_height;
+ 
+   snesrecomp_sdl_get_drawable_size(g_window, &drawable_width, &drawable_height);
