@@ -31,6 +31,13 @@ simply removing the wrap guard is insufficient. Add bounded natural seam,
 multi-party and reserved-slot margin fixtures, then broader story/cutscene and
 effect coverage. Keep exact original center and safe fallback until each family
 qualifies. Resource enumeration alone does not certify a campaign.
+The [natural allocation trace](docs/FOUNDATION-ACTOR-ALLOCATION-2026-10-09.md)
+proves that one naturally selected world record uses transparent artwork and
+executes the original reserved-B0 refusal. A different naturally selected visible
+source is needed; further camera movement of the same blank entry is insufficient.
+The [B0 scene chain](docs/FOUNDATION-B0-SCENE-WRITERS-2026-10-09.md) needs a
+naturally reached bit-80 mode or already established source scene, followed by
+the original return/activation path. Its story trigger remains unresolved.
 
 ## 3. Native execution and original slowdown
 

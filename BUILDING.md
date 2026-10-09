@@ -115,7 +115,7 @@ Shift/L2 for movement. Explicit existing mappings take priority. Unsupported
 scripted movement retains original pace. Changing settings requires the game
 to be closed; Apply validates changed bindings and backs up edited files.
 
-Companion 0.3.0 also offers **Update selected profile** and **Roll back profile**
+Companion 0.3.0 also offers **Update selected profile** and **Use previous profile**
 in Setup. Update clones settings/saves into a new profile; the previous folder
 is retained, and selection changes atomically after verification. Rollback
 selects the retained earlier profile and preserves newer progress separately.

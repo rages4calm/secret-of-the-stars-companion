@@ -7,10 +7,16 @@ installed game, ROM, private evidence fixture or gameplay qualification receipt.
 Historical foundation documents refer to a separate protected local development
 installation; their `local/` artifacts are deliberately excluded here.
 Current continuation: docs/FOUNDATION-PACKAGE-UPDATES-2026-10-09.md and
-docs/FOUNDATION-ACTOR-NATURAL-ASSESSMENT-2026-10-09.md. Preserve cloned-profile
+docs/FOUNDATION-ACTOR-ALLOCATION-2026-10-09.md. Preserve cloned-profile
 updates, selection-only rollback and conservative checkpoint/ABI declarations.
 The naturally reached wrapping record resolves transparent artwork; do not
 mistake its coordinate/guard proof for visible wrapping-sprite qualification.
+Actual selected-source/base stores and original B0 refusal are now observed;
+the same VRAM has visible party art.
+Read docs/FOUNDATION-B0-SCENE-WRITERS-2026-10-09.md for original dispatcher gates.
+Natural bit80 acquisition
+and selector6 exit remain unqualified. Require actual activation, nontransparent
+art and completed packet identity before enabling these actor families.
 
 Preserve the original handoff decisions: enhanced original pixels and true
 widescreen first; replacement HD world assets deferred; MSU-1 only after a

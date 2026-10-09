@@ -6,13 +6,13 @@ owner settings, SRAM and checkpoints are retained unchanged.
 
 ## Update and rollback behavior
 
-Setup can adopt a real source compilation receipt as before. **Update profile**
+Setup can adopt a real source compilation receipt as before. **Update selected profile**
 instead copies the selected profile into a new unique folder, preserving its
 settings, saves, backups and unknown files, then replaces the native executable
 and build metadata there. Selection changes atomically only after both source
 and destination pass the final checks. The old folder is retained.
 
-**Rollback** selects the retained predecessor. Progress made in the new profile
+**Use previous profile** rolls back to the retained predecessor. Progress made in the new profile
 stays there; rollback does not merge or discard it. Nested updates retain their
 history. The existing owner installation is not automatically imported into
 this source-profile workflow.
@@ -78,3 +78,13 @@ sprites. Large/composite/wrapping guards remain installed. Follow the actual
 regular-actor graphics base writer and B0 current-scene activation before
 removing those guards. Broader scene coverage, measured native/AOT work, further
 verified journal milestones and conditional MSU-1 integration remain open.
+
+The [allocation follow-up](FOUNDATION-ACTOR-ALLOCATION-2026-10-09.md) observes
+the original source-pointer/base stores and reserved-B0 refusal. Visible party
+art from the same VRAM provides a positive decoder control; the selected ordinary
+world record stays transparent. These checks add evidence, not a new rendering
+feature or permission to enable the unsupported actor families.
+The [B0 scene-writer follow-up](FOUNDATION-B0-SCENE-WRITERS-2026-10-09.md)
+identifies the original scene-save/return dispatcher and the circular early
+interaction gate. Natural acquisition of bit-80 mode and its selector-6 return
+still need a fixture. Static gates do not establish original activation or art.
