@@ -11,8 +11,12 @@ cancellation, isolated profile adoption, explicit compilation status, title-firs
 launch and selected copied-save resume. Public Play no longer requires private
 fixture/checkpoint data. XP/gold rates, guarded movement boost and keyboard/
 controller hotkeys are editable in the launcher.
-Next qualify a portable source-first Windows package with retained dependency
-notices, updates and rollback. Do not distribute the ROM or generated game code.
+Source-profile updates now create verified new folders and retain old profiles
+for selection-only rollback. A source-first package tool includes one
+self-contained GUI, authored source and notices; native game and original data
+stay excluded. Finish broader package/hardware checks and automatic GUI release
+updates. Configured profile roots currently retain absolute paths.
+Do not distribute the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
 

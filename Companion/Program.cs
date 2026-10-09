@@ -9,7 +9,7 @@ internal static class Program
     [STAThread]
     static int Main(string[] args)
     {
-        bool diagnostic = args.Contains("--capture") || args.Contains("--self-test") || args.Contains("--public-self-test") || args.Contains("--qol-ui-test") || args.Contains("--launch-test") || args.Contains("--ui-test") || args.Contains("--visible-test");
+        bool diagnostic = args.Contains("--capture") || args.Contains("--self-test") || args.Contains("--public-self-test") || args.Contains("--profile-update-test") || args.Contains("--qol-ui-test") || args.Contains("--launch-test") || args.Contains("--ui-test") || args.Contains("--visible-test");
         try
         {
             string? Value(string key)
@@ -21,6 +21,11 @@ internal static class Program
             }
             string root = Path.GetFullPath(Value("--root") ?? FindRoot());
             string? profile = Value("--profile");
+            if (Value("--profile-update-test") is string updateTests)
+            {
+                ApplicationConfiguration.Initialize();
+                return ProfileUpdateTests.Run(root, Path.GetFullPath(updateTests), Value("--rom") ?? throw new ArgumentException("Update tests require an owned ROM path."), Value("--checkpoint"));
+            }
             if (Value("--public-self-test") is string publicTests) return PublicSetupTests.Run(root, Path.GetFullPath(publicTests), Value("--rom"));
             if (Value("--self-test") is string tests) return CoreTests.Run(root, Path.GetFullPath(tests));
             if (Value("--launch-test") is string mode)

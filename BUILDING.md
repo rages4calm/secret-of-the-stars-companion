@@ -1,9 +1,10 @@
 # Developer builds on Windows
 
-This repository is a source snapshot, not a ready-to-play release. The native
-foundation can be assembled from a developer's own ROM; the existing Companion
-Play/Resume adapter still expects a qualified local installation and private
-fixtures. Do not copy someone else's qualification receipt into a fresh build.
+This repository is a source snapshot. Source-first Companion can build the native
+foundation from an owned ROM and launch an isolated profile without private
+fixtures. The ROM-free portable launcher package includes the self-contained
+GUI and authored source; native setup still requires the tools below.
+Compilation status stays explicit. Never copy another build's qualification receipt.
 
 ## Requirements
 
@@ -114,9 +115,34 @@ Shift/L2 for movement. Explicit existing mappings take priority. Unsupported
 scripted movement retains original pace. Changing settings requires the game
 to be closed; Apply validates changed bindings and backs up edited files.
 
+Companion 0.3.0 also offers **Update selected profile** and **Roll back profile**
+in Setup. Update clones settings/saves into a new profile; the previous folder
+is retained, and selection changes atomically after verification. Rollback
+selects the retained earlier profile and preserves newer progress separately.
+Different native executables require declared compatible checkpoint/SRAM formats
+and the same execution-state ABI. Missing legacy metadata permits identical
+executables only; use fresh adoption for a different undeclared build.
+
 The historical qualified local installation adapter remains supported, but
-public Play/Resume does not require private preview fixtures. Portable packaged
-distribution, broader hardware checks and update/rollback polish remain open.
+public Play/Resume does not require private preview fixtures. Broader hardware
+checks and automatic GUI release updates remain open.
+
+## Package the source-first launcher
+
+After building Companion from the current authored snapshot:
+
+```powershell
+python tools/package_companion.py --companion-receipt "<build>/source-companion-receipt.json" --output "local/packages/companion-source-first.zip"
+```
+
+This adds exactly one self-contained GUI EXE to Git-tracked authored source and
+retained notices. Native executables, generated game code, ROMs, artwork/audio,
+checkpoints and player profiles are excluded. Extract into a fresh folder and
+run `python tools/verify_companion_package.py "<extracted folder>"` to compare
+package files with its integrity manifest, then open the root EXE or CMD.
+GUI startup needs no .NET SDK; native source setup still needs the prerequisites.
+The integrity manifest is not publisher authentication or gameplay certification.
+Configured profiles use absolute receipt paths; keep their project root stable.
 
 ## Checks
 

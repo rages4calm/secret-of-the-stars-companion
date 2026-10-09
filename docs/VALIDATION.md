@@ -1,6 +1,20 @@
 # Validation scope — 2026-10-09
 
-## Current 0.2.0 foundation and launcher
+## Current Companion 0.3.0
+
+The exact self-contained GUI has SHA-256
+`44e6df260925c91b25882bb4be29107bfc7672b3ef52bf06a9baf54068c0bb07`.
+It passed 52 profile update/rollback checks, 60 source-first backend checks,
+31 QoL GUI checks, and 55 legacy backend/nine GUI checks plus six launch routes.
+Actual 180-frame copied-checkpoint restores ran after update and rollback,
+including compatible real builds with different native executable hashes.
+Thirteen portable-package gates cover integrity, visible startup without GUI
+development tools on PATH, clean relocation and altered-file refusal. These
+checks are bounded and separate from campaign/hardware qualification. Native
+0.2.0 and owner saves/settings are unchanged.
+See [packaging and profile updates](FOUNDATION-PACKAGE-UPDATES-2026-10-09.md).
+
+## Current 0.2.0 foundation
 
 The integrated 0.2.0 native executable has SHA-256
 `9241f79ea1a685e0932282c300081a90f9becf503f9a17c5fe6a94b34a08a7e0`.
@@ -86,7 +100,7 @@ See [BUILDING.md](../BUILDING.md).
 
 The ROM-free checker checks exactly the Git-tracked file set, excludes private
 payload paths and binary types, checks recognizable credential formats,
-parses Python source, verifies 48 foundation and 19 Companion authored-file
+parses Python source, verifies 48 foundation and 21 Companion authored-file
 hashes, checks the pinned runtime/patch and verifies nine verbatim notice
 hashes. It also checks links in the public entry documents.
 

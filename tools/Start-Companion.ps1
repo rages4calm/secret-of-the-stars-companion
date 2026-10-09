@@ -10,6 +10,19 @@ if (Test-Path -LiteralPath $receiptPath) {
     if (!$receipt.qualified -or !(Test-Path -LiteralPath $binary) -or (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $receipt.executable_sha256) {
         throw 'Companion differs from its qualified receipt. Retain settings and requalify the changed artifact.'
     }
+} elseif (Test-Path -LiteralPath (Join-Path $taskRoot 'portable-companion.json')) {
+    $receipt = Get-Content -LiteralPath (Join-Path $taskRoot 'portable-companion.json') -Raw | ConvertFrom-Json
+    $binary = Join-Path $taskRoot 'Secret of the Stars Companion.exe'
+    if ($receipt.schema -ne 1 -or $receipt.component -ne 'Companion' -or $receipt.status -ne 'compiled_unqualified' -or
+        $receipt.executable -ne 'Secret of the Stars Companion.exe' -or $receipt.game_data_included -ne $false -or $receipt.native_game_included -ne $false -or
+        !(Test-Path -LiteralPath $binary -PathType Leaf) -or (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $receipt.executable_sha256) {
+        throw 'Portable Companion differs from its package receipt. Preserve your local profile and extract a fresh package into a new folder.'
+    }
+    $manifest = Join-Path $taskRoot 'Companion/authored-files.json'
+    if (!(Test-Path -LiteralPath $manifest) -or (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant() -ne $receipt.source_manifest_sha256) {
+        throw 'Portable source snapshot changed. Preserve local profiles and use a matching package or the source build route.'
+    }
+    $publicSource = !(Test-Path -LiteralPath (Join-Path $taskRoot 'local/companion-public/setup.json'))
 } else {
     $receiptPath = Join-Path $taskRoot 'local/public-companion/source-companion-receipt.json'
     if (!(Test-Path -LiteralPath $receiptPath)) {

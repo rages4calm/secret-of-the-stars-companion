@@ -75,6 +75,7 @@ public static class PublicSetupService
     public static string AdoptBuild(string root, string receiptPath, string romPath)
     {
         root = Path.GetFullPath(root); romPath = ValidateRom(romPath);
+        using var selectionLock = AcquireSelectionLock(root);
         var build = CheckBuild(root, receiptPath);
         var buildFolder = Path.GetDirectoryName(build.ReceiptPath)!;
         var profiles = Path.Combine(root, "local", "companion-public", "profiles");
@@ -190,6 +191,13 @@ public static class PublicSetupService
     }
 
     internal static string HashFile(string path) { using var input = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant(); }
+    internal static FileStream AcquireSelectionLock(string root)
+    {
+        var folder = Path.Combine(Path.GetFullPath(root), "local", "companion-public");
+        RejectLinkedPath(folder); Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, "selection.lock"); RejectLinkedPath(path);
+        return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+    }
     private static void WriteNewJson<T>(string path, T value)
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough);

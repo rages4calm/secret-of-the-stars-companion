@@ -2,10 +2,15 @@
 
 This is the public authored-source repository for Secret of the Stars Companion.
 Read README.md, BUILDING.md, ROADMAP.md and docs/VALIDATION.md first.
-The native snapshot and Companion source are 0.2.0. There is no included
+The native snapshot is 0.2.0; Companion source is 0.3.0. There is no included
 installed game, ROM, private evidence fixture or gameplay qualification receipt.
 Historical foundation documents refer to a separate protected local development
 installation; their `local/` artifacts are deliberately excluded here.
+Current continuation: docs/FOUNDATION-PACKAGE-UPDATES-2026-10-09.md and
+docs/FOUNDATION-ACTOR-NATURAL-ASSESSMENT-2026-10-09.md. Preserve cloned-profile
+updates, selection-only rollback and conservative checkpoint/ABI declarations.
+The naturally reached wrapping record resolves transparent artwork; do not
+mistake its coordinate/guard proof for visible wrapping-sprite qualification.
 
 Preserve the original handoff decisions: enhanced original pixels and true
 widescreen first; replacement HD world assets deferred; MSU-1 only after a

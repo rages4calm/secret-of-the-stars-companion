@@ -96,10 +96,19 @@ def main():
     (profile/'config.ini').write_text('[Graphics]\nRenderer=direct3d11\nFullscreen=0\nVSync=1\nNewRenderer=0\nWidescreen=0\n[Sound]\nEnableAudio=1\nAudioFreq=32040\nAudioChannels=2\nAudioSamples=512\n[General]\nAutosave=0\nSkipLauncher=1\n',encoding='ascii')
     (profile/'foundation.ini').write_text('[Enhancements]\nEnhancedPixels=1\nBattleInfo=1\nFastMenus=1\nJournal=1\nExperimentalFieldWide=0\nExperimentalFieldActors=0\nNativeClear=0\nNativeColumns=0\nHdMenuFrames=0\nXpMultiplierPercent=100\nGoldMultiplierPercent=100\nMovementSpeedPercent=200\nFastForwardToggle=0\nLegacyControllerGestures=1\n',encoding='ascii')
     assert sha(rom)==expected
+    state_source=(project/'src/foundation_state.c').read_text()
+    schema=re.search(r'#define FOUNDATION_VERSION (\d+)u',state_source)
+    state_identity=re.search(r'FoundationStateIdentity\(void\).*?return "([^"]+)"',state_source)
+    if not schema or not state_identity or 'header[1] < 1 || header[1] > FOUNDATION_VERSION' not in state_source:
+        raise RuntimeError('Checkpoint contract changed; preserve this build and explicitly update its compatibility declaration before adoption.')
+    schema_version=int(schema.group(1))
     result={'status':'compiled_unqualified','public_build':True,'executable_sha256':sha(binary),
       'version':(project/'VERSION').read_text().strip(),'rom_sha256':expected,'rom_copied':False,
       'authored_inputs':actual,'matches_authored_snapshot':actual==manifest,
       'runtime_pin':RUNTIME_PIN,'runtime_patch_sha256':sha(patch),
+      'checkpoint_schema':{'identity':state_identity.group(1),'writes':schema_version,'reads':list(range(1,schema_version+1))},
+      'save_compatibility':'secret-of-the-stars-usa-sram-v1',
+      'execution_state_abi_sha256':hashlib.sha256(('\n'.join(actual[name] for name in ('src/foundation_state.c','src/foundation_state.h','src/game_rtl.c','src/game_rtl.h','src/variables.h'))+'\n'+RUNTIME_PIN+'\n'+sha(patch)).encode()).hexdigest(),
       'private_generated_files':[p.relative_to(out).as_posix() for p in (project/'src/gen').rglob('*') if p.is_file()],
       'profile':profile.relative_to(ROOT).as_posix(),
       'limits':'Fresh developer compilation only; gameplay qualification and owner installation remain separate.'}

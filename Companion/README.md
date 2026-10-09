@@ -54,3 +54,20 @@ visibility, taskbar presence, working-area intersection and its main-window
 handle, writes the report, then closes. Interactive launches also record their
 own window readiness under `local/companion/logs`. Offscreen capture remains
 separate from interactive verification.
+
+Companion 0.3.0 adds source-profile Update and Rollback in Setup. Update creates
+a new isolated profile with byte-verified copies of the selected source profile's
+settings and saves. Only the selection pointer changes after successful copy
+and validation. Rollback selects the retained earlier profile; newer progress
+stays in its own folder and is never merged or discarded. Changed executables
+require compatible checkpoint declarations and matching execution-state ABI.
+Legacy receipts without that metadata can reuse the identical executable;
+different builds require fresh adoption. These actions do not import the private
+owner installation. Close the selected game and apply pending edits first.
+
+The source-first portable package contains this self-contained GUI, authored
+source and notices. It includes no native game or original data. Extract into a
+new folder, verify with `tools/verify_companion_package.py`, then open the root
+EXE or CMD. Native setup still needs the documented development tools and an
+owned ROM. Clean packages can be extracted at another path; configured profile
+receipts currently retain absolute paths and should stay in their original root.
