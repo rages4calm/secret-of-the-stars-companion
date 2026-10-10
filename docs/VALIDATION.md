@@ -1,6 +1,16 @@
 # Validation scope — 2026-10-10
 
-## Current native 0.2.3 / Companion 0.3.0
+## Current native0.2.4 / Companion0.3.1
+
+The exact native `8de664644c6edfe3a34daddc402536646a8cbdb896a041fc11ad85203caa2de5` and GUI
+`c644b4f27b7c8763aff490ad6f2a85e30930fd4e94fe2d18c4831d5ddf8129a7` bundle passes separate journal, HP-bar/sidebar,
+wider-rendering, core/map/actor, GUI-preset and actual update/rollback checks.
+Six candidate-only paced Direct3D routes pass steady audio counters. Source
+compilation receipts remain `compiled_unqualified`; private qualification and
+installed-copy checks are separate. Owner saves/settings and ROMs remain exact.
+[Current features, artifact hashes and precise coverage limits](FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md).
+
+## Earlier native0.2.3 / Companion0.3.0
 
 Exact executable `25d1c85c6bd0e78bc6dbad74e66c693046ec3088458982965934e99e1441e617`
 adds current-stage Aris/Pennon advice and selected ordinary forward-boundary

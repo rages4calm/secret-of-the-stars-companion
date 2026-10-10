@@ -13,5 +13,6 @@ unsigned FoundationWideActorsPrepareLine(const struct Ppu *source, unsigned line
                                         struct Ppu *picture);
 void FoundationWideActorsDrawResult(unsigned changed_margin_pixels);
 void FoundationWideActorsEndDraw(void);
-int FoundationWideActorsOrdinaryPeriodicRaster(const struct Ppu *source, int *world_x, int *world_y);
+/* Selected-resource completed-packet/full-scroll phase bridge. */
+int FoundationWideActorsPeriodicRaster(const struct Ppu *source, int *world_x, int *world_y);
 #endif

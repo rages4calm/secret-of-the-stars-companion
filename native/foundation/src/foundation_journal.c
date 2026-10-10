@@ -113,53 +113,74 @@ void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
     }
 }
 
+/* Eight-pixel font, at most 28 characters per row inside the 240px panel.
+ * All text is current original advice: no inferred destinations in later stages. */
 void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
-    if (!enabled || !visible || g_ram[0x20] != 1 || w < 240 || h < 88) return;
-    /* Re-derive even if presentation follows a load before a guest update. */
+    if (!enabled || !visible || g_ram[0x20] != 1 || w < 256 || h < 212) return;
+    /* A restore can precede the next guest update. Always derive here too. */
     unsigned lead = FoundationJournalLead(g_ram[0x5372], g_ram[0x5360]);
-    uint32_t *pixels = (uint32_t *)dst;
-    int stride = (int)(pitch / 4), x = (w - 240) / 2;
     unsigned groups = possession_enabled ? JournalPossessionGroups(g_ram, 0x20000) : 0;
-    snes_ovl_fill_rect(pixels, stride, h, x, 6, 240, 75, 0xff080e1c);
-    snes_ovl_stroke_rect(pixels, stride, h, x, 6, 240, 75, 0xff809bc8);
-    snes_ovl_draw_text(pixels, stride, h, x + 6, 11,
-                       "JOURNAL - HOTKEY: CLOSE", 0xffffdf78, 1);
+    unsigned used[2] = {0, 0};
+    for (unsigned pack = 0; pack < 2; ++pack)
+        for (unsigned slot = 0; slot < 32; ++slot)
+            used[pack] += g_ram[0x5373 + pack * 32 + slot] != 0xff;
+    const char *objective[2], *route[2], *progress;
     if (lead == 3) {
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
-                           "Aris: Jeep Volcano", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
-                           "Defeat Homncruse's follower", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 57,
-                           groups ? "STARCREST: HELD NOW" :
-                           "Nearby mountain entrance", 0xfff0f3fa, 1);
+        objective[0] = "Defeat Homncruse's follower";
+        objective[1] = "in Jeep Volcano.";
+        route[0] = "Enter the nearby mountain.";
+        route[1] = "Kustera can fight for you.";
+        progress = "Aris advice: Pennon";
     } else if (lead == 2) {
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
-                           "Bosen: gather allies", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
-                           "to build a town", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 57,
-                           groups ? "STARCREST: HELD NOW" :
-                           "Find your fellow allies", 0xfff0f3fa, 1);
-    } else if (groups) {
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
-                           "STARCREST: HELD NOW", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
-                           groups == 3 ? "In both party packs" : "In one party pack", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 57,
-                           "In your pack now", 0xfff0f3fa, 1);
-    } else if (lead) {
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
-                           "Seek the Crest of Stars", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
-                           "David: somewhere in", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 57,
-                           "the mountain", 0xfff0f3fa, 1);
+        objective[0] = "Find Aqutallion allies.";
+        objective[1] = "Find Kustera; build a town.";
+        route[0] = "Bosen asks you to find";
+        route[1] = "allies for the new town.";
+        progress = "Bosen's current advice";
+        if (FoundationJournalHasLikadoClue(g_ram[0x5372], g_ram[0x5360])) {
+            route[0] = "Uncle Save: Likado is empty.";
+            route[1] = "Gather allies for the town.";
+        }
+    } else if (lead == 1) {
+        objective[0] = "Seek the Crest of Stars.";
+        objective[1] = "Follow David's lead.";
+        route[0] = "David: somewhere in";
+        route[1] = "the mountain.";
+        progress = "David's current advice";
     } else {
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
-                           "No lead recorded for", 0xfff0f3fa, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
-                           "this chapter.", 0xfff0f3fa, 1);
+        objective[0] = "No current lead recorded.";
+        objective[1] = "Talk to people for clues.";
+        route[0] = "No route recorded for";
+        route[1] = "the current chapter.";
+        progress = "Current party packs";
     }
+    uint32_t *pixels = (uint32_t *)dst;
+    int stride = (int)(pitch / 4), x = (w - 240) / 2, y = (h - 196) / 2;
+    const uint32_t body = 0xff080e1c, border = 0xff809bc8;
+    const uint32_t gold = 0xffffdf78, ink = 0xfff0f3fa, muted = 0xffa7b9d8;
+    snes_ovl_fill_rect(pixels, stride, h, x, y, 240, 196, body);
+    snes_ovl_stroke_rect(pixels, stride, h, x, y, 240, 196, border);
+    snes_ovl_stroke_rect(pixels, stride, h, x + 2, y + 2, 236, 192, 0xff293a57);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 8, "QUEST JOURNAL", gold, 1);
+    for (int row = 22; row <= 122; row += 50)
+        snes_ovl_fill_rect(pixels, stride, h, x + 8, y + row, 224, 1, 0xff293a57);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 28, "CURRENT OBJECTIVE", gold, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 42, objective[0], ink, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 54, objective[1], ink, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 78, "ROUTE AND ADVICE", gold, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 92, route[0], ink, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 104, route[1], ink, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 128, "CURRENT PROGRESS", gold, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 142, progress, ink, 1);
+    char packs[32];
+    snprintf(packs, sizeof(packs), "PACKS: %u/32 AND %u/32", used[0], used[1]);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 154, packs, muted, 1);
+    const char *crest = !possession_enabled ? "PACK ITEM SUMMARY OFF" :
+                        groups == 3 ? "STARCREST: BOTH PACKS" :
+                        groups ? "STARCREST: ONE PACK" : "STARCREST: NOT HELD NOW";
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 166, crest, muted, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 184,
+                       "HOTKEY: CLOSE - GAME RUNNING", gold, 1);
 }
 
 void FoundationJournalShutdown(void) {

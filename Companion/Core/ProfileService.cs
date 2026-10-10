@@ -87,6 +87,8 @@ public static class ProfileService
             Validate(settings, snapshot.OriginalSettings);
             if (!SupportsQol(snapshot) && QolChanged(settings, snapshot.OriginalSettings))
                 throw new InvalidOperationException("These reward, movement and configurable overlay options require native foundation 0.2.0 or newer. Build and select the current source in Setup first. Existing settings and saves are preserved.");
+            if (!SupportsJournalPossession(snapshot) && settings.JournalPossession != snapshot.OriginalSettings.JournalPossession)
+                throw new InvalidOperationException("Journal item-summary choices require native foundation 0.2.3 or newer. Update the selected source build in Setup first. Existing settings and saves are preserved.");
             EnsureUnchanged(snapshot);
             if (running()) throw new InvalidOperationException("Close this profile's game before applying settings.");
             RejectReparse(snapshot.ProfileDirectory);
@@ -246,8 +248,11 @@ public static class ProfileService
     }
 
     public static bool SupportsQol(ProfileSnapshot snapshot) => SupportsQol(snapshot.ProfileDirectory, snapshot.Files);
+    public static bool SupportsJournalPossession(ProfileSnapshot snapshot) => SupportsFoundationVersion(snapshot.ProfileDirectory, snapshot.Files, new Version(0, 2, 3));
 
-    private static bool SupportsQol(string profile, IReadOnlyDictionary<string, FileIdentity> files)
+    private static bool SupportsQol(string profile, IReadOnlyDictionary<string, FileIdentity> files) => SupportsFoundationVersion(profile, files, new Version(0, 2, 0));
+
+    private static bool SupportsFoundationVersion(string profile, IReadOnlyDictionary<string, FileIdentity> files, Version minimum)
     {
         try
         {
@@ -264,7 +269,7 @@ public static class ProfileService
                 if (receipt?.Exists != true) return false;
                 using var json = JsonDocument.Parse(receipt.Bytes); version = json.RootElement.TryGetProperty("release_version", out var release) ? release.GetString() : null;
             }
-            return Version.TryParse(version, out var parsed) && parsed >= new Version(0, 2, 0);
+            return Version.TryParse(version, out var parsed) && parsed >= minimum;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException) { return false; }
     }
@@ -387,6 +392,7 @@ public static class ProfileService
         EnableGamepad2 = Bool(config.Get("GamepadMap", "EnableGamepad2"), false), Deadzone = Number(config.Get("GamepadMap", "GamepadDeadzone"), 3277),
         BattleInfo = Bool(foundation.Get("Enhancements", "BattleInfo", true), true), EnhancedPixels = Bool(foundation.Get("Enhancements", "EnhancedPixels", true), true),
         FastMenus = Bool(foundation.Get("Enhancements", "FastMenus", true), true), Journal = Bool(foundation.Get("Enhancements", "Journal", true), true),
+        JournalPossession = Bool(foundation.Get("Enhancements", "JournalPossession", true), true),
         HdMenuFrames = Bool(foundation.Get("Enhancements", "HdMenuFrames", true), false),
         ExperimentalFieldWide = Bool(foundation.Get("Enhancements", "ExperimentalFieldWide", true), false),
         ExperimentalFieldActors = Bool(foundation.Get("Enhancements", "ExperimentalFieldActors", true), false),
@@ -423,6 +429,7 @@ public static class ProfileService
             [("config.ini", "GamepadMap", "EnableGamepad2")] = B(settings.EnableGamepad2), [("config.ini", "GamepadMap", "GamepadDeadzone")] = N(settings.Deadzone),
             [("foundation.ini", "Enhancements", "BattleInfo")] = B(settings.BattleInfo), [("foundation.ini", "Enhancements", "EnhancedPixels")] = B(settings.EnhancedPixels),
             [("foundation.ini", "Enhancements", "FastMenus")] = B(settings.FastMenus), [("foundation.ini", "Enhancements", "Journal")] = B(settings.Journal),
+            [("foundation.ini", "Enhancements", "JournalPossession")] = B(settings.JournalPossession),
             [("foundation.ini", "Enhancements", "HdMenuFrames")] = B(settings.HdMenuFrames),
             [("foundation.ini", "Enhancements", "ExperimentalFieldWide")] = B(settings.ExperimentalFieldWide),
             [("foundation.ini", "Enhancements", "ExperimentalFieldActors")] = B(settings.ExperimentalFieldActors),

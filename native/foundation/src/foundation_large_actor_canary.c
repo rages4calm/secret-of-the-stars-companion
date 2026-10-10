@@ -1,4 +1,4 @@
-/* Private read-only B0 host contract. No guest opcode, activation or timing work. */
+/* Read-only B0 host contract. No guest opcode, activation or timing work. */
 #include "foundation_large_actor_canary.h"
 #include "sha256.h"
 #include <string.h>
@@ -45,11 +45,45 @@ static int InputAlias(const LargeView *view, const void *output, size_t bytes) {
         Overlap(output, bytes, view->cgram, view->cgram_words * sizeof(uint16_t)) ||
         Overlap(output, bytes, bound_rom, bound_size);
 }
+/* Original selected-world saved parked allocation relation. No story or activation writes. */
+int LargeWrappingParked(const uint8_t *ram, size_t size) {
+    static const uint8_t selected[12] = {0x58,0x87,3,0x58,0x8f,3,0x18,0x84,10,0x18,0x88,10};
+    static const uint8_t grids[6] = {0x5c,0xa8,9,0,0x97,9};
+    if (!ram || size != 131072 || ram[0x20] != 1 || ram[0x401] != 12 ||
+        ram[0x407] != 1 || ram[0x400] || Read16(ram,0x40e) ||
+        ram[0x5372] != 17 || (ram[0x5361] & 0x40) || (ram[0x409] & 0x80) ||
+        Read16(ram,0x5441) || Read16(ram,0x46d) != 0x0e0e || Read16(ram,0x46f) != 0x0404 ||
+        memcmp(ram+0x500,selected,12) || memcmp(ram+0x513,grids,6) ||
+        Read16(ram,0x537) != 0x8110 || ram[0x539] != 9 ||
+        Read16(ram,0x55c) != 0x8210 || ram[0x55e] != 9 ||
+        Read16(ram,0x471) || Read16(ram,0x473)) return 0;
+    unsigned sx=Read16(ram,0x544b),sy=Read16(ram,0x5455);
+    if (sx>=3584 || sy>=3584) return 0;
+    for (unsigned i=0;i<19;++i) {
+        unsigned at=0x4100+25*i;
+        if (i<2) {
+            if (ram[at] != (i ? 0 : 2) || Read16(ram,at+1) != 1536 ||
+                Read16(ram,at+3) != (i ? 544 : 528) || Read16(ram,at+5) != 0x598) return 0;
+        } else if (i==16 || i==18) {
+            unsigned x=i==16?sx:(sx+3584-8)%3584;
+            unsigned y=i==16?sy:(sy+3584-48)%3584;
+            if (ram[at]!=2 || Read16(ram,at+1)!=x || Read16(ram,at+3)!=y ||
+                Read16(ram,at+5)!=(i==16?0xa8:0xb0)) return 0;
+        } else if (ram[at]!=255) return 0;
+    }
+    for (unsigned i=0;i<5;++i) {
+        unsigned at=0x4000+18*i,base=Read16(ram,at+3);
+        unsigned gfx=base+ram[at]*2+(ram[at+10]>>7);
+        if (ram[at]!=255 && (base==0xb0 || (gfx&0xfff8)==0xa8 || ram[at]>3)) return 0;
+    }
+    return 1;
+}
 static int ViewValid(const LargeView *view) {
     return identity && view && view->ram && view->ram_size == 131072 &&
         view->vram && view->vram_words == 32768 && view->cgram && view->cgram_words == 256 &&
         view->field_eligible && view->obsel == 3 && !view->rotation && !view->setini &&
-        view->ram[0x20] == 1 && view->ram[0x401] == 12 && !view->ram[0x407] &&
+        view->ram[0x20] == 1 && view->ram[0x401] == 12 &&
+        (!view->ram[0x407] || LargeWrappingParked(view->ram,view->ram_size)) &&
         !Read16(view->ram, 0x471) && !Read16(view->ram, 0x473);
 }
 int LargeBindRom(const uint8_t *rom, size_t size) {
@@ -100,6 +134,8 @@ int LargeCapture(LargeReplay *state, const LargeView *view,
         seam->record_pointer != 0x7e0000 + at || seam->base != base ||
         base != 0xb0 || ram[at] == 255 || seam->mask != mask ||
         descriptor < 0x0e9800 || descriptor + 4 > 0x0ed800)
+        return Reject(state);
+    if (ram[0x407] && (family != LARGE_REGULAR || index != 18 || ram[at] != 2 || descriptor != 0x0e9d88))
         return Reject(state);
     LargeActor actor = {0}; actor.family = family; actor.index = index;
     actor.pose = ram[at]; actor.descriptor = descriptor;
@@ -204,6 +240,13 @@ unsigned LargePrepare(const LargeReplay *state, const LargeView *view,
             piece.x = Nearest512(piece.x, 128); piece.y = Nearest512(piece.y, 112);
         }
         piece.x -= dx; piece.y -= dy;
+        if (view->ram[0x407]) {
+            /* Margin-only geometry from the immutable original completed packet. */
+            if (piece.x-128 < -1792) piece.x+=3584;
+            if (piece.x-128 >=1792) piece.x-=3584;
+            if (piece.y-112 < -1792) piece.y+=3584;
+            if (piece.y-112 >=1792) piece.y-=3584;
+        }
         if ((int)line - 1 < piece.y || (int)line - 1 >= piece.y + 16 ||
             piece.x >= 328 || piece.x + 16 <= -72 || (piece.x >= 0 && piece.x + 16 <= 256)) continue;
         if (!LargeDecode(view, piece.word, pixels[count])) return 0;

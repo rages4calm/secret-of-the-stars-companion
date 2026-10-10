@@ -1,5 +1,5 @@
-/* Combined isolated travel-B0 and selected scene0 ordinary wrapping prototype.
- * Unsupported contexts remain refused; canonical installed source is unchanged. */
+/* Authenticated selected-world parked allocation and ordinary terrain margins.
+ * Unsupported resources, producers and raster phases retain original fallback. */
 /* Validated field draw-record cache. No guest reads through bus helpers, writes,
  * opcode redirects, actor activation or clock changes. Metadata becomes live
  * only with the original complete OAM packet, never at producer-frame time. */
@@ -98,6 +98,7 @@ static int WrappingResource(const Ppu *ppu) {
         ppu->bgmode != 9 || PPU_mosaicSize(ppu) > 1 || ppu->setini) return 0;
     for (unsigned i = 0; i < 8; ++i)
         if (g_snes->dma->channel[i].hdmaActive) return 0;
+    if (LargeWrappingParked(g_ram,131072)) return 1;
     /* No arbitrary other ordinary allocations become qualified by flags. */
     for (unsigned i = 0; i < kRegular; ++i) {
         unsigned at = 0x4100 + 25 * i;
@@ -134,6 +135,10 @@ static void Row(const char *event, const Packet *packet, const CpuState *cpu, in
     fprintf(trace, ",%d,%d,%u,%u,%u,%u,", packet->camera_x, packet->camera_y,
         r0->descriptor, r0->phase, r1->descriptor, r1->phase);
     for (unsigned i = 0; i < 32; ++i) fprintf(trace, "%02x", packet_hash[i]);
+    int raster_x=0,raster_y=0;
+    int periodic=FoundationWideActorsPeriodicRaster(g_ppu,&raster_x,&raster_y);
+    fprintf(trace,",%d,%d,%u,%u,%d",g_ppu?g_ppu->m7matrix[6]:-1,
+        g_ppu?g_ppu->m7matrix[7]:-1,R16(0x2ad),R16(0x2af),periodic);
     fputc('\n', trace);
     fflush(trace);
 }
@@ -260,9 +265,9 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (cursor != 0x30 || R16(0x0e34) != 0x10 || R16(0x0e38) != 0x201 ||
             R16(0x0e10) != producing.mask) sequence = 0;
         if (g_ppu) Resource(g_ppu, producing.resource);
-        /* The existing B0 contract intentionally refuses wrapping.
-         * Ordinary wrapping has its own strict resource/packet proof. */
-        if (sequence && !g_ram[0x407]) {
+        /* Wrapped B0 needs its original saved allocation relation; ordinary
+         * wrapping retains the separate strict resource/packet proof. */
+        if (sequence && (!g_ram[0x407] || LargeWrappingParked(g_ram,131072))) {
             LargeView view = LargeInput(g_ppu);
             if (!LargeBegin(&producing.large, &view, g_ram + 0x2200, kPacketBytes)) sequence = 0;
         }
@@ -281,7 +286,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             unsigned at = 0x4100 + i * 25;
             if (g_ram[at] != 255) {
                 unsigned base = R16(at + 5), gfx = base + g_ram[at] * 2 + (g_ram[0x475] >> 7);
-                if ((g_ram[0x407] && base == 0xb0) ||
+                if ((g_ram[0x407] && base == 0xb0 &&
+                    !(i==18 && LargeWrappingParked(g_ram,131072))) ||
                     (base != 0xb0 && (g_ram[at] > 3 ||
                     gfx >= (0xd800 - 0x9800) / 8))) sequence = 0;
                 else producing.expected |= 1u << (kParty + i);
@@ -294,7 +300,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
     if (!sequence) return;
     if (!SameResource(g_ppu, &producing)) { Reject("reject_resource", cpu); return; }
     if (pc == 0x01d989 || pc == 0x01db68) {
-        if (g_ram[0x407]) { Reject("reject_wrapping_large", cpu); return; }
+        if (g_ram[0x407] && !LargeWrappingParked(g_ram,131072)) { Reject("reject_wrapping_large", cpu); return; }
         enum LargeFamily family = pc == 0x01d989 ? LARGE_PARTY : LARGE_REGULAR;
         unsigned index = g_ram[family == LARGE_PARTY ? 0x0e13 : 0x0e14];
         unsigned rank = (family == LARGE_PARTY ? 0 : kParty) + index;
@@ -521,7 +527,7 @@ void FoundationWideActorsInit(void) {
     enabled = env ? !strcmp(env, "1") : configured;
     const char *path = getenv("SNESRECOMP_FOUNDATION_ACTORS_TRACE");
     if (path) trace = fopen(path, "w");
-    if (trace) fputs("event,frame,generation,epoch,packet_valid,cached_actors,seen_mask,side_pieces,side_pixels,target_record,target_flags,target_phase,target_descriptor,target_x,target_y,cpu_d,cpu_db,cpu_m,cpu_x,packet_match,producer_frame,scene,start_slot,mask,rotation,party_count,party_seen,party_end_slot,party0_descriptor,party0_x,party0_y,party0_phase,packet_camera_x,packet_camera_y,regular0_descriptor,regular0_phase,regular1_descriptor,regular1_phase,packet_sha256\n", trace);
+    if (trace) fputs("event,frame,generation,epoch,packet_valid,cached_actors,seen_mask,side_pieces,side_pixels,target_record,target_flags,target_phase,target_descriptor,target_x,target_y,cpu_d,cpu_db,cpu_m,cpu_x,packet_match,producer_frame,scene,start_slot,mask,rotation,party_count,party_seen,party_end_slot,party0_descriptor,party0_x,party0_y,party0_phase,packet_camera_x,packet_camera_y,regular0_descriptor,regular0_phase,regular1_descriptor,regular1_phase,packet_sha256,raster_x,raster_y,live_camera_x,live_camera_y,periodic_match\n", trace);
     if (enabled || trace) {
         installed = interp_bridge_add_pre_opcode_hook(0x01d8b1, Observe) &&
             interp_bridge_add_pre_opcode_hook(0x01d917, Observe) &&
@@ -543,17 +549,14 @@ void FoundationWideActorsBeginDraw(void) {
     memset(drawn_piece_bits, 0, sizeof(drawn_piece_bits));
 }
 
-/* Private ordinary-terrain bridge. Canonical selected ship-only allocation,
- * completed544 packet and full13-bit original raster must all agree. No B0
- * actor acceptance, actor camera gate, center oracle or guest timing changes. */
-int FoundationWideActorsOrdinaryPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
+/* Original 210D/210E retains full13-bit BG1 scroll as M7 H/V. The selected
+ * ordinary/parked family shares complete-packet, original raster and resource
+ * authentication. Neither ten-bit latches nor modulo displacement suffice. */
+int FoundationWideActorsPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
     if (!source || !world_x || !world_y || world_x == world_y ||
-        !displayed.valid || displayed.large.writers || !Scene(source) ||
-        !WrappingResource(source) || !SameResource(source,&displayed) ||
-        !PacketMatches(source,displayed.bytes) ||
+        !displayed.valid || !Scene(source) || !WrappingResource(source) ||
+        !SameResource(source,&displayed) || !PacketMatches(source,displayed.bytes) ||
         (unsigned)(snes_frame_counter-displayed.producer_frame) != 2) return 0;
-    /* Retain the canonical original party descriptor refusal at current raster.
-     * Displayed cache alone must never authorize a newly switched B0/proxy. */
     for (unsigned i=0;i<kParty;++i) {
         unsigned at=0x4000+i*18;
         if (g_ram[at] != 255) {
@@ -562,6 +565,15 @@ int FoundationWideActorsOrdinaryPeriodicRaster(const Ppu *source, int *world_x, 
                 gfx >= (0xd800-0x9800)/8) return 0;
         }
     }
+    if (displayed.large.writers) {
+        const LargeActor *body=&displayed.large.last;
+        if (!displayed.large.valid || !displayed.large.displayed ||
+            displayed.large.writers!=1 || !LargeWrappingParked(g_ram,131072) ||
+            body->family!=LARGE_REGULAR || body->index!=18 || body->pose!=2 ||
+            body->descriptor!=0x0e9d88 || body->world_x!=R16(0x42c3) ||
+            body->world_y!=R16(0x42c5) || body->camera_x!=displayed.camera_x ||
+            body->camera_y!=displayed.camera_y) return 0;
+    } else if (LargeWrappingParked(g_ram,131072)) return 0;
     int raster[2] = {source->m7matrix[6],source->m7matrix[7]};
     int live[2] = {R16(0x2ad),R16(0x2af)};
     int packet[2] = {displayed.camera_x,displayed.camera_y};
@@ -575,8 +587,9 @@ int FoundationWideActorsOrdinaryPeriodicRaster(const Ppu *source, int *world_x, 
         if (delta < -8 || delta > 8) return 0;
         int raw = live[i]-packet[i];
         if (raw < -8 || raw > 8) {
-            /* Forward wrapping only; the reverse phase has no current proof. */
-            if (packet[i]<3576 || live[i]>7 || delta<=0 || ++jumped>1) return 0;
+            int forward=packet[i]>=3576 && live[i]<=7 && delta>0;
+            int reverse=packet[i]<=7 && live[i]>=3576 && delta<0;
+            if ((!forward && !reverse) || ++jumped>1) return 0;
         }
     }
     uintptr_t out[2] = {(uintptr_t)world_x,(uintptr_t)world_y};
@@ -596,24 +609,30 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
     int dx = cx - displayed.camera_x, dy = cy - displayed.camera_y;
     int wrap = displayed.resource[30] != 0;
     if (wrap) {
-        /* Authenticate the live raster against its wrapped primary reference.
-         * The displayed actor records and packet remain immutable. Reject an
-         * unknown raster offset rather than unwrap against stale packet lows. */
-        int live_x = R16(0x2ad), live_y = R16(0x2af);
-        if (live_x >= 3584 || live_y >= 3584 ||
-            displayed.camera_x < 0 || displayed.camera_x >= 3584 ||
-            displayed.camera_y < 0 || displayed.camera_y >= 3584) return 0;
-        /* The interior fixture does not qualify stale-packet raster timing
-         * across an actual world edge. Refuse that jump until an edge proof. */
-        if (live_x - displayed.camera_x < -8 || live_x - displayed.camera_x > 8 ||
-            live_y - displayed.camera_y < -8 || live_y - displayed.camera_y > 8) return 0;
-        int latch_dx = ((source->hScroll[0] - (live_x & 1023) + 512) & 1023) - 512;
-        int latch_dy = ((source->vScroll[0] - (live_y & 1023) + 512) & 1023) - 512;
-        if (latch_dx < -8 || latch_dx > 8 || latch_dy < -8 || latch_dy > 8) return 0;
-        cx = live_x + latch_dx; cy = live_y + latch_dy;
-        dx = WorldDistance(live_x, displayed.camera_x) + latch_dx;
-        dy = WorldDistance(live_y, displayed.camera_y) + latch_dy;
-        if (dx < -8 || dx > 8 || dy < -8 || dy > 8) return 0;
+        int authenticated_x, authenticated_y;
+        if (FoundationWideActorsPeriodicRaster(source,&authenticated_x,&authenticated_y)) {
+            cx=authenticated_x; cy=authenticated_y;
+            dx=cx-displayed.camera_x; dy=cy-displayed.camera_y;
+        } else {
+            /* Authenticate the live raster against its wrapped primary reference.
+             * The displayed actor records and packet remain immutable. Reject an
+             * unknown raster offset rather than unwrap against stale packet lows. */
+            int live_x = R16(0x2ad), live_y = R16(0x2af);
+            if (live_x >= 3584 || live_y >= 3584 ||
+                displayed.camera_x < 0 || displayed.camera_x >= 3584 ||
+                displayed.camera_y < 0 || displayed.camera_y >= 3584) return 0;
+            /* The interior fixture does not qualify stale-packet raster timing
+             * across an actual world edge. Refuse that jump until an edge proof. */
+            if (live_x - displayed.camera_x < -8 || live_x - displayed.camera_x > 8 ||
+                live_y - displayed.camera_y < -8 || live_y - displayed.camera_y > 8) return 0;
+            int latch_dx = ((source->hScroll[0] - (live_x & 1023) + 512) & 1023) - 512;
+            int latch_dy = ((source->vScroll[0] - (live_y & 1023) + 512) & 1023) - 512;
+            if (latch_dx < -8 || latch_dx > 8 || latch_dy < -8 || latch_dy > 8) return 0;
+            cx = live_x + latch_dx; cy = live_y + latch_dy;
+            dx = WorldDistance(live_x, displayed.camera_x) + latch_dx;
+            dy = WorldDistance(live_y, displayed.camera_y) + latch_dy;
+            if (dx < -8 || dx > 8 || dy < -8 || dy > 8) return 0;
+        }
     }
     unsigned count = 0;
     for (unsigned index = 0; index < kActors; ++index) {
@@ -661,7 +680,7 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
             }
         }
     }
-    if (!wrap && displayed.large.writers) {
+    if ((!wrap || LargeWrappingParked(g_ram,131072)) && displayed.large.writers) {
         LargeView view = LargeInput(source); LargePiece pieces[2];
         unsigned extra = LargePrepare(&displayed.large, &view, displayed.bytes, kPacketBytes,
             cx - displayed.camera_x, cy - displayed.camera_y, line, pieces, large_colors);

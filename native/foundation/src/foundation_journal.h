@@ -32,6 +32,12 @@ static inline int FoundationJournalHasLead(unsigned stage, unsigned flags) {
     return FoundationJournalLead(stage, flags) != 0;
 }
 
+/* Original Uncle Save message0425 reads stage1/flag03, then FA03 sets bit10.
+ * This is a current clue about Likado, not a rescued-town completion flag. */
+static inline int FoundationJournalHasLikadoClue(unsigned stage, unsigned flags) {
+    return stage == 1 && (flags & 0x10) != 0;
+}
+
 void FoundationJournalInit(void);
 void FoundationJournalBeforeFrame(void);
 void FoundationJournalReset(void);

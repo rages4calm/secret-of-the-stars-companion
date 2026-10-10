@@ -42,6 +42,7 @@ typedef struct LargeTransfer {
 } LargeTransfer;
 /* Only derived metadata is writable. All input views/ROM/packets are const. */
 int LargeBindRom(const uint8_t *rom, size_t size);
+int LargeWrappingParked(const uint8_t *ram, size_t size);
 int LargeBegin(LargeReplay *state, const LargeView *view,
                const uint8_t *initial_staging, size_t size);
 int LargeCapture(LargeReplay *state, const LargeView *view,

@@ -12,7 +12,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools and documentation. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.2.3 / Companion 0.3.0.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.2.4 / Companion 0.3.1.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The aim is to give this overlooked RPG a polished PC edition that is easier to play and easier to understand: attractive original pixel art, a genuinely wider world view, reliable controls and audio, and a useful quest journal. The launcher follows the familiar Companion approach used in [EarthBound Companion](https://github.com/rages4calm/earthbound-companion) and [Zelda Companion](https://github.com/rages4calm/zelda-companion).
 
@@ -23,16 +23,16 @@ The aim is to give this overlooked RPG a polished PC edition that is easier to p
 | Windows foundation | Compiled C/SDL3 host with native game-specific enhancements and guarded original execution | Complete native/AOT game execution is still future work |
 | Companion launcher | ROM validation, source-build progress/cancellation, isolated profile updates/rollback, explicit title/selected-copy resume and protected settings edits | Requires Windows development tools for the native source build; no public playable download yet |
 | Enhanced pixels | Independently selectable Scale2x-based presentation and fullscreen output | Upscaling preserves original artwork; it is not a replacement HD world pack |
-| Widescreen scenery | Stable 400-pixel canvas, selected original primary/secondary map resources, title panorama and sixteen authored battle-side layouts using original cells | Original 256-pixel center stays exact; two selected forward overworld boundaries retain terrain margins; unsupported states retain centered imagery and side bars |
-| Widescreen actors | Ordinary party, regular/reserved packets, guarded parked Algos and a strictly selected later world-map ship family | Original visible seam proof and a separate wrapping-B0 prototype exist; broader composite/party/vehicle contexts remain open |
+| Widescreen scenery | Stable 400-pixel canvas, selected original primary/secondary map resources, title panorama and sixteen authored battle-side layouts using original cells | Original 256-pixel center stays exact; selected overworld edge crossings retain terrain margins; unsupported states retain centered imagery and side bars |
+| Widescreen actors | Ordinary party, regular/reserved packets, guarded parked Algos and a strictly selected later world-map ship family | Original saved parked allocations and selected world-edge actors are authenticated; broader composite/party/vehicle contexts remain open |
 | Controls | Editable keyboard/controller game buttons and hotkeys, twenty checkpoint bindings, fullscreen and reachable HUD/journal/rewind controls | Broader physical-controller testing remains open |
-| Menu and battle QoL | Optional faster field menus and a toggleable enemy-HP panel | The HP panel is an authored enhancement, not a bundled ROM hack |
+| Menu and battle QoL | Optional faster field menus and toggleable HP bars with a widescreen battle sidebar | The HP panel is an authored enhancement, not a bundled ROM hack |
 | Rewards and movement | Independently adjustable 1â€“10Ã— battle XP/gold; bindable 1â€“3Ã— field movement boost; hold/toggle fast-forward | Movement accelerates guarded ordinary walking; unsupported/scripted motion keeps original pace |
-| Quest journal | David opening lead, Aris/Pennon advice for Jeep Volcano, Bosen chapter-one advice and current Starcrest possession from both original inventories; J / left-stick click toggles it | Further chapters and deterministic quest history remain open |
+| Quest journal | Objective, route/advice and current-progress panel; verified David, Aris/Pennon, Bosen and Uncle Save clues; J / left-stick click toggles it | Further chapters and deterministic quest history remain open |
 | Audio and stability | Original SNES audio, cached host composition, repaired mosaic overrun and checked audio/OpenGL allocations | Finite paced GPU/audio routes pass; every cutscene and hardware configuration is not certified |
 | Saves and rollback | Guarded checkpoint loading, restore/cache reset and protected copied-save testing | Local state schemas are build-specific; test on copies and keep in-game saves backed up |
 
-**Widescreen is experimental and defaults off.** It expands scenery and observed actors without spawning extra actors or changing collision, activation or game speed. Native clear/column experiments also remain opt-in. Original CPU budgets are preserved; guest slowdown improvements need their own measured work.
+**Widescreen is experimental and defaults off.** It expands scenery and observed actors without spawning extra actors or changing collision, activation or game speed. CPU/metatile/dispatch experiments are archived; original CPU budgets are preserved.
 
 ## Build from your own ROM
 
@@ -50,11 +50,13 @@ Build the self-contained launcher with `python tools/build_public_companion.py`,
 
 In **Enhancements**, 100% means the original XP/gold payout; 200% means 2Ã—. Movement boost defaults to **Left Shift / controller L2**, and fast-forward to **Tab / controller R2**. Change these and other bindings in **Controls** and **Hotkeys**; fast-forward can be held or toggled. Existing custom profile bindings are retained. [QoL implementation and limits](docs/FOUNDATION-QOL-2026-10-09.md).
 
+Companion **0.3.1** adds **Original pixels / Enhanced pixels / Experimental widescreen** display choices, **Revert changes**, current fullscreen/hotkey hints and a journal item-summary setting. Presets preserve sound, rewards and custom bindings.
+
 Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in Setup. Updates create a new isolated folder with checked copies of settings/saves; rollback selects the retained earlier folder and preserves newer progress separately. Different native builds require compatible save declarations and matching execution-state ABI. A ROM-free source-first ZIP can bundle the self-contained GUI, authored source and notices; native game compilation still needs the documented tools. [Packaging instructions](BUILDING.md#package-the-source-first-launcher) Â· [Update and package qualification](docs/FOUNDATION-PACKAGE-UPDATES-2026-10-09.md).
 
 ## Verification and remaining work
 
-The exact installed 0.2.3 build adds original Aris/Pennon journal advice and a strict terrain-only fix at two forward overworld boundaries. Journal/restore, map, ordinary actor, controller/QoL/menu/checkpoint and Companion adoption/update/rollback checks pass. Four paced menu, widescreen and journal routes hold about 60 fps with zero steady audio counter deltas. Owner saves/settings remain byte-identical. [Current scope](docs/FOUNDATION-CONTINUATION-2026-10-10.md). [Retained 0.2.2 scope](docs/FOUNDATION-PROGRESSION-2026-10-09.md). The [retained 0.2.1 release](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md) records the preceding integrated actor and wider playback evidence.
+The current **native0.2.4 / Companion0.3.1** bundle adds a full journal panel, widescreen battle health sidebar, broader guarded world rendering and Companion display presets/Revert. Exact journal, HUD, renderer, restore, input/QoL/menu and launcher update/rollback checks pass. Six paced Direct3D routes retain steady audio. Owner saves/settings remain byte-identical. [Current bundle and precise limits](docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md). [Preceding0.2.3 scope](docs/FOUNDATION-CONTINUATION-2026-10-10.md).
 
 The earlier integrated 0.2.0 build passed reward/walking and restore proofs, configurable-input checks, 247 map/widescreen gates, controller/checkpoint checks and ten paced Direct3D/OpenGL audio routes. The exact self-contained launcher passed 60 source-first backend and 31 interactive GUI checks, plus all six legacy launch routes. [Release scope](docs/FOUNDATION-QOL-SETUP-2026-10-09.md). The guarded map decoder covers 409 selected resource links and 719 active layers. Those are **resource checks, not a count of completed playable maps**. Synthetic actor tests and natural gameplay coverage are recorded separately.
 

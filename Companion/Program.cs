@@ -9,7 +9,7 @@ internal static class Program
     [STAThread]
     static int Main(string[] args)
     {
-        bool diagnostic = args.Contains("--capture") || args.Contains("--self-test") || args.Contains("--public-self-test") || args.Contains("--profile-update-test") || args.Contains("--qol-ui-test") || args.Contains("--launch-test") || args.Contains("--ui-test") || args.Contains("--visible-test");
+        bool diagnostic = args.Contains("--capture") || args.Contains("--self-test") || args.Contains("--public-self-test") || args.Contains("--profile-update-test") || args.Contains("--qol-ui-test") || args.Contains("--presentation-ui-test") || args.Contains("--launch-test") || args.Contains("--ui-test") || args.Contains("--visible-test");
         try
         {
             string? Value(string key)
@@ -60,6 +60,19 @@ internal static class Program
             ApplicationConfiguration.Initialize();
             using var form = new MainForm(root, profile);
             if (args.Contains("--setup")) form.ShowPage("setup");
+            if (Value("--presentation-ui-test") is string presentationReport)
+            {
+                if (profile == null) throw new ArgumentException("Presentation GUI tests require an explicit disposable source profile.");
+                int result = 1;
+                form.StartPosition = FormStartPosition.Manual; form.Location = new(-30000, -30000); form.ShowInTaskbar = false;
+                form.Shown += (_, _) =>
+                {
+                    try { PresentationUiTests.Run(form, root, Path.GetFullPath(profile), Path.GetFullPath(presentationReport)); result = 0; }
+                    catch (Exception error) { File.WriteAllText(presentationReport, JsonSerializer.Serialize(new { passed = false, error = error.ToString() })); }
+                    finally { form.Close(); }
+                };
+                Application.Run(form); return result;
+            }
             if (Value("--qol-ui-test") is string qolReport)
             {
                 if (profile == null) throw new ArgumentException("QoL GUI tests require an explicit disposable source profile.");

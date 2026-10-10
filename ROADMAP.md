@@ -20,14 +20,19 @@ Do not distribute the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
 
-The [integrated 0.2.1 foundation](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md) includes
-guarded parked Algos and the strictly selected later world-map ship observer.
-Original-loader staged checks preserve original pixels/guest state and completed
-packet identity. Actual world-edge walking preserves terrain/center and falls
-back at stale-raster discontinuities. A new staged original Algos fixture shows visible art at the actual boundary;
-its next packet is culled by original fixed-slot logic. Broader wrapping B0
-drawing remains a separately bounded prototype, with stale-raster fallback
-retained. [Current evidence](docs/FOUNDATION-PROGRESSION-2026-10-09.md).
+The [native0.2.4 bundle](docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md)
+authenticates selected overworld packet/raster/resource identity on both
+horizontal and vertical axes in both directions. Original saved parked
+vehicle allocations and original shadows widen under the same bounded
+relation rather than two diagnostic coordinate tuples. Original-loader staged
+checks cover eight allocations and eight directional seams; five allocations
+show side art and three are valid no-side-art controls. Original travel proxies
+remain in fixed center slots. Unknown/stale/unsupported contexts retain fallback.
+Natural acquisition and full campaign traversal remain separate qualifications.
+
+The [earlier0.2.1 foundation](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md)
+and [0.2.3 continuation](docs/FOUNDATION-CONTINUATION-2026-10-10.md) retain
+their earlier installed guards and experimental scopes.
 
 Extend coherent multi-party, reserved-slot, vehicle, effect and cutscene contexts.
 Keep original activation/collision, exact center and fallback while each new
@@ -45,8 +50,9 @@ and recomputes after restore. It is useful current-state evidence, while the
 original award, completion event and full journal history still need separate
 proof. Staged item fixtures are now authorized for these focused checks.
 
-Native 0.2.3 adds original Aris/Pennon advice for Jeep Volcano to current Bosen
-and David leads. All reconcile after restore and rollback.
+Native0.2.4 adds a full objective/route/current-progress panel and the original
+Uncle Save stage-one Likado clue to David, Aris/Pennon and Bosen advice. All
+reconcile after restore and rollback. [Current bundle](docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md).
 Add natural Crest acquisition and further dialogue/progression fixtures; verify actual item/story
 writers before enabling completion rules. Define deterministic event history,
 new-game reset, cold restore and rewind behavior. Avoid spoilers or an external

@@ -1,3 +1,22 @@
+# Current source continuation - native0.2.4 / Companion0.3.1 (2026-10-10)
+
+Read docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md first, then README,
+BUILDING, ROADMAP and VALIDATION. Earlier artifact restrictions below retain
+historical scopes; preserve owner protections and original guest behavior.
+The canonical50 inputs now include selected-world saved parked allocation
+relations and both directions on both periodic axes, with completed544 packet,
+full13-bit original raster/resource/party agreement and bounded fallback.
+Unknown producers and unqualified contexts still refuse. Original travel proxy,
+culling, collision and CPU timing remain unchanged; staged original loaders
+are separate from natural campaign entry. No CPU experiments should resume.
+Journal now has full objective/route/current-progress layout and original
+stage1 bit10 Uncle Save clue, plus current pack/Starcrest hints. No durable
+quest completion/history is inferred. GUI23 authored inputs expose display
+presets, Revert and item-summary setting while preserving custom maps/audio/QoL.
+Both exact source receipts stay compiled_unqualified; copy EXEs for tests.
+
+---
+
 # Public repository instructions
 
 Current source is native 0.2.3 / Companion 0.3.0. Read README.md, BUILDING.md,

@@ -152,9 +152,11 @@ static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
          * so an in-flight one-pixel move never collapses the viewport. */
         cx += ((ppu->hScroll[layer] - (cx & 1023) + 512) & 1023) - 512;
         cy += ((ppu->vScroll[layer] - (cy & 1023) + 512) & 1023) - 512;
+        /* Preserve all word/pixel gates; only the strict completed parked
+         * packet may supply its authenticated original full primary raster. */
         if (layer == 0) {
-            int full_x, full_y;
-            if (FoundationWideActorsOrdinaryPeriodicRaster(ppu,&full_x,&full_y)) {
+            int full_x,full_y;
+            if (FoundationWideActorsPeriodicRaster(ppu,&full_x,&full_y)) {
                 cx=full_x; cy=full_y;
             }
         }

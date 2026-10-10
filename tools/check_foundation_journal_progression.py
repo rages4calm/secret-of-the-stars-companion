@@ -12,6 +12,8 @@ GUEST=('wram.bin','vram.bin','sram.bin','oam.bin','cgram.bin','fb.bgrx','regs.js
 ROM_SHA='7da4a3cfa5de4bb4722a6e2a42c26aae322b5e668f1645d8c870fb99e6080600'
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
+def JournalGroups(ram):return sum(1<<pack for pack in range(2) if 0x40 in ram[0x5373+32*pack:0x5393+32*pack])
+
 def font_oracle(runtime):
     source=(runtime/'runner/src/snes_overlay_draw.c').read_text()
     body=re.search(r'FONT8\[59\]\[8\]\s*=\s*\{(.*?)\n\};',source,re.S)
@@ -20,25 +22,52 @@ def font_oracle(runtime):
     if len(values)!=59*8:raise ValueError('Unsupported font table length')
     return [values[i:i+8] for i in range(0,len(values),8)]
 
-def expected_card(background,font,lead,groups):
-    data=bytearray(background)
-    def pixel(x,y,color):struct.pack_into('<I',data,(y*256+x)*4,color)
-    for y in range(6,81):
-        for x in range(8,248):pixel(x,y,0xff080e1c)
-    for x in range(8,248):pixel(x,6,0xff809bc8);pixel(x,80,0xff809bc8)
-    for y in range(6,81):pixel(8,y,0xff809bc8);pixel(247,y,0xff809bc8)
-    lines=[(11,'JOURNAL - HOTKEY: CLOSE',0xffffdf78)]
-    if lead==3:lines += [(29,'Aris: Jeep Volcano',0xfff0f3fa),(45,"Defeat Homncruse's follower",0xfff0f3fa),(57,'STARCREST: HELD NOW' if groups else 'Nearby mountain entrance',0xfff0f3fa)]
-    elif lead==2:lines += [(29,'Bosen: gather allies',0xfff0f3fa),(45,'to build a town',0xfff0f3fa),(57,'STARCREST: HELD NOW' if groups else 'Find your fellow allies',0xfff0f3fa)]
-    elif groups:lines += [(29,'STARCREST: HELD NOW',0xfff0f3fa),(45,'In both party packs' if groups==3 else 'In one party pack',0xfff0f3fa),(57,'In your pack now',0xfff0f3fa)]
-    elif lead==1:lines += [(29,'Seek the Crest of Stars',0xfff0f3fa),(45,'David: somewhere in',0xfff0f3fa),(57,'the mountain',0xfff0f3fa)]
-    else:lines += [(29,'No lead recorded for',0xfff0f3fa),(45,'this chapter.',0xfff0f3fa)]
+def expected_card(background,font,lead,groups,ram=None,width=256,height=224):
+    data=bytearray(background);left=(width-240)//2;top=(height-196)//2
+    if len(data)!=width*height*4:raise ValueError('Unexpected host canvas dimensions')
+    def pixel(x,y,color):
+        if not (left<=x<left+240 and top<=y<top+196):raise AssertionError('Journal pixel escaped its panel')
+        struct.pack_into('<I',data,(y*width+x)*4,color)
+    def rectangle(x,y,w,h,color,stroke=False):
+        for dy in range(h):
+            for dx in range(w):
+                if not stroke or dx in (0,w-1) or dy in (0,h-1):pixel(left+x+dx,top+y+dy,color)
+    rectangle(0,0,240,196,0xff080e1c)
+    rectangle(0,0,240,196,0xff809bc8,True)
+    rectangle(2,2,236,192,0xff293a57,True)
+    for row in (22,72,122):rectangle(8,row,224,1,0xff293a57)
+    if lead==3:
+        objective=("Defeat Homncruse's follower",'in Jeep Volcano.')
+        route=('Enter the nearby mountain.','Kustera can fight for you.')
+        progress='Aris advice: Pennon'
+    elif lead==2:
+        objective=('Find Aqutallion allies.','Find Kustera; build a town.')
+        route=('Bosen asks you to find','allies for the new town.')
+        progress="Bosen's current advice"
+        if ram is not None and ram[0x5372]==1 and ram[0x5360]&0x10:
+            route=('Uncle Save: Likado is empty.','Gather allies for the town.')
+    elif lead==1:
+        objective=('Seek the Crest of Stars.',"Follow David's lead.")
+        route=('David: somewhere in','the mountain.')
+        progress="David's current advice"
+    else:
+        objective=('No current lead recorded.','Talk to people for clues.')
+        route=('No route recorded for','the current chapter.')
+        progress='Current party packs'
+    used=[sum(b!=255 for b in ram[0x5373+pack*32:0x5393+pack*32]) for pack in range(2)] if ram is not None else [int(bool(groups&1)),int(bool(groups&2))]
+    crest='STARCREST: BOTH PACKS' if groups==3 else 'STARCREST: ONE PACK' if groups else 'STARCREST: NOT HELD NOW'
+    lines=[(8,'QUEST JOURNAL',0xffffdf78),(28,'CURRENT OBJECTIVE',0xffffdf78),
+        (42,objective[0],0xfff0f3fa),(54,objective[1],0xfff0f3fa),(78,'ROUTE AND ADVICE',0xffffdf78),
+        (92,route[0],0xfff0f3fa),(104,route[1],0xfff0f3fa),(128,'CURRENT PROGRESS',0xffffdf78),
+        (142,progress,0xfff0f3fa),(154,f'PACKS: {used[0]}/32 AND {used[1]}/32',0xffa7b9d8),
+        (166,crest,0xffa7b9d8),(184,'HOTKEY: CLOSE - GAME RUNNING',0xffffdf78)]
     for y,text,color in lines:
+        if len(text)>28 or y+8>192:raise AssertionError('Journal text exceeds layout bounds')
         for i,c in enumerate(text.upper()):
             glyph=font[ord(c)-32 if 32<=ord(c)<=90 else ord('?')-32]
             for dy,row in enumerate(glyph):
                 for dx in range(8):
-                    if row & (1<<dx):pixel(14+i*8+dx,y+dy,color)
+                    if row & (1<<dx):pixel(left+8+i*8+dx,top+y+dy,color)
     return bytes(data)
 
 def main():
@@ -48,6 +77,7 @@ def main():
     p.add_argument('--runtime',type=Path,help='Exact candidate runtime tree, for font oracle and pure-header compilation')
     p.add_argument('--pennon-before-state',type=Path,help='Optional original pre-award stage-zero checkpoint')
     p.add_argument('--pennon-after-state',type=Path,help='Optional original post-award stage-zero checkpoint')
+    p.add_argument('--likado-state',type=Path,help='Optional original stage-one Uncle Save clue checkpoint')
     a=p.parse_args()
     a.exe=a.exe.resolve(strict=True);a.rom=a.rom.resolve(strict=True)
     a.before_state=a.before_state.resolve(strict=True);a.after_state=a.after_state.resolve(strict=True)
@@ -84,7 +114,13 @@ def main():
             original_pennon.append(ram)
         if original_pennon[0][0x5360]&2 or not original_pennon[1][0x5360]&2:
             raise ValueError('Expected Pennon bit02 absent before and present after')
-    protected={path:sha(path) for path in (a.exe,a.rom,a.before_state,a.after_state,*pennon_inputs,ROOT/'native/foundation/src/foundation_journal.h',ROOT/'native/foundation/src/foundation_journal.c',a.runtime/'runner/src/snes_overlay_draw.c')}
+    likado_inputs=[]
+    if a.likado_state:
+        a.likado_state=a.likado_state.resolve(strict=True);likado_inputs=[a.likado_state]
+        data=a.likado_state.read_bytes();lr=data[wram_offset(data):wram_offset(data)+0x20000]
+        if lr[0x20]!=1 or lr[0x5372]!=1 or not lr[0x5360]&0x10 or ar[0x5360]&0x10:
+            raise ValueError('Expected original before/after stage-one clue bit10 evidence')
+    protected={path:sha(path) for path in (a.exe,a.rom,a.before_state,a.after_state,*pennon_inputs,*likado_inputs,ROOT/'native/foundation/src/foundation_journal.h',ROOT/'native/foundation/src/foundation_journal.c',a.runtime/'runner/src/snes_overlay_draw.c')}
     out.mkdir(parents=True);(out/'runs').mkdir();(out/'staged').mkdir()
     checks={};cases={};receipts={}
     def check(name,value):
@@ -95,7 +131,7 @@ def main():
     unit=out/'stage-unit.c'
     unit.write_text('#include "foundation_journal.h"\n#include <stdio.h>\nint main(void){unsigned n=0;'
         'for(unsigned s=0;s<256;s++)for(unsigned f=0;f<256;f++){unsigned e=s==1?2:(s==0?(f&2?3:(f&0x40?1:0)):0);'
-        'if(FoundationJournalLead(s,f)!=e||FoundationJournalHasLead(s,f)!=(e!=0))return 1;n+=2;}'
+        'if(FoundationJournalLead(s,f)!=e||FoundationJournalHasLead(s,f)!=(e!=0)||FoundationJournalHasLikadoClue(s,f)!=(s==1&&(f&16)!=0))return 1;n+=3;}'
         'printf("{\\"passed\\":true,\\"checks\\":%u}\\n",n);return 0;}\n')
     compiled=subprocess.run([str(a.cc),str(unit),'-I',str(ROOT/'native/foundation/src'),'-I',str(a.runtime/'runner/src/desktop'),'-o',str(out/'stage-unit.exe')],capture_output=True,text=True)
     (out/'stage-unit.log').write_text(compiled.stdout+compiled.stderr)
@@ -119,7 +155,7 @@ def main():
         '[GamepadMap]\nEnableGamepad1=1\nEnableGamepad2=0\nJournal=L3\n'
         'Controls=DpadUp,DpadDown,DpadLeft,DpadRight,Back,Start,A,B,X,Y,L1,R1\n'
         '[Controller]\nSourceP1=2\nSourceP2=0\n')
-    def run(name,state,enabled=1,method='keyboard',capture=60,load=None,original=False):
+    def run(name,state,enabled=1,method='keyboard',capture=60,load=None,original=False,wide=False):
         d=out/'runs'/name;d.mkdir();(d/'dump').mkdir()
         shutil.copy2(a.exe,d/'game.exe');shutil.copy2(state,d/'resume.state')
         (d/'config.ini').write_text(config.replace('Journal=J\n','Journal=I\n') if method=='pad' else config)
@@ -130,7 +166,7 @@ def main():
             SNESRECOMP_RUN_FRAMES='300',SNESRECOMP_DUMP_DIR=str(d/'dump'),SNESRECOMP_FOUNDATION_JOURNAL=str(0 if original else enabled),
             SNESRECOMP_FOUNDATION_JOURNAL_INPUT_TEST=method,SNESRECOMP_FOUNDATION_JOURNAL_TRACE=str(d/'journal.csv'),
             SNESRECOMP_FOUNDATION_PRESENT_CAPTURE=str(d/'present.bgrx'),SNESRECOMP_FOUNDATION_CAPTURE_AT=str(capture),
-            SNESRECOMP_FOUNDATION_WIDE='0',SNESRECOMP_FOUNDATION_WIDE_ACTORS='0',SNESRECOMP_FOUNDATION_NATIVE_CLEAR='0',
+            SNESRECOMP_FOUNDATION_WIDE=str(int(wide)),SNESRECOMP_FOUNDATION_WIDE_ACTORS='0',SNESRECOMP_FOUNDATION_NATIVE_CLEAR='0',
             SNESRECOMP_FOUNDATION_FAST_MENUS='0',SNESRECOMP_FOUNDATION_ENHANCED_PIXELS='0',SNESRECOMP_FOUNDATION_BATTLE_INFO='0',
             SNESRECOMP_FOUNDATION_HD_UI='0',SNESRECOMP_FOUNDATION_XP_PERCENT='100',SNESRECOMP_FOUNDATION_GOLD_PERCENT='100',SNESRECOMP_FOUNDATION_MOVEMENT_PERCENT='100')
         if method=='pad':env.update(SNESRECOMP_FOUNDATION_JOURNAL_INPUT_TEST='none',SNESRECOMP_FOUNDATION_HOTKEY_INPUT_TEST='pad',SNESRECOMP_FOUNDATION_HOTKEY_OVERLAY_TEST='journal')
@@ -145,10 +181,14 @@ def main():
         cases[name]={'source_checkpoint_sha256':sha(state),'shown':log.count('journal shown'),'hidden':log.count('journal hidden'),
             'virtual_pad_attached':'virtual pad attached' in log,'lead_values':sorted({int(r['lead_kind']) for r in rows}),
             'source':'manufactured control' if state.is_relative_to(out/'staged') else 'explicit supplied original-event checkpoint',
-            'method':method,'enabled':enabled,'original_view_override':original}
+            'method':method,'enabled':enabled,'original_view_override':original,'wide':wide}
         return d,rows
     def parity(l,r):return all((l/'dump'/f'{prefix}.{ext}').read_bytes()==(r/'dump'/f'{prefix}.{ext}').read_bytes() for prefix in ('shown','hidden') for ext in GUEST)
     def surface(d):return (d/'present.bgrx').read_bytes()
+    def oracle(d,lead,groups,load=False,wide=False):
+        sample='hidden' if load else 'shown'
+        ram=(d/'dump'/f'{sample}.wram.bin').read_bytes()
+        return expected_card(surface(d),font,lead,groups,ram,width=400 if wide else 256)
     results={}
     before_lead=3 if br[0x5360]&2 else 1 if br[0x5360]&64 else 0
     fixtures={'before':(a.before_state,before_lead,0),'stage1':(a.after_state,2,0),'david':(david,3 if br[0x5360]&2 else 1,0),
@@ -167,13 +207,19 @@ def main():
         fixtures.update({'pennon-before':(a.pennon_before_state,1 if before_p[0x5360]&64 else 0,0),
                          'pennon':(a.pennon_after_state,3,0),'pennon-david':(with_david,3,0),
                          'pennon-possession':(ppack,3,1),'pennon-later':(plater,0,0)})
+    if likado_inputs:
+        fixtures['likado-clue']=(a.likado_state,2,JournalGroups(lr))
+        wrong0=manufactured('stage0-clue-bit',a.before_state,[f'5360={br[0x5360]:02x}:{br[0x5360]|16:02x}'])
+        wrong2=manufactured('stage2-clue-bit',later,['5360=00:10'])
+        fixtures['stage0-clue-refused']=(wrong0,before_lead,0)
+        fixtures['stage2-clue-refused']=(wrong2,0,0)
     for name,(state,lead,groups) in fixtures.items():
         off,_=run(name+'-off',state,0);on,rows=run(name+'-on',state)
         check(name+'_all_guest_register_capture_parity',parity(off,on))
         check(name+'_derived_lead_first_frame',int(rows[0]['lead_kind'])==lead and cases[name+'-on']['lead_values']==[lead])
         check(name+'_keyboard_once_per_press',cases[name+'-on']['shown']==cases[name+'-on']['hidden']==1)
-        check(name+'_exact_font_oracle_copy',surface(on)==expected_card(surface(off),font,lead,groups))
-        check(name+'_card_contained',all(surface(off)[i:i+4]==surface(on)[i:i+4] for y in range(224) for x in range(256) if not (8<=x<248 and 6<=y<81) for i in [(y*256+x)*4]))
+        check(name+'_exact_font_oracle_copy',surface(on)==oracle(off,lead,groups))
+        check(name+'_card_contained',all(surface(off)[i:i+4]==surface(on)[i:i+4] for y in range(224) for x in range(256) if not (8<=x<248 and 14<=y<210) for i in [(y*256+x)*4]))
         results[name]=on
     pad_off,_=run('stage1-pad-off',a.after_state,0,'pad');pad,rows=run('stage1-pad-on',a.after_state,method='pad')
     check('indexed_virtual_pad_real_toggle',cases['stage1-pad-on']['virtual_pad_attached'] and cases['stage1-pad-on']['shown']==cases['stage1-pad-on']['hidden']==1)
@@ -189,7 +235,7 @@ def main():
     check('actual_checkpoint_load_issued','[overlay_selftest] load issued' in (rollback/'host.log').read_text())
     check('rollback_guest_register_parity',parity(rollback_off,rollback))
     check('rollback_closes_and_next_press_reopens',cases['rollback-on']['shown']==2 and cases['rollback-on']['hidden']==0 and any(81<=int(r['frame'])<=89 and int(r['visible'])==0 for r in rows))
-    check('rollback_card_has_no_stale_bosen_copy',surface(rollback)==expected_card(surface(rollback_off),font,before_lead,0))
+    check('rollback_card_has_no_stale_bosen_copy',surface(rollback)==oracle(rollback_off,before_lead,0,load=True))
     original,rows=run('original-view-disabled',a.after_state,original=True)
     check('original_view_override_disables_card',all(int(r['enabled'])==int(r['visible'])==0 for r in rows) and surface(original)==surface(out/'runs/stage1-off') and parity(original,out/'runs/stage1-off'))
     if pennon_inputs:
@@ -204,12 +250,34 @@ def main():
         check('pennon_actual_rollback_removes_lead',int(rows[0]['lead_kind'])==3 and all(int(row['lead_kind'])!=3 for row in rows if int(row['frame'])>=81) and '[overlay_selftest] load issued' in (pr/'host.log').read_text())
         check('pennon_rollback_guest_exact',parity(proff,pr))
         check('pennon_rollback_clears_and_reopens',cases['pennon-rollback-on']['shown']==2 and any(81<=int(row['frame'])<=89 and int(row['visible'])==0 for row in rows))
-        check('pennon_rollback_card_exact',surface(pr)==expected_card(surface(proff),font,fixtures['pennon-before'][1],0))
+        check('pennon_rollback_card_exact',surface(pr)==oracle(proff,fixtures['pennon-before'][1],0,load=True))
         pv,rows=run('pennon-original-view',a.pennon_after_state,original=True)
         check('pennon_original_view_exact',all(int(row['enabled'])==int(row['visible'])==0 for row in rows) and parity(pv,out/'runs/pennon-off') and surface(pv)==surface(out/'runs/pennon-off'))
         next_off,_=run('pennon-to-bosen-off',a.pennon_after_state,0,capture=100,load=a.after_state)
         next_on,rows=run('pennon-to-bosen-on',a.pennon_after_state,capture=100,load=a.after_state)
-        check('chapter_restore_replaces_pennon_with_bosen',int(rows[0]['lead_kind'])==3 and all(int(row['lead_kind'])==2 for row in rows if int(row['frame'])>=81) and parity(next_off,next_on) and surface(next_on)==expected_card(surface(next_off),font,2,0))
+        check('chapter_restore_replaces_pennon_with_bosen',int(rows[0]['lead_kind'])==3 and all(int(row['lead_kind'])==2 for row in rows if int(row['frame'])>=81) and parity(next_off,next_on) and surface(next_on)==oracle(next_off,2,0,load=True))
+    wide_names=['stage1','pennon' if pennon_inputs else 'david']
+    if likado_inputs:wide_names.append('likado-clue')
+    for name in wide_names:
+        state,lead,groups=fixtures[name]
+        wide_off,_=run(name+'-wide-off',state,0,wide=True)
+        wide_on,rows=run(name+'-wide-on',state,wide=True)
+        check(name+'_wide400_actual_canvas',len(surface(wide_on))==400*224*4)
+        check(name+'_wide400_guest_parity',parity(wide_off,wide_on))
+        check(name+'_wide400_independent_font_layout',surface(wide_on)==oracle(wide_off,lead,groups,wide=True))
+        check(name+'_wide400_contained',all(surface(wide_off)[i:i+4]==surface(wide_on)[i:i+4] for y in range(224) for x in range(400) if not (80<=x<320 and 14<=y<210) for i in [(y*400+x)*4]))
+    if likado_inputs:
+        lcold,rows=run('likado-cold',a.likado_state)
+        check('likado_cold_original_current_state',int(rows[0]['stage'])==1 and int(rows[0]['flags'])&16 and parity(lcold,results['likado-clue']) and surface(lcold)==surface(results['likado-clue']))
+        loff,_=run('likado-pad-off',a.likado_state,0,'pad');lpad,rows=run('likado-pad-on',a.likado_state,method='pad')
+        check('likado_real_pad_toggle',cases['likado-pad-on']['virtual_pad_attached'] and cases['likado-pad-on']['shown']==cases['likado-pad-on']['hidden']==1)
+        check('likado_real_pad_guest_surface',parity(loff,lpad) and parity(lpad,results['likado-clue']) and surface(lpad)==surface(results['likado-clue']))
+        lroff,_=run('likado-rollback-off',a.likado_state,0,capture=100,load=a.after_state)
+        lrback,rows=run('likado-rollback-on',a.likado_state,capture=100,load=a.after_state)
+        check('likado_original_rollback_removes_clue',int(rows[0]['flags'])&16 and all(int(row['stage'])==1 and not int(row['flags'])&16 for row in rows if int(row['frame'])>=81) and '[overlay_selftest] load issued' in (lrback/'host.log').read_text())
+        check('likado_rollback_guest_and_font_exact',parity(lroff,lrback) and surface(lrback)==oracle(lroff,2,0,load=True))
+        lv,rows=run('likado-original-view',a.likado_state,original=True)
+        check('likado_original_view_exact',all(int(row['enabled'])==int(row['visible'])==0 for row in rows) and parity(lv,out/'runs/likado-clue-off') and surface(lv)==surface(out/'runs/likado-clue-off'))
     check('all_input_binary_rom_checkpoint_and_source_hashes_unchanged',all(sha(path)==digest for path,digest in protected.items()))
     from PIL import Image,ImageDraw
     contact=Image.new('RGB',(256*3,244*((len(fixtures)+2)//3)),'#080e1c');draw=ImageDraw.Draw(contact)

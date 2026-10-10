@@ -23,8 +23,10 @@ public sealed partial class MainForm : Form
     readonly Label saveList=Theme.Text("",11,Theme.Muted);
     readonly Label profileFolder=Theme.Text("",10,Theme.Muted);
     readonly Label qolCapability=Theme.Text("",10,Theme.Muted);
+    readonly Label journalCapability=Theme.Text("",10,Theme.Muted);
     readonly ComboBox checkpoints=Theme.Combo(480);
     readonly CompanionButton apply=Theme.Button("Apply settings",true,164);
+    readonly CompanionButton revert=Theme.Button("Revert changes",false,150);
     readonly CompanionButton play=Theme.Button("Start at title",true,200);
     readonly CompanionButton resume=Theme.Button("Resume selected copy",false,220);
     readonly CompanionButton original=Theme.Button("Start in Original View",false,220);
@@ -41,7 +43,7 @@ public sealed partial class MainForm : Form
         Text="Secret of the Stars Companion";ClientSize=new Size(1120,760);MinimumSize=new Size(950,650);
         StartPosition=FormStartPosition.CenterScreen;BackColor=Theme.Canvas;ForeColor=Theme.Ink;Font=Theme.Body();AutoScaleMode=AutoScaleMode.Dpi;
         BuildShell();BuildPlay();BuildSetup();BuildDisplay();BuildAudio();BuildControls();BuildHotkeys();BuildEnhancements();BuildSaves();
-        apply.Click+=(_,_)=>ApplySettings();play.Click+=(_,_)=>Launch(LaunchMode.Play);original.Click+=(_,_)=>Launch(LaunchMode.OriginalView);
+        apply.Click+=(_,_)=>ApplySettings();revert.Click+=(_,_)=>RevertSettings();play.Click+=(_,_)=>Launch(LaunchMode.Play);original.Click+=(_,_)=>Launch(LaunchMode.OriginalView);
         resume.Click+=(_,_)=>Launch(LaunchMode.Resume);wide.Click+=(_,_)=>Launch(LaunchMode.WidescreenPreview);hd.Click+=(_,_)=>Launch(LaunchMode.HdMenuPreview);
         refresh.Click+=(_,_)=>ReloadProfile();checkpoints.SelectedIndexChanged+=(_,_)=>{UpdateSaveHint();UpdateEnabled();};
         timer.Tick+=(_,_)=>UpdateEnabled();FormClosed+=(_,_)=>{timer.Stop();timer.Dispose();launcher?.Dispose();};
@@ -62,8 +64,9 @@ public sealed partial class MainForm : Form
         var body=new Panel{Dock=DockStyle.Fill,BackColor=Theme.Canvas};
         var footer=new Panel{Dock=DockStyle.Bottom,Height=88,BackColor=Theme.Rail,Padding=new Padding(32,15,32,12)};
         apply.Dock=DockStyle.Right;apply.Margin=Padding.Empty;
+        revert.Dock=DockStyle.Right;revert.Margin=Padding.Empty;
         var notes=new Panel{Dock=DockStyle.Fill,Padding=new Padding(0,0,20,0)};statusTitle.Dock=DockStyle.Top;statusTitle.Height=23;statusTitle.AutoSize=false;status.Dock=DockStyle.Fill;status.AutoSize=false;notes.Controls.Add(status);notes.Controls.Add(statusTitle);
-        footer.Controls.Add(notes);footer.Controls.Add(apply);body.Controls.Add(content);body.Controls.Add(footer);Controls.Add(body);Controls.Add(rail);
+        footer.Controls.Add(notes);footer.Controls.Add(revert);footer.Controls.Add(apply);body.Controls.Add(content);body.Controls.Add(footer);Controls.Add(body);Controls.Add(rail);
     }
 
     PageColumn Page(string id,string title,string introduction)
@@ -94,6 +97,12 @@ public sealed partial class MainForm : Form
             catch(Exception ex){page.Add(Theme.Text("The local gameplay preview could not be loaded: "+ex.Message,10,Theme.Muted),10);}
         }
         page.Add(Theme.Row(play,original),9);page.Add(readiness,16);
+        Section(page,"Your PC controls");
+        AddShortcutHints(page,"Fullscreen","Turbo","MovementBoost","Journal","BattleInfo");
+        page.Add(Theme.Text("Controller labels: L3 and R3 mean left and right stick clicks; L2 and R2 are the triggers. Escape closes the rewind menu.",10,Theme.Muted),12);
+        var displayOptions=Theme.Button("Display options",false,190);displayOptions.Click+=(_,_)=>ShowPage("display");
+        var hotkeyOptions=Theme.Button("Keyboard / controller hotkeys",false,285);hotkeyOptions.Click+=(_,_)=>ShowPage("hotkeys");
+        page.Add(Theme.Row(displayOptions,hotkeyOptions),16);
         Section(page,"Continue from a checkpoint");
         page.Add(Theme.Row(checkpoints,resume),6);page.Add(saveHint,16);
         Section(page,"Try a focused preview","Each preview opens a separate profile with a prepared gameplay copy.");
@@ -102,31 +111,12 @@ public sealed partial class MainForm : Form
         launchReport.Add(Theme.Text("Launch details",11,Theme.Ink,FontStyle.Bold),6);launchReport.Add(launchDetails,0);page.Add(launchReport,8);
     }
 
-    void BuildDisplay()
-    {
-        var page=Page("display","Display","Choose how the original pixel art appears on your screen.");
-        AddCheck(page,"Start in fullscreen",s=>s.Fullscreen,(s,v)=>s.Fullscreen=v);
-        AddCheck(page,"Synchronize presentation with the display",s=>s.VSync,(s,v)=>s.VSync=v);
-        AddNumber(page,"Window scale","Original-pixel multiples for windowed play.",1,8,1,s=>s.WindowScale,(s,v)=>s.WindowScale=v);
-        var renderer=Theme.Combo(280);renderer.Items.AddRange(["Direct3D 11","OpenGL","Software"]);renderer.AccessibleName="Graphics renderer";
-        populate.Add(s=>renderer.SelectedIndex=s.Renderer.ToLowerInvariant() switch{"opengl"=>1,"software"=>2,_=>0});
-        renderer.SelectedIndexChanged+=(_,_)=>{if(loading||renderer.SelectedIndex<0)return;edited.Renderer=renderer.SelectedIndex switch{1=>"opengl",2=>"software",_=>"direct3d11"};MarkDirty();};settingControls.Add(renderer);
-        page.Add(Theme.Text("Graphics renderer",11,Theme.Ink,FontStyle.Bold),6);page.Add(renderer,20);
-        Section(page,"Enhanced pixel art");
-        AddCheck(page,"Enhance pixel edges",s=>s.EnhancedPixels,(s,v)=>s.EnhancedPixels=v);
-        page.Add(Theme.Text("Keeps the original artwork and palette. This is edge enhancement, with original pixels available when turned off.",10,Theme.Muted),16);
-        Section(page,"Widescreen");
-        AddCheck(page,"Widescreen (experimental)",s=>s.ExperimentalFieldWide&&s.ExperimentalFieldActors,
-            (s,v)=>{s.ExperimentalFieldWide=v;s.ExperimentalFieldActors=v;});
-        page.Add(Theme.Text("Expands supported field maps, title scenery and battle backgrounds. Original controls and menus stay centered. Some scenes retain side bars while coverage grows. Original View restores the original viewport.",11,Theme.Muted),12);
-        var preview=Theme.Button("Open Likado preview",false,225);preview.Click+=(_,_)=>Launch(LaunchMode.WidescreenPreview);page.Add(preview,0);launchButtons.Add(preview);
-    }
-
     void BuildAudio()
     {
         var page=Page("audio","Audio","Set the original game's sound for your next launch.");
         AddCheck(page,"Enable game audio",s=>s.EnableAudio,(s,v)=>s.EnableAudio=v);
         AddNumber(page,"Volume","Game sound level, from 0 to 100 percent.",0,100,5,s=>s.Volume,(s,v)=>s.Volume=v);
+        page.Add(Theme.Text("Presentation presets keep your audio settings. For synchronized play, use Direct3D 11 with display synchronization on Display.",10,Theme.Muted),16);
         Section(page,"Soundtrack");
         page.Add(Theme.Text("The original soundtrack is available. An optional MSU-1 soundtrack still needs a compatible Secret of the Stars driver and pack.",11,Theme.Muted),10);
     }
@@ -151,8 +141,12 @@ public sealed partial class MainForm : Form
         AddNumber(page,"Gold rate (%)","Changes earned battle gold. Purchases, sales and existing savings keep their original amounts.",100,1000,25,s=>s.GoldMultiplierPercent,(s,v)=>s.GoldMultiplierPercent=v);
         AddNumber(page,"Movement boost (%)","Hold your assigned movement button for faster field travel. 200% is twice the normal movement rate.",100,300,25,s=>s.MovementSpeedPercent,(s,v)=>s.MovementSpeedPercent=v);
         AddFeature(page,"Faster field menus","Shortens checked menu slides and rows while keeping gameplay timing intact.",s=>s.FastMenus,(s,v)=>s.FastMenus=v);
-        AddFeature(page,"Battle information","Shows native enemy HP information. Hide it with H or the right stick.",s=>s.BattleInfo,(s,v)=>s.BattleInfo=v);
-        AddFeature(page,"Quest journal","Open with J or the left stick. Tracks David's first lead, using your current saved story progress.",s=>s.Journal,(s,v)=>s.Journal=v);
+        AddFeature(page,"Battle information","Shows enemy HP bars. In widescreen, a side panel keeps the battle clear. Toggle it with your assigned Battle information shortcut.",s=>s.BattleInfo,(s,v)=>s.BattleInfo=v);
+        AddFeature(page,"Quest journal","Shows verified opening leads involving David, Aris, Pennon and Bosen, plus STARCREST when held. Guidance follows your current checkpoint; later chapters remain uncovered.",s=>s.Journal,(s,v)=>s.Journal=v);
+        AddFeature(page,"Journal item summary","Shows STARCREST while it is in a party pack. Turn this off for story advice alone. Item possession is current; the journal does not record permanent quest completion.",s=>s.JournalPossession,(s,v)=>s.JournalPossession=v);
+        page.Add(journalCapability,10);
+        AddShortcutHints(page,"BattleInfo","Journal","MovementBoost","Turbo");
+        var hotkeys=Theme.Button("Change enhancement hotkeys",false,285);hotkeys.Click+=(_,_)=>ShowPage("hotkeys");page.Add(hotkeys,18);
         AddFeature(page,"Remove scanline sprite limits","Allows more sprites per scanline. The game's original actor allocation is unchanged.",s=>s.NoSpriteLimits,(s,v)=>s.NoSpriteLimits=v);
         Section(page,"Menu-frame artwork");
         AddCheck(page,"Finer menu frames (preview)",s=>s.HdMenuFrames,(s,v)=>s.HdMenuFrames=v);
@@ -216,7 +210,20 @@ public sealed partial class MainForm : Form
     {
         saveHint.Text=checkpoints.SelectedItem is SaveChoice selected?$"{selected.Entry.Label} saved {selected.Entry.LastWriteTimeUtc.ToLocalTime():g}. The source stays unchanged.":"No checkpoint selected. Start at title to begin or continue through the game's own save menu.";
     }
-    void MarkDirty(){dirty=true;SetStatus("Changes not applied","Apply settings before launching to use your new choices.");UpdateEnabled();}
+    void MarkDirty(){dirty=true;foreach(var bind in presentationHints)bind(edited);SetStatus("Changes not applied","Apply settings before launching to use your new choices.");UpdateEnabled();}
+
+    void RevertSettings()
+    {
+        if(!CanEditPresentation()||snapshot==null)return;
+        edited=snapshot.Settings.DeepCopy();PopulateEditedSettings();dirty=false;
+        SetStatus("Changes reverted","Your last loaded settings are restored. No files were changed.");UpdateEnabled();
+    }
+
+    void PopulateEditedSettings()
+    {
+        bool wasLoading=loading;loading=true;
+        try{foreach(var bind in populate)bind(edited);}finally{loading=wasLoading;}
+    }
 
     void ApplySettings()
     {
@@ -288,7 +295,10 @@ public sealed partial class MainForm : Form
             if(control.AccessibleName is "Experience rate (%)" or "Gold rate (%)" or "Movement boost (%)" or "Fast-forward is a toggle" or "Legacy controller menu gestures" or "Movement boost keyboard" or "Movement boost controller" or "Battle information keyboard" or "Battle information controller" or "Quest journal keyboard" or "Quest journal controller")
                 control.Enabled=snapshot!=null&&!running&&supportsQol;
         qolCapability.Text=supportsQol?"":"Reward rates, movement boost and native hotkey changes require foundation 0.2.0 or newer. Build or select a new compilation on Setup.";
-        apply.Enabled=snapshot!=null&&!running&&dirty;play.Enabled=original.Enabled=ready&&!running&&!dirty;
+        bool supportsJournalSummary=snapshot!=null&&ProfileService.SupportsJournalPossession(snapshot);
+        foreach(var control in settingControls.Where(c=>c.AccessibleName=="Journal item summary"))control.Enabled=snapshot!=null&&!running&&supportsJournalSummary;
+        journalCapability.Text=supportsJournalSummary?"":"Update the selected native build on Setup to change the journal item summary.";
+        apply.Enabled=revert.Enabled=snapshot!=null&&!running&&dirty;play.Enabled=original.Enabled=ready&&!running&&!dirty;
         wide.Enabled=hd.Enabled=ready&&!running&&!dirty&&snapshot!=null&&!PublicSetupService.IsSourceProfile(snapshot.ProfileDirectory);
         resume.Enabled=ready&&!running&&!dirty&&checkpoints.SelectedItem is SaveChoice;
         foreach(var button in launchButtons)button.Enabled=ready&&!running&&!dirty;

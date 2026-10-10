@@ -18,6 +18,7 @@ public sealed record GameSettings
     public bool EnhancedPixels { get; set; } = true;
     public bool FastMenus { get; set; } = true;
     public bool Journal { get; set; } = true;
+    public bool JournalPossession { get; set; } = true;
     public bool HdMenuFrames { get; set; }
     public bool ExperimentalFieldWide { get; set; }
     public bool ExperimentalFieldActors { get; set; }

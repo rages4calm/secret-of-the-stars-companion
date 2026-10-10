@@ -128,6 +128,65 @@ void FoundationPresentationPrepare(int drawable_w, int drawable_h, int *w, int *
     if (g_ppu) PpuSetWidescreenLayerMask(g_ppu, 3);
 }
 
+/* Current enemy records only; bars never write battle state or cache max HP.
+ * The wide sidebar fits inside the authentic 72-pixel left margin. */
+static void DrawHpBar(uint32_t *pixels, int stride, int h, int x, int y,
+                      int width, unsigned hp, unsigned maximum) {
+    snes_ovl_fill_rect(pixels, stride, h, x, y, width, 6, 0xff293a57);
+    snes_ovl_fill_rect(pixels, stride, h, x + 1, y + 1, width - 2, 4, 0xff101b2c);
+    unsigned value = hp > maximum ? maximum : hp;
+    unsigned filled = maximum ? value * (unsigned)(width - 2) / maximum : 0;
+    uint32_t color = value * 4 <= maximum ? 0xffff7a78 :
+                     value * 2 <= maximum ? 0xffffdf78 : 0xff62d9c1;
+    if (filled) snes_ovl_fill_rect(pixels, stride, h, x + 1, y + 1, filled, 4, color);
+}
+
+static void DrawBattleInfo(uint8_t *dst, size_t pitch, int w, int h) {
+    unsigned slots[4], count = 0;
+    for (unsigned i = 0; i < 4; ++i)
+        if (!(g_ram[0x6100 + i * 0x1c] & 0x80)) slots[count++] = i;
+    if (!count || w < 240 || h < 216) return;
+    uint32_t *pixels = (uint32_t *)dst;
+    int stride = (int)(pitch / 4), side = w == 400;
+    int x = side ? 4 : (w - 240) / 2, y = 6;
+    int panel_w = side ? 64 : 240, panel_h = side ? 40 + (int)count * 42 : 24 + (int)count * 18;
+    snes_ovl_fill_rect(pixels, stride, h, x, y, panel_w, panel_h, 0xff080e1c);
+    snes_ovl_stroke_rect(pixels, stride, h, x, y, panel_w, panel_h, 0xff809bc8);
+    snes_ovl_draw_text(pixels, stride, h, x + 6, y + 6,
+                       side ? "ENEMIES" : "ENEMY HP", 0xffffdf78, 1);
+    if (side) snes_ovl_fill_rect(pixels, stride, h, x + 6, y + 18, 52, 1, 0xff293a57);
+    else snes_ovl_draw_text(pixels, stride, h, x + 130, y + 6,
+                            "HUD KEY: HIDE", 0xffa7b9d8, 1);
+    for (unsigned row = 0; row < count; ++row) {
+        unsigned offset = 0x6100 + slots[row] * 0x1c, id = g_ram[offset];
+        unsigned hp = g_ram[offset + 1] | g_ram[offset + 2] << 8;
+        unsigned maximum = g_ram[offset + 3] | g_ram[offset + 4] << 8;
+        int top = side ? y + 26 + (int)row * 42 : y + 22 + (int)row * 18;
+        char text[32];
+        if (side) {
+            snprintf(text, sizeof(text), "%u #%02X", slots[row] + 1, id);
+            snes_ovl_draw_text(pixels, stride, h, x + 6, top, text, 0xfff0f3fa, 1);
+            snprintf(text, sizeof(text), "%u HP", hp);
+            /* Five-digit values need their own row in this narrow sidebar. */
+            if (hp > 999) snprintf(text, sizeof(text), "%u", hp);
+            snes_ovl_draw_text(pixels, stride, h, x + 6, top + 10, text, 0xfff0f3fa, 1);
+            if (maximum) snprintf(text, sizeof(text), "/%u", maximum);
+            else snprintf(text, sizeof(text), "MAX ?");
+            snes_ovl_draw_text(pixels, stride, h, x + 6, top + 20, text, 0xffa7b9d8, 1);
+            DrawHpBar(pixels, stride, h, x + 6, top + 31, 52, hp, maximum);
+        } else {
+            snprintf(text, sizeof(text), "%u #%02X", slots[row] + 1, id);
+            snes_ovl_draw_text(pixels, stride, h, x + 6, top, text, 0xfff0f3fa, 1);
+            if (maximum) snprintf(text, sizeof(text), "%5u / %-5u", hp, maximum);
+            else snprintf(text, sizeof(text), "%5u / ?", hp);
+            snes_ovl_draw_text(pixels, stride, h, x + 54, top, text, 0xfff0f3fa, 1);
+            DrawHpBar(pixels, stride, h, x + 166, top + 1, 66, hp, maximum);
+        }
+    }
+    if (side) snes_ovl_draw_text(pixels, stride, h, x + 6, y + 28 + (int)count * 42,
+                                "HUD KEY", 0xffffdf78, 1);
+}
+
 int FoundationPresentationDraw(uint8_t *dst, size_t pitch, const uint8_t *field,
                                int w, int h, double alpha) {
     (void)alpha;
@@ -139,27 +198,8 @@ int FoundationPresentationDraw(uint8_t *dst, size_t pitch, const uint8_t *field,
     if (enhanced_pixels || hd) { dst = (uint8_t *)logical; pitch = w * 4; }
     for (int y = 0; y < h; ++y)
         memcpy(dst + y * pitch, field + y * w * 4, w * 4);
-    if (battle_info && !hidden && g_ram[0x20] == 5) {
-        int count = 0;
-        for (int i = 0; i < 4; ++i) if (!(g_ram[0x6100 + i * 0x1c] & 0x80)) ++count;
-        if (count) {
-            uint32_t *pixels = (uint32_t *)dst;
-            int stride = (int)(pitch / 4), x = (w - 240) / 2;
-            snes_ovl_fill_rect(pixels, stride, h, x, 6, 240, 18 + count * 12, 0xff080e1c);
-            snes_ovl_stroke_rect(pixels, stride, h, x, 6, 240, 18 + count * 12, 0xff809bc8);
-            snes_ovl_draw_text(pixels, stride, h, x + 6, 10, "ENEMY HP - HUD HOTKEY: HIDE", 0xffffdf78, 1);
-            int row = 0;
-            for (int i = 0; i < 4; ++i) {
-                unsigned offset = 0x6100 + i * 0x1c, id = g_ram[offset];
-                if (id & 0x80) continue;
-                unsigned hp = g_ram[offset+1] | g_ram[offset+2] << 8;
-                unsigned max = g_ram[offset+3] | g_ram[offset+4] << 8;
-                char text[40];
-                snprintf(text, sizeof(text), "#%02X  %5u / %-5u", id, hp, max);
-                snes_ovl_draw_text(pixels, stride, h, x + 6, 23 + row++ * 12, text, 0xfff0f3fa, 1);
-            }
-        }
-    }
+    if (battle_info && !hidden && g_ram[0x20] == 5)
+        DrawBattleInfo(dst, pitch, w, h);
     FoundationJournalDraw(dst, pitch, w, h);
     if (enhanced_pixels) {
         uint8_t *scaled = hd ? (uint8_t *)intermediate : present_dst;
