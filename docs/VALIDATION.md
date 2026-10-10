@@ -1,6 +1,24 @@
 # Validation scope — 2026-10-09
 
-## Current integrated 0.2.1
+## Current native 0.2.2
+
+Exact executable `66bd32140d39f464b0b5f5ef8ba6193d880dd79be274c90fdb373809a9a7614b`
+adds current chapter-one Bosen advice without persistent quest history.
+It passes 137 journal/input/composition/restore gates across 26 copied native
+runs, 131,072 pure predicate assertions, eight control/QoL/menu/checkpoint
+suites, 249 map gates on 39 cases, 78 ordinary actor gates on 13 routes and
+78 optional menu-frame checks. Three paced Direct3D menu/walking/journal routes
+pass with zero steady underflow/missing-frame/audible-overflow deltas. Owner
+data remains isolated during qualification. Source receipts stay
+compiled_unqualified, with exact local qualification recorded separately.
+[Current progression and precise limits](FOUNDATION-PROGRESSION-2026-10-09.md).
+
+Two source-only experiments separately qualify constrained wrapping-B0 margin
+pixels and original-cost native metatile instructions. They are uninstalled,
+non-adoptable through normal Setup and do not certify full campaign, seamless
+world-edge rendering or a measured performance improvement.
+
+## Earlier integrated 0.2.1
 
 The canonical 50-input build integrates guarded parked/travel Algos,
 strictly selected later wrapping-map actors and current Starcrest possession.

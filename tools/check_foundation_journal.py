@@ -121,10 +121,11 @@ def main():
     # Pure synthetic stage logic only: never alter guest RAM/checkpoints.
     unit = base / 'stage-unit.c'
     unit.write_text('#include "foundation_journal.h"\nint main(void) {\n'
-        'if (!FoundationJournalHasLead(0,0x40)) return 1;\n'
-        'if (FoundationJournalHasLead(0,0x80)) return 2;\n'
-        'for(unsigned s=1;s<256;s++) if(FoundationJournalHasLead(s,0xff)) return 3;\n'
-        'return FoundationJournalHasLead(0,0); }\n')
+        'for(unsigned s=0;s<256;s++) for(unsigned f=0;f<256;f++) {\n'
+        'unsigned expected=s==1?2:(s==0 && (f&0x40)?1:0);\n'
+        'if(FoundationJournalLead(s,f)!=expected) return 1;\n'
+        'if(FoundationJournalHasLead(s,f)!=(expected!=0)) return 2; }\n'
+        'return 0; }\n')
     compiled = subprocess.run([str(args.cc), str(unit), '-I', str(ROOT / 'native/foundation/src'), '-I',
         str(PROOF / 'snesrecomp/runner/src/desktop'), '-o', str(base / 'stage-unit.exe')], capture_output=True, text=True)
     (base / 'stage-unit.log').write_text(compiled.stdout + compiled.stderr)
@@ -139,8 +140,8 @@ def main():
         image.save(base / name / 'present.png')
         contact.paste(image, (256 * col, 20)); draw.text((256 * col + 5, 4), name, fill='white')
     contact.save(base / 'journal-cards.png')
-    report['limits'] = ['First story stage and David introduction only; no Crest completion rule',
-        'Other-stage rejection is a synthetic predicate unit, not later-story gameplay',
+    report['limits'] = ['Stage-zero David introduction and stage-one Bosen current lead; no Crest completion rule',
+        'Stage-one event and restoration use the separate explicit-fixture progression checker; other-stage rejection here is a synthetic predicate unit',
         'Cold checkpoint restores covered; actual interactive rewind timeline not exercised here',
         'Keyboard events and SDL virtual L3 covered; physical controller not newly certified',
         'No persistent native journal history; card derives from original restored guest state']

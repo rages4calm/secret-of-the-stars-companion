@@ -1,4 +1,4 @@
-/* First-stage current lead, derived only from original guest state.
+/* Current chapter advice, derived only from original guest state.
  * No ROM/guest writes, completion guesses or external seen-event history. */
 #include "foundation_journal.h"
 #include "foundation_hotkeys.h"
@@ -44,7 +44,7 @@ void FoundationJournalInit(void) {
     if (env && *env) trace = fopen(env, "w");
     env = getenv("SNESRECOMP_FOUNDATION_JOURNAL_POSSESSION");
     if (env) possession_enabled = !strcmp(env, "1");
-    if (trace) fprintf(trace, "frame,mode,stage,flags,enabled,visible,has_lead,inventory_groups\n");
+    if (trace) fprintf(trace, "frame,mode,stage,flags,enabled,visible,has_lead,inventory_groups,lead_kind\n");
     fprintf(stderr, "[foundation] journal enabled=%d; configurable Journal hotkey\n", enabled);
     FoundationJournalReset();
 }
@@ -105,9 +105,10 @@ void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
         fprintf(stderr, "[foundation] frame %u journal %s\n", frame_number, visible ? "shown" : "hidden");
     }
     if (trace) {
-        fprintf(trace, "%u,%u,%u,%u,%d,%d,%d,%u\n", frame_number, g_ram[0x20],
+        fprintf(trace, "%u,%u,%u,%u,%d,%d,%d,%u,%u\n", frame_number, g_ram[0x20],
                 g_ram[0x5372], g_ram[0x5360], enabled, visible, has_lead,
-                JournalPossessionGroups(g_ram, 0x20000));
+                JournalPossessionGroups(g_ram, 0x20000),
+                FoundationJournalLead(g_ram[0x5372], g_ram[0x5360]));
         fflush(trace);
     }
 }
@@ -115,21 +116,27 @@ void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
 void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
     if (!enabled || !visible || g_ram[0x20] != 1 || w < 240 || h < 88) return;
     /* Re-derive even if presentation follows a load before a guest update. */
-    int lead = FoundationJournalHasLead(g_ram[0x5372], g_ram[0x5360]);
+    unsigned lead = FoundationJournalLead(g_ram[0x5372], g_ram[0x5360]);
     uint32_t *pixels = (uint32_t *)dst;
     int stride = (int)(pitch / 4), x = (w - 240) / 2;
     unsigned groups = possession_enabled ? JournalPossessionGroups(g_ram, 0x20000) : 0;
     snes_ovl_fill_rect(pixels, stride, h, x, 6, 240, 75, 0xff080e1c);
     snes_ovl_stroke_rect(pixels, stride, h, x, 6, 240, 75, 0xff809bc8);
     snes_ovl_draw_text(pixels, stride, h, x + 6, 11,
-                       groups ? "JOURNAL - HOTKEY: CLOSE" :
-                       "JOURNAL - JOURNAL HOTKEY: CLOSE", 0xffffdf78, 1);
-    if (groups) {
+                       "JOURNAL - HOTKEY: CLOSE", 0xffffdf78, 1);
+    if (lead == 2) {
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
+                           "Bosen: gather allies", 0xfff0f3fa, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
+                           "to build a town", 0xfff0f3fa, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 57,
+                           groups ? "STARCREST: HELD NOW" :
+                           "Find your fellow allies", 0xfff0f3fa, 1);
+    } else if (groups) {
         snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
                            "STARCREST: HELD NOW", 0xfff0f3fa, 1);
         snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
-                           groups == 3 ? "Both inventory groups" : groups == 2 ?
-                           "Second inventory group" : "First inventory group", 0xfff0f3fa, 1);
+                           groups == 3 ? "In both party packs" : "In one party pack", 0xfff0f3fa, 1);
         snes_ovl_draw_text(pixels, stride, h, x + 6, 57,
                            "In your pack now", 0xfff0f3fa, 1);
     } else if (lead) {

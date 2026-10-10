@@ -1,0 +1,24 @@
+{
+  "canonical_integration": false,
+  "installed": false,
+  "source_sha256": {
+    "build_experimental_wrapping_b0.py": "0516274e0dfaa4db9873b471a8e56d41bc8818b21b7b2f424880d19ca78e8456",
+    "foundation_large_actor_canary.c": "bd8ea90c0a352b73dd86043e4cb6fe126f85b779c02f9cea10412fda5b846b11",
+    "foundation_large_actor_canary.h": "940902f83d896fb0a149945de49a4e80435cf68c7301f887f4e5807df5e1e372",
+    "foundation_wide_actors.c": "2ec90861f4a79d2cab7f4d67c0f72d987816c97505d9f3492bf8ef38e1e32ee6",
+    "README.md": "c944f3a33819c93e945b725f99ea61d47063187bd883a2ee1de3c2ac4b9097e8"
+  },
+  "private_proven_candidate_sha256": "809f7d520eef924d39c03ea6e65367e13ed068a3d8f930aca3325e0d7228c0a3",
+  "allowed_saved_source_positions": [
+    [
+      0,
+      896
+    ],
+    [
+      360,
+      40
+    ]
+  ],
+  "limits": "Two explicitly staged original producer tuples; not general wrapping, natural progression, periodic seam continuity or player profile support.",
+  "opt_in_helper_checked_candidate_sha256": "2586e74c60d573fdd2edef733f943d16c230685b7cadd485a494387c69ac6d02"
+}

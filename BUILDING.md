@@ -77,14 +77,44 @@ off. It does not load, convert or advance an existing owner save. In that
 profile's `foundation.ini`, enable both `ExperimentalFieldWide=1` and
 `ExperimentalFieldActors=1` to exercise the experimental wide presentation.
 Unsupported states retain the original centered picture with side bars.
-The 0.2.1 snapshot includes guarded Algos/selected world-map actor policies.
+The 0.2.2 snapshot includes guarded Algos/selected world-map actor policies.
 Journal current possession defaults on within the existing Journal feature;
 `JournalPossession=0` in foundation.ini disables its inventory line.
-See [integrated scope](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md) for the finite checks and remaining gaps.
+Chapter-one Bosen advice derives from original current stage after the rescue;
+loading an earlier checkpoint removes it.
+See [current scope](docs/FOUNDATION-PROGRESSION-2026-10-09.md) and the retained
+[integrated actor scope](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md).
 
 The engine's default input and hotkeys may differ from an already configured
 Companion installation. See its local configuration and the source settings
 pages; physical-controller coverage is still being expanded.
+
+## Isolated developer replay
+
+The native executable keeps settings and saves beside its own file. Changing
+only the working directory does not isolate a test. Use a copied checkpoint
+and this helper to run beside a copied executable in a fresh private folder:
+
+```powershell
+New-Item -ItemType Directory -Path "local/probes" -Force
+python tools/run_foundation_probe.py --exe "<build>/build/SecretOfTheStarsSNESRecomp.exe" `
+  --rom "D:/My Games/Secret of the Stars (USA).sfc" --script "<finite-input.txt>" `
+  --state "<copied-checkpoint.sav>" --evidence-root "local/probes" --name "world-walk" `
+  --cpu-trace --actor-trace --watch "5360:53b2"
+```
+
+Omit `--state` for a cold start. The input script accepts `wait <frames>`,
+`press <button> <frames>`, `dump <simple-name>`, `quit` and comment lines.
+For example, `wait 60`, `press down 60`, `dump after`, then `quit`, each on its
+own line. Dump names cannot include paths. Existing output folders, unsupported
+ROMs and unsafe commands are refused before a profile is created.
+
+The helper disables autosave, audio, frame pacing and presentation enhancements
+by default, checks the actual profile anchor, and retains input hashes, dumps,
+logs and `probe-report.json`. `--wide` and `--enhanced` explicitly select those
+presentation options. `--expected-exe-sha256` can freeze the executable identity.
+Its report says **developer_replay_only**: a headless silent replay does not
+qualify gameplay, campaign coverage, performance under pacing or audio.
 
 ## Build Companion separately
 
