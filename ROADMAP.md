@@ -38,29 +38,15 @@ retains the separate experimental provenance and original-loader recipes.
 Natural Algos acquisition and later world-map story entry remain separate from
 staged execution. Experimental build receipts stay refused by normal Setup.
 
-## 3. Native execution and original slowdown
-
-Identify meaningful guest update boundaries and productive CPU work. Promote
-understood routines into native/AOT code with explicit state/side-effect checks.
-Measure missed guest updates separately from PC frame rate and audio callbacks.
-Only then add bounded title-specific CPU headroom or separated presentation
-where justified. Preserve movement, collision, activation and intentional waits.
-Current guest cycle accounting remains original. A guarded metatile-index
-prototype replaces a measured pure instruction sequence while preserving
-original guest cost. Its finite equivalence proof is separate from any host
-speedup or slowdown-fix claim. The optional movement boost
-changes guarded player walking only, and configurable fast-forward explicitly
-accelerates the whole game; neither feature proves a guest slowdown fix.
-
-## 4. Expand the quest journal
+## 3. Expand the quest journal
 
 The integrated current-Starcrest-possession card reads both original inventories
 and recomputes after restore. It is useful current-state evidence, while the
 original award, completion event and full journal history still need separate
 proof. Staged item fixtures are now authorized for these focused checks.
 
-Native 0.2.2 adds current Bosen advice after original Gari/rescue execution to
-the verified David opening lead. Both reconcile after restore and rollback.
+Native 0.2.3 adds original Aris/Pennon advice for Jeep Volcano to current Bosen
+and David leads. All reconcile after restore and rollback.
 Add natural Crest acquisition and further dialogue/progression fixtures; verify actual item/story
 writers before enabling completion rules. Define deterministic event history,
 new-game reset, cold restore and rewind behavior. Avoid spoilers or an external
@@ -75,7 +61,7 @@ game provides no built-in map screen ([player account](https://www.grouvee.com/g
 show a verified player position, and distinguish visited locations from optional
 spoiler information; controls must be assignable on keyboard and controller.
 
-## 5. Audio and presentation polish
+## 4. Audio and presentation polish
 
 Keep enhanced original pixels and experimental widescreen moving toward a
 consistent whole-game presentation. A replacement HD world/sprite pack is
@@ -85,7 +71,7 @@ MSU-1 is conditional: first establish a compatible title driver, event/track
 mapping, authorized local soundtrack input, loops/fades and original-audio
 fallback. No verified compatible driver/pack is integrated today.
 
-## 6. Wider testing
+## 5. Wider testing
 
 Use small copied-save and reproducible routes for story transitions, combat,
 menus, controllers, listening checks, long sessions and hardware variation.
@@ -93,3 +79,11 @@ Protect the newest owner save and keep failures/coverage gaps in the evidence.
 A full campaign, every actor/effect and every physical controller are still
 unqualified. Volunteer micro-tests are welcome; another owner playthrough is
 not the default requirement.
+
+## Archived CPU experiments
+
+The owner ended the CPU experiment work on October 10. Metatile and dispatch
+results remain reference evidence, excluded from player builds. No further CPU
+experiments are scheduled. Guest cycle accounting stays original; movement boost
+and fast-forward remain explicit player options. Complete native/AOT execution
+remains an unfinished architectural goal, not a claim about this release.

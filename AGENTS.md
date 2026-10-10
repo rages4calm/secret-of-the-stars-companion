@@ -1,8 +1,9 @@
 # Public repository instructions
 
-Current source is native 0.2.2 / Companion 0.3.0. Read README.md, BUILDING.md,
+Current source is native 0.2.3 / Companion 0.3.0. Read README.md, BUILDING.md,
 ROADMAP.md, docs/VALIDATION.md, docs/FOUNDATION-PROGRESSION-2026-10-09.md and
 the retained docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md.
+Read docs/FOUNDATION-CONTINUATION-2026-10-10.md for the latest focused work.
 This checkout contains authored source; owner ROMs, generated code and private
 qualification evidence are separate local data. Preserve compilation receipt
 status: fresh public builds are compiled_unqualified until separately tested.
@@ -22,7 +23,7 @@ collision and completed544-byte packet/descriptor/phase identity. Only strict
 authenticated families receive margin drawing. The B0 contract is nonwrapping;
 its travel proxy remains center-only. Wrapping B0/A8 and unknown resources,
 HDMA and unqualified discontinuities remain refused. Actual terrain seam tests
-preserve center/fallback. New staged original visible Algos seam evidence exists,
+preserve center/fallback. Native0.2.3 adds only the selected ordinary-terrain forward bridge: full13-bit original scroll, completed544 packet, age2, exact loaded resource/allocation and current party refusals must agree. Actor raw-camera discontinuity guards stay intact. New staged original visible Algos seam evidence exists,
 but its two-tuple wrapping-B0 prototype remains separately experimental.
 Earlier B0 experiment documents retain historical zero-constructor claims.
 Experimental receipts remain public_buildfalse and refused by normal Setup.
@@ -30,7 +31,7 @@ Experimental receipts remain public_buildfalse and refused by normal Setup.
 Journal current possession recomputes both inventories after restore/removal;
 do not equate it with durable completion or David's unrelated bit40. Original
 award/history remains open. Bosen's stage-one advice follows original rescue
-execution and recomputes from restored stage; later chapters remain refused.
+execution and recomputes from restored stage; later chapters remain refused. Aris message0304/03AB sets stage-zero5360 bit02; that current-stage Pennon lead takes priority over David bit40 and directs Jeep Volcano. It is not Starcrest completion or durable history.
 JournalPossession0 disables the inventory line;
 production env SNESRECOMP_FOUNDATION_JOURNAL_POSSESSION explicitly overrides it.
 
@@ -60,3 +61,5 @@ Private CPU/metatile experiments retain exact original guest costs; no proven
 visible missed-update fix or broad headroom change is installed. Keep their
 experimental receipts separate from normal profile adoption. A navigation map
 is a proposed future feature; use owned game data and explicit spoiler rules.
+
+Owner steering October10: stop CPU/metatile/dispatch experiments; retain evidence only. Continue widescreen, journal, broader gameplay and Companion work. Do not restart CPU research as the next priority.

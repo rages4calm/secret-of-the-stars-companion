@@ -545,6 +545,47 @@ void FoundationWideActorsBeginDraw(void) {
     memset(drawn_piece_bits, 0, sizeof(drawn_piece_bits));
 }
 
+/* The original 210D/210E writes retain full13-bit BG1 scroll as M7 H/V.
+ * This bridge accepts only the completed parked packet and the exact phase
+ * observed on both staged forward world edges. Never infer full world position
+ * from a ten-bit latch or from modulo camera distance alone. */
+int FoundationWideActorsPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
+    if (!source || !world_x || !world_y || world_x == world_y ||
+        !displayed.valid || !displayed.large.valid || !displayed.large.displayed ||
+        displayed.large.writers != 1 || !Scene(source) || !SameResource(source,&displayed) ||
+        !PacketMatches(source,displayed.bytes) || !LargeWrappingParked(g_ram,131072)) return 0;
+    const LargeActor *body = &displayed.large.last;
+    if (body->family != LARGE_REGULAR || body->index != 18 || body->pose != 2 ||
+        body->descriptor != 0x0e9d88 || body->world_x != R16(0x42c3) ||
+        body->world_y != R16(0x42c5) || body->camera_x != displayed.camera_x ||
+        body->camera_y != displayed.camera_y ||
+        (unsigned)(snes_frame_counter-displayed.producer_frame) != 2) return 0;
+    int raster[2] = {source->m7matrix[6],source->m7matrix[7]};
+    int live[2] = {R16(0x2ad),R16(0x2af)};
+    int packet[2] = {displayed.camera_x,displayed.camera_y};
+    int scroll[2] = {source->hScroll[0],source->vScroll[0]};
+    int jumped = 0;
+    for (unsigned i=0;i<2;++i) {
+        if (raster[i]<0 || raster[i]>=3584 || live[i]<0 || live[i]>=3584 ||
+            packet[i]<0 || packet[i]>=3584 || raster[i] != packet[i] ||
+            (raster[i]&1023) != scroll[i]) return 0;
+        int delta = WorldDistance(live[i],packet[i]);
+        if (delta < -8 || delta > 8) return 0;
+        int raw = live[i]-packet[i];
+        if (raw < -8 || raw > 8) {
+            /* Forward wrapping only; the reverse phase has no current proof. */
+            if (packet[i]<3576 || live[i]>7 || delta<=0 || ++jumped>1) return 0;
+        }
+    }
+    uintptr_t out[2] = {(uintptr_t)world_x,(uintptr_t)world_y};
+    for (unsigned i=0;i<2;++i)
+        if ((out[i]>=(uintptr_t)g_ram && out[i]-(uintptr_t)g_ram<131072) ||
+            (out[i]>=(uintptr_t)source && out[i]-(uintptr_t)source<sizeof(*source)) ||
+            (out[i]>=(uintptr_t)&displayed && out[i]-(uintptr_t)&displayed<sizeof(displayed))) return 0;
+    *world_x=raster[0]; *world_y=raster[1];
+    return 1;
+}
+
 unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *picture) {
     if (!enabled || !displayed.valid || !source || !picture || source == picture || line < 1 || line > 224 ||
         !Scene(source) || !SameResource(source, &displayed) || !PacketMatches(source, displayed.bytes)) return 0;
@@ -553,24 +594,30 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
     int dx = cx - displayed.camera_x, dy = cy - displayed.camera_y;
     int wrap = displayed.resource[30] != 0;
     if (wrap) {
-        /* Authenticate the live raster against its wrapped primary reference.
-         * The displayed actor records and packet remain immutable. Reject an
-         * unknown raster offset rather than unwrap against stale packet lows. */
-        int live_x = R16(0x2ad), live_y = R16(0x2af);
-        if (live_x >= 3584 || live_y >= 3584 ||
-            displayed.camera_x < 0 || displayed.camera_x >= 3584 ||
-            displayed.camera_y < 0 || displayed.camera_y >= 3584) return 0;
-        /* The interior fixture does not qualify stale-packet raster timing
-         * across an actual world edge. Refuse that jump until an edge proof. */
-        if (live_x - displayed.camera_x < -8 || live_x - displayed.camera_x > 8 ||
-            live_y - displayed.camera_y < -8 || live_y - displayed.camera_y > 8) return 0;
-        int latch_dx = ((source->hScroll[0] - (live_x & 1023) + 512) & 1023) - 512;
-        int latch_dy = ((source->vScroll[0] - (live_y & 1023) + 512) & 1023) - 512;
-        if (latch_dx < -8 || latch_dx > 8 || latch_dy < -8 || latch_dy > 8) return 0;
-        cx = live_x + latch_dx; cy = live_y + latch_dy;
-        dx = WorldDistance(live_x, displayed.camera_x) + latch_dx;
-        dy = WorldDistance(live_y, displayed.camera_y) + latch_dy;
-        if (dx < -8 || dx > 8 || dy < -8 || dy > 8) return 0;
+        int authenticated_x, authenticated_y;
+        if (FoundationWideActorsPeriodicRaster(source,&authenticated_x,&authenticated_y)) {
+            cx=authenticated_x; cy=authenticated_y;
+            dx=cx-displayed.camera_x; dy=cy-displayed.camera_y;
+        } else {
+            /* Authenticate the live raster against its wrapped primary reference.
+             * The displayed actor records and packet remain immutable. Reject an
+             * unknown raster offset rather than unwrap against stale packet lows. */
+            int live_x = R16(0x2ad), live_y = R16(0x2af);
+            if (live_x >= 3584 || live_y >= 3584 ||
+                displayed.camera_x < 0 || displayed.camera_x >= 3584 ||
+                displayed.camera_y < 0 || displayed.camera_y >= 3584) return 0;
+            /* The interior fixture does not qualify stale-packet raster timing
+             * across an actual world edge. Refuse that jump until an edge proof. */
+            if (live_x - displayed.camera_x < -8 || live_x - displayed.camera_x > 8 ||
+                live_y - displayed.camera_y < -8 || live_y - displayed.camera_y > 8) return 0;
+            int latch_dx = ((source->hScroll[0] - (live_x & 1023) + 512) & 1023) - 512;
+            int latch_dy = ((source->vScroll[0] - (live_y & 1023) + 512) & 1023) - 512;
+            if (latch_dx < -8 || latch_dx > 8 || latch_dy < -8 || latch_dy > 8) return 0;
+            cx = live_x + latch_dx; cy = live_y + latch_dy;
+            dx = WorldDistance(live_x, displayed.camera_x) + latch_dx;
+            dy = WorldDistance(live_y, displayed.camera_y) + latch_dy;
+            if (dx < -8 || dx > 8 || dy < -8 || dy > 8) return 0;
+        }
     }
     unsigned count = 0;
     for (unsigned index = 0; index < kActors; ++index) {

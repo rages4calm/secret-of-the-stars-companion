@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN_SUFFIXES = {
@@ -21,6 +22,33 @@ SECRET = re.compile(
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def check_experiment_manifest(root, name, tracked):
+    """Check an authored experiment snapshot, without granting qualification."""
+    errors = []
+    try:
+        manifest = json.loads((root / name).read_text(encoding='utf-8'))
+        inputs = manifest['source_sha256']
+        if not isinstance(inputs, dict) or not inputs:
+            raise ValueError('source_sha256 must be a nonempty object')
+        base = PurePosixPath(name).parent
+        for relative, digest in inputs.items():
+            path = PurePosixPath(relative)
+            if (not relative or path.is_absolute() or '..' in path.parts
+                    or '\\' in relative or ':' in relative
+                    or not isinstance(digest, str)
+                    or not re.fullmatch(r'[0-9a-f]{64}', digest)):
+                errors.append('Invalid experiment input: ' + name + ' -> ' + relative)
+                continue
+            full = (base / path).as_posix()
+            source = root / full
+            if (full not in tracked or not source.is_file() or source.is_symlink()
+                    or sha(source) != digest):
+                errors.append('Experiment snapshot mismatch: ' + full)
+    except (KeyError, TypeError, ValueError, OSError) as exc:
+        errors.append('Invalid experiment manifest: ' + name + ': ' + str(exc))
+    return errors
 
 
 def main():
@@ -54,6 +82,11 @@ def main():
             ast.parse(data.decode('utf-8-sig'), filename=name)
             python_count += 1
     counts = {}
+    experiments = [name for name in tracked
+                   if name.startswith('experiments/')
+                   and name.endswith('/experiment-manifest.json')]
+    for name in experiments:
+        errors.extend(check_experiment_manifest(ROOT, name, tracked))
     for base in ('native/foundation', 'Companion'):
         manifest = json.loads((ROOT / base / 'authored-files.json').read_text())
         counts[base] = len(manifest)
@@ -62,6 +95,11 @@ def main():
             if full not in tracked or sha(ROOT / full) != digest:
                 errors.append('Authored snapshot mismatch: ' + full)
     provenance = json.loads((ROOT / 'SOURCE-PROVENANCE.json').read_text())
+    if provenance['native_version'] != (ROOT / 'native/foundation/VERSION').read_text().strip():
+        errors.append('Native version differs from source provenance.')
+    companion_version = ET.parse(ROOT / 'Companion/Companion.csproj').findtext('.//Version')
+    if provenance['companion_version'] != companion_version:
+        errors.append('Companion version differs from source provenance.')
     for name, digest in provenance['verbatim_notices'].items():
         full = 'licenses/' + name
         if full not in tracked or sha(ROOT / full) != digest:
@@ -91,6 +129,7 @@ def main():
         return 1
     print(json.dumps({'passed': True, 'tracked_files': len(tracked),
                       'python_syntax_checks': python_count, 'authored_inputs': counts,
+                      'experiment_manifests': len(experiments),
                       'verbatim_notices': len(provenance['verbatim_notices']),
                       'limits': 'Source publication checks only; no gameplay qualification.'}, indent=2))
     return 0

@@ -20,6 +20,9 @@ static inline unsigned JournalPossessionGroups(const uint8_t *ram, size_t size) 
 /* Current original chapter only. Stage one was observed after Bosen's
  * original rescue dialogue; this is advice, not a quest-completion claim. */
 static inline unsigned FoundationJournalLead(unsigned stage, unsigned flags) {
+    /* Original Aris message 0304/03AB sets stage-zero bit 02.
+     * Pennon advice has priority; David bit 40 is not a prerequisite. */
+    if (stage == 0 && (flags & 0x02) != 0) return 3;
     if (stage == 0 && (flags & 0x40) != 0) return 1;
     if (stage == 1) return 2;
     return 0;

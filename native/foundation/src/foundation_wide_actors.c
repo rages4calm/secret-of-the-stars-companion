@@ -543,6 +543,51 @@ void FoundationWideActorsBeginDraw(void) {
     memset(drawn_piece_bits, 0, sizeof(drawn_piece_bits));
 }
 
+/* Private ordinary-terrain bridge. Canonical selected ship-only allocation,
+ * completed544 packet and full13-bit original raster must all agree. No B0
+ * actor acceptance, actor camera gate, center oracle or guest timing changes. */
+int FoundationWideActorsOrdinaryPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
+    if (!source || !world_x || !world_y || world_x == world_y ||
+        !displayed.valid || displayed.large.writers || !Scene(source) ||
+        !WrappingResource(source) || !SameResource(source,&displayed) ||
+        !PacketMatches(source,displayed.bytes) ||
+        (unsigned)(snes_frame_counter-displayed.producer_frame) != 2) return 0;
+    /* Retain the canonical original party descriptor refusal at current raster.
+     * Displayed cache alone must never authorize a newly switched B0/proxy. */
+    for (unsigned i=0;i<kParty;++i) {
+        unsigned at=0x4000+i*18;
+        if (g_ram[at] != 255) {
+            unsigned base=R16(at+3),gfx=base+g_ram[at]*2+(g_ram[at+10]>>7);
+            if (base==0xb0 || (gfx&0xfff8)==0xa8 || g_ram[at]>3 ||
+                gfx >= (0xd800-0x9800)/8) return 0;
+        }
+    }
+    int raster[2] = {source->m7matrix[6],source->m7matrix[7]};
+    int live[2] = {R16(0x2ad),R16(0x2af)};
+    int packet[2] = {displayed.camera_x,displayed.camera_y};
+    int scroll[2] = {source->hScroll[0],source->vScroll[0]};
+    int jumped = 0;
+    for (unsigned i=0;i<2;++i) {
+        if (raster[i]<0 || raster[i]>=3584 || live[i]<0 || live[i]>=3584 ||
+            packet[i]<0 || packet[i]>=3584 || raster[i] != packet[i] ||
+            (raster[i]&1023) != scroll[i]) return 0;
+        int delta = WorldDistance(live[i],packet[i]);
+        if (delta < -8 || delta > 8) return 0;
+        int raw = live[i]-packet[i];
+        if (raw < -8 || raw > 8) {
+            /* Forward wrapping only; the reverse phase has no current proof. */
+            if (packet[i]<3576 || live[i]>7 || delta<=0 || ++jumped>1) return 0;
+        }
+    }
+    uintptr_t out[2] = {(uintptr_t)world_x,(uintptr_t)world_y};
+    for (unsigned i=0;i<2;++i)
+        if ((out[i]>=(uintptr_t)g_ram && out[i]-(uintptr_t)g_ram<131072) ||
+            (out[i]>=(uintptr_t)source && out[i]-(uintptr_t)source<sizeof(*source)) ||
+            (out[i]>=(uintptr_t)&displayed && out[i]-(uintptr_t)&displayed<sizeof(displayed))) return 0;
+    *world_x=raster[0]; *world_y=raster[1];
+    return 1;
+}
+
 unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *picture) {
     if (!enabled || !displayed.valid || !source || !picture || source == picture || line < 1 || line > 224 ||
         !Scene(source) || !SameResource(source, &displayed) || !PacketMatches(source, displayed.bytes)) return 0;

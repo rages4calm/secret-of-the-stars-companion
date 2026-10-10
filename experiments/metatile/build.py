@@ -15,6 +15,7 @@ def main():
     p.add_argument('--out',type=Path)
     p.add_argument('--cmake',default=shutil.which('cmake') or 'cmake')
     p.add_argument('--jobs',type=int,default=4)
+    p.add_argument('--indexed-dispatch',action='store_true',help='Apply the separate experimental normalized-key host lookup filter to the copied runtime only')
     a=p.parse_args();base=a.base_build.resolve(strict=True)
     receipt=json.loads((base/'source-build-receipt.json').read_text(encoding='utf-8'))
     assert receipt.get('public_build') and receipt['runtime_pin']=='7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0'
@@ -36,6 +37,18 @@ def main():
     shutil.copytree(source,project)
     shutil.copytree(runtime,out/'runtime',ignore=shutil.ignore_patterns('.git','__pycache__','build','build-*','.pytest_cache','_triage','cosim','docs','tests','fuzz','recompiler-rs'))
     runtime_before={f.relative_to(out/'runtime').as_posix():sha(f) for f in (out/'runtime').rglob('*') if f.is_file()}
+    dispatch=None
+    if a.indexed_dispatch:
+        bridge=out/'runtime/runner/src/snes/interp_bridge.c'
+        if sha(bridge)!='5c1308342c57f84e68e12160e8dc274ed4dbbf9b7e15e505aa71e7a0b11ac1de':
+            raise ValueError('Dispatch experiment requires its exact frozen bridge base; no baseline is changed.')
+        patch=HERE/'dispatch-index.patch'
+        for args in (['git','apply','--ignore-space-change','--check',str(patch)],['git','apply','--ignore-space-change',str(patch)]):
+            subprocess.run(args,cwd=out/'runtime',check=True)
+        dispatch={'base_bridge_sha256':runtime_before['runner/src/snes/interp_bridge.c'],
+            'patch_sha256':sha(patch),'patched_bridge_sha256':sha(bridge),
+            'normalized_key_mask':'0x7fffff','key_presence_bytes':1048576,'page_presence_bytes':4096,
+            'guest_clock_changes':False,'policy':'Filter enabled in this experimental copy; SNESRECOMP_EXPERIMENT_PREOP_INDEX=0 selects its original ordered scan.'}
     for name in ('foundation_queue_index.c','foundation_queue_index.h'):shutil.copy2(HERE/name,project/'src'/name)
     mainfile=project/'src/main.c';text=mainfile.read_text()
     if '#include "foundation_column_lookup.h"' not in text:raise ValueError('Expected title integration anchor missing.')
@@ -65,6 +78,7 @@ def main():
         'experiment_inputs':{name:sha(project/name) for name in ('CMakeLists.txt','src/main.c','src/foundation_queue_index.c','src/foundation_queue_index.h')},
         'runtime_copy_before_sha256':runtime_before,'base_authored_inputs':manifest,
         'limits':['Compilation is not gameplay qualification.','Default off; original guest CPU and opcode costs only.','No owner profile, ROM, checkpoint or install is edited.']}
+    result['experimental_dispatch_index']=dispatch
     (out/'experimental-build-receipt.json').write_text(json.dumps(result,indent=2)+'\n')
     print(out/'build/SecretOfTheStarsSNESRecomp.exe');print(result['executable_sha256'])
 

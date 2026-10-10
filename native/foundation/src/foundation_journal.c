@@ -124,7 +124,15 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
     snes_ovl_stroke_rect(pixels, stride, h, x, 6, 240, 75, 0xff809bc8);
     snes_ovl_draw_text(pixels, stride, h, x + 6, 11,
                        "JOURNAL - HOTKEY: CLOSE", 0xffffdf78, 1);
-    if (lead == 2) {
+    if (lead == 3) {
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
+                           "Aris: Jeep Volcano", 0xfff0f3fa, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 45,
+                           "Defeat Homncruse's follower", 0xfff0f3fa, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 6, 57,
+                           groups ? "STARCREST: HELD NOW" :
+                           "Nearby mountain entrance", 0xfff0f3fa, 1);
+    } else if (lead == 2) {
         snes_ovl_draw_text(pixels, stride, h, x + 6, 29,
                            "Bosen: gather allies", 0xfff0f3fa, 1);
         snes_ovl_draw_text(pixels, stride, h, x + 6, 45,

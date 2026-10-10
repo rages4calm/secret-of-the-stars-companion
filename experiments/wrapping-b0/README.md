@@ -1,91 +1,108 @@
 # Isolated wrapping parked-Algos actor experiment
 
-This source-only experiment draws authenticated original parked-Algos artwork
-into horizontal widescreen margins for **two explicitly staged saved-source
-placements**. It is excluded from canonical authored inputs and normal Companion
-profiles. It is not general wrapping-map, vehicle, natural story acquisition or
-campaign support. Do not install it over player data or copy a qualification
-receipt to a new executable.
+The source-only **v2 periodic bridge** qualifies two explicitly staged original
+saved-source placements through a forward 3583-to-zero world boundary. It is
+excluded from canonical authored inputs, installation and normal Companion
+profiles. This is not general vehicle, wrapping-world or campaign support.
 
-## Exact acceptance contract
+## Resource and producer contract
 
-The unchanged original loader supplies regular record 16 (A8 proxy) and record 18
-(B0 body), both pose 2. Saved scene at `5441` is 0; saved position at `544B/5455` is exactly
-(0,896) or(360,40). The original loader places the proxy at the saved position and
-the body at position minus 8/48, wrapped by 3584. Other placements remain refused.
+The original loader supplies regular record 16 (A8 proxy) and record 18 (B0
+body), both pose 2. Saved scene `5441` is zero; saved position `544B/5455` is
+exactly `(0,896)` or `(360,40)`. The original loader places the proxy at that
+position and body at position minus 8/48, wrapped by 3584. Other positions remain
+refused. These positions are authorized developer staging before original
+loaders, not naturally acquired Algos or natural original actor placement.
 
-Scene 0, route 0C, mode 1, wrapping 1, primary dimensions 14x14, inactive secondary 4x4,
-stage `5372=17` and `5361` bit 40 clear must match. Grid09:A85C and all selected definition,
-attribute and secondary-resource pointers must match the existing stream08:87FF/
-grid252 family. Only original0598 records 0/1 at 1536,528/544 and the exact proxy/body
-allocation are allowed; other regular records must be inactive. Party B0/A8,
-signed travel, high poses, viewport offsets, rotation, mosaic and active HDMA
-remain refused. Existing ordinary/nonwrapping behavior is retained.
+Scene 0, route 0C, mode 1, wrapping 1, primary dimensions 14x14, inactive secondary
+4x4, stage `5372=17`, `5361` bit 40 clear and selected stream `08:87FF` / grid 252
+must match. All original grid/definition/attribute/secondary pointers are checked.
+Only original 0598 records 0/1 at 1536,528/544 and the exact proxy/body allocations
+are allowed; other regular records must be inactive. Party B0/A8, signed travel,
+high poses, viewport offsets, rotation, mosaic and active HDMA remain refused.
+Existing ordinary/nonwrapping behavior retains its previous guards.
 
-Original 01:CFF6/01:D045 allocate the body; 01:DB68 and caller 01:D86F supply its
-original descriptor 0E:9D88. Original register/width/direct-page/caller/mask gates,
-fixed slots 0/1 and raw component clipping stay intact. No actor, OAM, VRAM, guest
-logic, collision, clock or original asset is written. Metadata only becomes live
-after the exact original complete 544-byte DMA7 transfer; every render rechecks
-the immutable actual packet and resource.
+Original `01:CFF6` / `01:D045` allocate the body; `01:DB68` with caller `01:D86F`
+supplies descriptor `0E:9D88`. Original registers, widths, direct page, caller,
+mask, fixed slots 0/1 and raw component clipping remain exact. No guest actor,
+OAM, VRAM, collision, clock or original asset is written. Metadata becomes live
+only after the complete original 544-byte DMA7 transfer and actual full-byte
+scanout comparison. Every line rechecks the immutable displayed packet/resource.
 
-Only margin geometry is folded by 3584 after existing camera/packet/latch guards.
-The raw camera jump greater than 8 still refuses margins. At 3583-to-0, original
-raster can remain 3583 for one frame: that frame retains the safe fallback. The
-next original camera 0 packet can clip the body out of the original center; this
-experiment preserves that center disappearance and does not manufacture artwork
-inside it. Unsupported contexts retain the existing fallback.
+## Authenticated full-scroll phase
 
-## Finite private evidence
+At the world edge the live camera can be zero while the original displayed
+raster and completed actor packet remain 3583. The previous terrain compositor
+unwrapped a 10-bit latch of 511 around live zero and selected world position 511.
+That addresses the same ring slots but different original cells: the two tested
+seams had 894 horizontal / 928 vertical center-word mismatches and used fallback.
 
-The frozen 0.2.1 donor executable was 912e7d1c4c053c7be7cc1589825e78dcff647210c98e8b5d725edbb3fa432e06.
-The private candidate was 809f7d520eef924d39c03ea6e65367e13ed068a3d8f930aca3325e0d7228c0a3.
-The published opt-in helper produced separate candidate
-2586e74c60d573fdd2edef733f943d16c230685b7cadd485a494387c69ac6d02.
-It repeated the same six positive and ten refusal/restore replays with the same
-finite comparison/pixel counts below; these repeated samples are separate
-artifact checks, not extra game coverage.
-Original clean-ROM identity, runtime pin and 17-file patch are unchanged.
+The original BG1 `210D/210E` writes also retain their full 13-bit scroll in the
+PPU's M7 H/V registers. The v2 bridge accepts it only when:
+
+- The exact two-tuple resource/producer family and one completed B0 writer match.
+- The full 544-byte actual scanout equals the immutable displayed packet.
+- Both full scroll values equal the displayed packet's producer camera exactly.
+- Both lower 10-bit latches are congruent with the full values.
+- Packet age is exactly two original frames, as observed in all 26 valid samples.
+- Periodic live-to-packet displacement is within eight pixels per axis; an actual
+  raw jump is a single forward end-to-start crossing in the checked edge bands.
+
+Modulo displacement alone never authorizes drawing. The terrain-only private
+copy and actor margin preparation share that same authenticated full reference.
+All original terrain center-word and center-pixel gates remain in place.
+Reverse crossings, unknown phase, stale/incomplete/mismatched packets, resources
+or placements retain fallback. A traced actor-disabled replay may observe the
+packet for terrain authentication without drawing actor margins.
+
+Only margin geometry is periodic. The following original camera-zero B0 packet
+can clip its body out of the original center; that original disappearance remains
+authoritative. This experiment does not manufacture center art or alter original
+fixed-slot culling.
+
+## Exact finite evidence
+
+Latest isolated candidate:
+`c383e8df2680722d7316bac9c16c34212a5d439e33a33f3efa004fa078934f55`.
+It was built from the frozen real 0.2.2 source receipt, the unchanged runtime pin/
+17-file patch and the owner's exact clean ROM. It remains uninstalled.
 
 | Proof | Actual tested scope |
 | --- | --- |
-| Original visible actor | Original loaders and constructors at both real world boundaries; 196 guest views, 28 centers, 24 full544 staging-to-next-scanout joins, 5274 independently matched visible original body pixels |
-| Original terrain | 28 original primary center-ring checks using the full original raster coordinate; both exact-seam images visually inspected |
-| Private positive margins | 6 silent replays, 392 guest comparisons, 28 centers, 26 sampled completed544 digest/actual-scanout joins; 614 changed horizontal margin pixels all independently match actual original VRAM/palette/body geometry |
-| Vertical control | 18 completed packets/18 original large captures; actual visible original center at edge, zero side art because this body is horizontally inside the original viewport |
-| Horizontal lineage | 20 completed packets/21 original large captures in the finite positive route |
-| Refusal/restore | 10 silent replays, 77 guest comparisons, 11 centers; unsupported saved placement, earlier stage and resource flags refuse; different saved scene omits body and correctly retains existing ordinary packets; same-process save/load clears derived caches and produces packets again |
-| Host fault controls | 83 separate synthetic host faults refuse, with inputs immutable; caller/register/descriptor, source/record/resource/party, incomplete/wrong544 transfer, reset, alias and invalid geometry faults |
+| Positive original-loader walking | Six silent paired/oracle replays, 392 guest comparisons, 28 original centers, 26 sampled completed-544 digest/actual-scanout matches |
+| Horizontal artwork | All 678 changed margin pixels independently match actual original body bitplanes/palette/geometry; 64 occur on the actual 3583-to-zero frame |
+| Both terrain seams | 224 accepted lines and zero center-word/center-pixel mismatches on each actual discontinuity; all 28 independent full-reference primary ring checks pass |
+| Original baseline | All 196 guest-view comparisons against the previous raw-seam baseline remain exact |
+| Vertical actor control | Original visible center body and completed packet are real; zero side actor art because its X position remains inside the original viewport |
+| Refusal/cold/restore | Fourteen silent replays, 105 guest comparisons, 15 centers; three unsupported original-loader families refuse; different saved scene omits B0 and preserves ordinary packets; cold title and both same-process restores pass |
+| Bridge host faults | 92 separate synthetic faults refuse: full/lower-scroll mismatch, distance/phase/age, current/displayed resource, wrong complete packet, saved tuple, writer/descriptor, reverse crossing, aliases and context faults |
+| Owner protection | All 178 checked owner/canonical/ROM/receipt files stay byte-identical |
 
-The 83 host fault cases are not gameplay routes. Restore's 1906 observed margin
-pixels are separate telemetry, not additional independently qualified pixel
-samples. At both actual camera discontinuities the candidate produces zero actor
-margin pixels. Positive images were visually inspected; no GPU/audio pacing or
-physical-controller qualification was performed. Owner inputs stayed hash-exact.
+The host fault driver extracts the actual bridge/resource/packet functions,
+uses the original PPU layout and real staged snapshots, and explicitly stubs
+the field-selection API. It is a separate host proof, not 92 gameplay routes.
+Both actual seam images were visually inspected and show coherent original
+terrain/art. Restore's observed pixels are separate telemetry. No paced GPU/
+audio, physical-controller, campaign or production-install qualification is added.
 
-Private evidence remains local; no dumps, images, saves, generated code or game
-binary is distributed. Evidence digests:
+The historical v1 candidate `2586e74c...` retained raw-jump fallback and qualified
+614 margin pixels on the same two staged source placements. Its earlier reports
+and source snapshot are retained privately. The v2 adds the bounded full-scroll
+phase proof rather than treating coordinate tuples as broad world support.
 
-- Original visible report:50b2be68de5807ee49549488dd4f4c28d17b3f114f3bde23aa44b32a23bd7bd5.
-- positive-report.json:91c7e0fb9ec16fee69d153efa90ac1f690bed0584b15c564ee66cd6f9e531d6c.
-- negative-restore-report.json:7f56000b6d8a4c96a5ac1fd02d68ead283fb2ae5223a1dd4c7c01090d942f81e.
-- host-guard-report.json:e5ebe430e48fdb117061d0ebfccbcedd7f5235d324b51feb940a6798e0019cbe.
-- assessment-report.json:b34924cdf8d903af6463564ef66cb01b6baa5cbd2dd57dfecdb5d7fd649b4d09.
+No original dumps, pixels, saves, generated game code or executable are public.
+Private report references and SHA-256 values:
 
-- helper-positive-report.json:a0ebf6777ce3e1aaa1ad4376bdc705b1c0ecac8e906d5d0fe12a42d3bb6c7606.
-- helper-negative-restore-report.json:5840c09c1effa036c65a6e2affb391d77e94d539452512aa01b9242d84a5f132.
+- `assessment-report.json`: `3361f1ca30f30b176b83fcf8a85c1dd4426610195f59ee5e8329b5f76f3dd876`.
+- `positive-report.json`: `9428f1c9b530431ee6c3129842dac0d19abddb0005393007ca8dc0350a45312e`.
+- `terrain-cause-report.json`: `23d3540fd5f566cc8be48d9afc54782548d14b7b79ca08e4f093aa654005c145`.
+- `periodic-guard-report.json`: `1d926a38c1ccf728990243c5a3479927a783662a71a5fa6f3a2d5f6795b36a97`.
+- `negative-restore-report.json`: `ba100510d35930b3b37530b10664b6fc2f4bfcf73e10b7b2e19e7e9ca803451e`.
 
-## Opt-in source build
+## Opt-in source build and replay
 
-First build canonical source from your own clean USA ROM using
-`tools/build_public_foundation.py`. The isolated helper below reads a real
-source-build receipt and its frozen project, verifies every authored source and
-hash-protects copied generated-build inputs, retains the pinned modified runtime and clones into a
-fresh ignored folder. It requires the documented unchanged canonical actor/
-canary input hashes, including those retained by 0.2.1/0.2.2; it never reads an
-owner save or changes installed profiles.
-
-From repository root:
+Build canonical source from your own clean USA ROM with
+`tools/build_public_foundation.py`, then use its real source-build receipt:
 
 ```powershell
 python experiments/wrapping-b0/build_experimental_wrapping_b0.py `
@@ -93,28 +110,26 @@ python experiments/wrapping-b0/build_experimental_wrapping_b0.py `
   --rom "D:\My Games\Secret of the Stars (USA).sfc"
 ```
 
-Compilation creates an explicitly non-adoptable experimental receipt under
-`local/experimental-wrapping-b0/`. Compilation does not transfer the private
-candidate's qualification to that new executable. No private checkpoint is
-required to compile and none is supplied. The normal launcher does not select
-this experiment.
+The helper verifies the frozen canonical actor/canary, terrain and header hashes,
+all donor authored inputs and the pinned edited runtime, then clones into a fresh
+ignored `local/experimental-wrapping-b0/` build. Only the experiment-owned copies
+are replaced. The receipt is explicitly non-adoptable. No owner save or profile
+is read or changed; no private checkpoint is required to compile or supplied.
+A new executable needs its own finite qualification rather than copied receipts.
 
-For a developer-owned coherent preallocation checkpoint in the selected world
-resource, use the strict `tools/stage_foundation_checkpoint.py` on a disposable
-copy to record saved-source scene/position and saved entry camera edits **before**
-original actor and tilemap loaders. Do not edit postloader records/OAM/art to
-claim original producer placement. The checked entries were source (0,896),
-camera (3576,784), or source (360,40), camera (232,3576). Run the original loader,
-wait 48, press right/down 1, then wait 1 between each of 12 consecutive dumps. Dump
-commands alone do not advance frames. Preserve fixture and binary hashes and
-compare original/off/on guest views, center, full packet and independent pixels.
-A different checkpoint requires its own original loader/provenance qualification.
+For a coherent developer-owned preallocation checkpoint in this selected world
+resource, use `tools/stage_foundation_checkpoint.py` on a disposable copy to
+record saved scene/position and entry camera edits before original actor and
+tilemap loaders. Checked entries were source `(0,896)`, camera `(3576,784)`, or
+source `(360,40)`, camera `(232,3576)`. Wait 48, press right/down for one frame,
+then wait one between each of twelve consecutive dumps; dumps alone do not
+advance frames. Compare original/off/on/traced-terrain guest views, original
+centers, complete packets and independent art/terrain oracles. A different
+checkpoint requires its own loader/provenance proof. Never fabricate postloader
+records, OAM or graphics to claim original producer placement.
 
-Keep forensic captures separate from paced audio/GPU work. Broader saved-source
-placements, reverse/other-period seams, periodic seam continuity, actor overlap,
-subscreen/color effects, general acquisition and complete campaign coverage
-remain open. This narrow policy is a research seam, not a release recommendation.
-
-Authored project source retains the repository's PolyForm Noncommercial 1.0.0
-license and existing upstream notices; no additional third-party code/assets
-are bundled here.
+Keep forensic captures separate from paced audio/GPU tests. Broader positions,
+ordinary-world applicability, reverse/other-period seams, packet phases, actor
+overlap, color effects, natural acquisition and campaign coverage remain open.
+Authored project source retains PolyForm Noncommercial 1.0.0 and existing notices;
+no additional third-party code or original assets are bundled.

@@ -1,0 +1,71 @@
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -427,6 +427,32 @@
+     InterpPreOpcodeHook hook;
+ } s_pre_opcode_hooks[kInterpPreOpcodeHookSlots];
+ static int s_pre_opcode_hook_count;
++/* Experimental host-only pre-opcode lookup filter. The existing API normalizes
++ * PC keys with 0x7fffff, including its original high-bank alias. Presence is
++ * exact for those normalized keys: 8Mi addresses / 8 = 1MiB. A 4KiB page bitmap
++ * rejects empty 256-byte pages before touching the larger sparse bitset.
++ * The ordered hook loop still owns callbacks, mutation and redirects. No guest
++ * instruction, bus access, clock charge or interrupt boundary is changed. */
++static uint8_t s_pre_opcode_key_present[0x100000];
++static uint64_t s_pre_opcode_page_present[512];
++static int s_pre_opcode_index_enabled = 1;
++static void bridge_pre_opcode_mark_key(uint32_t key) {
++    static int initialized;
++    if (!initialized) {
++        const char *env = getenv("SNESRECOMP_EXPERIMENT_PREOP_INDEX");
++        s_pre_opcode_index_enabled = !env || strcmp(env, "0");
++        initialized = 1;
++        fprintf(stderr, "[pre_opcode_index] normalized_presence=%d\n",
++                s_pre_opcode_index_enabled);
++    }
++    s_pre_opcode_key_present[key >> 3] |= (uint8_t)(1u << (key & 7));
++    s_pre_opcode_page_present[key >> 14] |= UINT64_C(1) << ((key >> 8) & 63);
++}
++static bool bridge_pre_opcode_key_present(uint32_t key) {
++    return (s_pre_opcode_page_present[key >> 14] &
++            (UINT64_C(1) << ((key >> 8) & 63))) &&
++           (s_pre_opcode_key_present[key >> 3] & (1u << (key & 7)));
++}
+ static int s_pre_opcode_redirect_valid;
+ static uint32_t s_pre_opcode_redirect_pc24;
+ static CpuState *s_pre_opcode_callback_cpu;
+@@ -543,6 +569,7 @@
+     if (s_pre_opcode_hook_count>=kInterpPreOpcodeHookSlots) return false;
+     s_pre_opcode_hooks[s_pre_opcode_hook_count].pc24=key;
+     s_pre_opcode_hooks[s_pre_opcode_hook_count].hook=hook;
++    bridge_pre_opcode_mark_key(key);
+     ++s_pre_opcode_hook_count;
+     return true;
+ }
+@@ -551,6 +578,8 @@
+                                        InterpPreOpcodeHook hook) {
+     if (!hook) {
+         s_pre_opcode_hook_count = 0;
++        memset(s_pre_opcode_key_present, 0, sizeof(s_pre_opcode_key_present));
++        memset(s_pre_opcode_page_present, 0, sizeof(s_pre_opcode_page_present));
+         return;
+     }
+     const uint32_t key = pc24 & 0x7FFFFFu;
+@@ -563,6 +592,7 @@
+     if (s_pre_opcode_hook_count < kInterpPreOpcodeHookSlots) {
+         s_pre_opcode_hooks[s_pre_opcode_hook_count].pc24 = key;
+         s_pre_opcode_hooks[s_pre_opcode_hook_count].hook = hook;
++        bridge_pre_opcode_mark_key(key);
+         s_pre_opcode_hook_count++;
+     } else {
+         static int warned;
+@@ -2077,7 +2107,9 @@
+             }
+             qring[steps & 63]=now;
+         }
+-        if (s_pre_opcode_hook_count > 0) {
++        if (s_pre_opcode_hook_count > 0 &&
++            (!s_pre_opcode_index_enabled ||
++             bridge_pre_opcode_key_present(pc_before & 0x7FFFFFu))) {
+             const uint32_t key = pc_before & 0x7FFFFFu;
+             bool redirected = false;
+             for (int hi = 0; hi < s_pre_opcode_hook_count; hi++) {

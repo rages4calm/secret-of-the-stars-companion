@@ -152,6 +152,12 @@ static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
          * so an in-flight one-pixel move never collapses the viewport. */
         cx += ((ppu->hScroll[layer] - (cx & 1023) + 512) & 1023) - 512;
         cy += ((ppu->vScroll[layer] - (cy & 1023) + 512) & 1023) - 512;
+        if (layer == 0) {
+            int full_x, full_y;
+            if (FoundationWideActorsOrdinaryPeriodicRaster(ppu,&full_x,&full_y)) {
+                cx=full_x; cy=full_y;
+            }
+        }
         int wy = cy + (int)line;
         unsigned base = layer ? 0x5800 : 0x4800;
         int first = floor8(cx - 72), last = floor8(cx + 327);

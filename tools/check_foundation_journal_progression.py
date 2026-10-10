@@ -28,7 +28,8 @@ def expected_card(background,font,lead,groups):
     for x in range(8,248):pixel(x,6,0xff809bc8);pixel(x,80,0xff809bc8)
     for y in range(6,81):pixel(8,y,0xff809bc8);pixel(247,y,0xff809bc8)
     lines=[(11,'JOURNAL - HOTKEY: CLOSE',0xffffdf78)]
-    if lead==2:lines += [(29,'Bosen: gather allies',0xfff0f3fa),(45,'to build a town',0xfff0f3fa),(57,'STARCREST: HELD NOW' if groups else 'Find your fellow allies',0xfff0f3fa)]
+    if lead==3:lines += [(29,'Aris: Jeep Volcano',0xfff0f3fa),(45,"Defeat Homncruse's follower",0xfff0f3fa),(57,'STARCREST: HELD NOW' if groups else 'Nearby mountain entrance',0xfff0f3fa)]
+    elif lead==2:lines += [(29,'Bosen: gather allies',0xfff0f3fa),(45,'to build a town',0xfff0f3fa),(57,'STARCREST: HELD NOW' if groups else 'Find your fellow allies',0xfff0f3fa)]
     elif groups:lines += [(29,'STARCREST: HELD NOW',0xfff0f3fa),(45,'In both party packs' if groups==3 else 'In one party pack',0xfff0f3fa),(57,'In your pack now',0xfff0f3fa)]
     elif lead==1:lines += [(29,'Seek the Crest of Stars',0xfff0f3fa),(45,'David: somewhere in',0xfff0f3fa),(57,'the mountain',0xfff0f3fa)]
     else:lines += [(29,'No lead recorded for',0xfff0f3fa),(45,'this chapter.',0xfff0f3fa)]
@@ -45,9 +46,18 @@ def main():
     for name in ('exe','rom','before-state','after-state','output'):p.add_argument('--'+name,type=Path,required=True)
     p.add_argument('--cc',type=Path,default=Path.home()/'.local/share/retcomm/toolchains/cmake-clang-v1/latest/bin/clang.exe')
     p.add_argument('--runtime',type=Path,help='Exact candidate runtime tree, for font oracle and pure-header compilation')
+    p.add_argument('--pennon-before-state',type=Path,help='Optional original pre-award stage-zero checkpoint')
+    p.add_argument('--pennon-after-state',type=Path,help='Optional original post-award stage-zero checkpoint')
     a=p.parse_args()
     a.exe=a.exe.resolve(strict=True);a.rom=a.rom.resolve(strict=True)
     a.before_state=a.before_state.resolve(strict=True);a.after_state=a.after_state.resolve(strict=True)
+    if bool(a.pennon_before_state)!=bool(a.pennon_after_state):
+        raise ValueError('Supply both Pennon checkpoints together')
+    pennon_inputs=[]
+    if a.pennon_before_state:
+        a.pennon_before_state=a.pennon_before_state.resolve(strict=True)
+        a.pennon_after_state=a.pennon_after_state.resolve(strict=True)
+        pennon_inputs=[a.pennon_before_state,a.pennon_after_state]
     out=a.output.resolve()
     if out.exists() or any(out==path or out in path.parents for path in (a.exe,a.rom,a.before_state,a.after_state)):
         raise ValueError('Output must be fresh and separate from input files')
@@ -65,7 +75,16 @@ def main():
     if ar[0x5373:0x53b3]!=b'\xff'*64 or ar[0x4ba:0x4bc]!=bytes((0,32)):
         raise ValueError('After-state must have both original inventories empty')
     font=font_oracle(a.runtime)
-    protected={path:sha(path) for path in (a.exe,a.rom,a.before_state,a.after_state,ROOT/'native/foundation/src/foundation_journal.h',ROOT/'native/foundation/src/foundation_journal.c',a.runtime/'runner/src/snes_overlay_draw.c')}
+    if pennon_inputs:
+        original_pennon=[]
+        for state in pennon_inputs:
+            data=state.read_bytes();ram=data[wram_offset(data):wram_offset(data)+0x20000]
+            if ram[0x20]!=1 or ram[0x5372]!=0:
+                raise ValueError('Pennon checkpoints must be original field-mode stage zero')
+            original_pennon.append(ram)
+        if original_pennon[0][0x5360]&2 or not original_pennon[1][0x5360]&2:
+            raise ValueError('Expected Pennon bit02 absent before and present after')
+    protected={path:sha(path) for path in (a.exe,a.rom,a.before_state,a.after_state,*pennon_inputs,ROOT/'native/foundation/src/foundation_journal.h',ROOT/'native/foundation/src/foundation_journal.c',a.runtime/'runner/src/snes_overlay_draw.c')}
     out.mkdir(parents=True);(out/'runs').mkdir();(out/'staged').mkdir()
     checks={};cases={};receipts={}
     def check(name,value):
@@ -75,7 +94,7 @@ def main():
             raise AssertionError(name)
     unit=out/'stage-unit.c'
     unit.write_text('#include "foundation_journal.h"\n#include <stdio.h>\nint main(void){unsigned n=0;'
-        'for(unsigned s=0;s<256;s++)for(unsigned f=0;f<256;f++){unsigned e=s==1?2:(s==0&&(f&0x40)?1:0);'
+        'for(unsigned s=0;s<256;s++)for(unsigned f=0;f<256;f++){unsigned e=s==1?2:(s==0?(f&2?3:(f&0x40?1:0)):0);'
         'if(FoundationJournalLead(s,f)!=e||FoundationJournalHasLead(s,f)!=(e!=0))return 1;n+=2;}'
         'printf("{\\"passed\\":true,\\"checks\\":%u}\\n",n);return 0;}\n')
     compiled=subprocess.run([str(a.cc),str(unit),'-I',str(ROOT/'native/foundation/src'),'-I',str(a.runtime/'runner/src/desktop'),'-o',str(out/'stage-unit.exe')],capture_output=True,text=True)
@@ -131,10 +150,23 @@ def main():
     def parity(l,r):return all((l/'dump'/f'{prefix}.{ext}').read_bytes()==(r/'dump'/f'{prefix}.{ext}').read_bytes() for prefix in ('shown','hidden') for ext in GUEST)
     def surface(d):return (d/'present.bgrx').read_bytes()
     results={}
-    fixtures={'before':(a.before_state,1 if br[0x5360]&64 else 0,0),'stage1':(a.after_state,2,0),'david':(david,1,0),
+    before_lead=3 if br[0x5360]&2 else 1 if br[0x5360]&64 else 0
+    fixtures={'before':(a.before_state,before_lead,0),'stage1':(a.after_state,2,0),'david':(david,3 if br[0x5360]&2 else 1,0),
         'stage1-first':(first,2,1),'stage1-both':(both,2,3),'later':(later,0,0),
-        'stage0-first':(stage0_first,1 if br[0x5360]&64 else 0,1),
-        'stage0-both':(stage0_both,1 if br[0x5360]&64 else 0,3),'later-first':(later_first,0,1)}
+        'stage0-first':(stage0_first,before_lead,1),
+        'stage0-both':(stage0_both,before_lead,3),'later-first':(later_first,0,1)}
+    if pennon_inputs:
+        before_p,after_p=original_pennon
+        pflags=after_p[0x5360]
+        with_david=manufactured('pennon-with-david',a.pennon_after_state,[f'5360={pflags:02x}:{pflags|64:02x}'])
+        cursor=after_p[0x4ba]
+        if cursor>=32 or after_p[0x5373+cursor]!=0xff:
+            raise ValueError('Pennon after-state needs a free first-party slot for possession control')
+        ppack=manufactured('pennon-possession',a.pennon_after_state,[f'{0x5373+cursor:04x}=ff:40',f'04ba={cursor:02x}:{cursor+1:02x}'])
+        plater=manufactured('pennon-later-stage',a.pennon_after_state,['5372=00:02'])
+        fixtures.update({'pennon-before':(a.pennon_before_state,1 if before_p[0x5360]&64 else 0,0),
+                         'pennon':(a.pennon_after_state,3,0),'pennon-david':(with_david,3,0),
+                         'pennon-possession':(ppack,3,1),'pennon-later':(plater,0,0)})
     for name,(state,lead,groups) in fixtures.items():
         off,_=run(name+'-off',state,0);on,rows=run(name+'-on',state)
         check(name+'_all_guest_register_capture_parity',parity(off,on))
@@ -157,13 +189,30 @@ def main():
     check('actual_checkpoint_load_issued','[overlay_selftest] load issued' in (rollback/'host.log').read_text())
     check('rollback_guest_register_parity',parity(rollback_off,rollback))
     check('rollback_closes_and_next_press_reopens',cases['rollback-on']['shown']==2 and cases['rollback-on']['hidden']==0 and any(81<=int(r['frame'])<=89 and int(r['visible'])==0 for r in rows))
-    before_lead=1 if br[0x5360]&64 else 0
     check('rollback_card_has_no_stale_bosen_copy',surface(rollback)==expected_card(surface(rollback_off),font,before_lead,0))
     original,rows=run('original-view-disabled',a.after_state,original=True)
     check('original_view_override_disables_card',all(int(r['enabled'])==int(r['visible'])==0 for r in rows) and surface(original)==surface(out/'runs/stage1-off') and parity(original,out/'runs/stage1-off'))
+    if pennon_inputs:
+        poff,_=run('pennon-pad-off',a.pennon_after_state,0,'pad')
+        ppad,rows=run('pennon-pad-on',a.pennon_after_state,method='pad')
+        check('pennon_pad_real_toggle',cases['pennon-pad-on']['virtual_pad_attached'] and cases['pennon-pad-on']['shown']==cases['pennon-pad-on']['hidden']==1)
+        check('pennon_pad_guest_and_keyboard_card',parity(poff,ppad) and parity(results['pennon'],ppad) and surface(results['pennon'])==surface(ppad))
+        pcold,rows=run('pennon-cold',a.pennon_after_state)
+        check('pennon_cold_current_state',int(rows[0]['lead_kind'])==3 and parity(pcold,results['pennon']) and surface(pcold)==surface(results['pennon']))
+        proff,_=run('pennon-rollback-off',a.pennon_after_state,0,capture=100,load=a.pennon_before_state)
+        pr,rows=run('pennon-rollback-on',a.pennon_after_state,capture=100,load=a.pennon_before_state)
+        check('pennon_actual_rollback_removes_lead',int(rows[0]['lead_kind'])==3 and all(int(row['lead_kind'])!=3 for row in rows if int(row['frame'])>=81) and '[overlay_selftest] load issued' in (pr/'host.log').read_text())
+        check('pennon_rollback_guest_exact',parity(proff,pr))
+        check('pennon_rollback_clears_and_reopens',cases['pennon-rollback-on']['shown']==2 and any(81<=int(row['frame'])<=89 and int(row['visible'])==0 for row in rows))
+        check('pennon_rollback_card_exact',surface(pr)==expected_card(surface(proff),font,fixtures['pennon-before'][1],0))
+        pv,rows=run('pennon-original-view',a.pennon_after_state,original=True)
+        check('pennon_original_view_exact',all(int(row['enabled'])==int(row['visible'])==0 for row in rows) and parity(pv,out/'runs/pennon-off') and surface(pv)==surface(out/'runs/pennon-off'))
+        next_off,_=run('pennon-to-bosen-off',a.pennon_after_state,0,capture=100,load=a.after_state)
+        next_on,rows=run('pennon-to-bosen-on',a.pennon_after_state,capture=100,load=a.after_state)
+        check('chapter_restore_replaces_pennon_with_bosen',int(rows[0]['lead_kind'])==3 and all(int(row['lead_kind'])==2 for row in rows if int(row['frame'])>=81) and parity(next_off,next_on) and surface(next_on)==expected_card(surface(next_off),font,2,0))
     check('all_input_binary_rom_checkpoint_and_source_hashes_unchanged',all(sha(path)==digest for path,digest in protected.items()))
     from PIL import Image,ImageDraw
-    contact=Image.new('RGB',(256*3,244*3),'#080e1c');draw=ImageDraw.Draw(contact)
+    contact=Image.new('RGB',(256*3,244*((len(fixtures)+2)//3)),'#080e1c');draw=ImageDraw.Draw(contact)
     for i,name in enumerate(fixtures):
         image=Image.frombytes('RGB',(256,224),surface(results[name]),'raw','BGRX');image.save(results[name]/'present.png')
         x,y=(i%3)*256,(i//3)*244;contact.paste(image,(x,y+20));draw.text((x+4,y+4),name,fill='white')
@@ -172,7 +221,7 @@ def main():
         'protected_inputs':{str(k):v for k,v in protected.items()},'staging':receipts,'pure_predicate':pure,
         'limits':['Supplied private original-event checkpoints; natural route and event provenance must be documented separately.',
             'Manufactured inventory and later-stage controls are host/predicate tests, not original awards or campaign counts.',
-            'Stage one is a current Bosen advice card; no Crest completion, persistent history or exhaustive stage-entry claim.',
+            'Stage-zero Pennon and stage-one Bosen cards are current advice; no Crest completion, persistent history or exhaustive stage-entry claim.',
             'Real SDL keyboard/indexed virtual-controller events; physical controller and paced GPU/audio remain separate.',
             'Original View checks its launcher-equivalent Journal=0 override, not a new launcher route certification.']}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n')

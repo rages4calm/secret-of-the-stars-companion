@@ -1,6 +1,30 @@
-# Validation scope — 2026-10-09
+# Validation scope — 2026-10-10
 
-## Current native 0.2.2
+## Current native 0.2.3 / Companion 0.3.0
+
+Exact executable `25d1c85c6bd0e78bc6dbad74e66c693046ec3088458982965934e99e1441e617`
+adds current-stage Aris/Pennon advice and selected ordinary forward-boundary
+terrain authentication. The compiled receipt remains `compiled_unqualified`;
+the following private exact-artifact checks provide separate qualification.
+
+The journal passes 225 gates across 44 copied native runs and 131,072 pure
+predicate assertions. Two actual staged overworld forward crossings pass 588
+guest comparisons, 28 original centers, 26 full completed-packet matches and
+64,512 independently decoded original terrain-margin pixels. Fourteen separate
+refusal/cold/restore replays pass 161 guest comparisons and 23 centers, including
+both real B0 sources refused and same-process cache reset/reacquisition.
+Ordinary actor margins, B0 allocation and guest CPU accounting remain original.
+
+Eight input/QoL/menu/checkpoint suites, 249 map gates, 78 ordinary actor gates
+and 78 optional frame-art checks pass. Four paced Direct3D menu/walking/journal
+routes stay near 60 fps with zero steady audio-loss counters. The unchanged
+GUI0.3.0 passes 60 adoption, 31 GUI/settings, 52 actual0.2.2-to-0.2.3
+update/rollback and 41 checks across six launch routes. These finite checks do
+not certify physical controllers, natural campaign progression, reverse seams
+or a universal host performance guarantee.
+[Current continuation and artifact limits](FOUNDATION-CONTINUATION-2026-10-10.md).
+
+## Earlier native 0.2.2
 
 Exact executable `66bd32140d39f464b0b5f5ef8ba6193d880dd79be274c90fdb373809a9a7614b`
 adds current chapter-one Bosen advice without persistent quest history.
@@ -66,10 +90,20 @@ The module is outside canonical source/builds and normal Companion adoption.
 Installed native/Companion artifacts are unchanged.
 [Exact integration and limits](FOUNDATION-B0-LIVE-INTEGRATION-2026-10-09.md).
 
-## Current Companion 0.3.0
+## Earlier Companion 0.3.0 against native0.2.2
 
 The exact self-contained GUI has SHA-256
 `44e6df260925c91b25882bb4be29107bfc7672b3ef52bf06a9baf54068c0bb07`.
+Against native 0.2.2 it passes 60 source-adoption checks, 31 GUI/settings checks,
+52 actual 0.2.1-to-0.2.2 profile-update/selection-rollback checks and 43 checks
+across six source/legacy Play, Original View and Resume routes. All 140 protected
+files remain unchanged. These finite silent launch checks add no audio,
+physical-controller or campaign qualification. Source receipts retain their
+compiled_unqualified status. See the [current progression record](FOUNDATION-PROGRESSION-2026-10-09.md).
+
+## Earlier Companion 0.3.0 packaging qualification
+
+The same GUI's earlier qualification used native 0.2.0.
 It passed 52 profile update/rollback checks, 60 source-first backend checks,
 31 QoL GUI checks, and 55 legacy backend/nine GUI checks plus six launch routes.
 Actual 180-frame copied-checkpoint restores ran after update and rollback,

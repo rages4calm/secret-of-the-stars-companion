@@ -34,7 +34,7 @@ def main():
     if sha(base/'build/SecretOfTheStarsSNESRecomp.exe') != receipt['executable_sha256']: raise ValueError('Canonical executable changed.')
     for name, digest in manifest.items():
         if sha(source/name) != digest or sha(base/'project'/name) != digest: raise ValueError('Canonical source changed: '+name)
-    expected_baseline = {'src/foundation_wide_actors.c': '69348ed2de92fe69fc3b4cb73e6cf84c504979b2cde8d0df729840ec4476eb7a', 'src/foundation_large_actor_canary.c': '76bc6a53a27de0a858a677a67c07a61a4617f65dc72522396320c4739e04c8b0', 'src/foundation_large_actor_canary.h': '070dabbc102889f198082f111820be19809d430df6c5666ed368e53e948545f4'}
+    expected_baseline = {'src/foundation_wide_actors.c': '69348ed2de92fe69fc3b4cb73e6cf84c504979b2cde8d0df729840ec4476eb7a', 'src/foundation_large_actor_canary.c': '76bc6a53a27de0a858a677a67c07a61a4617f65dc72522396320c4739e04c8b0', 'src/foundation_large_actor_canary.h': '070dabbc102889f198082f111820be19809d430df6c5666ed368e53e948545f4', 'src/foundation_wide.c': '1dffc24ae5b4222f2b4f337530e39ad08804fc589ae1105c4e1345b604374af8', 'src/foundation_wide_actors.h': '9cef473607a2ffbf9534d33d841eb041c1ae41a069a30f7f0833e54b6daed763'}
     if any(manifest.get(n)!=h for n,h in expected_baseline.items()):
         raise ValueError('This prototype requires the documented unchanged 0.2.1/0.2.2 actor/canary inputs.')
     cache = {}
@@ -49,7 +49,7 @@ def main():
     if changed != set(marker['patched_sources']): raise ValueError('Unexpected runtime edits; preserved without reset.')
     protected = {p:sha(p) for p in [Path(__file__),rom,base_receipt,base/'build/SecretOfTheStarsSNESRecomp.exe',marker_path,
         *(base/'project').rglob('*')] if p.is_file()}
-    experimental_names = ('foundation_wide_actors.c','foundation_large_actor_canary.c','foundation_large_actor_canary.h')
+    experimental_names = ('foundation_wide_actors.c','foundation_large_actor_canary.c','foundation_large_actor_canary.h','foundation_wide.c','foundation_wide_actors.h')
     experimental_inputs = {HERE/name: sha(HERE/name) for name in experimental_names}
     protected.update(experimental_inputs)
     out = ROOT/'local/experimental-wrapping-b0'/time.strftime('%Y%m%d-%H%M%S'); out.mkdir(parents=True,exist_ok=False)
@@ -62,7 +62,7 @@ def main():
     module = HERE/experimental_names[0]
     for path in experimental_inputs:
         shutil.copy2(path,project/'src'/path.name)
-    version = 'private-wrap-parked-v1'
+    version = 'private-wrap-periodic-v2'
     env=os.environ.copy(); env['PATH']=str(Path(cache['CMAKE_C_COMPILER']).parent)+';'+str(Path(cache['CMAKE_MAKE_PROGRAM']).parent)+';'+env.get('PATH','')
     configure=[cache.get('CMAKE_COMMAND',shutil.which('cmake')),'-S',str(project),'-B',str(out/'build'),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
         '-DCMAKE_C_COMPILER='+cache['CMAKE_C_COMPILER'],'-DCMAKE_CXX_COMPILER='+cache['CMAKE_CXX_COMPILER'],'-DCMAKE_MAKE_PROGRAM='+cache['CMAKE_MAKE_PROGRAM'],
