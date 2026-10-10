@@ -5,14 +5,18 @@
 
 /* Bitmask of mutable current inventory evidence, not completed quests.
  * The original item lookup uses these two 32-byte blocks. */
-static inline unsigned JournalPossessionGroups(const uint8_t *ram, size_t size) {
+static inline unsigned JournalItemGroups(const uint8_t *ram, size_t size, unsigned item) {
     unsigned groups = 0;
     if (!ram || size < 0x53b3) return 0;
     for (unsigned group = 0; group < 2; ++group)
         for (unsigned slot = 0; slot < 32; ++slot)
-            if (ram[0x5373 + group * 32 + slot] == 0x40)
+            if (ram[0x5373 + group * 32 + slot] == item)
                 groups |= 1u << group;
     return groups;
+}
+
+static inline unsigned JournalPossessionGroups(const uint8_t *ram, size_t size) {
+    return JournalItemGroups(ram, size, 0x40);
 }
 
 /* Bounded interpretation of original state, never persistent native history.
@@ -25,7 +29,20 @@ static inline unsigned FoundationJournalLead(unsigned stage, unsigned flags) {
     if (stage == 0 && (flags & 0x02) != 0) return 3;
     if (stage == 0 && (flags & 0x40) != 0) return 1;
     if (stage == 1) return 2;
+    if (stage == 2) return 5;
+    if (stage == 3) return 4;
     return 0;
+}
+
+/* Original0755: introductory stage1/flag02 (FA02 -> bit20), then type2
+ * accepts current chapters <=2. Original01D406 looks for6D in the ACTIVE
+ * 32-slot pack only. Chapter2 independently selects the return branch;
+ * challenge bit80 is not a victory or award flag. */
+static inline unsigned FoundationJournalBadbadRoute(unsigned stage, unsigned flags,
+                                                    unsigned dog_groups, unsigned active_pack) {
+    if (!(stage == 2 || (stage == 1 && (flags & 0x20)))) return 0;
+    if (dog_groups & (1u << (active_pack != 0))) return 2;
+    return dog_groups ? 3 : 1;
 }
 
 static inline int FoundationJournalHasLead(unsigned stage, unsigned flags) {

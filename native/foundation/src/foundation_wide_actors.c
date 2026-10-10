@@ -86,6 +86,31 @@ static int WorldDistance(int value, int center) {
     if (d >= 1792) d -= 3584;
     return d;
 }
+/* Original CEF7..CF88 saved ordinary vehicle allocation, before DAxx/DE82.
+ * The selected resource is checked by WrappingResource; this checks only its
+ * exact parked record relation. A simultaneous unqualified B0 remains refused. */
+static int KnownWrappingOrdinaryVehicle(void) {
+    if (R16(0x543f) || !R16(0x5441) || (g_ram[0x409] != 0 && g_ram[0x409] != 2)) return 0;
+    unsigned x=R16(0x5449),y=R16(0x5453),shadow=!!(g_ram[0x5457]&0x40);
+    if (x>=3584 || y>=3584) return 0;
+    for (unsigned i=0;i<kRegular;++i) {
+        unsigned at=0x4100+25*i;
+        if (i<2) {
+            if (g_ram[at]!=(i?0:2) || R16(at+1)!=1536 ||
+                R16(at+3)!=(i?544:528) || R16(at+5)!=0x598) return 0;
+        } else if (i==17 || (i==15 && shadow)) {
+            unsigned cy=i==17&&shadow?(y+3584-32)%3584:y;
+            if (g_ram[at]!=2 || R16(at+1)!=x || R16(at+3)!=cy ||
+                R16(at+5)!=(i==17?0xa0:0xa8)) return 0;
+        } else if (g_ram[at]!=255) return 0;
+    }
+    for (unsigned i=0;i<kParty;++i) {
+        unsigned at=0x4000+18*i,base=R16(at+3);
+        unsigned gfx=base+2*g_ram[at]+(g_ram[at+10]>>7);
+        if (g_ram[at]!=255 && (base==0xb0 || (gfx&0xfff8)==0xa8 || g_ram[at]>3)) return 0;
+    }
+    return 1;
+}
 static int WrappingResource(const Ppu *ppu) {
     if (!g_ram[0x407]) return 0;
     if (!ppu || !g_snes || !g_snes->dma || R16(0x40e) || g_ram[0x407] != 1 ||
@@ -98,7 +123,7 @@ static int WrappingResource(const Ppu *ppu) {
         ppu->bgmode != 9 || PPU_mosaicSize(ppu) > 1 || ppu->setini) return 0;
     for (unsigned i = 0; i < 8; ++i)
         if (g_snes->dma->channel[i].hdmaActive) return 0;
-    if (LargeWrappingParked(g_ram,131072)) return 1;
+    if (LargeWrappingParked(g_ram,131072) || KnownWrappingOrdinaryVehicle()) return 1;
     /* No arbitrary other ordinary allocations become qualified by flags. */
     for (unsigned i = 0; i < kRegular; ++i) {
         unsigned at = 0x4100 + 25 * i;
@@ -236,16 +261,17 @@ static LargeView LargeInput(const Ppu *ppu) {
         Scene(ppu)};
 }
 
-/* Exact original signed-travel initializer: the A8 party-0 shadow occupies
- * fixed compact slots 124..127, while party-1 B0 writes fixed slots 0/1.
- * This is not a general A8 acceptance rule or a new sprite activation policy.
- * The original 01:D95A cursor save/restore means the proxy never advances 046B.
- * Checked original primary-party mode and fixed center coordinates only. */
+/* Original signed vehicle initializers share a centered A8 reserved shadow.
+ * Mode82/B0 keeps the established fixed slots0/1 contract. Mode42/A0 uses
+ * an ordinary four-piece body at packed128,80 and preserves append ordering.
+ * Only exact primary-party allocations are admitted; no general A8 rule. */
 static int KnownTravelProxy(unsigned index) {
-    return !g_ram[0x407] && index == 0 && g_ram[0x409] == 0x82 && g_ram[0x4b6] == 0 &&
+    int large = !g_ram[0x407] && g_ram[0x409] == 0x82;
+    int ordinary = g_ram[0x409] == 0x42 && g_ram[0x407] <= 1;
+    return (large || ordinary) && index == 0 && g_ram[0x4b6] == 0 &&
         g_ram[0x4000] <= 3 && g_ram[0x4000] == g_ram[0x4012] &&
-        R16(0x4003) == 0xa8 && R16(0x4015) == 0xb0 &&
-        R16(0x4001) == 0x7080 && R16(0x4013) == 0x4078 &&
+        R16(0x4003) == 0xa8 && R16(0x4015) == (large ? 0xb0 : 0xa0) &&
+        R16(0x4001) == 0x7080 && R16(0x4013) == (large ? 0x4078 : 0x5080) &&
         g_ram[0x4005] == 0 && g_ram[0x4017] == 0 &&
         g_ram[0x4009] == g_ram[0x4000] && g_ram[0x401b] == 0x42 &&
         g_ram[0x4024] == 255 && g_ram[0x4036] == 255 && g_ram[0x4048] == 255;
@@ -275,7 +301,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             unsigned at = 0x4000 + i * 18;
             if (g_ram[at] != 255) {
                 unsigned base = R16(at + 3), gfx = base + g_ram[at] * 2 + (g_ram[at + 10] >> 7);
-                if ((g_ram[0x407] && (base == 0xb0 || (gfx & 0xfff8) == 0xa8)) ||
+                if ((g_ram[0x407] && (base == 0xb0 ||
+                    ((gfx & 0xfff8) == 0xa8 && !KnownTravelProxy(i)))) ||
                     (base != 0xb0 && (g_ram[at] > 3 ||
                     ((gfx & 0xfff8) == 0xa8 && !KnownTravelProxy(i)) ||
                     gfx >= (0xd800 - 0x9800) / 8))) sequence = 0;
@@ -561,7 +588,7 @@ int FoundationWideActorsPeriodicRaster(const Ppu *source, int *world_x, int *wor
         unsigned at=0x4000+i*18;
         if (g_ram[at] != 255) {
             unsigned base=R16(at+3),gfx=base+g_ram[at]*2+(g_ram[at+10]>>7);
-            if (base==0xb0 || (gfx&0xfff8)==0xa8 || g_ram[at]>3 ||
+            if (base==0xb0 || ((gfx&0xfff8)==0xa8 && !KnownTravelProxy(i)) || g_ram[at]>3 ||
                 gfx >= (0xd800-0x9800)/8) return 0;
         }
     }

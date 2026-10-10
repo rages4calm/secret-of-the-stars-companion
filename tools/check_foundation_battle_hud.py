@@ -39,7 +39,7 @@ def main():
       at=(y*w+x)*4
       if old[at:at+4]!=new[at:at+4]:differences.append((x,y))
     checks[tag+'_hud_draws']=bool(differences)
-    left=4 if wide else 8;right=68 if wide else 248;bottom=6+(40+len(records)*42 if wide else 24+len(records)*18)
+    left=4 if wide else 8;right=68 if wide else 248;bottom=6+(28+len(records)*42 if wide else 24+len(records)*18)
     # Scale2x can modify one adjacent source-pixel decision at a panel edge.
     checks[tag+'_all_changes_in_panel_bounds']=all((left-1)*factor<=x<(right+1)*factor and 5*factor<=y<(bottom+1)*factor for x,y in differences)
     if wide:

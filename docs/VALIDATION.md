@@ -1,6 +1,16 @@
 # Validation scope — 2026-10-10
 
-## Current native0.2.4 / Companion0.3.1
+## Current native0.2.5 / Companion0.3.1
+
+Exact native `2e107b94ae23c0f5d3e45369c967a3c2cef8bb65b01aa23d753af0832adb56ea` and unchanged GUI
+`c644b4f27b7c8763aff490ad6f2a85e30930fd4e94fe2d18c4831d5ddf8129a7` pass focused copied-artifact qualification.
+HUD cleanup, broader original vehicle rendering and current quest directions are
+covered separately from source compilation, campaign and physical hardware.
+Fresh source receipts remain compiled_unqualified. All121 owner data/settings
+files and both ROMs are preserved. [Current checks and precise limits](FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md).
+
+
+## Earlier native0.2.4 / Companion0.3.1
 
 The exact native `8de664644c6edfe3a34daddc402536646a8cbdb896a041fc11ad85203caa2de5` and GUI
 `c644b4f27b7c8763aff490ad6f2a85e30930fd4e94fe2d18c4831d5ddf8129a7` bundle passes separate journal, HP-bar/sidebar,

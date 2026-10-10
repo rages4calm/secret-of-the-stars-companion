@@ -5,6 +5,7 @@ This package is a source-first launcher; native compilation still needs tools.
 """
 from pathlib import Path, PurePosixPath
 import argparse, hashlib, json, subprocess, zipfile
+from check_public_source import DOCUMENTATION_CAPTURES
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN = {'.sfc', '.smc', '.srm', '.sav', '.state', '.dll', '.pcm', '.wav', '.ogg', '.png', '.jpg', '.pdb', '.obj', '.bin'}
@@ -33,7 +34,9 @@ def main():
     entries = {}
     for name in names:
         parts = PurePosixPath(name)
-        if parts.is_absolute() or '..' in parts.parts or parts.suffix.lower() in FORBIDDEN or parts.suffix.lower()=='.exe':
+        if (parts.is_absolute() or '..' in parts.parts
+                or (parts.suffix.lower() in FORBIDDEN and name not in DOCUMENTATION_CAPTURES)
+                or parts.suffix.lower()=='.exe'):
             raise ValueError('Forbidden package source: '+name)
         path = ROOT/name
         if path.is_symlink(): raise ValueError('Linked package source: '+name)
@@ -45,7 +48,7 @@ def main():
         'source_manifest_sha256':digest(entries['Companion/authored-files.json']),
         'files':{name:digest(value) for name,value in sorted(entries.items())},
         'game_data_included':False,'native_game_included':False,
-        'limits':'ROM-free self-contained GUI and authored source. Native source build needs an owned ROM and development tools; no gameplay qualification is implied.'}
+        'limits':'ROM-free self-contained GUI, authored source and five reviewed documentation captures. Native source build needs an owned ROM and development tools; no gameplay qualification is implied.'}
     entries['portable-companion.json'] = (json.dumps(metadata,indent=2)+'\n').encode()
     output.parent.mkdir(parents=True,exist_ok=True)
     with zipfile.ZipFile(output,'x',compression=zipfile.ZIP_DEFLATED) as archive:
@@ -55,7 +58,7 @@ def main():
         assert all(archive.read(name)==value for name,value in entries.items())
     result={'passed':True,'archive_sha256':digest(output.read_bytes()),'archive':str(output),
         'files':len(entries),'companion_sha256':digest(data),'version':receipt['version'],
-        'publication_check':check,'boundary':'Authored source plus one ROM-free GUI EXE; no native game, ROM, assets, generated code or profiles'}
+        'publication_check':check,'boundary':'Authored source, five reviewed documentation captures and one ROM-free GUI EXE; no native game, ROM, extracted asset packs, generated code or profiles'}
     output.with_suffix('.receipt.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result,indent=2))
 

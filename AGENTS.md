@@ -1,3 +1,19 @@
+# Current source continuation - native0.2.5 / Companion0.3.1 (2026-10-10)
+
+Read docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md first, then README/BUILDING/ROADMAP/docs/VALIDATION.
+The generic HUD footer is removed; assigned actions stay in Companion Hotkeys.
+Original driving/parked vehicle and verified current journal advice are extended.
+Preserve selected resource/raster/completed544 packet, guest/center and restore
+guards. Unknown contexts retain fallback; staged original producers are separate
+from natural campaign. Challenge/possession flags do not certify completion or
+durable history. Runtime/ABI and GUI0.3.1 remain unchanged. Preserve both real
+compiled_unqualified receipts, owner data and copied-EXE test isolation.
+CPU experiments remain archived; optional map remains proposed. Broader story,
+party/effect contexts and verified later chapter/Crest advice remain next.
+Earlier blocks retain historical artifact scopes.
+
+---
+
 # Current source continuation - native0.2.4 / Companion0.3.1 (2026-10-10)
 
 Read docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md first, then README,

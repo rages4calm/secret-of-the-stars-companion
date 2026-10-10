@@ -20,6 +20,8 @@ Do not distribute the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
 
+The [native0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) adds another original driving/parked vehicle family with original-producer, packet/raster, independent art and restore checks. Unknown contexts retain fallback; natural acquisition and fullcampaign remain open.
+
 The [native0.2.4 bundle](docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md)
 authenticates selected overworld packet/raster/resource identity on both
 horizontal and vertical axes in both directions. Original saved parked
@@ -44,6 +46,8 @@ Natural Algos acquisition and later world-map story entry remain separate from
 staged execution. Experimental build receipts stay refused by normal Setup.
 
 ## 3. Expand the quest journal
+
+The [native0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) expands current quest directions from original dialogue and item conditions. Challenge flags and mutable item possession remain separate from durable completion/history.
 
 The integrated current-Starcrest-possession card reads both original inventories
 and recomputes after restore. It is useful current-state evidence, while the

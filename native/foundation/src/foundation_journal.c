@@ -125,7 +125,33 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         for (unsigned slot = 0; slot < 32; ++slot)
             used[pack] += g_ram[0x5373 + pack * 32 + slot] != 0xff;
     const char *objective[2], *route[2], *progress;
-    if (lead == 3) {
+    unsigned town_route = FoundationJournalBadbadRoute(g_ram[0x5372], g_ram[0x5360],
+        JournalItemGroups(g_ram, 0x20000, 0x6d), g_ram[0x4b6]);
+    if (town_route) {
+        objective[0] = "Stop Badbad's dog spell.";
+        objective[1] = "Recover the Dog Pill.";
+        route[0] = "Badbad-House is in";
+        route[1] = "the south part of town.";
+        progress = "Town's current plea";
+        if (town_route >= 2) {
+            objective[0] = town_route == 2 ? "Return with the Dog Pill." : "Switch to the Dog Pill pack.";
+            objective[1] = "Help the townspeople.";
+            route[0] = "Speak to the person who";
+            route[1] = "asked you to stop Badbad.";
+            progress = town_route == 2 ? "DOG PILL: CURRENT PACK" : "DOG PILL: OTHER PARTY PACK";
+        }
+    } else if (lead == 4) {
+        objective[0] = "Rescue the kidnapped kids.";
+        objective[1] = "Face the Ringo Brothers.";
+        route[0] = "Speak to the town's mayor.";
+        route[1] = "Ask about the Ringo Bros.";
+        progress = "Town's current chapter";
+        if (g_ram[0x5360] & 0x80) {
+            route[0] = "Ringo Bros' hide-out lies";
+            route[1] = "south of the mayor.";
+            progress = "Mayor's current advice";
+        }
+    } else if (lead == 3) {
         objective[0] = "Defeat Homncruse's follower";
         objective[1] = "in Jeep Volcano.";
         route[0] = "Enter the nearby mountain.";
@@ -180,7 +206,7 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
                         groups ? "STARCREST: ONE PACK" : "STARCREST: NOT HELD NOW";
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 166, crest, muted, 1);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 184,
-                       "HOTKEY: CLOSE - GAME RUNNING", gold, 1);
+                       "GAME RUNNING", gold, 1);
 }
 
 void FoundationJournalShutdown(void) {

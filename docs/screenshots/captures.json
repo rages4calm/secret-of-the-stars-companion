@@ -1,0 +1,60 @@
+{
+  "scope": "Five actual owner-requested documentation captures. No mockups or replacement artwork. Native0.2.5; unchanged Companion0.3.1.",
+  "captures": {
+    "docs/screenshots/widescreen-world.png": {
+      "title": "Wider world, including original vehicles",
+      "sha256": "c63f1dcfa0d1d8fcc7173bb2f2077c79748b2d19adb446379aa50874c261563c",
+      "dimensions": [
+        1200,
+        672
+      ],
+      "application_version": "native0.2.5",
+      "application_sha256": "2e107b94ae23c0f5d3e45369c967a3c2cef8bb65b01aa23d753af0832adb56ea",
+      "caption": "A true 400-pixel scene shows terrain and an original parked vehicle beyond the original viewport. Selected-resource, completed-packet and raster guards preserve the original center; unsupported scenes use the original view. This is an isolated staged development checkpoint, not a naturally completed campaign."
+    },
+    "docs/screenshots/battle-health-sidebar.png": {
+      "title": "Battle health at a glance",
+      "sha256": "15bbb01557b1051244313149fd84b992dd7cca18aa9ee610cbd6e10aa13bf7f0",
+      "dimensions": [
+        1200,
+        672
+      ],
+      "application_version": "native0.2.5",
+      "application_sha256": "2e107b94ae23c0f5d3e45369c967a3c2cef8bb65b01aa23d753af0832adb56ea",
+      "caption": "The optional native battle sidebar displays enemy HP and health bars beside the original battle view. Hide or show it with your assigned keyboard/controller action in Companion Hotkeys. The redundant HUD-key footer has been removed."
+    },
+    "docs/screenshots/quest-journal.png": {
+      "title": "Quest directions while the game runs",
+      "sha256": "7821dcfab0b3c4443ab063c63fa35a1007f4236766d3eacd25c3258672a81325",
+      "dimensions": [
+        1200,
+        672
+      ],
+      "application_version": "native0.2.5",
+      "application_sha256": "2e107b94ae23c0f5d3e45369c967a3c2cef8bb65b01aa23d753af0832adb56ea",
+      "caption": "The journal shows an objective, route advice and current progress from verified original dialogue and flags. This Mayor/Ringo clue was executed through the original event after a staged chapter prerequisite. Further chapters and permanent quest history remain in development."
+    },
+    "docs/screenshots/companion-enhancements.png": {
+      "title": "Choose your own pace",
+      "sha256": "592f8c2f1940bdf13f777545267cd37e9aa003bb01220b7dd9c6738d8ba00647",
+      "dimensions": [
+        1136,
+        799
+      ],
+      "application_version": "Companion0.3.1",
+      "application_sha256": "c644b4f27b7c8763aff490ad6f2a85e30930fd4e94fe2d18c4831d5ddf8129a7",
+      "caption": "Separate XP and gold modifiers range from 100% to 1000%; held ordinary movement boost ranges from 100% to 300%. Faster menus, enemy HP information and the journal are configurable. These are example settings from an isolated profile."
+    },
+    "docs/screenshots/companion-hotkeys.png": {
+      "title": "Keyboard and controller hotkeys",
+      "sha256": "28a3a33763596758cb8ea0dba4356e92c5cf2251932d8ec71ae77952254e6489",
+      "dimensions": [
+        1136,
+        799
+      ],
+      "application_version": "Companion0.3.1",
+      "application_sha256": "c644b4f27b7c8763aff490ad6f2a85e30930fd4e94fe2d18c4831d5ddf8129a7",
+      "caption": "Assign fullscreen, HUD, journal, movement boost, checkpoints and more to keyboard/controller actions. Fast-forward supports hold or toggle. These are example custom bindings; game-button mapping has its own Controls page."
+    }
+  }
+}
