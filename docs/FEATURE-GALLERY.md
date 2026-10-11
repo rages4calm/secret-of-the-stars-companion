@@ -1,6 +1,6 @@
 # Secret of the Stars: PC feature gallery
 
-Actual captures from native **0.2.5** and Companion **0.3.1**. These show additions to the original SNES release: wider scenery, a battle HP sidebar, quest guidance, adjustable rewards and movement, and configurable PC/controller hotkeys.
+Six actual captures: five from native **0.2.5** / Companion **0.3.1**, plus the navigation map from native **0.2.6**. These show additions to the original SNES release: wider scenery, a battle HP sidebar, quest guidance, adjustable rewards and movement, and configurable PC/controller hotkeys.
 
 This is an early playable foundation. Complete native/AOT game execution and full-campaign widescreen coverage remain unfinished. Gameplay captures use isolated development checkpoints; launcher captures show example settings. Original artwork belongs to the game's rightsholders; no extracted art pack or game data is distributed here.
 
@@ -34,4 +34,16 @@ Separate XP and gold modifiers range from 100% to 1000%; held ordinary movement 
 
 Assign fullscreen, HUD, journal, movement boost, checkpoints and more to keyboard/controller actions. Fast-forward supports hold or toggle. These are example custom bindings; game-button mapping has its own Controls page.
 
-[Build from your own ROM](../BUILDING.md) · [Current implementation and validation limits](FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) · [Capture hashes and provenance](screenshots/captures.json).
+[Build from your own ROM](../BUILDING.md) · [Current implementation and validation limits](FOUNDATION-NAVIGATION-MAP-2026-10-11.md) · [Capture hashes and provenance](screenshots/captures.json).
+
+## Position, towns and a verified destination
+
+![Navigation map](screenshots/navigation-map.png)
+
+Gold marks your position, cyan marks original town entrances, and the optional
+pink destination blinks. This is actual native0.2.6 output from a copied original
+Morgan payment/world-return route with staged prerequisites. The terrain,
+position and Decatas marker are checked independently against original data.
+Local maps show current-area terrain and position. Assigned Map bindings and the
+objective toggle live in Companion. The preceding five images retain their
+native0.2.5/Companion0.3.1 capture scope.

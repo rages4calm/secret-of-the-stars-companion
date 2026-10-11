@@ -1,7 +1,7 @@
 {
-  "snapshot_date": "2026-10-10",
-  "native_version": "0.2.5",
-  "companion_version": "0.3.1",
+  "snapshot_date": "2026-10-11",
+  "native_version": "0.2.6",
+  "companion_version": "0.3.2",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
   "runtime_patch_sha256": "526f7d87b5cf736ce8b57da9db5f4435cce8d33ed1686a587a6a02ca66d73318",
@@ -16,5 +16,6 @@
     "color-lut/LICENSE-POLYFORM-NONCOMMERCIAL-1.0.0.txt": "540ade389a94d810b7dd63ceaaf429c274ded672cc2bf17781e2cc9bc59efb6f",
     "color-lut/README.md": "3528d1637feae2e8773d637ed04a11067d4a5b2226fd5b34742432cdd1908855"
   },
-  "limits": "Authored source snapshot only. ROM, generated game bodies, extracted assets and private qualification data are excluded."
+  "limits": "Authored source snapshot only. ROM, generated game bodies, extracted assets and private qualification data are excluded.",
+  "host_navigation_patch_sha256": "91fea10b53d3eca67364eceebfb802a2c1c79432ff7424d02c5f8755438dc028"
 }

@@ -65,11 +65,14 @@ The [Crest assessment](docs/FOUNDATION-JOURNAL-CREST-ASSESSMENT-2026-10-09.md)
 establishes item identity and generic insertion/removal, but not the title-specific
 award or durable completion event. Opening victories are not a Crest fixture.
 
-An optional navigation map is a proposed companion to the journal. The original
-game provides no built-in map screen ([player account](https://www.grouvee.com/games/384353-tecmo-secret-of-the-stars/)); its
-[booklet](https://www.videogamemanual.com/snes/Tecmo%20Secret%20of%20the%20Stars%20%28USA%29.pdf) includes a printed world map. A new map should read owned game geometry,
-show a verified player position, and distinguish visited locations from optional
-spoiler information; controls must be assignable on keyboard and controller.
+The optional navigation map now shows original current-area terrain and your
+position, world-town markers, and an independently configurable blinking
+objective marker only when original quest evidence identifies a destination.
+Keyboard/controller actions are assignable. Terrain is built incrementally and
+cached; opening/reopening and paired audio checks are recorded separately from
+host-only tests. Broader maps, story conditions and hardware remain to qualify.
+No visited history or guessed route markers are shown.
+[Map and chapter-four/five update](docs/FOUNDATION-NAVIGATION-MAP-2026-10-11.md).
 
 ## 4. Audio and presentation polish
 

@@ -17,6 +17,7 @@ public static class HotkeyCatalog
         new("Fullscreen", "Fullscreen", "Alt+Return,F11,F12", "None"),
         new("BattleInfo", "Battle information", "H", "R3"),
         new("Journal", "Quest journal", "J", "L3"),
+        new("Map", "Current-area map", "M", "Back+L3"),
         new("Reset", "Restart game", "Ctrl+R", "None"),
         new("Pause", "Pause", "Shift+P", "None"),
         new("PauseDimmed", "Pause and dim screen", "P", "None"),
@@ -56,6 +57,23 @@ public static class HotkeyCatalog
     }
     public static bool IsUnbound(string token) => string.IsNullOrWhiteSpace(token) || token.Equals("None", StringComparison.OrdinalIgnoreCase) || token.Equals("(unbound)", StringComparison.OrdinalIgnoreCase);
 
+    public static string NormalizeBindingToken(string token, bool controller)
+    {
+        token = token.Trim();
+        if (controller) return string.Join('+', token.Split('+').Select(p => p.Trim().Equals("Lb", StringComparison.OrdinalIgnoreCase) ? "L1" : p.Trim().Equals("Rb", StringComparison.OrdinalIgnoreCase) ? "R1" : p.Trim()).OrderBy(p => p, StringComparer.OrdinalIgnoreCase));
+        var modifiers = Regex.Match(token, @"^(?:(?:Ctrl|Alt|Shift)\+)+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Value;
+        return string.Join('+', modifiers.Split('+', StringSplitOptions.RemoveEmptyEntries).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).Append(token[modifiers.Length..]));
+    }
+
+    public static bool MapDefaultTaken(GameSettings settings, string candidate, bool controller)
+    {
+        var target = NormalizeBindingToken(candidate, controller);
+        var values = Actions.Where(a => a.Id is not ("Map" or "ControlsP2") && (controller || a.Id != "Controls"))
+            .Select(a => controller ? settings.HotkeyBindings[a.Id].Controller : settings.HotkeyBindings[a.Id].Keyboard);
+        if (!controller) values = values.Concat(GameplayOrder.Select(button => settings.GameplayKeys["player1:" + button]));
+        return values.SelectMany(value => value.Split(',')).Any(token => !IsUnbound(token) && NormalizeBindingToken(token, controller).Equals(target, StringComparison.OrdinalIgnoreCase));
+    }
+
     public static void Validate(GameSettings settings, GameSettings? original = null)
     {
         foreach (var action in Actions)
@@ -90,13 +108,7 @@ public static class HotkeyCatalog
                 bool changed = original == null || tokens[i].Trim() != GetSlot(oldValue ?? "", i);
                 string label = action.Id == "Controls" && i < GameplayOrder.Length ? "game " + GameplayOrder[i].ToUpperInvariant() : action.Slots > 1 ? action.Label + " slot " + (i + 1) : action.Label;
                 string id = action.Id + (action.Slots > 1 || action.Id == "Controls" ? ":" + i : "");
-                var token = tokens[i].Trim();
-                if (controller) token = string.Join('+', token.Split('+').Select(p => p.Trim().Equals("Lb", StringComparison.OrdinalIgnoreCase) ? "L1" : p.Trim().Equals("Rb", StringComparison.OrdinalIgnoreCase) ? "R1" : p.Trim()).OrderBy(p => p, StringComparer.OrdinalIgnoreCase));
-                else
-                {
-                    var modifiers = Regex.Match(token, @"^(?:(?:Ctrl|Alt|Shift)\+)+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Value;
-                    token = string.Join('+', modifiers.Split('+', StringSplitOptions.RemoveEmptyEntries).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).Append(token[modifiers.Length..]));
-                }
+                var token = NormalizeBindingToken(tokens[i], controller);
                 if (seen.TryGetValue(token, out var existing) && existing.Id != id && (changed || existing.Changed))
                     throw new ArgumentException($"{tokens[i].Trim()} is assigned to both {existing.Label} and {label}. Clear one binding or choose a different {(controller ? "controller button" : "key")}.");
                 seen[token] = (label, id, changed);
@@ -105,7 +117,7 @@ public static class HotkeyCatalog
         if (!controller)
             foreach (var button in GameplayOrder)
             {
-                string name = "player1:" + button, token = settings.GameplayKeys[name].Trim();
+                string name = "player1:" + button, token = NormalizeBindingToken(settings.GameplayKeys[name], false);
                 if (IsUnbound(token)) continue;
                 bool changed = original == null || token != original.GameplayKeys.GetValueOrDefault(name)?.Trim();
                 string label = "game " + button.ToUpperInvariant();

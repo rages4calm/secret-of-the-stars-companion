@@ -196,3 +196,19 @@ It is not active CI: the initial publication credential cannot upload active
 workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
+
+## Navigation map (native 0.2.6 / Companion 0.3.2)
+
+Enhancements exposes **Current-area map** and **Show current objective on map**.
+Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
+**Back + left-stick click**; occupied implicit shortcuts remain unbound rather
+than replacing an existing action. Explicit custom bindings are retained.
+Original View disables both map and objective marker for that launch.
+
+The public builder applies the pinned seventeen-file base runtime patch and the
+separately audited three-file host navigation/input patch. It preserves previous
+runtime caches, records both patch hashes, and produces a real
+`compiled_unqualified` receipt. The host-only changes retain the declared guest
+execution-state ABI; matching metadata is still required for changed-binary
+profile updates. There are 54 native authored inputs and 24 Companion inputs.
+[Exact qualification and remaining limits](docs/FOUNDATION-NAVIGATION-MAP-2026-10-11.md).

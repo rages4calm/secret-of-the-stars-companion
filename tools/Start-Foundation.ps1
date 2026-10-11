@@ -49,6 +49,8 @@ EnhancedPixels=1
 FastMenus=1
 # Opening-chapter current lead, derived from verified original story state.
 Journal=1
+NavigationMap=1
+NavigationMapObjective=1
 # Optional expanded scenery; unsupported scenes/effects retain side bars.
 ExperimentalFieldWide=0
 ExperimentalFieldActors=0
@@ -202,6 +204,8 @@ try {
         $env:SNESRECOMP_FOUNDATION_WIDE_ACTORS = '0'
         $env:SNESRECOMP_FOUNDATION_FAST_MENUS = '0'
         $env:SNESRECOMP_FOUNDATION_JOURNAL = '0'
+        $env:SNESRECOMP_FOUNDATION_NAVIGATION_MAP = '0'
+        $env:SNESRECOMP_FOUNDATION_NAVIGATION_MAP_OBJECTIVE = '0'
         $env:SNESRECOMP_FOUNDATION_NATIVE_CLEAR = '0'
         $env:SNESRECOMP_FOUNDATION_NATIVE_COLUMNS = '0'
         $env:SNESRECOMP_FOUNDATION_HD_MENU_FRAMES = '0'

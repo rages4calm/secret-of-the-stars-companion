@@ -24,6 +24,7 @@ public sealed partial class MainForm : Form
     readonly Label profileFolder=Theme.Text("",10,Theme.Muted);
     readonly Label qolCapability=Theme.Text("",10,Theme.Muted);
     readonly Label journalCapability=Theme.Text("",10,Theme.Muted);
+    readonly Label mapCapability=Theme.Text("",10,Theme.Muted);
     readonly ComboBox checkpoints=Theme.Combo(480);
     readonly CompanionButton apply=Theme.Button("Apply settings",true,164);
     readonly CompanionButton revert=Theme.Button("Revert changes",false,150);
@@ -98,7 +99,7 @@ public sealed partial class MainForm : Form
         }
         page.Add(Theme.Row(play,original),9);page.Add(readiness,16);
         Section(page,"Your PC controls");
-        AddShortcutHints(page,"Fullscreen","Turbo","MovementBoost","Journal","BattleInfo");
+        AddShortcutHints(page,"Fullscreen","Turbo","MovementBoost","Journal","BattleInfo","Map");
         page.Add(Theme.Text("Controller labels: L3 and R3 mean left and right stick clicks; L2 and R2 are the triggers. Escape closes the rewind menu.",10,Theme.Muted),12);
         var displayOptions=Theme.Button("Display options",false,190);displayOptions.Click+=(_,_)=>ShowPage("display");
         var hotkeyOptions=Theme.Button("Keyboard / controller hotkeys",false,285);hotkeyOptions.Click+=(_,_)=>ShowPage("hotkeys");
@@ -145,7 +146,10 @@ public sealed partial class MainForm : Form
         AddFeature(page,"Quest journal","Shows verified opening leads involving David, Aris, Pennon and Bosen, plus STARCREST when held. Guidance follows your current checkpoint; later chapters remain uncovered.",s=>s.Journal,(s,v)=>s.Journal=v);
         AddFeature(page,"Journal item summary","Shows STARCREST while it is in a party pack. Turn this off for story advice alone. Item possession is current; the journal does not record permanent quest completion.",s=>s.JournalPossession,(s,v)=>s.JournalPossession=v);
         page.Add(journalCapability,10);
-        AddShortcutHints(page,"BattleInfo","Journal","MovementBoost","Turbo");
+        AddFeature(page,"Current-area map","Shows your position, towns and verified objective locations in the current area while gameplay continues. Unavailable destinations have no pin. Use your assigned map shortcut to close it. It keeps no visited-area history or item and enemy markers.",s=>s.NavigationMap,(s,v)=>s.NavigationMap=v);
+        AddFeature(page,"Show current objective on map","Blink the marker when its location is verified.",s=>s.NavigationMapObjective,(s,v)=>s.NavigationMapObjective=v);
+        page.Add(mapCapability,10);
+        AddShortcutHints(page,"BattleInfo","Journal","Map","MovementBoost","Turbo");
         var hotkeys=Theme.Button("Change enhancement hotkeys",false,285);hotkeys.Click+=(_,_)=>ShowPage("hotkeys");page.Add(hotkeys,18);
         AddFeature(page,"Remove scanline sprite limits","Allows more sprites per scanline. The game's original actor allocation is unchanged.",s=>s.NoSpriteLimits,(s,v)=>s.NoSpriteLimits=v);
         Section(page,"Menu-frame artwork");
@@ -298,6 +302,10 @@ public sealed partial class MainForm : Form
         bool supportsJournalSummary=snapshot!=null&&ProfileService.SupportsJournalPossession(snapshot);
         foreach(var control in settingControls.Where(c=>c.AccessibleName=="Journal item summary"))control.Enabled=snapshot!=null&&!running&&supportsJournalSummary;
         journalCapability.Text=supportsJournalSummary?"":"Update the selected native build on Setup to change the journal item summary.";
+        bool supportsMap=snapshot!=null&&ProfileService.SupportsNavigationMap(snapshot);
+        foreach(var control in settingControls.Where(c=>c.AccessibleName is "Current-area map" or "Current-area map keyboard" or "Current-area map controller"))control.Enabled=snapshot!=null&&!running&&supportsMap;
+        foreach(var control in settingControls.Where(c=>c.AccessibleName=="Show current objective on map"))control.Enabled=snapshot!=null&&!running&&supportsMap&&edited.NavigationMap;
+        mapCapability.Text=supportsMap?"":"Update the selected native build on Setup to use the current-area map and its shortcuts.";
         apply.Enabled=revert.Enabled=snapshot!=null&&!running&&dirty;play.Enabled=original.Enabled=ready&&!running&&!dirty;
         wide.Enabled=hd.Enabled=ready&&!running&&!dirty&&snapshot!=null&&!PublicSetupService.IsSourceProfile(snapshot.ProfileDirectory);
         resume.Enabled=ready&&!running&&!dirty&&checkpoints.SelectedItem is SaveChoice;

@@ -2,6 +2,7 @@
  * No ROM/guest writes, completion guesses or external seen-event history. */
 #include "foundation_journal.h"
 #include "foundation_hotkeys.h"
+#include "foundation_map.h"
 #include "common_rtl.h"
 #include "snes/snes.h"
 #include "snes_overlay_draw.h"
@@ -20,6 +21,10 @@ static FILE *trace;
 
 void FoundationJournalReset(void) {
     visible = has_lead = 0;
+}
+
+void FoundationJournalHide(void) {
+    visible = 0;
 }
 
 void FoundationJournalInit(void) {
@@ -102,6 +107,7 @@ void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
     int toggle = FoundationHotkeysConsumeJournal();
     if (enabled && g_ram[0x20] == 1 && toggle) {
         visible = !visible;
+        if (visible) FoundationMapHide();
         fprintf(stderr, "[foundation] frame %u journal %s\n", frame_number, visible ? "shown" : "hidden");
     }
     if (trace) {
@@ -139,6 +145,30 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             route[0] = "Speak to the person who";
             route[1] = "asked you to stop Badbad.";
             progress = town_route == 2 ? "DOG PILL: CURRENT PACK" : "DOG PILL: OTHER PARTY PACK";
+        }
+    } else if (lead == 7) {
+        objective[0] = "Seek Dynamite's help.";
+        objective[1] = "Find a way to defeat Golan.";
+        route[0] = "Dynamite's laboratory is";
+        route[1] = "in the town Morgan entered.";
+        progress = "Current Dynamite route";
+    } else if (lead == 6) {
+        objective[0] = "Find builders and farmers.";
+        objective[1] = "Help build the new town.";
+        route[0] = "Talk to Uncle Save at home.";
+        route[1] = "Ask people about town help.";
+        progress = "Current town-building lead";
+        if (FoundationJournalHasTownClue(g_ram[0x5372], g_ram[0x5360])) {
+            route[0] = "Find architects to build";
+            route[1] = "and farmers to grow crops.";
+            progress = "Uncle Save's current advice";
+        }
+        if (FoundationJournalHasMorganClue(g_ram[0x5372], g_ram[0x5360])) {
+            objective[0] = "Find a way to defeat Golan.";
+            objective[1] = "Ask Dynamite for help.";
+            route[0] = "Morgan offers town access.";
+            route[1] = "Bring 100 gold for entry.";
+            progress = "Morgan's current advice";
         }
     } else if (lead == 4) {
         objective[0] = "Rescue the kidnapped kids.";

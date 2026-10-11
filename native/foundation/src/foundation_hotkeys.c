@@ -51,6 +51,8 @@ void FoundationHotkeysInit(void) {
     }
     FoundationHotkeysReset();
     const char *test = getenv("SNESRECOMP_FOUNDATION_HOTKEY_INPUT_TEST");
+    const char *map_test = getenv("SNESRECOMP_FOUNDATION_MAP_INPUT_TEST");
+    if (map_test) test = !strncmp(map_test, "pad", 3) ? "pad" : "keyboard";
     if (!test) test = getenv("SNESRECOMP_FOUNDATION_MOVEMENT_INPUT_TEST");
     test_mode = test && !strcmp(test, "keyboard") ? 1 :
                 test && !strcmp(test, "pad") ? 2 :
@@ -93,6 +95,32 @@ void FoundationHotkeysBeforeFrame(void) {
         }
     }
     const char *safety = getenv("SNESRECOMP_FOUNDATION_HOTKEY_SAFETY_TEST");
+    const char *map_test = getenv("SNESRECOMP_FOUNDATION_MAP_INPUT_TEST");
+    if (map_test) {
+        int open_only = strstr(map_test, "open") != NULL;
+        int reopen = strstr(map_test, "reopen") != NULL;
+        if (reopen) open_only = 0;
+        int event_frame = f == 30 || (f >= 31 && f < 60) || f == 60 ||
+                          (!open_only && (f == 90 || f == 120)) ||
+                          (reopen && (f == 130 || f == 140));
+        if ((test_mode & 1) && event_frame) {
+            SDL_Event event = {0};
+            event.type = f == 60 || f == 120 || f == 140 ? SDL_KEYUP : SDL_KEYDOWN;
+#if SNESRECOMP_SDL3
+            event.key.key = SDLK_m; event.key.repeat = f > 30 && f < 60;
+#else
+            event.key.keysym.sym = SDLK_m; event.key.repeat = f > 30 && f < 60;
+#endif
+            SDL_PushEvent(&event);
+        }
+        if (test_pad && event_frame && !(f > 30 && f < 60)) {
+            int down = f == 30 || f == 90 || f == 130;
+            TestButton(SDL_CONTROLLER_BUTTON_BACK, down);
+            TestButton(SDL_CONTROLLER_BUTTON_LEFTSTICK, down);
+            SDL_JoystickUpdate();
+        }
+        return;
+    }
     if (getenv("SNESRECOMP_FOUNDATION_HOTKEY_GESTURE_TEST")) {
         if (test_pad) {
             if (f == 20 || f == 50 || f == 70 || f == 100)
@@ -227,6 +255,7 @@ void FoundationHotkeysCommand(unsigned command, int pressed) {
     if (command == kKeys_MovementBoost) movement_held = pressed != 0;
     else if (pressed && command == kKeys_BattleInfo) requests |= 1;
     else if (pressed && command == kKeys_Journal) requests |= 2;
+    else if (pressed && command == kKeys_Map) requests |= 4;
     if (getenv("SNESRECOMP_HOTKEY_TRACE"))
         fprintf(stderr, "[foundation_hotkey] command=%u pressed=%d movement=%d\n",
                 command, pressed, movement_held);
@@ -237,4 +266,7 @@ int FoundationHotkeysConsumeBattleInfo(void) {
 }
 int FoundationHotkeysConsumeJournal(void) {
     int result = (requests & 2) != 0; requests &= ~2u; return result;
+}
+int FoundationHotkeysConsumeMap(void) {
+    int result = (requests & 4) != 0; requests &= ~4u; return result;
 }

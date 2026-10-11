@@ -1,6 +1,17 @@
-# Validation scope — 2026-10-10
+# Validation scope — 2026-10-11
 
-## Current native0.2.5 / Companion0.3.1
+## Current native0.2.6 / Companion0.3.2
+
+Exact native `adf0a16b04c262e7247c84d92d85a6865d0a05bfc781af10039e0a33932d5d6a`
+and GUI `3d1846f8a781ebc572dab49059ef804afffde3e6c3e08a7d8191d6210cc87554`
+have separate map, journal, input/restore, launcher update/rollback and paired
+map-off/map-open paced Direct3D qualification. Host unit proofs, original-loader
+staged execution and copied gameplay are distinguished from natural campaign,
+physical controllers and complete native/AOT execution. Source receipts retain
+`compiled_unqualified`; no passing gameplay status is manufactured by the
+builder. [Current checks and precise limits](FOUNDATION-NAVIGATION-MAP-2026-10-11.md).
+
+## Earlier native0.2.5 / Companion0.3.1
 
 Exact native `2e107b94ae23c0f5d3e45369c967a3c2cef8bb65b01aa23d753af0832adb56ea` and unchanged GUI
 `c644b4f27b7c8763aff490ad6f2a85e30930fd4e94fe2d18c4831d5ddf8129a7` pass focused copied-artifact qualification.

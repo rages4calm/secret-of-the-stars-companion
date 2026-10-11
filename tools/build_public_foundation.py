@@ -9,6 +9,7 @@ import argparse,hashlib,json,re,shutil,subprocess,sys,time
 ROOT=Path(__file__).resolve().parents[1]
 RUNTIME_URL='https://github.com/RetroPortingToolKit/snesrecomp.git'
 RUNTIME_PIN='7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0'
+HOST_NAVIGATION_PATCH_SHA256='91fea10b53d3eca67364eceebfb802a2c1c79432ff7424d02c5f8755438dc028'
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def command(args,cwd=None):
@@ -37,9 +38,18 @@ def main():
     out.mkdir(parents=True,exist_ok=False)
     patch=out/'runtime-foundation.patch'
     shutil.copy2(ROOT/'patches/runtime-foundation.patch',patch)
+    # A separate title-input extension cannot change serialized machine state.
+    # Retain the original execution patch hash for checkpoint ABI comparison.
+    host_patch=out/'runtime-navigation-map.patch'
+    shutil.copy2(ROOT/'patches/runtime-navigation-map.patch',host_patch)
+    if sha(host_patch)!=HOST_NAVIGATION_PATCH_SHA256:
+        raise RuntimeError('Navigation input patch changed; audit its execution compatibility before building.')
+    host_names=re.findall(r'^diff --git a/(\S+) b/',host_patch.read_text(encoding='utf-8'),re.M)
+    if set(host_names)!={'runner/src/desktop/config.h','runner/src/desktop/mmx_config.c','runner/src/desktop/host_main.c'} or len(host_names)!=3:
+        raise RuntimeError('Navigation extension exceeds its host-input source boundary.')
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
-    runtime=ROOT/'local/upstream'/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12])
+    runtime=ROOT/'local/upstream'/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12]+'-'+sha(host_patch)[:12])
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     if not runtime.exists():
         runtime.parent.mkdir(parents=True,exist_ok=True)
@@ -52,7 +62,8 @@ def main():
     patch_names=re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M)
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
-        if receipt['patch_sha256']!=sha(patch) or any(sha(runtime/n)!=h for n,h in receipt['patched_sources'].items()):
+        if (receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
+                or any(sha(runtime/n)!=h for n,h in receipt['patched_sources'].items())):
             raise RuntimeError('Existing patched runtime differs from its receipt; it has been preserved.')
         if set(command(['git','diff','--name-only'],runtime).splitlines())!=set(patch_names):
             raise RuntimeError('Unexpected runtime changes; preserved without reset.')
@@ -60,7 +71,9 @@ def main():
         if command(['git','diff','--name-only'],runtime):
             raise RuntimeError('Unrecognized runtime modifications; preserved without reset.')
         command(['git','apply','--check',patch],runtime);command(['git','apply',patch],runtime)
+        command(['git','apply','--check',host_patch],runtime);command(['git','apply',host_patch],runtime)
         marker.write_text(json.dumps({'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
+          'host_navigation_patch_sha256':sha(host_patch),
           'patched_sources':{n:sha(runtime/n) for n in patch_names}},indent=2)+'\n',encoding='utf-8')
     pins=dict(line.split('=',1) for line in (source/'framework_pins.txt').read_text().splitlines() if '=' in line)
     for key,name in [('rbengine','retcomm-rbengine'),('recomp-net','recomp-net')]:
@@ -94,7 +107,7 @@ def main():
     if not binary.exists():raise RuntimeError('Windows executable missing after build.')
     profile=out/'profile';profile.mkdir();shutil.copy2(binary,profile/binary.name)
     (profile/'config.ini').write_text('[Graphics]\nRenderer=direct3d11\nFullscreen=0\nVSync=1\nNewRenderer=0\nWidescreen=0\n[Sound]\nEnableAudio=1\nAudioFreq=32040\nAudioChannels=2\nAudioSamples=512\n[General]\nAutosave=0\nSkipLauncher=1\n',encoding='ascii')
-    (profile/'foundation.ini').write_text('[Enhancements]\nEnhancedPixels=1\nBattleInfo=1\nFastMenus=1\nJournal=1\nExperimentalFieldWide=0\nExperimentalFieldActors=0\nNativeClear=0\nNativeColumns=0\nHdMenuFrames=0\nXpMultiplierPercent=100\nGoldMultiplierPercent=100\nMovementSpeedPercent=200\nFastForwardToggle=0\nLegacyControllerGestures=1\n',encoding='ascii')
+    (profile/'foundation.ini').write_text('[Enhancements]\nEnhancedPixels=1\nBattleInfo=1\nFastMenus=1\nJournal=1\nNavigationMap=1\nNavigationMapObjective=1\nExperimentalFieldWide=0\nExperimentalFieldActors=0\nNativeClear=0\nNativeColumns=0\nHdMenuFrames=0\nXpMultiplierPercent=100\nGoldMultiplierPercent=100\nMovementSpeedPercent=200\nFastForwardToggle=0\nLegacyControllerGestures=1\n',encoding='ascii')
     assert sha(rom)==expected
     state_source=(project/'src/foundation_state.c').read_text()
     schema=re.search(r'#define FOUNDATION_VERSION (\d+)u',state_source)
@@ -106,6 +119,8 @@ def main():
       'version':(project/'VERSION').read_text().strip(),'rom_sha256':expected,'rom_copied':False,
       'authored_inputs':actual,'matches_authored_snapshot':actual==manifest,
       'runtime_pin':RUNTIME_PIN,'runtime_patch_sha256':sha(patch),
+      'host_navigation_patch_sha256':sha(host_patch),
+      'host_navigation_patch_scope':'Appended map hotkey, parser/defaults and host dispatch only; existing command ids and serialized guest execution unchanged.',
       'checkpoint_schema':{'identity':state_identity.group(1),'writes':schema_version,'reads':list(range(1,schema_version+1))},
       'save_compatibility':'secret-of-the-stars-usa-sram-v1',
       'execution_state_abi_sha256':hashlib.sha256(('\n'.join(actual[name] for name in ('src/foundation_state.c','src/foundation_state.h','src/game_rtl.c','src/game_rtl.h','src/variables.h'))+'\n'+RUNTIME_PIN+'\n'+sha(patch)).encode()).hexdigest(),

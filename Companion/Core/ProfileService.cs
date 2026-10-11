@@ -89,6 +89,8 @@ public static class ProfileService
                 throw new InvalidOperationException("These reward, movement and configurable overlay options require native foundation 0.2.0 or newer. Build and select the current source in Setup first. Existing settings and saves are preserved.");
             if (!SupportsJournalPossession(snapshot) && settings.JournalPossession != snapshot.OriginalSettings.JournalPossession)
                 throw new InvalidOperationException("Journal item-summary choices require native foundation 0.2.3 or newer. Update the selected source build in Setup first. Existing settings and saves are preserved.");
+            if (!SupportsNavigationMap(snapshot) && (settings.NavigationMap != snapshot.OriginalSettings.NavigationMap || settings.NavigationMapObjective != snapshot.OriginalSettings.NavigationMapObjective || settings.HotkeyBindings.GetValueOrDefault("Map") != snapshot.OriginalSettings.HotkeyBindings.GetValueOrDefault("Map")))
+                throw new InvalidOperationException("Current-area map choices require native foundation 0.2.6 or newer. Update the selected source build in Setup first. Existing settings and saves are preserved.");
             EnsureUnchanged(snapshot);
             if (running()) throw new InvalidOperationException("Close this profile's game before applying settings.");
             RejectReparse(snapshot.ProfileDirectory);
@@ -249,6 +251,7 @@ public static class ProfileService
 
     public static bool SupportsQol(ProfileSnapshot snapshot) => SupportsQol(snapshot.ProfileDirectory, snapshot.Files);
     public static bool SupportsJournalPossession(ProfileSnapshot snapshot) => SupportsFoundationVersion(snapshot.ProfileDirectory, snapshot.Files, new Version(0, 2, 3));
+    public static bool SupportsNavigationMap(ProfileSnapshot snapshot) => SupportsFoundationVersion(snapshot.ProfileDirectory, snapshot.Files, new Version(0, 2, 6));
 
     private static bool SupportsQol(string profile, IReadOnlyDictionary<string, FileIdentity> files) => SupportsFoundationVersion(profile, files, new Version(0, 2, 0));
 
@@ -298,7 +301,7 @@ public static class ProfileService
         start.Environment["PATH"] = Path.Combine(windows, "System32") + ";" + windows;
         if (request.Mode == LaunchMode.OriginalView)
         {
-            foreach (var enhancement in new[] { "BATTLE_INFO", "ENHANCED_PIXELS", "WIDE", "WIDE_ACTORS", "FAST_MENUS", "JOURNAL", "NATIVE_CLEAR", "NATIVE_COLUMNS", "HD_MENU_FRAMES" })
+            foreach (var enhancement in new[] { "BATTLE_INFO", "ENHANCED_PIXELS", "WIDE", "WIDE_ACTORS", "FAST_MENUS", "JOURNAL", "NAVIGATION_MAP", "NAVIGATION_MAP_OBJECTIVE", "NATIVE_CLEAR", "NATIVE_COLUMNS", "HD_MENU_FRAMES" })
                 start.Environment["SNESRECOMP_FOUNDATION_" + enhancement] = "0";
             foreach (var modifier in new[] { "XP_PERCENT", "GOLD_PERCENT", "MOVEMENT_PERCENT" }) start.Environment["SNESRECOMP_FOUNDATION_" + modifier] = "100";
         }
@@ -393,6 +396,8 @@ public static class ProfileService
         BattleInfo = Bool(foundation.Get("Enhancements", "BattleInfo", true), true), EnhancedPixels = Bool(foundation.Get("Enhancements", "EnhancedPixels", true), true),
         FastMenus = Bool(foundation.Get("Enhancements", "FastMenus", true), true), Journal = Bool(foundation.Get("Enhancements", "Journal", true), true),
         JournalPossession = Bool(foundation.Get("Enhancements", "JournalPossession", true), true),
+        NavigationMap = Bool(foundation.Get("Enhancements", "NavigationMap", true), true),
+        NavigationMapObjective = Bool(foundation.Get("Enhancements", "NavigationMapObjective", true), true),
         HdMenuFrames = Bool(foundation.Get("Enhancements", "HdMenuFrames", true), false),
         ExperimentalFieldWide = Bool(foundation.Get("Enhancements", "ExperimentalFieldWide", true), false),
         ExperimentalFieldActors = Bool(foundation.Get("Enhancements", "ExperimentalFieldActors", true), false),
@@ -413,6 +418,10 @@ public static class ProfileService
         {
             var parts = name.Split(':'); settings.GameplayKeys[name] = bindings.Get(parts[0], parts[1]) ?? settings.GameplayKeys[name];
         }
+        var map = settings.HotkeyBindings["Map"];
+        settings.HotkeyBindings["Map"] = new HotkeyBinding(
+            config.Get("KeyMap", "Map") is null && HotkeyCatalog.MapDefaultTaken(settings, map.Keyboard, false) ? "None" : map.Keyboard,
+            config.Get("GamepadMap", "Map") is null && HotkeyCatalog.MapDefaultTaken(settings, map.Controller, true) ? "None" : map.Controller);
         return settings;
     }
 
@@ -430,6 +439,8 @@ public static class ProfileService
             [("foundation.ini", "Enhancements", "BattleInfo")] = B(settings.BattleInfo), [("foundation.ini", "Enhancements", "EnhancedPixels")] = B(settings.EnhancedPixels),
             [("foundation.ini", "Enhancements", "FastMenus")] = B(settings.FastMenus), [("foundation.ini", "Enhancements", "Journal")] = B(settings.Journal),
             [("foundation.ini", "Enhancements", "JournalPossession")] = B(settings.JournalPossession),
+            [("foundation.ini", "Enhancements", "NavigationMap")] = B(settings.NavigationMap),
+            [("foundation.ini", "Enhancements", "NavigationMapObjective")] = B(settings.NavigationMapObjective),
             [("foundation.ini", "Enhancements", "HdMenuFrames")] = B(settings.HdMenuFrames),
             [("foundation.ini", "Enhancements", "ExperimentalFieldWide")] = B(settings.ExperimentalFieldWide),
             [("foundation.ini", "Enhancements", "ExperimentalFieldActors")] = B(settings.ExperimentalFieldActors),

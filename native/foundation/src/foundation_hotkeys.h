@@ -8,3 +8,4 @@ void FoundationHotkeysCommand(unsigned command, int pressed);
 int FoundationHotkeysMovementHeld(void);
 int FoundationHotkeysConsumeBattleInfo(void);
 int FoundationHotkeysConsumeJournal(void);
+int FoundationHotkeysConsumeMap(void);

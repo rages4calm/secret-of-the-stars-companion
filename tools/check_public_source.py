@@ -28,6 +28,7 @@ DOCUMENTATION_CAPTURES = {
     'docs/screenshots/quest-journal.png',
     'docs/screenshots/companion-enhancements.png',
     'docs/screenshots/companion-hotkeys.png',
+    'docs/screenshots/navigation-map.png',
 }
 
 
@@ -190,8 +191,13 @@ def main():
     patch = ROOT / 'patches/runtime-foundation.patch'
     if sha(patch) != provenance['runtime_patch_sha256']:
         errors.append('Runtime patch differs from the recorded snapshot.')
+    host_patch = ROOT / 'patches/runtime-navigation-map.patch'
+    if sha(host_patch) != provenance.get('host_navigation_patch_sha256'):
+        errors.append('Navigation input patch differs from the audited snapshot.')
     pins = (ROOT / 'native/foundation/framework_pins.txt').read_text(encoding='utf-8')
     helper = (ROOT / 'tools/build_public_foundation.py').read_text(encoding='utf-8')
+    if sha(host_patch) not in helper:
+        errors.append('Navigation patch audit hash is missing from the build helper.')
     if provenance['runtime_commit'] not in pins or provenance['runtime_commit'] not in helper:
         errors.append('Runtime pin mismatch.')
     if 'PolyForm Noncommercial' not in (ROOT / 'LICENSE').read_text(encoding='utf-8'):

@@ -9,16 +9,16 @@
 **Project author:** Carl Prewitt Jr. / [rages4calm](https://github.com/rages4calm)
 
 > [!IMPORTANT]
-> Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and five reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
+> Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.2.5 / Companion 0.3.1.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.2.6 / Companion 0.3.2.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
-The aim is to give this overlooked RPG a polished PC edition that is easier to play and easier to understand: attractive original pixel art, a genuinely wider world view, reliable controls and audio, and a useful quest journal. The launcher follows the familiar Companion approach used in [EarthBound Companion](https://github.com/rages4calm/earthbound-companion) and [Zelda Companion](https://github.com/rages4calm/zelda-companion).
+The aim is to give this overlooked RPG a polished PC edition that is easier to play and easier to understand: attractive original pixel art, a genuinely wider world view, reliable controls and audio, a useful quest journal, and a map showing your position, towns and verified destinations. The launcher follows the familiar Companion approach used in [EarthBound Companion](https://github.com/rages4calm/earthbound-companion) and [Zelda Companion](https://github.com/rages4calm/zelda-companion).
 
 ## PC feature screenshots
 
-These are actual captures of features added for this PC project. **[View all five screenshots and captions](docs/FEATURE-GALLERY.md)**, including configurable rewards, movement and keyboard/controller hotkeys.
+These are actual captures of features added for this PC project. **[View all six screenshots and captions](docs/FEATURE-GALLERY.md)**, including configurable rewards, movement and keyboard/controller hotkeys.
 
 ![Widescreen world with an original vehicle beyond the original viewport](docs/screenshots/widescreen-world.png)
 
@@ -31,6 +31,10 @@ These are actual captures of features added for this PC project. **[View all fiv
 ![Quest journal with verified Mayor and Ringo route advice](docs/screenshots/quest-journal.png)
 
 *Quest directions and current progress while the game runs.*
+
+![Navigation map with your position, towns and a blinking verified destination](docs/screenshots/navigation-map.png)
+
+*Gold shows your position, cyan marks towns, and the optional pink marker blinks at a verified next destination.*
 
 The gameplay images use isolated development checkpoints. Widescreen is optional and uses the original view where a scene is not qualified; the journal is still being expanded. Upscaling preserves original artwork. See the gallery for exact capture scope and example launcher settings.
 
@@ -46,7 +50,8 @@ The gameplay images use isolated development checkpoints. Widescreen is optional
 | Controls | Editable keyboard/controller game buttons and hotkeys, twenty checkpoint bindings, fullscreen and reachable HUD/journal/rewind controls | Broader physical-controller testing remains open |
 | Menu and battle QoL | Optional faster field menus and toggleable HP bars with a widescreen battle sidebar | The HP panel is an authored enhancement, not a bundled ROM hack |
 | Rewards and movement | Independently adjustable 1–10× battle XP/gold; bindable 1–3× field movement boost; hold/toggle fast-forward | Movement accelerates guarded ordinary walking; unsupported/scripted motion keeps original pace |
-| Quest journal | Objective, route/advice and current-progress panel; verified David, Aris/Pennon, Bosen, Uncle Save and Badbad/Dog Pill directions; J / left-stick click toggles it | Further chapters and deterministic quest history remain open |
+| Quest journal | Objective, route/advice and current-progress panel; verified opening, Badbad/Dog Pill, chapter-four town building and Morgan/chapter-five directions; J / left-stick click toggles it | Further chapters and deterministic quest history remain open |
+| Navigation map | Original current-area terrain and your position; original world towns and an optional blinking verified destination; M / Back + left-stick click | Unsupported areas use a clear fallback; no exploration history or guessed objective coordinates |
 | Audio and stability | Original SNES audio, cached host composition, repaired mosaic overrun and checked audio/OpenGL allocations | Finite paced GPU/audio routes pass; every cutscene and hardware configuration is not certified |
 | Saves and rollback | Guarded checkpoint loading, restore/cache reset and protected copied-save testing | Local state schemas are build-specific; test on copies and keep in-game saves backed up |
 
@@ -68,19 +73,21 @@ Build the self-contained launcher with `python tools/build_public_companion.py`,
 
 In **Enhancements**, 100% means the original XP/gold payout; 200% means 2×. Movement boost defaults to **Left Shift / controller L2**, and fast-forward to **Tab / controller R2**. Change these and other bindings in **Controls** and **Hotkeys**; fast-forward can be held or toggled. Existing custom profile bindings are retained. [QoL implementation and limits](docs/FOUNDATION-QOL-2026-10-09.md).
 
-Companion **0.3.1** adds **Original pixels / Enhanced pixels / Experimental widescreen** display choices, **Revert changes**, current fullscreen/hotkey hints and a journal item-summary setting. Presets preserve sound, rewards and custom bindings.
+Companion **0.3.2** adds map and objective-marker settings and an assignable Map action. Missing bindings use **M / Back + left-stick click** unless that exact shortcut is already occupied. Existing explicit bindings win. Map and journal panels close each other.
+
+Companion **0.3.1** added **Original pixels / Enhanced pixels / Experimental widescreen** display choices, **Revert changes**, current fullscreen/hotkey hints and a journal item-summary setting. Presets preserve sound, rewards and custom bindings.
 
 Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in Setup. Updates create a new isolated folder with checked copies of settings/saves; rollback selects the retained earlier folder and preserves newer progress separately. Different native builds require compatible save declarations and matching execution-state ABI. A ROM-free source-first ZIP can bundle the self-contained GUI, authored source and notices; native game compilation still needs the documented tools. [Packaging instructions](BUILDING.md#package-the-source-first-launcher) · [Update and package qualification](docs/FOUNDATION-PACKAGE-UPDATES-2026-10-09.md).
 
 ## Verification and remaining work
 
-The current **native0.2.5 / Companion0.3.1** update removes generic HUD-key prompts, extends original driving/parked vehicle rendering and adds verified quest directions. Assigned actions remain in Companion Hotkeys. Exact journal, HUD, renderer, restore, input/QoL/menu and actual launcher update/rollback checks pass; quiet paced Direct3D routes retain steady audio. Owner saves/settings remain byte-identical. [Current update and precise limits](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md). [Preceding0.2.4 bundle](docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md).
+The current **native0.2.6 / Companion0.3.2** update adds the navigation map, its keyboard/controller bindings and independent objective-marker setting, plus original chapter-four and chapter-five quest directions. Terrain composition is cached and bounded per frame. Exact copied-game input/restore and launcher update/rollback checks pass; paired map-off/map-open Direct3D playback retains steady audio. Owner saves/settings remain byte-identical. [Current update and precise limits](docs/FOUNDATION-NAVIGATION-MAP-2026-10-11.md). [Preceding0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md).
 
 The earlier integrated 0.2.0 build passed reward/walking and restore proofs, configurable-input checks, 247 map/widescreen gates, controller/checkpoint checks and ten paced Direct3D/OpenGL audio routes. The exact self-contained launcher passed 60 source-first backend and 31 interactive GUI checks, plus all six legacy launch routes. [Release scope](docs/FOUNDATION-QOL-SETUP-2026-10-09.md). The guarded map decoder covers 409 selected resource links and 719 active layers. Those are **resource checks, not a count of completed playable maps**. Synthetic actor tests and natural gameplay coverage are recorded separately.
 
 A new source build receives its own hash and remains unqualified until tested. The public build path has been exercised separately; see [VALIDATION.md](docs/VALIDATION.md) for what was checked and what remains private. Historical foundation documents retain their dates and coverage limits; referenced `local/` reports and fixtures are intentionally not published.
 
-Next priorities are displayed-packet/raster proof through world seams, broader story/cutscene and party coverage, further verified journal chapters, and broader package/hardware checks. An optional navigation map is proposed alongside the journal. Automatic GUI release updates remain open. MSU-1 music is conditional on finding and verifying a compatible driver and track map. A replacement HD artwork pack is deferred so it does not stall the playable foundation. [Full roadmap](ROADMAP.md).
+Next priorities are displayed-packet/raster proof through world seams, broader story/cutscene and party coverage, further verified journal chapters, and broader package/hardware checks. The navigation map is implemented; wider area and story coverage remain ongoing. Automatic GUI release updates remain open. MSU-1 music is conditional on finding and verifying a compatible driver and track map. A replacement HD artwork pack is deferred so it does not stall the playable foundation. [Full roadmap](ROADMAP.md).
 
 Native 0.2.3 derives Aris advice from the original stage-zero Pennon flag, independently of David's introduction. Its terrain bridge authenticates the displayed packet and full original scroll; actor discontinuity refusals remain intact. Source-only [wrapping-B0](experiments/wrapping-b0/README.md) and [original-cost native metatile](experiments/metatile/README.md) prototypes have their own finite proofs and opt-in helpers; they remain excluded from normal installation. Original-loader staged evidence does not certify natural story progression. [Current staged developer tooling](docs/FOUNDATION-STAGED-PROGRESSION-2026-10-09.md) includes explicit checkpoint edits, and [BUILDING](BUILDING.md#isolated-developer-replay) explains copied-executable replay isolation.
 

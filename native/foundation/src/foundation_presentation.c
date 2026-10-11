@@ -6,6 +6,7 @@
 #include "snes_overlay_draw.h"
 #include "foundation_scale2x.h"
 #include "foundation_journal.h"
+#include "foundation_map.h"
 #include "foundation_hotkeys.h"
 #include "foundation_wide.h"
 #include "foundation_wide_actors.h"
@@ -196,7 +197,8 @@ int FoundationPresentationDraw(uint8_t *dst, size_t pitch, const uint8_t *field,
         memcpy(dst + y * pitch, field + y * w * 4, w * 4);
     if (battle_info && !hidden && g_ram[0x20] == 5)
         DrawBattleInfo(dst, pitch, w, h);
-    FoundationJournalDraw(dst, pitch, w, h);
+    if (FoundationMapVisible()) FoundationMapDraw(dst, pitch, w, h);
+    else FoundationJournalDraw(dst, pitch, w, h);
     if (enhanced_pixels) {
         uint8_t *scaled = hd ? (uint8_t *)intermediate : present_dst;
         size_t scaled_pitch = hd ? w * 8 : present_pitch;

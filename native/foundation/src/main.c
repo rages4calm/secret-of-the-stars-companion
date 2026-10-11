@@ -32,6 +32,9 @@
 #include "foundation_diagnostics.h"
 #include "foundation_menu.h"
 #include "foundation_journal.h"
+#include "foundation_map.h"
+#include "foundation_map_points.h"
+#include "common_rtl.h"
 #include "foundation_loading.h"
 #include "foundation_clear.h"
 #include "foundation_column_lookup.h"
@@ -61,6 +64,8 @@ static void FoundationAfterConfig(void) {
     FoundationPresentationInit();
     FoundationMenuInit();
     FoundationJournalInit();
+    FoundationMapInit();
+    FoundationMapPointsInit();
     FoundationLoadingInit();
     FoundationClearInit();
     FoundationColumnLookupInit();
@@ -71,6 +76,7 @@ static void FoundationBeforeFrame(void) {
     FoundationHotkeysBeforeFrame();
     FoundationPresentationBeforeFrame();
     FoundationJournalBeforeFrame();
+    FoundationMapBeforeFrame();
     FoundationLoadingBeforeFrame();
     FoundationClearBeforeFrame();
     FoundationColumnLookupBeforeFrame();
@@ -79,11 +85,16 @@ static void FoundationBeforeFrame(void) {
 static void FoundationAfterFrame(const SnesDesktopHostFrameStats *stats) {
     FoundationPresentationAfterFrame(stats);
     FoundationJournalAfterFrame(stats);
+    FoundationMapAfterFrame(stats);
+    FoundationMapPointsAfterFrame((int)FoundationJournalDestination(g_ram[0x5372],
+        g_ram[0x5360],JournalItemGroups(g_ram,0x20000,0x6d),(g_ram[0x4b6]&0x80)!=0));
 }
 static void FoundationReset(void) {
     FoundationHotkeysReset();
     FoundationPresentationReset();
     FoundationJournalReset();
+    FoundationMapReset();
+    FoundationMapPointsReset();
     FoundationLoadingReset();
     FoundationClearReset();
     FoundationColumnLookupReset();
@@ -95,6 +106,7 @@ static void FoundationShutdown(void) {
     FoundationColumnLookupShutdown();
     FoundationWideActorsShutdown();
     FoundationJournalShutdown();
+    FoundationMapShutdown();
     FoundationPresentationShutdown();
 }
 

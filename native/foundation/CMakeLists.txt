@@ -51,6 +51,8 @@ add_executable(SecretOfTheStarsSNESRecomp
     src/foundation_hotkeys.c
     src/foundation_menu.c
     src/foundation_journal.c
+    src/foundation_map.c
+    src/foundation_map_points.c
     src/foundation_field.c
     src/foundation_wide.c
     src/foundation_wide_actors.c

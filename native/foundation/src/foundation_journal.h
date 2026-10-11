@@ -31,6 +31,8 @@ static inline unsigned FoundationJournalLead(unsigned stage, unsigned flags) {
     if (stage == 1) return 2;
     if (stage == 2) return 5;
     if (stage == 3) return 4;
+    if (stage == 4) return 6;
+    if (stage == 5) return 7;
     return 0;
 }
 
@@ -55,9 +57,31 @@ static inline int FoundationJournalHasLikadoClue(unsigned stage, unsigned flags)
     return stage == 1 && (flags & 0x10) != 0;
 }
 
+/* Original0425 FA07: current chapter4 town-building advice. Original0762
+ * FA02: current chapter4 Morgan/Dynamite route. Neither is quest history. */
+static inline int FoundationJournalHasTownClue(unsigned stage, unsigned flags) {
+    return stage == 4 && (flags & 0x01) != 0;
+}
+static inline int FoundationJournalHasMorganClue(unsigned stage, unsigned flags) {
+    return stage == 4 && (flags & 0x20) != 0;
+}
+
+/* Read-only navigation hint: exact original destination scene, not a guessed
+ * world coordinate. FFFF means no qualified destination. Original0762 paid
+ * entry/014A actually loads scene85; no Ringo/Crest completion is inferred. */
+static inline unsigned FoundationJournalDestination(unsigned stage, unsigned flags,
+                                                     unsigned dog_groups, unsigned active_pack) {
+    unsigned town = FoundationJournalBadbadRoute(stage, flags, dog_groups, active_pack);
+    if (town) return town >= 2 ? 58 : 67;
+    if (stage == 3 && !(flags & 0x80)) return 59;
+    if (FoundationJournalHasMorganClue(stage, flags) || stage == 5) return 85;
+    return 0xffff;
+}
+
 void FoundationJournalInit(void);
 void FoundationJournalBeforeFrame(void);
 void FoundationJournalReset(void);
+void FoundationJournalHide(void);
 void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats);
 void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h);
 void FoundationJournalShutdown(void);

@@ -1,3 +1,21 @@
+# Current source continuation - native0.2.6 / Companion0.3.2 (2026-10-11)
+
+Read docs/FOUNDATION-NAVIGATION-MAP-2026-10-11.md and latest private receipts first.
+Native adf0a16b and GUI3d1846f8 add the optional original-geometry map, position,
+world towns and independent blinking verified destination, plus chapter4/5
+current advice. Preserve original center/collision/guest CPU pace, 1024-sample
+map budget, warm cache and reset semantics, independent resource eligibility,
+and no guessed routes/history. Map and journal are exclusive. Defaults M and
+Back+L3 are assignable; existing explicit/occupied bindings win. Canonical54
+native and24 GUI inputs; real compiled_unqualified receipts remain separate from
+qualification. Base17 runtime patch is unchanged; audited3-file host map/input
+patch retains guest ABI and uses a separate cache. Protect owner ROM/saves/settings
+and isolated copied-EXE testing. CPU experiments stay archived. Next broader
+story/party/effect contexts and verified later guidance; fullcampaign/AOT remains
+unfinished. Earlier blocks retain historical artifact scopes.
+
+---
+
 # Current source continuation - native0.2.5 / Companion0.3.1 (2026-10-10)
 
 Read docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md first, then README/BUILDING/ROADMAP/docs/VALIDATION.

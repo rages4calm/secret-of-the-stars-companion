@@ -1,0 +1,97 @@
+diff --git a/runner/src/desktop/config.h b/runner/src/desktop/config.h
+--- a/runner/src/desktop/config.h
++++ b/runner/src/desktop/config.h
+@@ -48,6 +48,7 @@
+   kKeys_BattleInfo,
+   kKeys_Journal,
+   kKeys_MovementBoost,
++  kKeys_Map,  /* Host-only; existing command and checkpoint slot ids stay fixed. */
+   kKeys_Total,
+ };
+ 
+diff --git a/runner/src/desktop/mmx_config.c b/runner/src/desktop/mmx_config.c
+--- a/runner/src/desktop/mmx_config.c
++++ b/runner/src/desktop/mmx_config.c
+@@ -95,6 +95,7 @@
+   kDefaultKbdControls[kKeys_BattleInfo] = _(SDLK_h);
+   kDefaultKbdControls[kKeys_Journal] = _(SDLK_j);
+   kDefaultKbdControls[kKeys_MovementBoost] = _(SDLK_LSHIFT);
++  kDefaultKbdControls[kKeys_Map] = _(SDLK_m);
+ }
+ #undef _
+ #undef A
+@@ -116,7 +117,7 @@
+   S(Fullscreen), S(Reset),
+   S(Pause), S(PauseDimmed), S(Turbo), S(WindowBigger), S(WindowSmaller), S(VolumeUp), S(VolumeDown), S(DisplayPerf), S(ToggleRenderer), S(ToggleWidescreen),
+   S(SaveStateMenu), S(Rewind), S(Screenshot), S(OpenLauncher),
+-  S(BattleInfo), S(Journal), S(MovementBoost),
++  S(BattleInfo), S(Journal), S(MovementBoost), S(Map),
+ };
+ #undef S
+ #undef M
+@@ -307,6 +308,14 @@
+       return ent->cmd;
+   }
+   return 0;
++}
++
++/* Title defaults must not replace an explicit binding of the same chord.
++ * A plain L3 journal binding may coexist with the more specific Back+L3. */
++static bool GamepadMapHasExact(int button, uint32 modifiers) {
++  for (int e = joymap_first[button]; e; e = joymap_ents[e - 1].next)
++    if (joymap_ents[e - 1].modifiers == modifiers) return true;
++  return false;
+ }
+ 
+ static int ParseGamepadButtonName(const char **value) {
+@@ -393,6 +402,9 @@
+       GamepadMap_Add(kGamepadBtn_R2, 0, kKeys_Turbo);
+     if (!has_gamepad_command[kKeys_MovementBoost] && !FindCmdForGamepadButton(kGamepadBtn_L2, 0))
+       GamepadMap_Add(kGamepadBtn_L2, 0, kKeys_MovementBoost);
++    if (!has_gamepad_command[kKeys_Map] &&
++        !GamepadMapHasExact(kGamepadBtn_L3, 1u << kGamepadBtn_Back))
++      GamepadMap_Add(kGamepadBtn_L3, 1u << kGamepadBtn_Back, kKeys_Map);
+   }
+   s_parsing_gamepad_binding = false;
+ }
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -4485,7 +4485,7 @@
+               pressed, g_turbo, g_fast_forward_toggle);
+     return;
+   }
+-  if (j >= kKeys_BattleInfo && j <= kKeys_MovementBoost) {
++  if (j >= kKeys_BattleInfo && j <= kKeys_Map) {
+     unsigned previous = g_hotkey_holds[j];
+     if (pressed) ++g_hotkey_holds[j];
+     else if (g_hotkey_holds[j]) --g_hotkey_holds[j];
+@@ -4720,7 +4720,7 @@
+   }
+   if (g_overlay_modal)
+     return;   /* a panel owns the screen: no state loads behind it */
+-  if (pressed && (j == kKeys_BattleInfo || j == kKeys_Journal)) {
++  if (pressed && (j == kKeys_BattleInfo || j == kKeys_Journal || j == kKeys_Map)) {
+     /* An enabled legacy system gesture owns its complete chord, so R3 does
+      * not also queue a HUD toggle while Select+R3 opens rewind. Explicitly
+      * disabling that gesture leaves the chord available to the title map. */
+@@ -4752,6 +4752,19 @@
+   }
+   if (pressed)
+     gi->last_cmd[button] = FindCmdForGamepadButton(button + gi->index * kGamepadBtn_Count, gi->modifiers);
++  /* A completed map chord owns its currently held gameplay modifiers.
++   * Clear their host pad bits before the next guest frame; plain Select
++   * remains unchanged when no map chord is pressed. */
++  if (pressed && gi->last_cmd[button] == kKeys_Map) {
++    for (int b = 0; b < kGamepadBtn_Count; ++b) {
++      int old = gi->last_cmd[b];
++      if (b != button && (gi->modifiers & (1u << b)) &&
++          old >= kKeys_Controls && old <= kKeys_ControlsP2_Last) {
++        SetPadButtonOrFallthrough(old, false);
++        gi->last_cmd[b] = 0;
++      }
++    }
++  }
+   if (gi->last_cmd[button] != 0)
+     SetPadButtonOrFallthrough(gi->last_cmd[button], pressed);
+ }

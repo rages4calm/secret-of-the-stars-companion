@@ -35,7 +35,7 @@ internal static class PresentationUiTests
         Find<Button>("Change fullscreen hotkeys").PerformClick();
         Check("Display exposes keyboard and controller fullscreen controls",Find<ComboBox>("Fullscreen controller").Visible);
         Find<ComboBox>("Fullscreen keyboard").Text="Ctrl+F12";Find<ComboBox>("Fullscreen controller").Text="Back+L1";
-        Find<ComboBox>("Quest journal keyboard").Text="Ctrl+J";Find<ComboBox>("Quest journal controller").Text="Back+L3";
+        Find<ComboBox>("Quest journal keyboard").Text="Ctrl+J";Find<ComboBox>("Quest journal controller").Text="Back+R1+L3";
         form.ShowPage("display");Find<ComboBox>("Graphics renderer").SelectedIndex=1;
         Find<CheckBox>("Synchronize presentation with the display").Checked=false;
         Find<Button>("Enhanced pixels").PerformClick();

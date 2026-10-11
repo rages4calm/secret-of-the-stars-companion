@@ -97,6 +97,8 @@ def main() -> None:
             if mode == 'modifier':
                 config = config.replace('Turbo=T\nMovementBoost=M', 'Turbo=Ctrl+T\nMovementBoost=Left Shift')
             if mode == 'unbound':
+                config = config.replace('[KeyMap]\n', '[KeyMap]\nMap=None\n')
+                config = config.replace('[GamepadMap]\n', '[GamepadMap]\nMap=None\n')
                 for value in ('T', 'M', 'U', 'I', 'R2', 'L2', 'R3', 'L3'):
                     config = re.sub(r'(?m)(Turbo|MovementBoost|BattleInfo|Journal)=' + value + r'$', r'\1=None', config)
             if mode == 'restore': config = config.replace('Load=,', 'Load=F2,')

@@ -1,5 +1,5 @@
 {
-  "scope": "Five actual owner-requested documentation captures. No mockups or replacement artwork. Native0.2.5; unchanged Companion0.3.1.",
+  "scope": "Six actual owner-requested documentation captures. Five preceding025/031 captures retain historical scope; navigation map is exact026. No mockups or replacement artwork.",
   "captures": {
     "docs/screenshots/widescreen-world.png": {
       "title": "Wider world, including original vehicles",
@@ -55,6 +55,17 @@
       "application_version": "Companion0.3.1",
       "application_sha256": "c644b4f27b7c8763aff490ad6f2a85e30930fd4e94fe2d18c4831d5ddf8129a7",
       "caption": "Assign fullscreen, HUD, journal, movement boost, checkpoints and more to keyboard/controller actions. Fast-forward supports hold or toggle. These are example custom bindings; game-button mapping has its own Controls page."
+    },
+    "docs/screenshots/navigation-map.png": {
+      "title": "Position, towns and a verified next destination",
+      "sha256": "4d473aaa17b9850ad37a947c366d69b2098ae4677bbd97d22b442c7f58640f55",
+      "dimensions": [
+        1200,
+        672
+      ],
+      "application_version": "native0.2.6",
+      "application_sha256": "adf0a16b04c262e7247c84d92d85a6865d0a05bfc781af10039e0a33932d5d6a",
+      "caption": "The optional map uses original selected world terrain: gold marks the party position, cyan marks original town entrances, and pink blinks at the verified Decatas route after Morgan. This copied development checkpoint comes from original payment and ordinary world-return execution with staged prerequisites; it is not a natural full-campaign playthrough. Objective marking can be disabled independently."
     }
   }
 }

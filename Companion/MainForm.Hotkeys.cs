@@ -12,6 +12,7 @@ public sealed partial class MainForm
         page.Add(Theme.Text("Default movement boost: Left Shift / left trigger. Default fast-forward: Tab / right trigger. Existing explicit bindings take precedence.",10,Theme.Muted),12);
         AddCheck(page,"Legacy controller menu gestures",s=>s.LegacyControllerGestures,(s,v)=>s.LegacyControllerGestures=v);
         page.Add(Theme.Text("Allows Select + R for the checkpoint menu and Select + right-stick click for rewind. Turn off to use those combinations for your own shortcuts.",10,Theme.Muted),12);
+        page.Add(Theme.Text("Current-area map: M / Back (Select) + left-stick click by default. Existing explicit map bindings win. Choose an unused key or controller chord when changing bindings; legacy menu gestures stay as you configured them.",10,Theme.Muted),12);
         page.Add(Theme.Text("Keyboard names accept Ctrl+, Alt+ and Shift+ chords. Controller names follow SDL/Xbox labels; L1/R1 are bumpers, L2/R2 are triggers, L3/R3 are stick clicks. You can type a chord such as Back+R1. None leaves an action unbound.",10,Theme.Muted),18);
         var grid=BindingGrid();
         foreach(var action in HotkeyCatalog.Actions.Where(a=>a.Slots==1))
