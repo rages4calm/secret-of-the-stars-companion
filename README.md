@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Project author:** Carl Prewitt Jr. / [rages4calm](https://github.com/rages4calm)
+**Discord:** chrono.trigger
 
 > [!IMPORTANT]
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
