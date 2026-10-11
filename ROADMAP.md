@@ -19,6 +19,7 @@ cancellation, isolated profile adoption, explicit compilation status, title-firs
 launch and selected copied-save resume. Public Play no longer requires private
 fixture/checkpoint data. XP/gold rates, guarded movement boost and keyboard/
 controller hotkeys are editable in the launcher.
+The [WIP release](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.3.2-wip) now provides a ROM-free launcher/source ZIP, checksum and version manifest. Users still need their owned ROM and the documented development tools to build the game locally.
 Source-profile updates now create verified new folders and retain old profiles
 for selection-only rollback. A source-first package tool includes one
 self-contained GUI, authored source and notices; native game and original data
@@ -71,7 +72,7 @@ acquisition, irreversible completion and durable history remain distinct.
 
 Original recruitment and SWAP between both controlled parties, their selected
 locations, inventories, journal and map now have finite producer/restore checks.
-Broader second-party margin art remains unqualified. Bun's original recruitment
+Additional [second-party checks](docs/FOUNDATION-SECOND-PARTY-2026-10-11.md) now qualify Kustera town walking and margin art, genuine house SWAP in both directions, and a coherent Kustera-to-Aqutallion copied-checkpoint restore on unchanged native0.3.2. Wrapping-world second-party margins and broader effects remain unqualified. Bun's original recruitment
 and house exit are verified; the later original city-construction trigger and
 changing town remain next priorities, with no invented outcome flags or pins.
 

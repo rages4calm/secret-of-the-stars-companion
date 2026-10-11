@@ -38,14 +38,14 @@ These are actual captures of features added for this PC project. **[View all six
 
 The gameplay images use isolated development checkpoints. Widescreen is optional and uses the original view where a scene is not qualified; the journal is still being expanded. Upscaling preserves original artwork. See the gallery for exact capture scope and example launcher settings.
 
-The [0.3.2 continuation](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md) adds faithful standard automatic generation, verified town/house NPC margins and the current first-house journal clue. The launcher remains 0.3.4.
+The [0.3.2 continuation](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md) adds faithful standard automatic generation, verified town/house NPC margins and the current first-house journal clue. The unchanged build also passes [additional second-party town, SWAP and restore checks](docs/FOUNDATION-SECOND-PARTY-2026-10-11.md). The launcher remains 0.3.4.
 
 ## What works today
 
 | Area | Implemented behavior | Current limit |
 | --- | --- | --- |
 | Windows foundation | Compiled C/SDL3 host with native game-specific enhancements and guarded original execution | Complete native/AOT game execution is still future work |
-| Companion launcher | ROM validation, source-build progress/cancellation, isolated profile updates/rollback, explicit title/selected-copy resume and protected settings edits | Requires Windows development tools for the native source build; no public playable download yet |
+| Companion launcher | ROM validation, source-build progress/cancellation, isolated profile updates/rollback, explicit title/selected-copy resume and protected settings edits; downloadable ROM-free WIP launcher/source package | Requires your owned ROM and Windows development tools to build the native game |
 | Enhanced pixels | Independently selectable Scale2x presentation, exact window sizes, pixel shape and fullscreen output | Upscaling preserves original artwork; it is not a replacement HD world pack |
 | Widescreen scenery | Stable 400-pixel canvas, selected original primary/secondary map resources, title panorama and sixteen authored battle-side layouts using original cells | Original 256-pixel center stays exact; selected overworld edge crossings retain terrain margins; unsupported states retain centered imagery and side bars |
 | Widescreen actors | Ordinary party, regular/reserved packets, guarded driving/parked and selected compound vehicle rosters, and selected later world-map actors, plus selected qualified interior and original town/house NPC families | Original allocation, packet and art checks authenticate supported contexts; broader party/effect/vehicle contexts remain open |
@@ -61,7 +61,9 @@ The [0.3.2 continuation](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md) adds fait
 
 ## Build from your own ROM
 
-There is no public playable download yet. Developers can build the native foundation from this source snapshot:
+[Download the WIP launcher/source package](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.3.2-wip), extract it and open **Start Secret of the Stars Companion.cmd**. Its Setup page validates your owned ROM and builds the native game locally. The package includes the launcher, authored source and notices; it does not include a playable game binary or original game data. Install the prerequisites in [BUILDING.md](BUILDING.md) first.
+
+Developers can also build from this source snapshot:
 
 ```powershell
 git clone https://github.com/rages4calm/secret-of-the-stars-companion.git
@@ -69,7 +71,7 @@ cd secret-of-the-stars-companion
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc"
 ```
 
-Install the prerequisites in [BUILDING.md](BUILDING.md) first. The helper fetches the pinned runtime, applies this project's four separately checked runtime patches, generates code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
+The helper fetches the pinned runtime, applies this project's five separately checked runtime patches, generates code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
 
 Build the self-contained launcher with `python tools/build_public_companion.py`, then open `Start Secret of the Stars Companion.cmd` or the generated Companion EXE. Its Setup page validates your ROM and builds/adopts a fresh native profile without private gameplay fixtures. See [BUILDING.md](BUILDING.md). Historical native preview scripts and fixture checkers remain development adapters.
 
