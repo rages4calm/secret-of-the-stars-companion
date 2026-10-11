@@ -146,6 +146,12 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             route[1] = "asked you to stop Badbad.";
             progress = town_route == 2 ? "DOG PILL: CURRENT PACK" : "DOG PILL: OTHER PARTY PACK";
         }
+    } else if (lead == 8) {
+        objective[0] = "Help the new town grow.";
+        objective[1] = "Find builders and farmers.";
+        route[0] = "Baz plans to cut trees";
+        route[1] = "and plant crops here.";
+        progress = "Current town farming advice";
     } else if (lead == 7) {
         objective[0] = "Seek Dynamite's help.";
         objective[1] = "Find a way to defeat Golan.";

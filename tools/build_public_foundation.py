@@ -9,6 +9,8 @@ import argparse,hashlib,json,re,shutil,subprocess,sys,time
 ROOT=Path(__file__).resolve().parents[1]
 RUNTIME_URL='https://github.com/RetroPortingToolKit/snesrecomp.git'
 RUNTIME_PIN='7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0'
+FAITHFUL_INSTRUCTION_PATCH_SHA256='0d342317b3f997c2f56517c02363a9162d68194ce8e473a43207c25da62050a3'
+HOST_AUDIO_PATCH_SHA256='6381bc9937a9ed478bc27b3cdcd29e5653921478fe1ee2c536dd9d7cb6d7ec5e'
 HOST_NAVIGATION_PATCH_SHA256='91fea10b53d3eca67364eceebfb802a2c1c79432ff7424d02c5f8755438dc028'
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -47,9 +49,23 @@ def main():
     host_names=re.findall(r'^diff --git a/(\S+) b/',host_patch.read_text(encoding='utf-8'),re.M)
     if set(host_names)!={'runner/src/desktop/config.h','runner/src/desktop/mmx_config.c','runner/src/desktop/host_main.c'} or len(host_names)!=3:
         raise RuntimeError('Navigation extension exceeds its host-input source boundary.')
+    faithful_patch=out/'runtime-faithful-clear.patch'
+    shutil.copy2(ROOT/'patches/runtime-faithful-clear.patch',faithful_patch)
+    if sha(faithful_patch)!=FAITHFUL_INSTRUCTION_PATCH_SHA256:
+        raise RuntimeError('Faithful instruction patch changed; audit its state and timing compatibility before building.')
+    faithful_names=re.findall(r'^diff --git a/(\S+) b/',faithful_patch.read_text(encoding='utf-8'),re.M)
+    if set(faithful_names)!={'runner/src/snes/interp_bridge.c','runner/src/snes/interp_bridge.h'} or len(faithful_names)!=2:
+        raise RuntimeError('Faithful extension exceeds its two-file transaction API boundary.')
+    audio_patch=out/'runtime-modal-audio.patch'
+    shutil.copy2(ROOT/'patches/runtime-modal-audio.patch',audio_patch)
+    if sha(audio_patch)!=HOST_AUDIO_PATCH_SHA256:
+        raise RuntimeError('Modal audio patch changed; audit its host-only scope before building.')
+    audio_names=re.findall(r'^diff --git a/(\S+) b/',audio_patch.read_text(encoding='utf-8'),re.M)
+    if audio_names!=['runner/src/desktop/host_main.c']:
+        raise RuntimeError('Modal audio extension exceeds its host-only source boundary.')
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
-    runtime=ROOT/'local/upstream'/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12]+'-'+sha(host_patch)[:12])
+    runtime=ROOT/'local/upstream'/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12]+'-'+sha(host_patch)[:12]+'-'+sha(faithful_patch)[:12]+'-'+sha(audio_patch)[:12])
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     if not runtime.exists():
         runtime.parent.mkdir(parents=True,exist_ok=True)
@@ -59,10 +75,13 @@ def main():
         command(['git','submodule','update','--init','--recursive'],runtime)
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:
         raise RuntimeError('Existing runtime is at another revision; it has been preserved.')
-    patch_names=re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M)
+    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names))
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
         if (receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
+                or receipt.get('faithful_instruction_patch_sha256')!=sha(faithful_patch)
+                or receipt.get('host_modal_audio_patch_sha256')!=sha(audio_patch)
+                or set(receipt['patched_sources'])!=set(patch_names)
                 or any(sha(runtime/n)!=h for n,h in receipt['patched_sources'].items())):
             raise RuntimeError('Existing patched runtime differs from its receipt; it has been preserved.')
         if set(command(['git','diff','--name-only'],runtime).splitlines())!=set(patch_names):
@@ -72,8 +91,12 @@ def main():
             raise RuntimeError('Unrecognized runtime modifications; preserved without reset.')
         command(['git','apply','--check',patch],runtime);command(['git','apply',patch],runtime)
         command(['git','apply','--check',host_patch],runtime);command(['git','apply',host_patch],runtime)
+        command(['git','apply','--check',faithful_patch],runtime);command(['git','apply',faithful_patch],runtime)
+        command(['git','apply','--check',audio_patch],runtime);command(['git','apply',audio_patch],runtime)
         marker.write_text(json.dumps({'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
           'host_navigation_patch_sha256':sha(host_patch),
+          'faithful_instruction_patch_sha256':sha(faithful_patch),
+          'host_modal_audio_patch_sha256':sha(audio_patch),
           'patched_sources':{n:sha(runtime/n) for n in patch_names}},indent=2)+'\n',encoding='utf-8')
     pins=dict(line.split('=',1) for line in (source/'framework_pins.txt').read_text().splitlines() if '=' in line)
     for key,name in [('rbengine','retcomm-rbengine'),('recomp-net','recomp-net')]:
@@ -132,7 +155,11 @@ def main():
       'authored_inputs':actual,'matches_authored_snapshot':actual==manifest,
       'runtime_pin':RUNTIME_PIN,'runtime_patch_sha256':sha(patch),
       'host_navigation_patch_sha256':sha(host_patch),
+          'faithful_instruction_patch_sha256':sha(faithful_patch),
+          'host_modal_audio_patch_sha256':sha(audio_patch),
       'host_navigation_patch_scope':'Appended map hotkey, parser/defaults and host dispatch only; existing command ids and serialized guest execution unchanged.',
+      'host_modal_audio_patch_scope':'Host playback pause/prefill resume and overlay request consumption only; no guest machine or checkpoint layout changes.',
+      'faithful_instruction_patch_scope':'Byte transaction wrapper/declaration only; existing bus/clock and checkpoint layout unchanged.',
       'checkpoint_schema':{'identity':state_identity.group(1),'writes':schema_version,'reads':list(range(1,schema_version+1))},
       'save_compatibility':'secret-of-the-stars-usa-sram-v1',
       'execution_state_abi_sha256':hashlib.sha256(('\n'.join(actual[name] for name in ('src/foundation_state.c','src/foundation_state.h','src/game_rtl.c','src/game_rtl.h','src/variables.h'))+'\n'+RUNTIME_PIN+'\n'+sha(patch)).encode()).hexdigest(),
@@ -142,7 +169,8 @@ def main():
           'provenance_file':clear_provenance_path.relative_to(out).as_posix(),'provenance_sha256':sha(clear_provenance_path),
           'generated_header':'project/src/gen/faithful_clear.generated.h','generated_header_sha256':clear_provenance['output_sha256'],
           'instruction_bytes_sha256':clear_provenance['instruction_bytes_sha256'],'entry_pcs':[node['pc'] for node in clear_provenance['nodes']],
-          'scope':'Three original-cost guarded instructions; existing interpreter entry boundary and original RTS retained.'}},
+          'scope':'Complete guarded CB19-CB34 routine with original C45E call/CB34 RTS; existing scheduler frontend retained.',
+          'default_variant':'whole-routine','legacy_variant':'three-instruction','legacy_entry_pcs':[node['pc'] for node in clear_provenance['legacy_nodes']]}},
       'profile':profile.relative_to(ROOT).as_posix(),
       'limits':'Fresh developer compilation only; gameplay qualification and owner installation remain separate.'}
     (out/'source-build-receipt.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')

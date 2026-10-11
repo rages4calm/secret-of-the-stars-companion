@@ -1,4 +1,58 @@
-# Current source continuation — native0.2.8 / unchanged Companion0.3.2 (2026-10-11)
+# Latest owner scope — 2026-10-11
+
+CPU experiments and MSU-1 work are withdrawn. Do not investigate or restart
+either, and omit both from future status/product updates. Historical records
+are inert. Continue rendering, Companion, navigation, verified story guidance,
+gameplay coverage and faithful native implementation. This overrides older
+requests below. Development saves are disposable; retain reproducible fixtures
+when useful, and protect the ROM, other projects and launcher preferences.
+
+---
+
+# Current installed continuation - native 0.2.9 / Companion 0.3.3 (2026-10-11)
+
+Read docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md first. Installed
+native fd29c0ac / receipt 4f5c25fa and GUI d455d186 / receipt a2bf1eee pass
+exact repaired-artifact qualification and 18 copied-installed controls.
+Nine actual modal GPU/audio routes pass. Separate pacing qualifies 15 distinct
+routes in 19 attempts: 13 initially passed, then the two failed routes and two
+controls passed unchanged-artifact repeats. Retain both initial paced failures
+(cause unknown) and earlier 9031 modal failures as historical evidence. Root owns package
+qualification/publication; never infer package success from compilation.
+
+Preserve 55 native / 24 GUI authored inputs and real compiled_unqualified
+receipts. All four runtime patches have separate hashes in their cache keys
+and markers; retain previous checkouts. The two-file instruction API supplement
+exposes an existing byte transaction; checkpoint/execution ABI remains compatible.
+Generate the 13-address original call/setup/loop/return only into private src/gen.
+Retain original bus/cycles/scheduler/return and context/port refusals, with old
+loop and handwritten diagnostic modes separately selectable. No full-game AOT
+or campaign claim follows from the single-routine evidence.
+
+The fourth host-only runtime-modal-audio.patch is 6381bc99. Genuine DSP PCM
+prefills before device resume; the original producer may resume a long loader
+before high-water backpressure. Consume keyboard rewind requests before modal
+continuation. Preserve original guest timing, checkpoint ABI and counters; do
+not substitute silence padding, counter resets or arbitrary frame skipping.
+
+Two selected interior resource/roster families authenticate original 512/2048
+periods, displayed raster, camera, allocation and complete 544-byte packets.
+Underground vertical and laboratory horizontal/vertical actual input passes;
+underground horizontal remains host-only because original walls block the route.
+Unknown parties, effects, packets or resources retain fallback.
+
+Original Golan/Graviton/victory/Baz producers reach chapter 6 with recorded
+copied-party prerequisites; never stage claimed victory/chapter outcomes.
+Chapter 6 flag byte 00 shows narrow current town/farming advice and no destination;
+nonzero flags/later stages refuse it. Keep father0326 source-only, mutable item
+possession separate from history, and earlier advice restored on rollback.
+GUI 0.3.3 Display preserves custom window/aspect aliases and unrelated settings.
+No new physical-controller certification. Use isolated copied EXEs beside their
+configuration; ROMs, launcher preferences and other projects remain protected.
+
+---
+
+# Current source continuation — native 0.2.8 / unchanged Companion0.3.2 (2026-10-11)
 
 Read docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md first. Exact native76fb71c7/source receipt e5fdc6b5 have separate finite qualification; source receipts remain compiled_unqualified. Canonical55 native/GUI24 inputs, runtime/base17/host3 patches and execution-state ABI remain exact. Generate the three guarded clear instructions only in private src/gen; never publish ROM-derived headers/provenance. Generated original-cost execution defaults on independently of NativeClear; original bus/cycles/scheduler/RTS and all refusal guards remain. CPU experiments stay archived.
 

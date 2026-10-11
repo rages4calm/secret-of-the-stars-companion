@@ -198,6 +198,19 @@ def main():
     helper = (ROOT / 'tools/build_public_foundation.py').read_text(encoding='utf-8')
     if sha(host_patch) not in helper:
         errors.append('Navigation patch audit hash is missing from the build helper.')
+    faithful_patch = ROOT / 'patches/runtime-faithful-clear.patch'
+    if ('patches/runtime-faithful-clear.patch' not in tracked
+            or not faithful_patch.is_file()
+            or sha(faithful_patch) != provenance.get('faithful_instruction_patch_sha256')):
+        errors.append('Faithful instruction patch differs from the audited snapshot.')
+    elif sha(faithful_patch) not in helper:
+        errors.append('Faithful instruction patch audit hash is missing from the build helper.')
+    audio_patch = ROOT / 'patches/runtime-modal-audio.patch'
+    if ('patches/runtime-modal-audio.patch' not in tracked or not audio_patch.is_file()
+            or sha(audio_patch) != provenance.get('host_modal_audio_patch_sha256')):
+        errors.append('Modal audio patch differs from the audited snapshot.')
+    elif sha(audio_patch) not in helper:
+        errors.append('Modal audio audit hash is missing from the build helper.')
     if provenance['runtime_commit'] not in pins or provenance['runtime_commit'] not in helper:
         errors.append('Runtime pin mismatch.')
     if 'PolyForm Noncommercial' not in (ROOT / 'LICENSE').read_text(encoding='utf-8'):

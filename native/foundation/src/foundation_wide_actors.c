@@ -74,10 +74,10 @@ static int PartyGate(int value, unsigned stop) {
 }
 /* Original DAxx gate adds the world period only in A, never in DP16/18.
  * Packet validation therefore retains raw coordinates even on this branch. */
-static int RegularGate(int value, unsigned stop, int wrap) {
+static int RegularGate(int value, unsigned stop, int wrap, unsigned period) {
     unsigned raw = (uint16_t)value;
     if (raw >= 0xfff1) return 1;
-    if (wrap && raw >= 0x8000) raw = (raw + 3584) & 0xffff;
+    if (wrap && raw >= 0x8000) raw = (raw + period) & 0xffff;
     return raw < stop;
 }
 static int WorldDistance(int value, int center) {
@@ -134,6 +134,57 @@ static int WrappingResource(const Ppu *ppu) {
     }
     return 1;
 }
+
+/* Separate original local-wrap family, not a broader world3584 admission.
+ * Original DA58..DA64 derives each axis period from primary dimensions*256;
+ * DAC8/DAE1 use those values only in ordinary culling comparison A.
+ * Scene22's original selected stream088A13/list28 yields ordinary03D8 at0.
+ * Coordinates remain producer-owned; no staged coordinate whitelist. */
+static int LocalWrappingResource(const Ppu *ppu) {
+    if (!ppu || !g_snes || !g_snes->dma || g_ram[0x407] != 1 ||
+        g_ram[0x409] || g_ram[0x400] != 0x80 ||
+        R16(0x46f) != 0x0202 || R24(0x503) != 0x03ae70 ||
+        R24(0x509) != 0x0a96d0 || R24(0x516) != 0x09a43e ||
+        R24(0x55c) != 0x098610 ||
+        g_ram[0x50c] != 0x80 || g_ram[0x50d] ||
+        ppu->bgmode != 9 || PPU_mosaicSize(ppu)>1 || ppu->setini) return 0;
+    unsigned count, period;
+    const uint16_t *bases;
+    static const uint16_t underground[] = {0x03d8};
+    static const uint16_t lab[] = {0x0190,0x0508,0x0540,0x0540,0x0540,0x0540,0x0508,0x0508};
+    if (R16(0x40e)==22 && R16(0x46d)==0x0202 &&
+        R24(0x500)==0x03b5e8 && R24(0x506)==0x0a9ad0 &&
+        R24(0x513)==0x099e20 && R24(0x537)==0x098710) {
+        bases=underground; count=1; period=512;
+    } else if (R16(0x40e)==98 && R16(0x46d)==0x0808 &&
+        R24(0x500)==0x03ee38 && R24(0x506)==0x0ab0f8 &&
+        R24(0x513)==0x09a770 && R24(0x537)==0x098e46) {
+        /* Original selected stream0890DD/list36: eight ordinary allocations.
+         * The original DA58 period producer and B071 camera updater both use
+         * dimensions*256. This is a separate local2048 family, not world3584. */
+        bases=lab; count=8; period=2048;
+    } else return 0;
+    for (unsigned i=0;i<8;++i) if (g_snes->dma->channel[i].hdmaActive) return 0;
+    for (unsigned i=0;i<kParty;++i) {
+        unsigned at=0x4000+18*i;
+        if (i) { if (g_ram[at]!=255) return 0; }
+        else if (g_ram[at]>3 || R16(at+3)!=0) return 0;
+    }
+    for (unsigned i=0;i<kRegular;++i) {
+        unsigned at=0x4100+25*i;
+        if (i>=count) { if (g_ram[at]!=255) return 0; }
+        else if (g_ram[at]>3 || R16(at+5)!=bases[i] ||
+                 R16(at+1)>=period || R16(at+3)>=period) return 0;
+    }
+    return 1;
+}
+static int LocalDistance(int value, int center, unsigned period) {
+    int d=value-center;
+    if (d<-(int)period/2) d+=(int)period;
+    if (d>=(int)period/2) d-=(int)period;
+    return d;
+}
+
 static int Period512(int value, int center) {
     return ((value - center + 256) & 511) + center - 256;
 }
@@ -192,7 +243,7 @@ int FoundationWideActorsEnabled(void) { return enabled; }
 static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
-        g_ram[0x401] == 12 && (!g_ram[0x407] || WrappingResource(ppu)) &&
+        g_ram[0x401] == 12 && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
         !R16(0x471) && !R16(0x473);
 }
 
@@ -457,8 +508,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
                 continue;
             }
             if (actor->party ? (!PartyGate(actor->screen_x, 255) || !PartyGate(actor->screen_y, 239)) :
-                               (!RegularGate(actor->screen_x, 255, producing.resource[30]) ||
-                                !RegularGate(actor->screen_y, 239, producing.resource[30]))) continue;
+                               (!RegularGate(actor->screen_x, 255, producing.resource[30], (unsigned)producing.resource[24]*256) ||
+                                !RegularGate(actor->screen_y, 239, producing.resource[30], (unsigned)producing.resource[25]*256))) continue;
             if (slot >= 124) { Reject("reject_capacity", cpu); return; }
             for (unsigned part = 0; part < 4; ++part, ++slot) {
                 int x = actor->screen_x + ((part & 1) * 8);
@@ -477,8 +528,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         unsigned reserved_slot = 4;
         for (unsigned index = kParty + kAppendRegular; index < kActors; ++index) {
             const Actor *actor = &producing.actors[index];
-            if (!actor->present || !RegularGate(actor->screen_x, 255, producing.resource[30]) ||
-                !RegularGate(actor->screen_y, 239, producing.resource[30])) continue;
+            if (!actor->present || !RegularGate(actor->screen_x, 255, producing.resource[30], (unsigned)producing.resource[24]*256) ||
+                !RegularGate(actor->screen_y, 239, producing.resource[30], (unsigned)producing.resource[25]*256)) continue;
             for (unsigned part = 0; part < 4; ++part, ++reserved_slot) {
                 int x = actor->screen_x + ((part & 1) * 8);
                 int y = actor->screen_y - 1 + ((part >> 1) * 8);
@@ -579,7 +630,42 @@ void FoundationWideActorsBeginDraw(void) {
 /* Original 210D/210E retains full13-bit BG1 scroll as M7 H/V. The selected
  * ordinary/parked family shares complete-packet, original raster and resource
  * authentication. Neither ten-bit latches nor modulo displacement suffice. */
+
+static int LocalPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
+    if (!source || !world_x || !world_y || world_x==world_y ||
+        !displayed.valid || !Scene(source) || !LocalWrappingResource(source) ||
+        displayed.large.writers || !SameResource(source,&displayed) ||
+        !PacketMatches(source,displayed.bytes) ||
+        (unsigned)(snes_frame_counter-displayed.producer_frame)!=2) return 0;
+    int raster[2]={source->m7matrix[6],source->m7matrix[7]};
+    int live[2]={R16(0x2ad),R16(0x2af)};
+    int packet[2]={displayed.camera_x,displayed.camera_y};
+    int scroll[2]={source->hScroll[0],source->vScroll[0]};
+    int jumped=0;
+    for (unsigned i=0;i<2;++i) {
+        unsigned period=(unsigned)displayed.resource[24+i]*256;
+        if ((period!=512 && period!=2048) || raster[i]<0 || raster[i]>=(int)period ||
+            live[i]<0 || live[i]>=(int)period || packet[i]<0 || packet[i]>=(int)period ||
+            raster[i]!=packet[i] || (raster[i]&1023)!=scroll[i]) return 0;
+        int delta=LocalDistance(live[i],packet[i],period),raw=live[i]-packet[i];
+        if (delta < -8 || delta > 8) return 0;
+        if (raw < -8 || raw > 8) {
+            int forward=packet[i]>=(int)period-8 && live[i]<=7 && delta>0;
+            int reverse=packet[i]<=7 && live[i]>=(int)period-8 && delta<0;
+            if ((!forward && !reverse) || ++jumped>1) return 0;
+        }
+    }
+    uintptr_t out[2]={(uintptr_t)world_x,(uintptr_t)world_y};
+    for (unsigned i=0;i<2;++i)
+        if ((out[i]>=(uintptr_t)g_ram && out[i]-(uintptr_t)g_ram<131072) ||
+            (out[i]>=(uintptr_t)source && out[i]-(uintptr_t)source<sizeof(*source)) ||
+            (out[i]>=(uintptr_t)&displayed && out[i]-(uintptr_t)&displayed<sizeof(displayed))) return 0;
+    *world_x=raster[0];*world_y=raster[1];
+    return 1;
+}
+
 int FoundationWideActorsPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
+    if (LocalWrappingResource(source)) return LocalPeriodicRaster(source,world_x,world_y);
     if (!source || !world_x || !world_y || world_x == world_y ||
         !displayed.valid || !Scene(source) || !WrappingResource(source) ||
         !SameResource(source,&displayed) || !PacketMatches(source,displayed.bytes) ||
@@ -635,12 +721,14 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
     int cy = displayed.camera_y + ((source->vScroll[0] - (displayed.camera_y & 1023) + 512) & 1023) - 512;
     int dx = cx - displayed.camera_x, dy = cy - displayed.camera_y;
     int wrap = displayed.resource[30] != 0;
+    int local = wrap && LocalWrappingResource(source);
     if (wrap) {
         int authenticated_x, authenticated_y;
         if (FoundationWideActorsPeriodicRaster(source,&authenticated_x,&authenticated_y)) {
             cx=authenticated_x; cy=authenticated_y;
             dx=cx-displayed.camera_x; dy=cy-displayed.camera_y;
         } else {
+            if (local) return 0; /* Local family has no unqualified interior raster fallback. */
             /* Authenticate the live raster against its wrapped primary reference.
              * The displayed actor records and packet remain immutable. Reject an
              * unknown raster offset rather than unwrap against stale packet lows. */
@@ -669,9 +757,11 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
         if (!actor->present || actor->travel_proxy) continue;
         for (unsigned part = 0; part < 4; ++part) {
             int x = (actor->party ? Period512(actor->screen_x, 128) - dx :
+                     local ? LocalDistance(actor->world_x - cx,128,(unsigned)displayed.resource[24]*256)+128 :
                      wrap ? WorldDistance(actor->world_x - cx, 128) + 128 :
                             Signed(actor->world_x - cx)) + ((part & 1) * 8);
             int y = (actor->party ? Period512(actor->screen_y, 112) - dy :
+                     local ? LocalDistance(actor->world_y - cy,112,(unsigned)displayed.resource[25]*256)+111 :
                      wrap ? WorldDistance(actor->world_y - cy, 112) + 111 :
                             Signed(actor->world_y - cy) - 1) + ((part >> 1) * 8);
             if ((int)line - 1 < y || (int)line - 1 >= y + 8 || x >= 328 || x + 8 <= -72 ||

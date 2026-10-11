@@ -33,6 +33,9 @@ static inline unsigned FoundationJournalLead(unsigned stage, unsigned flags) {
     if (stage == 3) return 4;
     if (stage == 4) return 6;
     if (stage == 5) return 7;
+    /* Original0346 FA7F advances to chapter6 and resets both flag bytes.
+     * Actual0323 describes farming the town; later father0326 is not covered. */
+    if (stage == 6 && flags == 0) return 8;
     return 0;
 }
 

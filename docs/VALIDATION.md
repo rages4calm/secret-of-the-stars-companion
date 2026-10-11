@@ -1,6 +1,39 @@
 # Validation scope — 2026-10-11
 
-## Current native0.2.8 / unchanged Companion0.3.2
+## Current installed native 0.2.9 / Companion 0.3.3
+
+Exact repaired native `fd29c0ac` / source receipt `4f5c25fa` pass 184 loading
+checks across 24 executions, 38 local-wrap checks, 405 combined presentation
+checks, destination-map 101/7, focused journal 157/38 and expanded public
+journal 771/158 with 1,900,544 pure predicates. All seven core suites pass.
+Exact GUI `d455d186` / receipt `a2bf1eee` passes 60 source-adoption and 52
+genuine native 0.2.8 to repaired0.2.9 update/selection-rollback controls, with
+actual copied-checkpoint execution and 1,667 protected files unchanged.
+Its separate display proof covers 284 controls and five native window routes;
+the actual 1920x1080 capture belongs to preceding native 0.2.8.
+
+Nine actual modal routes pass 147 guest-state comparisons and seven full
+traces; nine separately paced GPU/modal routes have zero steady underflow,
+missing-frame and audible-drop counters. Separate ordinary,
+interior, journal and loading pacing qualifies 15 distinct routes across 19
+attempts: 13 passed initially; two failed routes and two comparison controls
+passed a four-route repeat on the unchanged executable. The initial stalls and
+audio failures remain retained, with no inferred cause or universal system-load
+guarantee. The repair waits for genuine
+guest DSP prefill and consumes keyboard rewind requests once, preserving guest
+timing and ABI without audio padding or counter manipulation. Failed 9031
+modal reports remain retained; they are not relabeled as the repaired artifact.
+Installation and 18 copied-installed controls pass. ROM-free package
+composition/extraction/relocation are a separate release stage.
+
+Original Golan/Baz progression uses recorded copied camera/party-stat
+prerequisites and original effect/victory/chapter writers. Current chapter-six
+zero-flags advice is not durable completion history; father0326 is source-only
+and no later pin is guessed. Source receipts remain `compiled_unqualified`.
+There is no full-campaign, full-game AOT or new physical-controller certification.
+[Exact artifacts, qualification and remaining limits](FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md).
+
+## Earlier native 0.2.8 / unchanged Companion0.3.2
 
 Exact native76fb71c7/source receipt e5fdc6b5 pass 100 loading gates /22 executions, focused journal125/34 and public journal750/154 (1,900,544 pure predicates), seven core suites, exact rendering suites, destination79 controls and unchanged GUI60 adoption/52 real027→028 update/rollback. Nine separate actual-GPU/audio routes include a positively counted generated load; four additional actual browser/rewind routes pass close/input and steady audio counters. Source compilation remains compiled_unqualified. [Exact hashes, qualification counts and limits](FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md).
 

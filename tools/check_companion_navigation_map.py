@@ -49,7 +49,7 @@ def main():
     gr, nr, old = [read(x) for x in (gui_receipt, native / "source-build-receipt.json", older / "source-build-receipt.json")]
     for receipt in (gr, nr, old):
         assert receipt["status"] == "compiled_unqualified" and receipt["public_build"] is True
-    assert gr["version"] == "0.3.2" and sha(gui) == gr["executable_sha256"]
+    assert gr["version"] in ("0.3.2", "0.3.3") and sha(gui) == gr["executable_sha256"]
     assert tuple(map(int, nr["version"].split("."))) >= (0, 2, 6)
     assert tuple(map(int, old["version"].split("."))) < (0, 2, 6)
     assert sha(rom) == "7da4a3cfa5de4bb4722a6e2a42c26aae322b5e668f1645d8c870fb99e6080600"

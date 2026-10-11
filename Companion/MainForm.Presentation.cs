@@ -35,7 +35,25 @@ public sealed partial class MainForm
         AddShortcutHints(page,"Fullscreen");
         page.Add(Theme.Text("Default fullscreen shortcuts: F11, F12 or Alt+Enter. Assign a controller button or chord on Hotkeys. Your current shortcuts appear above.",10,Theme.Muted),12);
         var shortcuts=Theme.Button("Change fullscreen hotkeys",false,260);shortcuts.Click+=(_,_)=>ShowPage("hotkeys");page.Add(shortcuts,18);
-        AddNumber(page,"Window scale","Original-pixel multiples for windowed play.",1,8,1,s=>s.WindowScale,(s,v)=>s.WindowScale=v);
+        var window=Theme.Combo(310);window.AccessibleName="Windowed resolution";
+        string[] sizes=["Auto","1280x720","1600x900","1920x1080","2560x1440","3840x2160"];
+        populate.Add(s=>{window.Items.Clear();window.Items.AddRange(sizes);if(!window.Items.Contains(s.WindowSize))window.Items.Add(s.WindowSize);window.SelectedItem=s.WindowSize;});
+        window.SelectedIndexChanged+=(_,_)=>{if(loading||window.SelectedItem is not string size)return;edited.WindowSize=size;MarkDirty();};settingControls.Add(window);
+        page.Add(Theme.Text("Windowed resolution",11,Theme.Ink,FontStyle.Bold),6);page.Add(window,10);
+        page.Add(Theme.Text("Choose an exact window size, or Auto to use Window scale below. Fullscreen uses your display. The picture keeps its selected pixel shape with bars where needed.",10,Theme.Muted),18);
+        var aspect=Theme.Combo(310);aspect.AccessibleName="Pixel shape";
+        string[] aspectValues=["4:3","8:7","1:1"];
+        string[] aspectLabels=["Original CRT shape","Square pixels","Square frame"];
+        populate.Add(s=>
+        {
+            aspect.Items.Clear();aspect.Items.AddRange(aspectLabels);
+            int index=s.DisplayAspect.ToLowerInvariant() switch{"4:3" or "crt" or "0"=>0,"8:7" or "squarepixels" or "1"=>1,"1:1" or "squareframe" or "2"=>2,_=>-1};
+            if(index<0){aspect.Items.Add("Existing: "+s.DisplayAspect);index=3;}aspect.SelectedIndex=index;
+        });
+        aspect.SelectedIndexChanged+=(_,_)=>{if(loading||aspect.SelectedIndex is < 0 or > 2)return;edited.DisplayAspect=aspectValues[aspect.SelectedIndex];MarkDirty();};settingControls.Add(aspect);
+        page.Add(Theme.Text("Pixel shape",11,Theme.Ink,FontStyle.Bold),6);page.Add(aspect,10);
+        page.Add(Theme.Text("Original CRT shape keeps the game's traditional proportions. Square pixels fits the wide canvas more closely to 16:9. Pixel shape and window size do not add scenery; use Widescreen for supported scenes.",10,Theme.Muted),18);
+        AddNumber(page,"Window scale","Used when Windowed resolution is Auto.",1,8,1,s=>s.WindowScale,(s,v)=>s.WindowScale=v);
         AddCheck(page,"Synchronize presentation with the display",s=>s.VSync,(s,v)=>s.VSync=v);
         var renderer=Theme.Combo(280);renderer.Items.AddRange(["Direct3D 11","OpenGL","Software"]);renderer.AccessibleName="Graphics renderer";
         populate.Add(s=>renderer.SelectedIndex=s.Renderer.ToLowerInvariant() switch{"opengl"=>1,"software"=>2,_=>0});

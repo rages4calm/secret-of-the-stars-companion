@@ -6,6 +6,8 @@ public sealed record GameSettings
 {
     public bool Fullscreen { get; set; }
     public int WindowScale { get; set; } = 4;
+    public string WindowSize { get; set; } = "Auto";
+    public string DisplayAspect { get; set; } = "4:3";
     public bool VSync { get; set; } = true;
     public string Renderer { get; set; } = "direct3d11";
     public bool NoSpriteLimits { get; set; }

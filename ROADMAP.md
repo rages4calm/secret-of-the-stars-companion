@@ -2,7 +2,12 @@
 
 The target is a polished, editable Windows PC edition with attractive original
 pixels, true wider scenery/actors, reliable controls/audio and a useful journal.
-This is active foundation work, not a completed native recompilation. The [0.2.8 generated clear island](docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md) replaces three verified instructions with compiled C at original timing; full native/AOT generation remains a major unfinished task.
+This is active foundation work, not a completed native recompilation. The [0.2.9 continuation](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md) generates the observed call, setup, loop and return of one original loading routine at original timing; full native/AOT generation remains a major unfinished task.
+
+Native 0.2.9 / Companion 0.3.3 are installed after exact rendering, story,
+display, loading, input, update/rollback and repaired modal/audio qualification.
+Eighteen copied-installed controls pass. ROM-free package extraction and
+relocation remain a separate release stage. These proofs keep their bounded scopes.
 
 ## 1. Public first-run setup and packaging
 
@@ -19,6 +24,8 @@ updates. Configured profile roots currently retain absolute paths.
 Do not distribute the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
+
+The [native 0.2.9 continuation](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md) qualifies two interior actor families with selected-resource, completed-packet and raster guards. Original input proves underground vertical and laboratory horizontal/vertical crossings in both directions. Walls prevent the underground horizontal walking route, so that axis remains host-only. Broader parties, effects and interior scenes still need original producers and separate qualification.
 
 The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) authenticates selected original compound A0/A8 and Algos A8/B0 vehicle rosters, including overlap, descriptor phases, original slot order and restore. Unsupported contexts retain fallback; staged original allocations do not establish natural acquisition or campaign coverage.
 
@@ -49,7 +56,7 @@ staged execution. Experimental build receipts stay refused by normal Setup.
 
 ## 3. Expand the quest journal
 
-The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) executes the original chapter-five Graviton award and escort route with recorded prerequisite staging. Advice uses current chapter/flags and mutable possession, recomputes after rollback, and suppresses the old lab objective after the route advances. Golan's exact world location is unverified, so no new pin is guessed. The [0.2.8 continuation](docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md) executes the original Dynamite join and qualifies current GIANT/large-house advice and destination79. Golan battle/Baz rescue and durable completion/history remain open.
+The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) executes the original chapter-five Graviton award and escort route with recorded prerequisite staging. Advice uses current chapter/flags and mutable possession, recomputes after rollback, and suppresses the old lab objective after the route advances. Golan's exact world location is unverified, so no new pin is guessed. The [0.2.8 continuation](docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md) executes the original Dynamite join and qualifies current GIANT/large-house advice and destination79. The [0.2.9 continuation](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md) now executes the original Golan battle, Graviton effect, victory, Baz rescue and chapter-six transition with recorded copied-party prerequisites. Current chapter-six zero-flags advice covers farming the town and suppresses the stale GIANT pin. Later father dialogue remains source-only; further destinations and durable completion/history remain open.
 
 The [native0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) expands current quest directions from original dialogue and item conditions. Challenge flags and mutable item possession remain separate from durable completion/history.
 
@@ -80,27 +87,17 @@ The native0.2.7 legend matches marker colors. Two source-proven camera-stream/cu
 
 ## 4. Audio and presentation polish
 
+Companion 0.3.3 adds exact Auto/720p–4K window selection and original CRT/square-pixel/square-frame shape controls, preserving custom values and unrelated settings. The installed modal/audio repair uses genuine guest DSP prefill and one-shot keyboard rewind requests; nine modal routes pass. Separate pacing qualifies 15 distinct routes in 19 attempts: 13 passed initially, then the two failed routes and two controls passed unchanged-artifact repeats. Initial failures remain retained without an inferred cause. Extend finite scene/cutscene coverage and complete the separately recorded ROM-free package stage.
+
 Keep enhanced original pixels and experimental widescreen moving toward a
 consistent whole-game presentation. A replacement HD world/sprite pack is
 deferred. Optional finer menu-frame art has only bounded coverage.
-
-MSU-1 is conditional: first establish a compatible title driver, event/track
-mapping, authorized local soundtrack input, loops/fades and original-audio
-fallback. No verified compatible driver/pack is integrated today.
 
 ## 5. Wider testing
 
 Use small copied-save and reproducible routes for story transitions, combat,
 menus, controllers, listening checks, long sessions and hardware variation.
-Protect the newest owner save and keep failures/coverage gaps in the evidence.
+Use disposable development fixtures and keep failures/coverage gaps in the evidence.
 A full campaign, every actor/effect and every physical controller are still
 unqualified. Volunteer micro-tests are welcome; another owner playthrough is
 not the default requirement.
-
-## Archived CPU experiments
-
-The owner ended the CPU experiment work on October 10. Metatile and dispatch
-results remain reference evidence, excluded from player builds. No further CPU
-experiments are scheduled. Guest cycle accounting stays original; movement boost
-and fast-forward remain explicit player options. Complete native/AOT execution
-remains an unfinished architectural goal, not a claim about this release.

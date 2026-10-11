@@ -71,3 +71,10 @@ new folder, verify with `tools/verify_companion_package.py`, then open the root
 EXE or CMD. Native setup still needs the documented development tools and an
 owned ROM. Clean packages can be extracted at another path; configured profile
 receipts currently retain absolute paths and should stay in their original root.
+
+Companion 0.3.3 exposes exact windowed resolutions (720p through 4K) and the
+original CRT, square-pixel and square-frame presentation choices on Display.
+Auto uses the existing window scale; fullscreen uses the display. Existing
+custom sizes and aspect aliases survive loading, presets and unrelated edits.
+These controls change presentation size and proportions; supported scenery
+expansion remains the separate widescreen option.

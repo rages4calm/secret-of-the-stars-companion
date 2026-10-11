@@ -48,8 +48,11 @@ The runtime lives under ignored `local/upstream/snesrecomp`.
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
 [`native/foundation/framework_pins.txt`](native/foundation/framework_pins.txt).
-The script checks those pins, applies `patches/runtime-foundation.patch`, and
-checks the resulting source hashes before reusing a checkout. Unexpected
+The script checks those pins and applies `patches/runtime-foundation.patch`,
+`patches/runtime-navigation-map.patch`, `patches/runtime-faithful-clear.patch`
+and `patches/runtime-modal-audio.patch`.
+Each patch has an independently recorded hash in the cache key and marker; the
+combined resulting source hashes are checked before reusing a checkout. Unexpected
 revisions or edits stop the build without deleting or resetting that checkout.
 
 Generation invokes the pinned `snesrecomp_cli.py generate` with the checked
@@ -58,14 +61,19 @@ CRC32/SHA-256, `recomp/symbols.toml` and `recomp/bank00.cfg`. The CMake build us
 not make the entire game AOT/native. All generated bodies and `recomp/funcs.h`
 remain under ignored `local/`.
 
-Native 0.2.8 also runs `tools/generate_faithful_clear.py` from the copied native
-project. It generates a private three-instruction original-cost clear island
-and a provenance file; the source receipt binds their hashes to the owned ROM
-and authored generator. Generated execution defaults on only under its exact
-context and port guards. `SNESRECOMP_FOUNDATION_GENERATED_CLEAR=0`, together
-with `NativeClear=0` and no native-clear override, selects the interpreter for
-developer comparisons. This bounded island retains the existing scheduler
-entry and original RTS; it does not make the full game AOT.
+Native 0.2.9 also runs `tools/generate_faithful_clear.py` from the copied native
+project. It generates the observed original call, setup, loop and return across
+13 instruction addresses into private `src/gen`, with ROM/generator provenance
+bound by the source receipt. Original bus accesses, timing, scheduler and return
+behavior remain intact. Generated execution defaults on under its exact context
+and port guards; unsupported states retain the original path.
+
+For explicit developer comparisons, `SNESRECOMP_FOUNDATION_GENERATED_CLEAR=0`
+together with `NativeClear=0` and no native-clear override selects the interpreter.
+`SNESRECOMP_FOUNDATION_GENERATED_ROUTINE=0` retains the earlier three-instruction
+loop when generated execution is enabled. The handwritten original-cost route
+remains separately selectable for diagnostics. These are one bounded loading
+routine and comparison routes, not complete game AOT.
 
 The resulting `source-build-receipt.json` says **compiled_unqualified** and
 records exact input/executable hashes. Compilation is separate from gameplay
@@ -86,13 +94,15 @@ off. It does not load, convert or advance an existing owner save. In that
 profile's `foundation.ini`, enable both `ExperimentalFieldWide=1` and
 `ExperimentalFieldActors=1` to exercise the experimental wide presentation.
 Unsupported states retain the original centered picture with side bars.
-The 0.2.7 snapshot includes guarded original single/compound vehicle and selected world-map actor policies.
+The 0.2.9 source continuation includes guarded original single/compound vehicles,
+selected world-map actors and two authenticated interior actor families.
 Journal current possession defaults on within the existing Journal feature;
 `JournalPossession=0` in foundation.ini disables its inventory line.
-Verified current advice now extends through selected chapter-five Graviton states;
+Verified current advice extends through selected chapter-five Graviton/GIANT
+states and chapter-six zero-flags town/farming guidance;
 loading an earlier checkpoint removes later advice. Item possession and story
 flags are not permanent completion history.
-See [current scope](docs/FOUNDATION-CONTINUATION-2026-10-11.md) and the retained
+See [current release scope](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md) and the retained
 [integrated actor scope](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md).
 
 The engine's default input and hotkeys may differ from an already configured
@@ -207,7 +217,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation map (native 0.2.8 / Companion 0.3.2)
+## Navigation and display (native 0.2.9 / Companion 0.3.3)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -216,12 +226,29 @@ than replacing an existing action. Explicit custom bindings are retained.
 Original View disables both map and objective marker for that launch.
 
 The public builder applies the pinned seventeen-file base runtime patch and the
-separately audited three-file host navigation/input patch. It preserves previous
-runtime caches, records both patch hashes, and produces a real
+separately audited three-file host navigation/input patch, plus the two-file
+faithful-instruction API supplement and host-only modal/audio repair. It preserves
+previous runtime caches, records all four patch hashes, and produces a real
 `compiled_unqualified` receipt. The host-only changes retain the declared guest
 execution-state ABI; matching metadata is still required for changed-binary
-profile updates. There are 54 native authored inputs and 24 Companion inputs.
+profile updates. There are 55 native authored inputs and 24 Companion inputs.
 The matching legend and source-proven cache-key fixes preserve completed terrain
 during checked same-area movement. Work remains capped at 1,024 samples per
 host frame, with the existing 120-frame graphics refresh and restore reset.
-[Exact qualification and remaining limits](docs/FOUNDATION-CONTINUATION-2026-10-11.md).
+[Exact artifact qualification and remaining limits](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md).
+
+Companion Display offers Auto or exact 1280×720, 1600×900, 1920×1080,
+2560×1440 and 3840×2160 window sizes; existing custom sizes remain editable.
+Pixel shape offers Original CRT shape, Square pixels and Square frame. Auto
+uses Window scale, while fullscreen follows the display. Neither setting adds
+scenery: select Widescreen separately for supported scenes. Apply validates
+changed values, and Revert restores the loaded profile.
+
+The installed 0.2.9/0.3.3 pair passes exact-artifact qualification and 18
+copied-installed controls. The host modal/audio patch waits for genuine guest
+DSP prefill before resuming the device and consumes a keyboard rewind request
+once, preserving original guest timing and checkpoint ABI. Compilation alone
+does not satisfy gameplay, installation or ROM-free package qualification.
+Package extraction/relocation checks are recorded separately in the release
+document; a package contains the launcher, authored source and notices, with
+no ROM, saves, native game executable or ROM-derived generated code.

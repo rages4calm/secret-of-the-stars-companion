@@ -1,0 +1,26 @@
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -499,6 +499,11 @@
+     uint8_t value = bridge_bus_read(cpu, address);
+     s_interp_bus_timing_active = 1;
+     return value;
++}
++
++void interp_bridge_native_write8(CpuState *cpu, uint32_t address, uint8_t value) {
++    bridge_native_require(cpu);
++    bridge_bus_write(cpu, address, value);
+ }
+ 
+ void interp_bridge_native_write16(CpuState *cpu, uint32_t address, uint16_t value) {
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -164,6 +164,7 @@
+  * accesses must still use the paced transaction methods. The title must opt
+  * in and prove semantic/timing effects separately from original-cost parity. */
+ uint8_t interp_bridge_native_rom_fetch8(CpuState *cpu, uint32_t address);
++void interp_bridge_native_write8(CpuState *cpu, uint32_t address, uint8_t value);
+ void interp_bridge_native_write16(CpuState *cpu, uint32_t address, uint16_t value);
+ void interp_bridge_native_commit(CpuState *cpu, unsigned cycles, uint32_t next_pc24);
+ 

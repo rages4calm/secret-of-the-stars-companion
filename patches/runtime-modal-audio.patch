@@ -1,0 +1,268 @@
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -1763,6 +1763,22 @@
+           g_selftest_pad ? "attached" : "FAILED to attach");
+   if (!g_selftest_pad) g_selftest_pad_failed = 1;
+ }
++/* Default-off keyboard-opener fixture: queued events take the same main-loop
++ * repeat/latch path as physical keyboard input. No direct HandleCommand call. */
++static void OverlaySelftestKeyEvent(int key, bool pressed, bool repeat) {
++  SDL_Event e = {0};
++  e.type = pressed ? SDL_KEYDOWN : SDL_KEYUP;
++  e.key.repeat = repeat;
++#if SNESRECOMP_SDL3
++  e.key.key = key;
++  e.key.scancode = snesrecomp_sdl_scancode_from_key(key);
++#else
++  e.key.keysym.sym = key;
++  e.key.keysym.scancode = snesrecomp_sdl_scancode_from_key(key);
++#endif
++  SDL_PushEvent(&e);
++}
++
+ /* Main-loop tick: presses the gestures on their frames, releases otherwise. */
+ static void OverlaySelftestPadMainTick(unsigned frame) {
+   static unsigned last_frame = ~0u;
+@@ -1787,21 +1803,40 @@
+   if ((long)frame == g_selftest_pad_frame) {
+     fprintf(stderr, "[overlay_selftest_pad] frame %u: holding Select+R on the pad\n", frame);
+     g_selftest_pad_phase = 1;
+-    SelftestPadSet(SDL_CONTROLLER_BUTTON_BACK, true);
+-    SelftestPadSet(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, true);
+-  } else if ((long)frame == g_selftest_pad_frame + 60) {
++    const char *opener = HostGetenv("OVERLAY_SELFTEST_OPEN");
++    if (opener && strcmp(opener, "keyboard") == 0) {
++      OverlaySelftestKeyEvent(SDLK_F7, true, false);
++      OverlaySelftestKeyEvent(SDLK_F7, true, true);
++      OverlaySelftestKeyEvent(SDLK_F7, false, false);
++      fprintf(stderr, "[overlay_selftest_keyboard] queued browser opener and repeat\n");
++    } else {
++      SelftestPadSet(SDL_CONTROLLER_BUTTON_BACK, true);
++      SelftestPadSet(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, true);
++    }
++  } else if ((long)frame == g_selftest_pad_frame + 60 &&
++             !HostGetenv("OVERLAY_SELFTEST_BROWSER_ONLY")) {
+     fprintf(stderr, "[overlay_selftest_pad] frame %u: holding Select+R3 on the pad\n", frame);
+     g_selftest_pad_phase = 2;
+-    SelftestPadSet(SDL_CONTROLLER_BUTTON_BACK, true);
+-    SelftestPadSet(SDL_CONTROLLER_BUTTON_RIGHTSTICK, true);
++    const char *opener = HostGetenv("OVERLAY_SELFTEST_OPEN");
++    if (opener && strcmp(opener, "keyboard") == 0) {
++      OverlaySelftestKeyEvent(SDLK_F8, true, false);
++      OverlaySelftestKeyEvent(SDLK_F8, true, true);
++      OverlaySelftestKeyEvent(SDLK_F8, false, false);
++      fprintf(stderr, "[overlay_selftest_keyboard] queued rewind opener and repeat\n");
++    } else {
++      SelftestPadSet(SDL_CONTROLLER_BUTTON_BACK, true);
++      SelftestPadSet(SDL_CONTROLLER_BUTTON_RIGHTSTICK, true);
++    }
+   } else if ((long)frame == g_selftest_pad_frame + 120) {
+-    if (g_selftest_pad_opened != 3) {
++    if (g_selftest_pad_opened != (HostGetenv("OVERLAY_SELFTEST_BROWSER_ONLY") ? 1 : 3)) {
+       fprintf(stderr, "[overlay_selftest_pad] FAIL: %s never opened from the pad gesture\n",
+               !(g_selftest_pad_opened & 1) ? "the save-state browser" : "rewind");
+       g_selftest_pad_failed = 1;
+     }
+     fprintf(stderr, "[overlay_selftest_pad] %s\n",
+-            g_selftest_pad_failed ? "FAIL" : "ok: browser and rewind both opened and closed from the pad");
++            g_selftest_pad_failed ? "FAIL" : HostGetenv("OVERLAY_SELFTEST_BROWSER_ONLY")
++                ? "ok: browser opened and closed from the pad"
++                : "ok: browser and rewind both opened and closed from the pad");
+   } else {
+     SelftestPadReleaseAll();
+   }
+@@ -1814,15 +1849,36 @@
+   if (pump == 0) g_selftest_pad_opened |= g_selftest_pad_phase;
+   switch (pump) {
+   case 2:  SelftestPadReleaseAll(); break;
+-  case 6:  SelftestPadSet(nav, true); break;
++  case 6:
++    if (!(g_selftest_pad_phase == 1 && HostGetenv("OVERLAY_SELFTEST_EXIT") &&
++          strcmp(HostGetenv("OVERLAY_SELFTEST_EXIT"), "restore") == 0))
++      SelftestPadSet(nav, true);
++    if (HostGetenv("OVERLAY_SELFTEST_OPEN") && g_selftest_pad_phase == 2)
++      OverlaySelftestKeyEvent(SDLK_F8, true, true);
++    break;
+   case 9:  SelftestPadSet(nav, false); break;
++  case 12:
++    if (g_selftest_pad_phase == 1 && HostGetenv("OVERLAY_SELFTEST_EXIT") &&
++        strcmp(HostGetenv("OVERLAY_SELFTEST_EXIT"), "restore") == 0) {
++      OverlaySelftestKeyEvent(SDLK_1, true, false);
++      OverlaySelftestKeyEvent(SDLK_1, false, false);
++    }
++    break;
+   /* SDL's south button: SNES B under the default [GamepadMap] (pad "A"
+    * is the SNES B, pad "B" is the SNES A). The east button would be the
+    * SNES A -- load in the browser, commit in rewind -- which is exactly the
+    * wrong one to test "close" with, and this test first did. */
+   case 14: {
+     const char *exit_mode = HostGetenv("OVERLAY_SELFTEST_EXIT");
+-    if (exit_mode && (strcmp(exit_mode, "escape") == 0 ||
++    if (exit_mode && strcmp(exit_mode, "restore") == 0 &&
++        g_selftest_pad_phase == 1) {
++      /* The copied fixture owns saves/save0.sav. Choose it with an actual
++       * SDL key event, then press the currently mapped SNES A/load button. */
++      for (int b = SDL_CONTROLLER_BUTTON_A; b <= SDL_CONTROLLER_BUTTON_Y; b++)
++        if (FindCmdForGamepadButton(RemapSdlButton(b), 0) == kKeys_Controls + 6)
++          SelftestPadSet(b, true);
++      fprintf(stderr, "[overlay_selftest_restore] original browser load requested\n");
++    } else if (exit_mode && (strcmp(exit_mode, "escape") == 0 ||
+                       strcmp(exit_mode, "toggle") == 0 ||
+                       strcmp(exit_mode, "cancel") == 0)) {
+       SDL_Event e = {0};
+@@ -2072,6 +2128,11 @@
+ static _Thread_local uint64_t g_audio_stalled_callback;
+ static uint64_t g_audio_callback_count;  /* protected by g_audio_mutex */
+ static bool g_audio_primed;  /* protected by g_audio_mutex */
++/* Requested pause is distinct from a device held for genuine PCM prefill.
++ * Both fields are protected by g_audio_mutex. Only the host producer resumes
++ * the device; the callback never changes this policy. */
++static bool g_audio_pause_requested = true;
++static bool g_audio_resume_pending;
+ static FILE *g_audio_capture;
+ #define HOST_AUDIO_PREFILL 2136u
+ #define HOST_AUDIO_HIGH_WATER 4096u
+@@ -2097,16 +2158,35 @@
+   return true;
+ }
+ 
++static void ApplyAudioDevicePause(bool paused);
++static void TryResumeAudioAfterFrame(void);
++
++static bool AudioResumeReadyLocked(void) {
++  return g_audio_device && g_audio_resume_pending &&
++      !g_audio_pause_requested && !g_overlay_modal && !g_paused &&
++      dsp_available(g_snes->apu->dsp) >= HOST_AUDIO_PREFILL;
++}
++
+ static void ResetAudioTimeline(void) {
+-  RtlApuLock();
++  /* Stop callbacks before discarding host queue/remainder. DSP PCM belongs
++   * to the guest and is retained. Never acquire SDL's stream lock while
++   * holding the APU mutex. */
++  ApplyAudioDevicePause(true);
++  SDL_LockMutex(g_audio_mutex);
+   g_audiobuffer_end = g_audiobuffer_cur;
+   g_audio_primed = false;
+-  RtlApuUnlock();
++  g_audio_resume_pending = false;
++  SDL_UnlockMutex(g_audio_mutex);
+ #if SNESRECOMP_SDL3
+   /* The stream callback takes the APU mutex: never acquire SDL's stream
+    * lock while holding that mutex in the opposite order. */
+   if (g_audio_stream) SDL_ClearAudioStream(g_audio_stream);
+ #endif
++  /* Publish resume only after stream clearing is complete. Direct locking
++   * here must not invoke producer resume/high-water policy during reset. */
++  SDL_LockMutex(g_audio_mutex);
++  g_audio_resume_pending = g_audio_device && !g_audio_pause_requested;
++  SDL_UnlockMutex(g_audio_mutex);
+ }
+ 
+ void RtlApuLock(void) {
+@@ -2116,6 +2196,21 @@
+ 
+ void RtlApuUnlock(void) {
+   --g_apu_lock_depth;
++  if (g_apu_lock_depth == 0 && g_audio_producer_active &&
++      AudioResumeReadyLocked()) {
++    /* A long original loader may produce several frames inside RunFrame.
++     * Resume before high-water backpressure, not only after RunFrame returns.
++     * Publish the pending transition under the mutex, then release it before
++     * SDL can call the mixer and take this same mutex. */
++    uint32_t available = dsp_available(g_snes->apu->dsp);
++    g_audio_resume_pending = false;
++    SDL_UnlockMutex(g_audio_mutex);
++    if (HostGetenv("AUDIO_RESUME_TRACE"))
++      fprintf(stderr, "[host_audio_resume] ready source=producer available=%u prefill=%u\n",
++              available, HOST_AUDIO_PREFILL);
++    ApplyAudioDevicePause(false);
++    SDL_LockMutex(g_audio_mutex);
++  }
+   if (g_apu_lock_depth == 0 && g_audio_producer_active &&
+       g_audio_consumer_stalled &&
+       g_audio_callback_count != g_audio_stalled_callback)
+@@ -2221,7 +2316,7 @@
+ }
+ #endif
+ 
+-static void SetAudioPaused(bool paused) {
++static void ApplyAudioDevicePause(bool paused) {
+ #if SNESRECOMP_SDL3
+   if (g_audio_stream) {
+     if (paused) SDL_PauseAudioStreamDevice(g_audio_stream);
+@@ -2230,6 +2325,36 @@
+ #else
+   if (g_audio_device) SDL_PauseAudioDevice(g_audio_device, paused);
+ #endif
++}
++
++static void SetAudioPaused(bool paused) {
++  if (!g_audio_device) return;
++  SDL_LockMutex(g_audio_mutex);
++  g_audio_pause_requested = paused;
++  uint32_t available = dsp_available(g_snes->apu->dsp);
++  bool defer = !paused && (g_paused || g_overlay_modal ||
++      (!g_audio_primed && available < HOST_AUDIO_PREFILL));
++  g_audio_resume_pending = defer;
++  SDL_UnlockMutex(g_audio_mutex);
++  if (defer && HostGetenv("AUDIO_RESUME_TRACE"))
++    fprintf(stderr, "[host_audio_resume] deferred available=%u prefill=%u\n",
++            available, HOST_AUDIO_PREFILL);
++  ApplyAudioDevicePause(paused || defer);
++}
++
++static void TryResumeAudioAfterFrame(void) {
++  if (!g_audio_device) return;
++  SDL_LockMutex(g_audio_mutex);
++  bool resume = AudioResumeReadyLocked();
++  uint32_t available = resume ? dsp_available(g_snes->apu->dsp) : 0;
++  if (resume) g_audio_resume_pending = false;
++  SDL_UnlockMutex(g_audio_mutex);
++  if (resume) {
++    if (HostGetenv("AUDIO_RESUME_TRACE"))
++      fprintf(stderr, "[host_audio_resume] ready source=frame available=%u prefill=%u\n",
++              available, HOST_AUDIO_PREFILL);
++    ApplyAudioDevicePause(false);
++  }
+ }
+ 
+ /* ── SDL_Renderer presenter ───────────────────────────────────────────────── */
+@@ -3977,6 +4102,7 @@
+           double profile_start = ProfileStart();
+           if (game->before_run_frame) game->before_run_frame();
+           RtlRunFrame(inputs);
++          TryResumeAudioAfterFrame();
+           ProfileEnd(kProfileGuest, profile_start);
+           frameCtr++;
+           g_present_frame = frameCtr;
+@@ -4179,7 +4305,11 @@
+       continue;   /* guest was frozen: no frame to run or present */
+     }
+     g_open_launcher_hotkey = 0;
+-    if ((g_rewind_hotkey || PadGesturePressed(&g_rewind_gesture)) && !snes_rewind_is_open() &&
++    /* Consume the keyboard request before any modal branch can continue.
++     * Keyup releases its binding but does not clear this request latch. */
++    bool rewind_requested = g_rewind_hotkey != 0;
++    g_rewind_hotkey = 0;
++    if ((rewind_requested || PadGesturePressed(&g_rewind_gesture)) && !snes_rewind_is_open() &&
+         !snes_savestate_menu_is_open()) {
+       /* Refused during netplay by snes_rewind_open() itself: one machine
+        * cannot move its own clock backwards while a peer is watching. */
+@@ -4188,7 +4318,6 @@
+         continue;   /* guest was frozen: no frame to run or present */
+       }
+     }
+-    g_rewind_hotkey = 0;
+     /* Exactly ONE poll_open per frame: it latches the previous word to edge
+      * detect on, so a second call in the same frame eats the edge. */
+     (void)snes_savestate_menu_poll_open(g_legacy_controller_gestures ? human : 0);
+@@ -4281,6 +4410,7 @@
+       CaptureSimulationFrame(frameCtr);
+     NoteStateFrame();
+     g_audio_producer_active = false;
++    TryResumeAudioAfterFrame();
+     ProfileEnd(kProfileRaster, profile_start);
+     profile_start = ProfileStart();
+     if (state_trace)

@@ -13,7 +13,9 @@ def main():
     manifest = json.loads((source/'authored-files.json').read_text())
     files = [source/name for name in manifest]
     files += [source/'README.md', source/'authored-files.json', ROOT/'AGENTS.md',
-              ROOT/'HANDOFF-2026-10-08-Secret-of-the-Stars.md', ROOT/'.gitignore', ROOT/'patches/runtime-foundation.patch']
+              ROOT/'HANDOFF-2026-10-08-Secret-of-the-Stars.md', ROOT/'.gitignore',
+              ROOT/'patches/runtime-foundation.patch', ROOT/'patches/runtime-navigation-map.patch',
+              ROOT/'patches/runtime-faithful-clear.patch', ROOT/'patches/runtime-modal-audio.patch']
     files += sorted((ROOT/'tools').glob('*.py')) + sorted((ROOT/'tools').glob('*.ps1'))
     files += sorted((ROOT/'tools').glob('*.c')) + sorted((ROOT/'tools').glob('*.h'))
     files += sorted((ROOT/'docs').glob('FOUNDATION-*.md'))

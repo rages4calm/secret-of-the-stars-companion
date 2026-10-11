@@ -36,7 +36,15 @@ internal static class PresentationUiTests
         Check("Display exposes keyboard and controller fullscreen controls",Find<ComboBox>("Fullscreen controller").Visible);
         Find<ComboBox>("Fullscreen keyboard").Text="Ctrl+F12";Find<ComboBox>("Fullscreen controller").Text="Back+L1";
         Find<ComboBox>("Quest journal keyboard").Text="Ctrl+J";Find<ComboBox>("Quest journal controller").Text="Back+R1+L3";
-        form.ShowPage("display");Find<ComboBox>("Graphics renderer").SelectedIndex=1;
+        form.ShowPage("display");
+        var displayBefore=Files(profile);var untouched=All(Edited() with {WindowSize="Auto",DisplayAspect="4:3"});
+        Find<ComboBox>("Windowed resolution").SelectedItem="1920x1080";Find<ComboBox>("Pixel shape").SelectedIndex=1;
+        Check("Resolution and pixel shape edit only their own pending fields",Edited().WindowSize=="1920x1080"&&Edited().DisplayAspect=="8:7"&&All(Edited() with {WindowSize="Auto",DisplayAspect="4:3"})==untouched&&SameFiles(displayBefore));
+        revert.PerformClick();Check("Resolution and pixel shape Revert is lossless",All(Edited())==All(original.Settings with {HotkeyBindings=Edited().HotkeyBindings})&&SameFiles(displayBefore));
+        Find<ComboBox>("Fullscreen keyboard").Text="Ctrl+F12";Find<ComboBox>("Fullscreen controller").Text="Back+L1";
+        Find<ComboBox>("Quest journal keyboard").Text="Ctrl+J";Find<ComboBox>("Quest journal controller").Text="Back+R1+L3";
+        Find<ComboBox>("Windowed resolution").SelectedItem="1920x1080";Find<ComboBox>("Pixel shape").SelectedIndex=1;
+        Find<ComboBox>("Graphics renderer").SelectedIndex=1;
         Find<CheckBox>("Synchronize presentation with the display").Checked=false;
         Find<Button>("Enhanced pixels").PerformClick();
         form.ShowPage("audio");Find<CheckBox>("Enable game audio").Checked=false;Find<NumericUpDown>("Volume").Value=55;
@@ -44,6 +52,7 @@ internal static class PresentationUiTests
         if(ProfileService.SupportsQol(original))Find<NumericUpDown>("Experience rate (%)").Value=375;
         apply.PerformClick();var custom=ProfileService.Load(root,profile).Settings;
         Check("Custom sound renderer reward frame art and shortcuts are saved",!apply.Enabled&&custom.Renderer=="opengl"&&!custom.VSync&&!custom.EnableAudio&&custom.Volume==55&&custom.HdMenuFrames&&custom.HotkeyBindings["Fullscreen"]==new HotkeyBinding("Ctrl+F12","Back+L1"));
+        Check("Applied resolution and pixel shape reload exactly",custom.WindowSize=="1920x1080"&&custom.DisplayAspect=="8:7");
         form.ShowPage("display");
         Check("Fullscreen hints show current custom keyboard and controller bindings",Find<Label>("Current shortcuts: Fullscreen").Text.Contains("Ctrl+F12")&&Find<Label>("Current shortcuts: Fullscreen").Text.Contains("Back+L1"));
         foreach(var (name,enhanced,expanded) in new[]{("Original pixels",false,false),("Enhanced pixels",true,false),("Experimental widescreen",true,true)})
@@ -80,9 +89,13 @@ internal static class PresentationUiTests
         // Existing custom renderer values must survive unrelated actions, even
         // though the renderer picker exposes only the three supported choices.
         var configPath=Path.Combine(profile,"config.ini");var config=new IniDocument(File.ReadAllBytes(configPath));
-        config.Set("Graphics","Renderer","owner-custom-renderer");File.WriteAllBytes(configPath,config.ToBytes());Method("ReloadProfile");form.ShowPage("display");
+        config.Set("Graphics","Renderer","owner-custom-renderer");
+        config.Set("Graphics","WindowSize","1376x768");config.Set("Graphics","DisplayAspect","CRT");
+        File.WriteAllBytes(configPath,config.ToBytes());Method("ReloadProfile");form.ShowPage("display");
+        Check("Custom window size and original CRT alias load without normalization",Edited().WindowSize=="1376x768"&&Edited().DisplayAspect=="CRT"&&Find<ComboBox>("Windowed resolution").SelectedItem?.ToString()=="1376x768"&&Find<ComboBox>("Pixel shape").SelectedIndex==0&&!apply.Enabled);
         Find<Button>("Original pixels").PerformClick();apply.PerformClick();
         Check("A presentation preset preserves an existing unknown custom renderer",ProfileService.Load(root,profile).Settings.Renderer=="owner-custom-renderer"&&!apply.Enabled);
+        Check("An unrelated preset preserves custom size and explicit CRT alias bytes",new IniDocument(File.ReadAllBytes(configPath)).Get("Graphics","WindowSize")=="1376x768"&&new IniDocument(File.ReadAllBytes(configPath)).Get("Graphics","DisplayAspect")=="CRT");
         Find<Button>("Use synchronized Direct3D 11").PerformClick();apply.PerformClick();
         Check("Explicit synchronized action replaces custom renderer only on user action",ProfileService.Load(root,profile).Settings.Renderer=="direct3d11"&&ProfileService.Load(root,profile).Settings.VSync&&!apply.Enabled);
         var protectedBindings=PublicSetupService.HashFile(Path.Combine(profile,"keybinds.ini"));
@@ -122,6 +135,11 @@ internal static class PresentationUiTests
                 var outside=Walk(view).Where(c=>c is ComboBox or TextBox or NumericUpDown or Button).Where(c=>view.PointToClient(c.Parent!.PointToScreen(c.Location)).X+c.Width>view.ClientSize.Width).Select(c=>c.AccessibleName??c.Name).ToArray();
                 Check($"{page} {label} has reachable controls and no horizontal clipping",!view.HorizontalScroll.Visible&&outside.Length==0);
                 using var image=new Bitmap(scaled.Width,scaled.Height);scaled.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(captures,$"{page}-{label}.png"));
+                if(page=="display")
+                {
+                    view.AutoScrollPosition=new Point(0,650);scaled.PerformLayout();scaled.Refresh();
+                    using var displayImage=new Bitmap(scaled.Width,scaled.Height);scaled.DrawToBitmap(displayImage,new Rectangle(Point.Empty,displayImage.Size));displayImage.Save(Path.Combine(captures,$"display-size-controls-{label}.png"));
+                }
             }
             var applyScaled=Walk(scaled).OfType<Button>().Single(c=>c.AccessibleName=="Apply settings");var revertScaled=Walk(scaled).OfType<Button>().Single(c=>c.AccessibleName=="Revert changes");
             Check($"Apply and Revert remain separate and visible at {label}",!applyScaled.Bounds.IntersectsWith(revertScaled.Bounds)&&applyScaled.Right<=applyScaled.Parent!.ClientSize.Width&&revertScaled.Left>=0);

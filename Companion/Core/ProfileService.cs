@@ -389,6 +389,7 @@ public static class ProfileService
         var settings = new GameSettings
         {
         Fullscreen = Bool(config.Get("Graphics", "Fullscreen"), false), WindowScale = Number(config.Get("Graphics", "WindowScale"), 4),
+        WindowSize = config.Get("Graphics", "WindowSize") ?? "Auto", DisplayAspect = config.Get("Graphics", "DisplayAspect") ?? "4:3",
         VSync = Bool(config.Get("Graphics", "VSync"), true), Renderer = config.Get("Graphics", "Renderer") ?? "direct3d11",
         NoSpriteLimits = Bool(config.Get("Graphics", "NoSpriteLimits"), false), EnableAudio = Bool(config.Get("Sound", "EnableAudio"), true),
         Volume = Number(config.Get("Sound", "Volume"), 70), EnableGamepad = Bool(config.Get("GamepadMap", "EnableGamepad1"), true),
@@ -432,6 +433,7 @@ public static class ProfileService
         var result = new Dictionary<(string File, string Section, string Key), string>
         {
             [("config.ini", "Graphics", "Fullscreen")] = B(settings.Fullscreen), [("config.ini", "Graphics", "WindowScale")] = N(settings.WindowScale),
+            [("config.ini", "Graphics", "WindowSize")] = settings.WindowSize, [("config.ini", "Graphics", "DisplayAspect")] = settings.DisplayAspect,
             [("config.ini", "Graphics", "VSync")] = B(settings.VSync), [("config.ini", "Graphics", "Renderer")] = settings.Renderer,
             [("config.ini", "Graphics", "NoSpriteLimits")] = B(settings.NoSpriteLimits), [("config.ini", "Sound", "EnableAudio")] = B(settings.EnableAudio),
             [("config.ini", "Sound", "Volume")] = N(settings.Volume), [("config.ini", "GamepadMap", "EnableGamepad1")] = B(settings.EnableGamepad),
@@ -469,6 +471,19 @@ public static class ProfileService
         // Preserve existing custom/legacy values when another setting changes.
         // In particular WindowScale=0 is the runtime's existing automatic mode.
         if (value.WindowScale != old.WindowScale && value.WindowScale is < 1 or > 8) throw new ArgumentException("Window scale must be 1 to 8.");
+        if (value.WindowSize != old.WindowSize)
+        {
+            var size = System.Text.RegularExpressions.Regex.Match(value.WindowSize ?? "", @"^(\d{2,5})x(\d{2,5})$");
+            if (!string.Equals(value.WindowSize, "Auto", StringComparison.OrdinalIgnoreCase) &&
+                (!size.Success || !int.TryParse(size.Groups[1].Value, out int width) || !int.TryParse(size.Groups[2].Value, out int height) ||
+                 width is < 64 or > 16384 || height is < 64 or > 16384))
+                throw new ArgumentException("Choose Auto or a window size between 64 and 16384 pixels per side.");
+        }
+        if (value.DisplayAspect != old.DisplayAspect && (value.DisplayAspect ?? "").ToLowerInvariant() is not
+            ("4:3" or "crt" or "0" or "8:7" or "squarepixels" or "1" or "1:1" or "squareframe" or "2"))
+            throw new ArgumentException("Choose original CRT shape, square pixels or square frame.");
+        foreach (var text in new[]{value.WindowSize,value.DisplayAspect})
+            if(text is null || text.IndexOfAny(new[]{'\r','\n','\0'})>=0) throw new ArgumentException("Display settings must be single values.");
         if (value.Volume != old.Volume && value.Volume is < 0 or > 100) throw new ArgumentException("Volume must be 0 to 100.");
         if (value.Deadzone != old.Deadzone && value.Deadzone is < 0 or > 32767) throw new ArgumentException("Controller deadzone must be 0 to 32767 raw units.");
         if (value.Renderer != old.Renderer && value.Renderer is not ("direct3d11" or "opengl" or "software"))

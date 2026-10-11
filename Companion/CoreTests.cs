@@ -40,6 +40,16 @@ internal static class CoreTests
         Check(copyBefore.Where(x => x.Key != "config.ini" && x.Key != "foundation.ini").All(x => copyAfter.GetValueOrDefault(x.Key) == x.Value), "Applying settings preserves all saves, keybinds and other profile files.");
         foreach (string file in new[] { "config.ini", "foundation.ini" })
             Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(applied.BackupDirectory!, file)))).ToLowerInvariant() == copyBefore[file], "Backup retains exact original " + file + " bytes.");
+        var displayCopy=snapshot.Settings;
+        var displayApplied=ProfileService.Apply(snapshot,snapshot.Settings with {WindowSize="1920x1080",DisplayAspect="8:7"});
+        Check(displayApplied.Success&&displayApplied.Snapshot!.Settings.WindowSize=="1920x1080"&&displayApplied.Snapshot.Settings.DisplayAspect=="8:7","Exact window size and square pixels apply and reload.");
+        snapshot=displayApplied.Snapshot!;
+        foreach(var bad in new[]{"0x1080","1920x0","99999x1080","1920x1080\nFullscreen=1","Auto\0","1080p"})
+            Check(!ProfileService.Apply(snapshot,snapshot.Settings with {WindowSize=bad}).Success,"Invalid display size refused: "+bad.Replace("\n","newline").Replace("\0","nul"));
+        foreach(var bad in new[]{"stretch","4:3\nWindowSize=1x1","8:7\0"})
+            Check(!ProfileService.Apply(snapshot,snapshot.Settings with {DisplayAspect=bad}).Success,"Invalid pixel shape refused.");
+        var restored=ProfileService.Apply(snapshot,snapshot.Settings with {WindowSize=displayCopy.WindowSize,DisplayAspect=displayCopy.DisplayAspect});
+        Check(restored.Success,"Original display choices can be restored.");snapshot=restored.Snapshot!;
         string? diagnostic = Environment.GetEnvironmentVariable("SNESRECOMP_COMPANION_TEST");
         Environment.SetEnvironmentVariable("SNESRECOMP_COMPANION_TEST", "must-not-inherit");
         try
