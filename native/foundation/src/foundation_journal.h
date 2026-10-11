@@ -16,7 +16,10 @@ static inline unsigned JournalItemGroups(const uint8_t *ram, size_t size, unsign
 }
 
 static inline unsigned JournalPossessionGroups(const uint8_t *ram, size_t size) {
-    return JournalItemGroups(ram, size, 0x40);
+    /* Original inventory names use 04:C080: item00 is STARCREST.
+     * The different 04:C000 table gives a misleading index40; inventory40
+     * is LIFEVEST. This is current possession, never award history. */
+    return JournalItemGroups(ram, size, 0x00);
 }
 
 /* Bounded interpretation of original state, never persistent native history.

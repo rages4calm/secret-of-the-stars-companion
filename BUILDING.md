@@ -75,6 +75,16 @@ loop when generated execution is enabled. The handwritten original-cost route
 remains separately selectable for diagnostics. These are one bounded loading
 routine and comparison routes, not complete game AOT.
 
+Native 0.3.0 also generates the observed outer constructor and its long-call/return
+sites:60 instruction addresses and62 observed mode contexts. Its original
+producer/coordinate callees remain interpreted. Each generated instruction
+retains original bus, stack, timing and scheduler behavior. Generated outputs
+stay private and their hashes bind the real compilation receipt. Unsupported
+party/resource/port contexts retain the original path. For explicit developer
+comparison, `SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR=0` disables this
+constructor separately from the clear options. This is another bounded routine,
+not complete game AOT.
+
 The resulting `source-build-receipt.json` says **compiled_unqualified** and
 records exact input/executable hashes. Compilation is separate from gameplay
 qualification. Source modifications are recorded as differing from the
@@ -217,7 +227,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.2.9 / Companion 0.3.3)
+## Navigation and display (native 0.3.0 / Companion 0.3.4)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -231,7 +241,7 @@ faithful-instruction API supplement and host-only modal/audio repair. It preserv
 previous runtime caches, records all four patch hashes, and produces a real
 `compiled_unqualified` receipt. The host-only changes retain the declared guest
 execution-state ABI; matching metadata is still required for changed-binary
-profile updates. There are 55 native authored inputs and 24 Companion inputs.
+profile updates. There are 58 native authored inputs and 24 Companion inputs.
 The matching legend and source-proven cache-key fixes preserve completed terrain
 during checked same-area movement. Work remains capped at 1,024 samples per
 host frame, with the existing 120-frame graphics refresh and restore reset.

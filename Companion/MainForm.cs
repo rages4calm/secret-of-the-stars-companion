@@ -118,8 +118,6 @@ public sealed partial class MainForm : Form
         AddCheck(page,"Enable game audio",s=>s.EnableAudio,(s,v)=>s.EnableAudio=v);
         AddNumber(page,"Volume","Game sound level, from 0 to 100 percent.",0,100,5,s=>s.Volume,(s,v)=>s.Volume=v);
         page.Add(Theme.Text("Presentation presets keep your audio settings. For synchronized play, use Direct3D 11 with display synchronization on Display.",10,Theme.Muted),16);
-        Section(page,"Soundtrack");
-        page.Add(Theme.Text("The original soundtrack is available. An optional MSU-1 soundtrack still needs a compatible Secret of the Stars driver and pack.",11,Theme.Muted),10);
     }
 
     void BuildControls()
@@ -143,7 +141,7 @@ public sealed partial class MainForm : Form
         AddNumber(page,"Movement boost (%)","Hold your assigned movement button for faster field travel. 200% is twice the normal movement rate.",100,300,25,s=>s.MovementSpeedPercent,(s,v)=>s.MovementSpeedPercent=v);
         AddFeature(page,"Faster field menus","Shortens checked menu slides and rows while keeping gameplay timing intact.",s=>s.FastMenus,(s,v)=>s.FastMenus=v);
         AddFeature(page,"Battle information","Shows enemy HP bars. In widescreen, a side panel keeps the battle clear. Toggle it with your assigned Battle information shortcut.",s=>s.BattleInfo,(s,v)=>s.BattleInfo=v);
-        AddFeature(page,"Quest journal","Shows verified opening leads involving David, Aris, Pennon and Bosen, plus STARCREST when held. Guidance follows your current checkpoint; later chapters remain uncovered.",s=>s.Journal,(s,v)=>s.Journal=v);
+        AddFeature(page,"Quest journal","Shows verified story leads through the current chapter-six town-building advice. Guidance follows your current checkpoint; further chapters are still being added.",s=>s.Journal,(s,v)=>s.Journal=v);
         AddFeature(page,"Journal item summary","Shows STARCREST while it is in a party pack. Turn this off for story advice alone. Item possession is current; the journal does not record permanent quest completion.",s=>s.JournalPossession,(s,v)=>s.JournalPossession=v);
         page.Add(journalCapability,10);
         AddFeature(page,"Current-area map","Shows your position, towns and verified objective locations in the current area while gameplay continues. Unavailable destinations have no pin. Use your assigned map shortcut to close it. It keeps no visited-area history or item and enemy markers.",s=>s.NavigationMap,(s,v)=>s.NavigationMap=v);

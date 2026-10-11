@@ -12,7 +12,7 @@ GUEST=('wram.bin','vram.bin','sram.bin','oam.bin','cgram.bin','fb.bgrx','regs.js
 ROM_SHA='7da4a3cfa5de4bb4722a6e2a42c26aae322b5e668f1645d8c870fb99e6080600'
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
-def JournalGroups(ram):return sum(1<<pack for pack in range(2) if 0x40 in ram[0x5373+32*pack:0x5393+32*pack])
+def JournalGroups(ram):return sum(1<<pack for pack in range(2) if 0x00 in ram[0x5373+32*pack:0x5393+32*pack])
 
 def font_oracle(runtime):
     source=(runtime/'runner/src/snes_overlay_draw.c').read_text()
@@ -202,9 +202,10 @@ def main():
             (out/'failure.json').write_text(json.dumps({'passed':False,'failed_check':name,'checks':checks,'cases':cases},indent=2)+'\n')
             raise AssertionError(name)
     unit=out/'stage-unit.c'
-    unit.write_text('#include "foundation_journal.h"\n#include <stdio.h>\nint main(void){unsigned n=0;'
+    unit.write_text('#include "foundation_journal.h"\n#include <stdio.h>\n#include <string.h>\nint main(void){unsigned n=0;'
         'for(unsigned s=0;s<256;s++)for(unsigned f=0;f<256;f++){unsigned e=s==6&&f==0?8:s==1?2:(s==2?5:(s==3?4:(s==4?6:(s==5?7:(s==0?(f&2?3:(f&0x40?1:0)):0)))));'
         'if(FoundationJournalLead(s,f)!=e||FoundationJournalHasLead(s,f)!=(e!=0)||FoundationJournalHasLikadoClue(s,f)!=(s==1&&(f&16)!=0)||FoundationJournalHasTownClue(s,f)!=(s==4&&(f&1)!=0)||FoundationJournalHasMorganClue(s,f)!=(s==4&&(f&32)!=0))return 1;n+=5;for(unsigned g=0;g<4;g++)for(unsigned p=0;p<2;p++){unsigned r=(s==2||(s==1&&(f&32)))?(g&(1u<<p)?2:(g?3:1)):0;unsigned j=s==5&&(f&0xd2)==0xd2;unsigned d=j?79:r?(r>=2?58:67):s==3&&!(f&128)?59:s==5&&(f&0x50)?65535:(s==4&&(f&32))||s==5?85:65535;unsigned dy=s==5&&(f&0xc0)==0xc0?(j?(g?4:5):((f&16)?(g?2:3):(g?1:0))):0;if(FoundationJournalBadbadRoute(s,f,g,p)!=r||FoundationJournalDestination(s,f,g,p)!=d||FoundationJournalDynamiteRoute(s,f,g)!=dy)return 2;n+=3;}}'
+        'static uint8_t inventory[0x53b3];memset(inventory,255,sizeof(inventory));if(JournalPossessionGroups(NULL,sizeof(inventory))||JournalPossessionGroups(inventory,sizeof(inventory)-1))return 3;n+=2;for(unsigned pack=0;pack<2;pack++)for(unsigned slot=0;slot<32;slot++)for(unsigned item=0;item<256;item++){unsigned at=0x5373+32*pack+slot;inventory[at]=item;if(JournalPossessionGroups(inventory,sizeof(inventory))!=(item==0?(1u<<pack):0))return 4;n++;inventory[at]=255;}inventory[0x5373]=inventory[0x5393]=0;if(JournalPossessionGroups(inventory,sizeof(inventory))!=3)return 5;n++;'
         'printf("{\\"passed\\":true,\\"checks\\":%u}\\n",n);return 0;}\n')
     compiled=subprocess.run([str(a.cc),str(unit),'-I',str(ROOT/'native/foundation/src'),'-I',str(a.runtime/'runner/src/desktop'),'-o',str(out/'stage-unit.exe')],capture_output=True,text=True)
     (out/'stage-unit.log').write_text(compiled.stdout+compiled.stderr)
@@ -215,12 +216,14 @@ def main():
     def manufactured(name,source,edits):
         receipt=stage(source,out/'staged'/name,edits,'Manufactured host-card/predicate control; not original campaign progression or item award.',out)
         receipts[name]=receipt;return Path(receipt['checkpoint'])
-    first=manufactured('stage1-first-pack',a.after_state,['5373=ff:40','04ba=00:01'])
-    both=manufactured('stage1-both-packs',first,['5393=ff:40','04bb=20:21'])
+    first=manufactured('stage1-first-pack',a.after_state,['5373=ff:00','04ba=00:01'])
+    both=manufactured('stage1-both-packs',first,['5393=ff:00','04bb=20:21'])
+    # Actual original ITEM menus independently identify inventory40 as LIFEVEST.
+    lifevest=manufactured('stage1-lifevest-only',a.after_state,['5373=ff:40','04ba=00:01'])
     david=manufactured('stage0-david-bit',a.before_state,[f'5360={br[0x5360]:02x}:{br[0x5360]|64:02x}'])
     later=manufactured('other-stage',a.after_state,['5372=01:07'])
-    stage0_first=manufactured('stage0-first-pack',a.before_state,['5373=ff:40','04ba=00:01'])
-    stage0_both=manufactured('stage0-both-packs',stage0_first,['5393=ff:40','04bb=20:21'])
+    stage0_first=manufactured('stage0-first-pack',a.before_state,['5373=ff:00','04ba=00:01'])
+    stage0_both=manufactured('stage0-both-packs',stage0_first,['5393=ff:00','04bb=20:21'])
     later_first=manufactured('other-stage-first-pack',first,['5372=01:07'])
     config=('[Graphics]\nRenderer=software\nVSync=0\nNewRenderer=1\nWidescreen=0\n[Sound]\nEnableAudio=0\n'
         '[General]\nDisableFrameDelay=1\nAutosave=0\nRunAhead=0\n'
@@ -265,7 +268,7 @@ def main():
     results={}
     before_lead=3 if br[0x5360]&2 else 1 if br[0x5360]&64 else 0
     fixtures={'before':(a.before_state,before_lead,0),'stage1':(a.after_state,2,0),'david':(david,3 if br[0x5360]&2 else 1,0),
-        'stage1-first':(first,2,1),'stage1-both':(both,2,3),'later':(later,0,0),
+        'stage1-first':(first,2,1),'stage1-both':(both,2,3),'stage1-lifevest-only':(lifevest,2,0),'later':(later,0,0),
         'stage0-first':(stage0_first,before_lead,1),
         'stage0-both':(stage0_both,before_lead,3),'later-first':(later_first,0,1)}
     if pennon_inputs:
@@ -275,11 +278,14 @@ def main():
         cursor=after_p[0x4ba]
         if cursor>=32 or after_p[0x5373+cursor]!=0xff:
             raise ValueError('Pennon after-state needs a free first-party slot for possession control')
-        ppack=manufactured('pennon-possession',a.pennon_after_state,[f'{0x5373+cursor:04x}=ff:40',f'04ba={cursor:02x}:{cursor+1:02x}'])
+        ppack=manufactured('pennon-plus-lifevest',a.pennon_after_state,[f'{0x5373+cursor:04x}=ff:40',f'04ba={cursor:02x}:{cursor+1:02x}'])
         plater=manufactured('pennon-later-stage',a.pennon_after_state,['5372=00:06'])
-        fixtures.update({'pennon-before':(a.pennon_before_state,1 if before_p[0x5360]&64 else 0,0),
-                         'pennon':(a.pennon_after_state,3,0),'pennon-david':(with_david,3,0),
-                         'pennon-possession':(ppack,3,1),'pennon-later':(plater,0,0)})
+        # Use actual inventory00 evidence after the original award. Adding40 must
+        # not create another Starcrest, and changing chapter does not erase possession.
+        before_groups,after_groups=JournalGroups(before_p),JournalGroups(after_p)
+        fixtures.update({'pennon-before':(a.pennon_before_state,1 if before_p[0x5360]&64 else 0,before_groups),
+                         'pennon':(a.pennon_after_state,3,after_groups),'pennon-david':(with_david,3,after_groups),
+                         'pennon-plus-lifevest':(ppack,3,after_groups),'pennon-later':(plater,0,after_groups)})
     if likado_inputs:
         fixtures['likado-clue']=(a.likado_state,2,JournalGroups(lr))
         wrong0=manufactured('stage0-clue-bit',a.before_state,[f'5360={br[0x5360]:02x}:{br[0x5360]|16:02x}'])
@@ -352,7 +358,7 @@ def main():
         check('pennon_actual_rollback_removes_lead',int(rows[0]['lead_kind'])==3 and all(int(row['lead_kind'])!=3 for row in rows if int(row['frame'])>=81) and '[overlay_selftest] load issued' in (pr/'host.log').read_text())
         check('pennon_rollback_guest_exact',parity(proff,pr))
         check('pennon_rollback_clears_and_reopens',cases['pennon-rollback-on']['shown']==2 and any(81<=int(row['frame'])<=89 and int(row['visible'])==0 for row in rows))
-        check('pennon_rollback_card_exact',surface(pr)==oracle(proff,fixtures['pennon-before'][1],0,load=True))
+        check('pennon_rollback_card_exact',surface(pr)==oracle(proff,fixtures['pennon-before'][1],fixtures['pennon-before'][2],load=True))
         pv,rows=run('pennon-original-view',a.pennon_after_state,original=True)
         check('pennon_original_view_exact',all(int(row['enabled'])==int(row['visible'])==0 for row in rows) and parity(pv,out/'runs/pennon-off') and surface(pv)==surface(out/'runs/pennon-off'))
         next_off,_=run('pennon-to-bosen-off',a.pennon_after_state,0,capture=100,load=a.after_state)

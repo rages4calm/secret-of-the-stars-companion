@@ -140,6 +140,38 @@ static int WrappingResource(const Ppu *ppu) {
  * DAC8/DAE1 use those values only in ordinary culling comparison A.
  * Scene22's original selected stream088A13/list28 yields ordinary03D8 at0.
  * Coordinates remain producer-owned; no staged coordinate whitelist. */
+/* Original014B's terminal allocations, not a missing-NPC wildcard.
+ * 0C:A378 -> 0C:B0BA program013C executes F7 9201 0406 01 FF:
+ * returned ordinary0190, then terminal pointerB0C0. Original F7/FE
+ * consumers EC61/E4E7/E576 retire robot1 with program0100 at0C:AE43.
+ * Current original active party0 remains separate from regularNPC slots.
+ * Only the settled route is admitted; retyped0510/pose82/shake stay refused. */
+static int SettledLabSeven(void) {
+    return R16(0x40e)==98 && g_ram[0x5372]==5 && g_ram[0x5360]==0x80 &&
+        g_ram[0x4b6]==0 && !R16(0x44f) && !g_ram[0x542] &&
+        g_ram[0x4100]<=3 && R16(0x4105)==0x0190 &&
+        !g_ram[0x4107] && !g_ram[0x4112] && R16(0x4114)==0xb0c0 &&
+        g_ram[0x4119]==255 && R16(0x411e)==0x0508 &&
+        !g_ram[0x4120] && !g_ram[0x412b] && R16(0x412d)==0xae43;
+}
+
+/* 01:D84B dispatches enabled special layer02 through originalDC15.
+ * This settled event leaves seven default records that emit only transparent
+ * tile7F, and retired effect4 whose zero flag branches directly toDD77.
+ * OriginalDD84 pads the seven emitted slots to an eight-slot prefix.
+ * No active special art or generic0401=0E scene is admitted. */
+static int SettledLabBlankPrefix(const Ppu *ppu) {
+    if (!ppu || g_ram[0x401]!=14 || !SettledLabSeven()) return 0;
+    for (unsigned i=0;i<8;++i) {
+        unsigned at=0x4300+21*i;
+        if (i==4) { if (g_ram[at]) return 0; continue; }
+        if (g_ram[at]!=255) return 0;
+        for (unsigned j=1;j<=8;++j) if (g_ram[at+j]) return 0;
+    }
+    for (unsigned i=0;i<16;++i) if (ppu->vram[0x67f0+i]) return 0;
+    return 8;
+}
+
 static int LocalWrappingResource(const Ppu *ppu) {
     if (!ppu || !g_snes || !g_snes->dma || g_ram[0x407] != 1 ||
         g_ram[0x409] || g_ram[0x400] != 0x80 ||
@@ -148,7 +180,7 @@ static int LocalWrappingResource(const Ppu *ppu) {
         R24(0x55c) != 0x098610 ||
         g_ram[0x50c] != 0x80 || g_ram[0x50d] ||
         ppu->bgmode != 9 || PPU_mosaicSize(ppu)>1 || ppu->setini) return 0;
-    unsigned count, period;
+    unsigned count, period, retired = 0;
     const uint16_t *bases;
     static const uint16_t underground[] = {0x03d8};
     static const uint16_t lab[] = {0x0190,0x0508,0x0540,0x0540,0x0540,0x0540,0x0508,0x0508};
@@ -163,6 +195,7 @@ static int LocalWrappingResource(const Ppu *ppu) {
          * The original DA58 period producer and B071 camera updater both use
          * dimensions*256. This is a separate local2048 family, not world3584. */
         bases=lab; count=8; period=2048;
+        retired = SettledLabSeven();
     } else return 0;
     for (unsigned i=0;i<8;++i) if (g_snes->dma->channel[i].hdmaActive) return 0;
     for (unsigned i=0;i<kParty;++i) {
@@ -172,8 +205,9 @@ static int LocalWrappingResource(const Ppu *ppu) {
     }
     for (unsigned i=0;i<kRegular;++i) {
         unsigned at=0x4100+25*i;
-        if (i>=count) { if (g_ram[at]!=255) return 0; }
-        else if (g_ram[at]>3 || R16(at+5)!=bases[i] ||
+        if (i>=count || (retired && i==1)) {
+            if (g_ram[at]!=255) return 0;
+        } else if (g_ram[at]>3 || R16(at+5)!=bases[i] ||
                  R16(at+1)>=period || R16(at+3)>=period) return 0;
     }
     return 1;
@@ -243,7 +277,7 @@ int FoundationWideActorsEnabled(void) { return enabled; }
 static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
-        g_ram[0x401] == 12 && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
+        (g_ram[0x401] == 12 || SettledLabBlankPrefix(ppu)) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
         !R16(0x471) && !R16(0x473);
 }
 
@@ -261,6 +295,10 @@ static void Resource(const Ppu *ppu, uint8_t key[48]) {
     key[33] = ppu->obsel; key[34] = ppu->bgmode;
     memcpy(key + 35, ppu->bgXsc, 3);
     key[38] = ppu->bgTileAdr & 255; key[39] = ppu->bgTileAdr >> 8;
+    /* Crossing initial-eight/settled-seven must invalidate queued/displayed
+     * metadata even when scene graphics remain the same original resource. */
+    key[40] = SettledLabSeven() ? 0x71 : 0;
+    key[41] = SettledLabBlankPrefix(ppu);
 }
 
 static int SameResource(const Ppu *ppu, const Packet *packet) {
@@ -339,7 +377,16 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         unsigned cursor = R16(0x46b);
         producing.start_slot = 12;
         producing.mask = g_ram[0x400] ? 0xefff : 0xffff;
-        if (cursor != 0x30 || R16(0x0e34) != 0x10 || R16(0x0e38) != 0x201 ||
+        unsigned prefix = SettledLabBlankPrefix(g_ppu);
+        if (prefix) {
+            for (unsigned slot=12;slot<19;++slot) {
+                unsigned at=0x2200+slot*4;
+                unsigned high=(g_ram[0x2400+slot/4]>>(slot%4*2))&3;
+                if (R16(at) || R16(at+2)!=0x327f || high) sequence=0;
+            }
+            if (R16(0x224c)!=0xf080 || ((g_ram[0x2404]>>6)&3)!=1) sequence=0;
+        }
+        if (cursor != (12+prefix)*4 || R16(0x0e34) != 0x10 || R16(0x0e38) != 0x201 ||
             R16(0x0e10) != producing.mask) sequence = 0;
         if (g_ppu) Resource(g_ppu, producing.resource);
         /* Wrapped B0 needs its original saved allocation relation; ordinary
@@ -430,7 +477,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             (producing.seen & 31u) != (producing.expected & 31u)) {
             Reject("reject_party_sequence", cpu); return;
         }
-        unsigned slot = 12;
+        unsigned slot = 12 + producing.resource[41];
         for (unsigned index = 0; index < kParty; ++index) {
             const Actor *actor = &producing.actors[index];
             if (actor->present && !actor->travel_proxy &&
@@ -482,7 +529,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (!sequence_done || !Context(cpu, 0x01d873, 0)) {
             Reject("reject_staging", cpu); return;
         }
-        unsigned slot = 12;
+        unsigned slot = 12 + producing.resource[41];
         for (unsigned index = 0; index < kParty + kAppendRegular; ++index) {
             Actor *actor = &producing.actors[index];
             if (index == kParty && slot != producing.start_slot) { Reject("reject_party_regular_cursor", cpu); return; }

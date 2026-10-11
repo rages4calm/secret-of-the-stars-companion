@@ -4,6 +4,7 @@
  * can be a partial loop after a copied restore; it is not the routine's prologue.
  * Private CSV contains ROM-derived context and must remain under local/. */
 #include "foundation_loading.h"
+#include "constructor.h"
 #include "common_rtl.h"
 #include "cpu_state.h"
 #include "sha256.h"
@@ -422,6 +423,7 @@ static void ObserveExit(CpuState *cpu, uint32_t pc) {
 }
 
 void FoundationLoadingReset(void) {
+    ConstructorReset();
     /* Never serialize the observer's continuity. A restored mid-clear starts
      * a new, explicitly partial observation with its own epoch and pass. */
     ++epoch;
@@ -523,6 +525,7 @@ void FoundationLoadingInit(void) {
 }
 
 void FoundationLoadingBeforeFrame(void) {
+    ConstructorInit();
     if (trace || columns) {
         BindRom();
         if (trace) fflush(trace);

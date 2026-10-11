@@ -78,3 +78,8 @@ Auto uses the existing window scale; fullscreen uses the display. Existing
 custom sizes and aspect aliases survive loading, presets and unrelated edits.
 These controls change presentation size and proportions; supported scenery
 expansion remains the separate widescreen option.
+
+Companion 0.3.4 updates the journal description to match the verified opening
+and later story clues available in native 0.2.9, including current chapter-six
+town-building advice. Unsupported later guidance remains work in progress.
+Audio retains the original game audio enable and volume controls.

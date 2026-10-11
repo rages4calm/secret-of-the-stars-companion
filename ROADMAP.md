@@ -2,12 +2,14 @@
 
 The target is a polished, editable Windows PC edition with attractive original
 pixels, true wider scenery/actors, reliable controls/audio and a useful journal.
-This is active foundation work, not a completed native recompilation. The [0.2.9 continuation](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md) generates the observed call, setup, loop and return of one original loading routine at original timing; full native/AOT generation remains a major unfinished task.
+This is active foundation work, not a completed native recompilation. The [0.3.0 continuation](docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md) generates the original outer constructor and long-call/return sites alongside the earlier loading routine, retaining original instruction timing. Its original callees remain interpreted; full native/AOT generation remains a major unfinished task.
 
-Native 0.2.9 / Companion 0.3.3 are installed after exact rendering, story,
-display, loading, input, update/rollback and repaired modal/audio qualification.
-Eighteen copied-installed controls pass. ROM-free package extraction and
-relocation remain a separate release stage. These proofs keep their bounded scopes.
+Native 0.3.0 / Companion 0.3.4 are installed after exact constructor/loading,
+both-party journal/map, settled laboratory rendering, original Bun recruitment,
+input/restore and launcher update/rollback qualification. Ten normal and nine
+modal GPU/audio routes pass, followed by eighteen copied-installed controls.
+ROM-free package extraction and relocation have separate qualification.
+These proofs keep their bounded scopes.
 
 ## 1. Public first-run setup and packaging
 
@@ -60,10 +62,17 @@ The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) execu
 
 The [native0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) expands current quest directions from original dialogue and item conditions. Challenge flags and mutable item possession remain separate from durable completion/history.
 
-The integrated current-Starcrest-possession card reads both original inventories
-and recomputes after restore. It is useful current-state evidence, while the
-original award, completion event and full journal history still need separate
-proof. Staged item fixtures are now authorized for these focused checks.
+The current-Starcrest card reads both original inventories and recomputes after
+restore. [Native0.3.0](docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md) corrects
+the original inventory domain:00 is Starcrest and40 is Lifevest. The original
+Pennon award is executed from recorded staged prerequisites; natural campaign
+acquisition, irreversible completion and durable history remain distinct.
+
+Original recruitment and SWAP between both controlled parties, their selected
+locations, inventories, journal and map now have finite producer/restore checks.
+Broader second-party margin art remains unqualified. Bun's original recruitment
+and house exit are verified; the later original city-construction trigger and
+changing town remain next priorities, with no invented outcome flags or pins.
 
 Native0.2.4 adds a full objective/route/current-progress panel and the original
 Uncle Save stage-one Likado clue to David, Aris/Pennon and Bosen advice. All
@@ -72,9 +81,11 @@ Add natural Crest acquisition and further dialogue/progression fixtures; verify 
 writers before enabling completion rules. Define deterministic event history,
 new-game reset, cold restore and rewind behavior. Avoid spoilers or an external
 append-only log that remembers a future state after rollback.
-The [Crest assessment](docs/FOUNDATION-JOURNAL-CREST-ASSESSMENT-2026-10-09.md)
-establishes item identity and generic insertion/removal, but not the title-specific
-award or durable completion event. Opening victories are not a Crest fixture.
+The [historical Crest assessment](docs/FOUNDATION-JOURNAL-CREST-ASSESSMENT-2026-10-09.md)
+records the earlier investigation. Native0.3.0 corrects its item-domain interpretation
+and executes the original Pennon award from staged prerequisites; durable
+completion and natural campaign acquisition remain unqualified. Opening victories
+are not a Crest fixture.
 
 The optional navigation map now shows original current-area terrain and your
 position, world-town markers, and an independently configurable blinking

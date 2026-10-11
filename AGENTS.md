@@ -1,3 +1,15 @@
+# Current installed continuation — native0.3.0 / Companion0.3.4 (2026-10-11)
+
+Read docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md first (under github-repo in the private workspace). Exact nativefc80699c / immutable receiptc9f1c467 and GUIb6328fc5 / receiptf7a714c0 are installed. Canonical58 native/24 GUI inputs; real public compilation receipts remain compiled_unqualified. Exact qualification, installation and source-first package evidence are separate. Runtime pin/four patches and declared guest/checkpoint ABI stay unchanged; old caches and reports remain retained.
+
+This release corrects Starcrest inventory00 versus Lifevest40 without altering David's distinct storybit40 or claiming durable completion. It adds exact settled laboratory seven-actor margins and the guarded original outer constructor60PCs/62modecontexts; original callees remain interpreted. Original recruit/SWAP both directions, both current packs, journal/map/cold restore and Bun's original031C recruitment/door exit are verified from recorded staged prerequisites. No natural campaign, completed construction, broad second-party margin family or fullgameAOT claim follows.
+
+Constructor285/28 + genuinelegacy14/2 + clear185/24 + generator76, journal1490/318 + independentheader1916931, actors49native/64host, town759/8, seven core suites, GUI60/66/77 and update52 pass. Separate10 normal and9 actual-modal GPU/audio routes pass with zero steady audio failures; copied-installed18 pass. Preserve original center/guest/collision/timing, full544-byte packet/raster guards, transient/effect refusals, copied-EXE isolation, ROM/preferences and other projects. Development checkpoints remain disposable.
+
+Next: original Bun/terrain/construction predicates and broader original party/effect/story contexts; extend faithful original producer generation with per-instruction bus/stack/mode evidence. Earlier014A/014B event guesses and NPC movement bytes are not construction evidence. Full objective remains active. Earlier blocks keep historical artifact scope.
+
+---
+
 # Latest owner scope — 2026-10-11
 
 CPU experiments and MSU-1 work are withdrawn. Do not investigate or restart

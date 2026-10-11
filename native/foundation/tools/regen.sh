@@ -87,6 +87,7 @@ echo "== Generating src/gen =="
 # Always verify the narrow generated instruction island's pinned identity,
 # including when exploratory upstream generation used --no-verify.
 "$PYTHON" "$ROOT/tools/generate_faithful_clear.py" --rom "$ROM" --project-root "$ROOT"
+"$PYTHON" "$ROOT/tools/generate_constructor.py" --rom "$ROM" --project-root "$ROOT"
 
 echo
 echo "Done. Build with:"

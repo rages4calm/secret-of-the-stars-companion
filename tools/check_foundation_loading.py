@@ -64,6 +64,7 @@ def main():
           SNESRECOMP_FOUNDATION_FAST_MENUS='0',SNESRECOMP_FOUNDATION_BATTLE_INFO='0',SNESRECOMP_FOUNDATION_JOURNAL='0',
           SNESRECOMP_FOUNDATION_ENHANCED_PIXELS='0',SNESRECOMP_FOUNDATION_WIDE='0',SNESRECOMP_FOUNDATION_NAVIGATION_MAP='0',
           SNESRECOMP_FOUNDATION_NATIVE_COLUMNS='0',SNESRECOMP_FOUNDATION_NATIVE_CLEAR='original'if route=='handwritten'else'0',
+          SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR='0',
           SNESRECOMP_FOUNDATION_GENERATED_CLEAR='0',SNESRECOMP_FOUNDATION_ROUTINE_TRACE=str(directory/'routine.csv'))
         if route in ('generated','legacy-generated','native-diagnostic','native-ini','handwritten-switch','family-disabled','unknown-routine','conflict-native'):
             env.pop('SNESRECOMP_FOUNDATION_GENERATED_CLEAR')

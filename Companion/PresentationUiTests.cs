@@ -104,7 +104,7 @@ internal static class PresentationUiTests
         Check("Stale profile refuses preset Apply and preserves concurrent config bindings and saves",apply.Enabled&&!play.Enabled&&PublicSetupService.HashFile(configPath)==concurrent&&PublicSetupService.HashFile(Path.Combine(profile,"keybinds.ini"))==protectedBindings&&SameFiles(saves));
         revert.PerformClick();Check("Revert after stale refusal never overwrites the concurrent edit",PublicSetupService.HashFile(configPath)==concurrent&&!apply.Enabled);
         Method("ReloadProfile");
-        Check("Journal description names verified current opening leads and bounded later coverage",Walk(form).OfType<Label>().Any(l=>l.Text.Contains("David, Aris, Pennon and Bosen")&&l.Text.Contains("later chapters remain uncovered")));
+        Check("Journal description names verified current chapter-six advice and bounded further coverage",Walk(form).OfType<Label>().Any(l=>l.Text.Contains("current chapter-six town-building advice")&&l.Text.Contains("current checkpoint")&&l.Text.Contains("further chapters are still being added")));
         foreach(var (label,value,expected) in new[]{("missing","",true),("explicit-off","JournalPossession=0\n",false),("explicit-on","JournalPossession=1\n",true)})
         {
             var summaryProfile=Path.Combine(root,"local","runs","presentation-summary-"+label+"-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(summaryProfile);Directory.CreateDirectory(Path.Combine(summaryProfile,"saves"));

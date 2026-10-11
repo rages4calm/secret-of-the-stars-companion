@@ -18,13 +18,43 @@ def command(args,cwd=None):
     result=subprocess.run([str(v) for v in args],cwd=cwd,check=True,capture_output=True,text=True)
     return result.stdout.strip()
 
+def reject_links(path):
+    for item in (path,*path.parents):
+        try: stat=item.lstat()
+        except FileNotFoundError: continue
+        if item.is_symlink() or getattr(stat,'st_file_attributes',0)&0x400:
+            raise ValueError('Linked build input/output preserved: '+str(item))
+
+def snapshot_authored(source,project):
+    reject_links(source.absolute());reject_links(project.absolute())
+    path=source/'authored-files.json';reject_links(path)
+    manifest=json.loads(path.read_text());actual={}
+    if not isinstance(manifest,dict) or not manifest:raise ValueError('Empty or invalid authored manifest')
+    for name,expected in manifest.items():
+        if not isinstance(name,str) or Path(name).is_absolute() or '..' in Path(name).parts:
+            raise ValueError('Authored input escapes snapshot')
+        src=source/name;reject_links(src)
+        if not src.resolve(strict=True).is_relative_to(source.resolve(strict=True)):
+            raise ValueError('Authored input escapes source')
+        actual[name]=sha(src)
+        if actual[name]!=expected:raise ValueError('Modified authored input preserved: '+name)
+    if project.exists():raise ValueError('Existing project preserved')
+    project.mkdir(parents=True,exist_ok=False)
+    for name in manifest:
+        dst=project/name;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source/name,dst)
+    if any(sha(project/n)!=h or sha(source/n)!=h for n,h in actual.items()):
+        raise RuntimeError('Authored snapshot changed during copy; build refused')
+    return manifest,actual
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--rom',type=Path,required=True)
+    p.add_argument('--runtime-cache-dir',type=Path,help='Optional isolated runtime cache directory; same pinned four-patch key and validation')
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
     args=p.parse_args()
+    reject_links(args.rom.absolute());reject_links(ROOT.absolute())
     rom=args.rom.resolve(strict=True);source=ROOT/'native/foundation'
     identity={}
     for line in (source/'rom_identity.txt').read_text(encoding='utf-8').splitlines():
@@ -37,6 +67,7 @@ def main():
     for tool in ('git','cargo',args.cmake,args.cc,args.cxx,args.ninja):
         if not shutil.which(tool):raise RuntimeError('Required tool is unavailable: '+tool)
     out=ROOT/'local/source-builds'/time.strftime('%Y%m%d-%H%M%S')
+    reject_links(out)
     out.mkdir(parents=True,exist_ok=False)
     patch=out/'runtime-foundation.patch'
     shutil.copy2(ROOT/'patches/runtime-foundation.patch',patch)
@@ -65,8 +96,11 @@ def main():
         raise RuntimeError('Modal audio extension exceeds its host-only source boundary.')
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
-    runtime=ROOT/'local/upstream'/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12]+'-'+sha(host_patch)[:12]+'-'+sha(faithful_patch)[:12]+'-'+sha(audio_patch)[:12])
+    cache_root=args.runtime_cache_dir.absolute() if args.runtime_cache_dir else ROOT/'local/upstream'
+    reject_links(cache_root)
+    runtime=cache_root/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12]+'-'+sha(host_patch)[:12]+'-'+sha(faithful_patch)[:12]+'-'+sha(audio_patch)[:12])
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
+    reject_links(runtime);reject_links(marker)
     if not runtime.exists():
         runtime.parent.mkdir(parents=True,exist_ok=True)
         print('Fetching pinned runtime and its upstream submodules.',flush=True)
@@ -102,11 +136,8 @@ def main():
     for key,name in [('rbengine','retcomm-rbengine'),('recomp-net','recomp-net')]:
         if command(['git','rev-parse','HEAD'],runtime/'lib'/name)!=pins[key]:
             raise RuntimeError('Upstream submodule pin mismatch: '+name)
-    manifest=json.loads((source/'authored-files.json').read_text());project=out/'project'
-    actual={}
-    for name in manifest:
-        src=source/name;dest=project/name;dest.parent.mkdir(parents=True,exist_ok=True)
-        shutil.copy2(src,dest);actual[name]=sha(src)
+    project=out/'project'
+    manifest,actual=snapshot_authored(source,project)
     (project/'mods/preloaded/packages').mkdir(parents=True)
     print('Generating private local code from the verified ROM.',flush=True)
     generate=[sys.executable,runtime/'snesrecomp_cli.py','generate','--rom',rom,
@@ -127,6 +158,19 @@ def main():
         or clear_provenance.get('rom_sha256')!=expected
         or clear_provenance.get('output_sha256')!=sha(project/'src/gen/faithful_clear.generated.h')):
         raise RuntimeError('Generated clear provenance does not match the authored snapshot and ROM.')
+    constructor_generator=project/'tools/generate_constructor.py'
+    if not constructor_generator.is_file():raise RuntimeError('Authored constructor generator missing; refresh manifest before building.')
+    with (out/'generate-constructor.log').open('w',encoding='utf-8') as log:
+        r=subprocess.run([sys.executable,str(constructor_generator),'--rom',str(rom),'--project-root',str(project)],cwd=project,stdout=log,stderr=subprocess.STDOUT)
+    if r.returncode:raise RuntimeError('Constructor generation failed; inspect '+str(out/'generate-constructor.log'))
+    constructor_provenance_path=project/'src/gen/constructor.provenance.json'
+    constructor_provenance=json.loads(constructor_provenance_path.read_text(encoding='utf-8'))
+    if (constructor_provenance.get('module')!='secret-of-the-stars-faithful-constructor-v1'
+        or constructor_provenance.get('generator_sha256')!=actual['tools/generate_constructor.py']
+        or constructor_provenance.get('rom_sha256')!=expected
+        or constructor_provenance.get('output_sha256')!=sha(project/'src/gen/constructor.generated.h')
+        or constructor_provenance.get('sites_sha256')!=sha(project/'src/gen/constructor_sites.generated.h')):
+        raise RuntimeError('Generated constructor provenance differs from authored snapshot and ROM.')
     cmake=[args.cmake,'-S',project,'-B',out/'build','-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
       '-DCMAKE_C_COMPILER='+args.cc,'-DCMAKE_CXX_COMPILER='+args.cxx,
       '-DCMAKE_MAKE_PROGRAM='+str(Path(shutil.which(args.ninja)).resolve()),
@@ -138,6 +182,8 @@ def main():
         with (out/(name+'.log')).open('w',encoding='utf-8') as log:
             r=subprocess.run(list(map(str,cmd)),cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
         if r.returncode:raise RuntimeError(name+' failed; inspect '+str(out/(name+'.log')))
+    if any(sha(source/n)!=h or sha(project/n)!=h for n,h in actual.items()):
+        raise RuntimeError('Authored inputs changed during build; compilation retained unqualified.')
     binary=out/'build/SecretOfTheStarsSNESRecomp.exe'
     if not binary.exists():raise RuntimeError('Windows executable missing after build.')
     profile=out/'profile';profile.mkdir();shutil.copy2(binary,profile/binary.name)
@@ -164,7 +210,13 @@ def main():
       'save_compatibility':'secret-of-the-stars-usa-sram-v1',
       'execution_state_abi_sha256':hashlib.sha256(('\n'.join(actual[name] for name in ('src/foundation_state.c','src/foundation_state.h','src/game_rtl.c','src/game_rtl.h','src/variables.h'))+'\n'+RUNTIME_PIN+'\n'+sha(patch)).encode()).hexdigest(),
       'private_generated_files':[p.relative_to(out).as_posix() for p in (project/'src/gen').rglob('*') if p.is_file()],
-      'generated_guest_islands':{'faithful_clear':{
+      'generated_guest_islands':{'faithful_constructor':{
+          'generator_input':'tools/generate_constructor.py','generator_sha256':actual['tools/generate_constructor.py'],
+          'provenance_file':constructor_provenance_path.relative_to(out).as_posix(),'provenance_sha256':sha(constructor_provenance_path),
+          'generated_header':'project/src/gen/constructor.generated.h','generated_header_sha256':constructor_provenance['output_sha256'],
+          'sites_header':'project/src/gen/constructor_sites.generated.h','sites_header_sha256':constructor_provenance['sites_sha256'],
+          'instruction_bytes_sha256':constructor_provenance['instruction_bytes_sha256'],'entry_pcs':[node['pc'] for node in constructor_provenance['nodes']],
+          'default_variant':'guarded-outer-constructor','scope':constructor_provenance['scope']},'faithful_clear':{
           'generator_input':'tools/generate_faithful_clear.py','generator_sha256':actual['tools/generate_faithful_clear.py'],
           'provenance_file':clear_provenance_path.relative_to(out).as_posix(),'provenance_sha256':sha(clear_provenance_path),
           'generated_header':'project/src/gen/faithful_clear.generated.h','generated_header_sha256':clear_provenance['output_sha256'],
