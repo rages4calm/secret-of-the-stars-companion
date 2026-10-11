@@ -32,7 +32,7 @@ These are actual captures of features added for this PC project. **[View all six
 
 *Quest directions and current progress while the game runs.*
 
-![Navigation map with your position, towns and a blinking verified destination](docs/screenshots/navigation-map.png)
+<img src="docs/screenshots/navigation-map.png" alt="Navigation map with your position, towns and a blinking verified destination" width="1200">
 
 *Gold shows your position, cyan marks towns, and the optional pink marker blinks at a verified next destination.*
 

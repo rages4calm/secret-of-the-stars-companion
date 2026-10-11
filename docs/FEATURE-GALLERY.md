@@ -38,7 +38,7 @@ Assign fullscreen, HUD, journal, movement boost, checkpoints and more to keyboar
 
 ## Position, towns and a verified destination
 
-![Navigation map](screenshots/navigation-map.png)
+<img src="screenshots/navigation-map.png" alt="Navigation map" width="1200">
 
 Gold marks your position, cyan marks original town entrances, and the optional
 pink destination blinks. The legend text matches those marker colors. This is
