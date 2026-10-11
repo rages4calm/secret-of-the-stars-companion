@@ -165,6 +165,12 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             route[0] = "Dynamite's weapon advice:";
             route[1] = "use Graviton against Golan.";
         }
+        if (dynamite >= 4) {
+            objective[0] = "Search GIANT for Golan.";
+            objective[1] = dynamite == 4 ? "Use Graviton against Golan." : "Graviton is not held now.";
+            route[0] = "GIANT: Golan built a";
+            route[1] = "large house in the town.";
+        }
         if (dynamite) {
             /* Pack selection uses the original signed004B6 convention.
              * This is mutable possession information, not a usable-item

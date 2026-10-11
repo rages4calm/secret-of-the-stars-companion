@@ -1,14 +1,14 @@
 {
   ".gitmodules": "d75d80e840891a8e8723d38134165f166c6d8236b0e7ed718d39c9c751937743",
   "CMakeLists.txt": "fd0d71df5c33da65370da2f1d089d89e043f91068a09795da8e3efcb9b305832",
-  "VERSION": "5b57e3b8c153d1d33b0c0f1ee29d3de1bf93232ed95aa78b80fe885e99faa915",
+  "VERSION": "283571d2642fc7b3befd294f45d53b896a1d54d34c86235b13151192b380606a",
   "framework_pins.txt": "fd8b6d4e6e1057018df3e61eeaa5d357316e204a3e35084cda5c7157e0383a9a",
   "recomp/bank00.cfg": "6bb7d1c1601c6a7d7be54a7ae9bb8d31567edfd9cf71e3e0c533158c3ed203ba",
   "recomp/symbols.toml": "02ce399cdab1aa7ea565883478e6c8b180d075897ab82996e37fb57c4f0943b8",
   "rom_identity.txt": "b4d37a58a2d89ff36da528d3f9f62c47154be76f2b0fbc1bced5b76f9c5558aa",
   "src/foundation_battle_wide.c": "44b1db121ee6807ecb93327249d35129838a8b2c46b051d28a41ffb139533976",
   "src/foundation_battle_wide.h": "cca47f34826157894565eb194da46d1a54bc91548444b22d7d9615ef8eb1dc6a",
-  "src/foundation_clear.c": "5ae7f65ba17e9a624e2309b946a86b537815c16bccccabcb588b52387c79f670",
+  "src/foundation_clear.c": "491672c8105055dcc9d5574f85f1784bf8b0d988c004ffd97f6e25f7b49775cb",
   "src/foundation_clear.h": "e1526c3638b4bad9fd5969a120a503519843854ea493c98c5da81764b3c9d165",
   "src/foundation_column_lookup.c": "755879a49fadddb4f5d7d4f6392b7871b94d7703bc0652574ebf665c6f6ab760",
   "src/foundation_column_lookup.h": "bd2a520d2a0b73fdf30203ffc6e37d584a4ec77ce08d716490167f43bc343936",
@@ -20,8 +20,8 @@
   "src/foundation_hd_ui.h": "b3d7fc54c8171738d4b3c11afdbdb889680240f87d255bfe1ea5a2678f7af3ec",
   "src/foundation_hotkeys.c": "f9f9f812fa95cf5ec54bb49cff8c06914727900c4368f45eba7b34803c78f163",
   "src/foundation_hotkeys.h": "4419703d83d33b3e428e191e2e3892b8b13b87bdce17d8c41513d79394b5e6df",
-  "src/foundation_journal.c": "0b94abdcb3168ab4351940c2dcb57cdbc9487bc0b5c73042d52e07d636e04dae",
-  "src/foundation_journal.h": "1e0dab48ca976864e6b950f99980e0dfa6050ed63ab2893efa91f8ed3a35da88",
+  "src/foundation_journal.c": "8c37c3019e81172030e49078b19b51864178ec3b92cef795fb0e58c1e55159e8",
+  "src/foundation_journal.h": "82fd2da6880f575f59c1d2a6eba113016d777e63b80314bc843935e498d31685",
   "src/foundation_large_actor_canary.c": "dd81cdee7a50776eadba9ab6b5aa3b7d205cdecd3f3997fcbcdf2f072662594e",
   "src/foundation_large_actor_canary.h": "96d5fc4c06c045aaf035b2e45b3417e843c23f9becd7782e11458c32e25628f9",
   "src/foundation_loading.c": "e703736a8dae8f44f87c6f1d251685bc8820fcdb2098eb94c1f6c814ea1ec4bc",
@@ -52,5 +52,6 @@
   "src/host_contract.c": "2631488a510d85551eca9ae65f8cb0727c8a3e68e08064ed82799538d424fc8e",
   "src/main.c": "2a908dbfbb4e312446f18d9bf91ec92e69c9afc9e66fdfc40b3e0d7e9308b5d0",
   "src/variables.h": "0accb76a563c0296c2800676128d4c33378197636b7e45196f642c00632e7e19",
-  "tools/regen.sh": "4e61c98fa6ace2111eb80d4ac9395a762045fbb6746cb5dc05b277f3558cca88"
+  "tools/generate_faithful_clear.py": "b276534373a3133af3d0c3bf4da23a03488914ea7ee416bceb8324d54203dfcb",
+  "tools/regen.sh": "b362ba1a90c0486be6d243a38d3e9aa731187224aca38bf5b851117848ac7dbc"
 }

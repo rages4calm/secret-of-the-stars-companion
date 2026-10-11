@@ -70,10 +70,19 @@ static inline int FoundationJournalHasMorganClue(unsigned stage, unsigned flags)
  * before the weapon award, so possession is checked independently. FA03
  * sets bit10 before the original escort event. Neither flag is history.
  * Route1: current weapon plus escort request; route2: current weapon and
- * escort flag; route3: current escort flag, weapon no longer present. */
+ * escort flag; route3: current escort flag, weapon no longer present.
+ * Routes4/5: qualified current join flag, weapon held/not held now. */
+/* Original0301 FA06 is reached only at the end of Dynamite joining the town.
+ * Retain the actual chapter5 offer/escort prerequisites; this current flag
+ * is not an enduring escort/Golan completion record. */
+static inline int FoundationJournalHasDynamiteJoined(unsigned stage, unsigned flags) {
+    return stage == 5 && flags <= 255 && (flags & 0xd2) == 0xd2;
+}
+
 static inline unsigned FoundationJournalDynamiteRoute(unsigned stage, unsigned flags,
                                                       unsigned graviton_groups) {
     if (stage != 5 || flags > 255 || graviton_groups > 3 || (flags & 0xc0) != 0xc0) return 0;
+    if (FoundationJournalHasDynamiteJoined(stage, flags)) return graviton_groups ? 4 : 5;
     if (flags & 0x10) return graviton_groups ? 2 : 3;
     return graviton_groups ? 1 : 0;
 }
@@ -89,6 +98,9 @@ static inline unsigned FoundationJournalDestination(unsigned stage, unsigned fla
     /* Original offer/escort flags do not prove a Golan world location.
      * Suppress the old lab marker after the current offer/escort branch;
      * item removal must not restore an outdated destination. */
+    /* Original GIANT name04C8F7, entrance08ADF8 destination79 and
+     * chapter5 NPC075B large-house clue; no guessed world coordinate. */
+    if (FoundationJournalHasDynamiteJoined(stage, flags)) return 79;
     if (stage == 5 && (flags & 0x50)) return 0xffff;
     if (FoundationJournalHasMorganClue(stage, flags) || stage == 5) return 85;
     return 0xffff;

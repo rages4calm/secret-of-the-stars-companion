@@ -2,7 +2,7 @@
 
 The target is a polished, editable Windows PC edition with attractive original
 pixels, true wider scenery/actors, reliable controls/audio and a useful journal.
-This is active foundation work, not a completed native recompilation.
+This is active foundation work, not a completed native recompilation. The [0.2.8 generated clear island](docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md) replaces three verified instructions with compiled C at original timing; full native/AOT generation remains a major unfinished task.
 
 ## 1. Public first-run setup and packaging
 
@@ -49,7 +49,7 @@ staged execution. Experimental build receipts stay refused by normal Setup.
 
 ## 3. Expand the quest journal
 
-The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) executes the original chapter-five Graviton award and escort route with recorded prerequisite staging. Advice uses current chapter/flags and mutable possession, recomputes after rollback, and suppresses the old lab objective after the route advances. Golan's exact world location is unverified, so no new pin is guessed. Further original Golan/story guidance remains open; durable completion/history is separate.
+The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) executes the original chapter-five Graviton award and escort route with recorded prerequisite staging. Advice uses current chapter/flags and mutable possession, recomputes after rollback, and suppresses the old lab objective after the route advances. Golan's exact world location is unverified, so no new pin is guessed. The [0.2.8 continuation](docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md) executes the original Dynamite join and qualifies current GIANT/large-house advice and destination79. Golan battle/Baz rescue and durable completion/history remain open.
 
 The [native0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) expands current quest directions from original dialogue and item conditions. Challenge flags and mutable item possession remain separate from durable completion/history.
 

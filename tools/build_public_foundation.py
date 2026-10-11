@@ -92,6 +92,18 @@ def main():
     with (out/'generate.log').open('w',encoding='utf-8') as log:
         r=subprocess.run(list(map(str,generate)),cwd=project,stdout=log,stderr=subprocess.STDOUT)
     if r.returncode:raise RuntimeError('Generation failed; inspect '+str(out/'generate.log'))
+    clear_generator=project/'tools/generate_faithful_clear.py'
+    if not clear_generator.is_file():raise RuntimeError('Authored snapshot is missing the faithful-clear generator; refresh its manifest before building.')
+    with (out/'generate-faithful-clear.log').open('w',encoding='utf-8') as log:
+        r=subprocess.run([sys.executable,str(clear_generator),'--rom',str(rom),'--project-root',str(project)],
+                         cwd=project,stdout=log,stderr=subprocess.STDOUT)
+    if r.returncode:raise RuntimeError('Faithful clear generation failed; inspect '+str(out/'generate-faithful-clear.log'))
+    clear_provenance_path=project/'src/gen/faithful_clear.provenance.json'
+    clear_provenance=json.loads(clear_provenance_path.read_text(encoding='utf-8'))
+    if (clear_provenance.get('generator_sha256')!=actual['tools/generate_faithful_clear.py']
+        or clear_provenance.get('rom_sha256')!=expected
+        or clear_provenance.get('output_sha256')!=sha(project/'src/gen/faithful_clear.generated.h')):
+        raise RuntimeError('Generated clear provenance does not match the authored snapshot and ROM.')
     cmake=[args.cmake,'-S',project,'-B',out/'build','-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
       '-DCMAKE_C_COMPILER='+args.cc,'-DCMAKE_CXX_COMPILER='+args.cxx,
       '-DCMAKE_MAKE_PROGRAM='+str(Path(shutil.which(args.ninja)).resolve()),
@@ -125,6 +137,12 @@ def main():
       'save_compatibility':'secret-of-the-stars-usa-sram-v1',
       'execution_state_abi_sha256':hashlib.sha256(('\n'.join(actual[name] for name in ('src/foundation_state.c','src/foundation_state.h','src/game_rtl.c','src/game_rtl.h','src/variables.h'))+'\n'+RUNTIME_PIN+'\n'+sha(patch)).encode()).hexdigest(),
       'private_generated_files':[p.relative_to(out).as_posix() for p in (project/'src/gen').rglob('*') if p.is_file()],
+      'generated_guest_islands':{'faithful_clear':{
+          'generator_input':'tools/generate_faithful_clear.py','generator_sha256':actual['tools/generate_faithful_clear.py'],
+          'provenance_file':clear_provenance_path.relative_to(out).as_posix(),'provenance_sha256':sha(clear_provenance_path),
+          'generated_header':'project/src/gen/faithful_clear.generated.h','generated_header_sha256':clear_provenance['output_sha256'],
+          'instruction_bytes_sha256':clear_provenance['instruction_bytes_sha256'],'entry_pcs':[node['pc'] for node in clear_provenance['nodes']],
+          'scope':'Three original-cost guarded instructions; existing interpreter entry boundary and original RTS retained.'}},
       'profile':profile.relative_to(ROOT).as_posix(),
       'limits':'Fresh developer compilation only; gameplay qualification and owner installation remain separate.'}
     (out/'source-build-receipt.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')

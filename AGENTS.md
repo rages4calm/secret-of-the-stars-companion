@@ -1,3 +1,13 @@
+# Current source continuation — native0.2.8 / unchanged Companion0.3.2 (2026-10-11)
+
+Read docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md first. Exact native76fb71c7/source receipt e5fdc6b5 have separate finite qualification; source receipts remain compiled_unqualified. Canonical55 native/GUI24 inputs, runtime/base17/host3 patches and execution-state ABI remain exact. Generate the three guarded clear instructions only in private src/gen; never publish ROM-derived headers/provenance. Generated original-cost execution defaults on independently of NativeClear; original bus/cycles/scheduler/RTS and all refusal guards remain. CPU experiments stay archived.
+
+Current chapter5 D2 offer/escort/join prerequisites qualify GIANT scene79/large-house advice and its original entrance-resolved map marker. Item possession is mutable, not durable history. Golan battle/Baz/chapter6 are unreached. Preserve exact center/culling/collision, bounded map cache, original allocation/packet guards and copied-EXE test isolation. Actual modal-pump input/audio evidence supersedes the earlier synthetic pause-test limitation only within its finite tested routes. No fullcampaign/physical-controller/complete-AOT claim.
+
+Owner now permits replacing disposable Secret of the Stars development saves when useful. This supersedes older blanket save-preservation instructions for this game only. Protect the ROM, other projects and launcher preferences; retain reproducible copied fixtures when useful. Earlier blocks retain historical artifact scopes.
+
+---
+
 # Current source continuation - native0.2.7 / unchanged Companion0.3.2 (2026-10-11)
 
 Read docs/FOUNDATION-CONTINUATION-2026-10-11.md first. Exact native3ed03643/source

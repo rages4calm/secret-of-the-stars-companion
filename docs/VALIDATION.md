@@ -1,6 +1,10 @@
 # Validation scope — 2026-10-11
 
-## Current native0.2.7 / unchanged Companion0.3.2
+## Current native0.2.8 / unchanged Companion0.3.2
+
+Exact native76fb71c7/source receipt e5fdc6b5 pass 100 loading gates /22 executions, focused journal125/34 and public journal750/154 (1,900,544 pure predicates), seven core suites, exact rendering suites, destination79 controls and unchanged GUI60 adoption/52 real027→028 update/rollback. Nine separate actual-GPU/audio routes include a positively counted generated load; four additional actual browser/rewind routes pass close/input and steady audio counters. Source compilation remains compiled_unqualified. [Exact hashes, qualification counts and limits](FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md).
+
+## Earlier native0.2.7 / unchanged Companion0.3.2
 
 Exact native `3ed0364374f670679f82aebb1d70bc92acc837ba34de7afeadfd8273ef5bf87a`
 and its real source receipt `9bf48b56fe4a2d544fd4800128b64687d2c004a0f575a5611eb8c4f567cf4385`

@@ -64,6 +64,9 @@ def expected_card(background,font,lead,groups,ram=None,width=256,height=224):
                 else:
                     objective=('Take Dynamite to your town.','He asks for a laboratory.')
                     route=('Dynamite asks you to','take him to the new town.')
+                if (flags&0xd2)==0xd2:
+                    objective=('Search GIANT for Golan.','Use Graviton against Golan.' if weapon else 'Graviton is not held now.')
+                    route=("GIANT: Golan built a","large house in the town.")
                 active=bool(ram[0x4b6]&0x80)
                 progress='GRAVITON: BOTH PACKS' if weapon==3 else 'GRAVITON: NOT HELD NOW' if not weapon else 'GRAVITON: CURRENT PACK' if weapon&(1<<active) else 'GRAVITON: OTHER PACK'
     elif lead==6:
@@ -126,7 +129,7 @@ def main():
     p.add_argument('--pennon-before-state',type=Path,help='Optional original pre-award stage-zero checkpoint')
     p.add_argument('--pennon-after-state',type=Path,help='Optional original post-award stage-zero checkpoint')
     p.add_argument('--likado-state',type=Path,help='Optional original stage-one Uncle Save clue checkpoint')
-    for name in ('badbad-state','dog-pill-state','returned-state','mayor-state','town-clue-state','morgan-state','dynamite-route-state'):
+    for name in ('badbad-state','dog-pill-state','returned-state','mayor-state','town-clue-state','morgan-state','dynamite-route-state','joined-state'):
         p.add_argument('--'+name,type=Path,help='Optional explicitly staged original-event fixture; see its private source receipts')
     a=p.parse_args()
     a.exe=a.exe.resolve(strict=True);a.rom=a.rom.resolve(strict=True)
@@ -171,7 +174,7 @@ def main():
         if lr[0x20]!=1 or lr[0x5372]!=1 or not lr[0x5360]&0x10 or ar[0x5360]&0x10:
             raise ValueError('Expected original before/after stage-one clue bit10 evidence')
     town_inputs=[];town_rams={}
-    for field in ('badbad_state','dog_pill_state','returned_state','mayor_state','town_clue_state','morgan_state','dynamite_route_state'):
+    for field in ('badbad_state','dog_pill_state','returned_state','mayor_state','town_clue_state','morgan_state','dynamite_route_state','joined_state'):
         state=getattr(a,field)
         if state:
             state=state.resolve(strict=True);setattr(a,field,state);town_inputs.append(state)
@@ -184,6 +187,7 @@ def main():
             if field=='town_clue_state' and not(ram[0x5372]==4 and ram[0x5360]&1):raise ValueError('Expected original chapter4 Uncle Save bit01 clue')
             if field=='morgan_state' and not(ram[0x5372]==4 and ram[0x5360]&32):raise ValueError('Expected original chapter4 Morgan bit20 clue')
             if field=='dynamite_route_state' and not(ram[0x5372]==5 and ram[0x5360]==0):raise ValueError('Expected original Morgan paid-entry chapter5 outcome')
+            if field=='joined_state' and not(ram[0x5372]==5 and (ram[0x5360]&0xd2)==0xd2):raise ValueError('Expected original chapter5 current joined02 with offer/escort flags')
     protected={path:sha(path) for path in (a.exe,a.rom,a.before_state,a.after_state,*pennon_inputs,*likado_inputs,*town_inputs,ROOT/'native/foundation/src/foundation_journal.h',ROOT/'native/foundation/src/foundation_journal.c',a.runtime/'runner/src/snes_overlay_draw.c')}
     out.mkdir(parents=True);(out/'runs').mkdir();(out/'staged').mkdir()
     checks={};cases={};receipts={}
@@ -195,7 +199,7 @@ def main():
     unit=out/'stage-unit.c'
     unit.write_text('#include "foundation_journal.h"\n#include <stdio.h>\nint main(void){unsigned n=0;'
         'for(unsigned s=0;s<256;s++)for(unsigned f=0;f<256;f++){unsigned e=s==1?2:(s==2?5:(s==3?4:(s==4?6:(s==5?7:(s==0?(f&2?3:(f&0x40?1:0)):0)))));'
-        'if(FoundationJournalLead(s,f)!=e||FoundationJournalHasLead(s,f)!=(e!=0)||FoundationJournalHasLikadoClue(s,f)!=(s==1&&(f&16)!=0)||FoundationJournalHasTownClue(s,f)!=(s==4&&(f&1)!=0)||FoundationJournalHasMorganClue(s,f)!=(s==4&&(f&32)!=0))return 1;n+=5;for(unsigned g=0;g<4;g++)for(unsigned p=0;p<2;p++){unsigned r=(s==2||(s==1&&(f&32)))?(g&(1u<<p)?2:(g?3:1)):0;unsigned d=r?(r>=2?58:67):s==3&&!(f&128)?59:s==5&&(f&0x50)?65535:(s==4&&(f&32))||s==5?85:65535;unsigned dy=s==5&&(f&0xc0)==0xc0?((f&16)?(g?2:3):(g?1:0)):0;if(FoundationJournalBadbadRoute(s,f,g,p)!=r||FoundationJournalDestination(s,f,g,p)!=d||FoundationJournalDynamiteRoute(s,f,g)!=dy)return 2;n+=3;}}'
+        'if(FoundationJournalLead(s,f)!=e||FoundationJournalHasLead(s,f)!=(e!=0)||FoundationJournalHasLikadoClue(s,f)!=(s==1&&(f&16)!=0)||FoundationJournalHasTownClue(s,f)!=(s==4&&(f&1)!=0)||FoundationJournalHasMorganClue(s,f)!=(s==4&&(f&32)!=0))return 1;n+=5;for(unsigned g=0;g<4;g++)for(unsigned p=0;p<2;p++){unsigned r=(s==2||(s==1&&(f&32)))?(g&(1u<<p)?2:(g?3:1)):0;unsigned j=s==5&&(f&0xd2)==0xd2;unsigned d=j?79:r?(r>=2?58:67):s==3&&!(f&128)?59:s==5&&(f&0x50)?65535:(s==4&&(f&32))||s==5?85:65535;unsigned dy=s==5&&(f&0xc0)==0xc0?(j?(g?4:5):((f&16)?(g?2:3):(g?1:0))):0;if(FoundationJournalBadbadRoute(s,f,g,p)!=r||FoundationJournalDestination(s,f,g,p)!=d||FoundationJournalDynamiteRoute(s,f,g)!=dy)return 2;n+=3;}}'
         'printf("{\\"passed\\":true,\\"checks\\":%u}\\n",n);return 0;}\n')
     compiled=subprocess.run([str(a.cc),str(unit),'-I',str(ROOT/'native/foundation/src'),'-I',str(a.runtime/'runner/src/desktop'),'-o',str(out/'stage-unit.exe')],capture_output=True,text=True)
     (out/'stage-unit.log').write_text(compiled.stdout+compiled.stderr)
@@ -292,7 +296,7 @@ def main():
             'dog-pill-stage6-refused':(wrong,0,JournalGroups(ram))})
     if a.returned_state:fixtures['town-returned']=(a.returned_state,4,JournalGroups(town_rams['returned_state']))
     if a.mayor_state:fixtures['mayor-clue']=(a.mayor_state,4,JournalGroups(town_rams['mayor_state']))
-    for field,name,lead in (('town_clue_state','town-building-clue',6),('morgan_state','morgan-clue',6),('dynamite_route_state','dynamite-route',7)):
+    for field,name,lead in (('town_clue_state','town-building-clue',6),('morgan_state','morgan-clue',6),('dynamite_route_state','dynamite-route',7),('joined_state','dynamite-joined-GIANT',7)):
         state=getattr(a,field)
         if state:fixtures[name]=(state,lead,JournalGroups(town_rams[field]))
     if a.town_clue_state:
@@ -351,7 +355,7 @@ def main():
         check('chapter_restore_replaces_pennon_with_bosen',int(rows[0]['lead_kind'])==3 and all(int(row['lead_kind'])==2 for row in rows if int(row['frame'])>=81) and parity(next_off,next_on) and surface(next_on)==oracle(next_off,2,0,load=True))
     wide_names=['stage1','pennon' if pennon_inputs else 'david']
     if likado_inputs:wide_names.append('likado-clue')
-    wide_names.extend(name for name in ('badbad-advice','dog-pill-current','dog-pill-other','town-returned','mayor-clue','town-building-clue','town-building-default','morgan-clue','morgan-priority','dynamite-route') if name in fixtures)
+    wide_names.extend(name for name in ('badbad-advice','dog-pill-current','dog-pill-other','town-returned','mayor-clue','town-building-clue','town-building-default','morgan-clue','morgan-priority','dynamite-route','dynamite-joined-GIANT') if name in fixtures)
     for name in wide_names:
         state,lead,groups=fixtures[name]
         wide_off,_=run(name+'-wide-off',state,0,wide=True)

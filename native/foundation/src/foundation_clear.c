@@ -1,4 +1,4 @@
-/* Native equivalents of three instructions in the verified Likado load clear.
+/* Generated faithful instructions in the verified Likado load clear.
  * Each commits through the bridge's faithful bus/clock path and returns to its
  * scheduler boundary. No host cursor, guest wait removal or raw VRAM fill. */
 #include "foundation_clear.h"
@@ -12,8 +12,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef SNESRECOMP_HAS_GENERATED_CODE
+#include "gen/faithful_clear.generated.h"
+#define GENERATED_CLEAR_AVAILABLE 1
+#else
+/* A ROM-free setup host has no generated guest instructions to execute. */
+#define GENERATED_CLEAR_AVAILABLE 0
+static int GeneratedClearSupports(uint32_t pc) { (void)pc; return 0; }
+static unsigned GeneratedClearStep(CpuState *cpu, uint32_t pc,
+                                   unsigned *cycles, uint32_t *next) {
+    (void)cpu; (void)pc; (void)cycles; (void)next; abort();
+}
+#endif
 extern Snes *g_snes;
 static int enabled, installed, identity;
+/* NativeClear still controls only the earlier handwritten diagnostic route.
+ * Generated original-cost steps default on independently, with exact guards. */
+static int generated_enabled;
+static unsigned long long generated_steps[3];
 /* Diagnostic reduced policy removes only DEY/taken-BNE internal compute
  * cycles. Bus fetches, PPU transfers and every scheduler boundary remain. */
 static int reduced_cost;
@@ -29,7 +45,7 @@ static const uint8_t clean_hash[32] = {
 void FoundationClearReset(void) { bound_rom = NULL; bound_size = 0; identity = 0; }
 
 void FoundationClearBeforeFrame(void) {
-    if (!enabled || !g_snes || !g_snes->cart || !g_rom) return;
+    if ((!enabled && !generated_enabled) || !g_snes || !g_snes->cart || !g_rom) return;
     size_t size = g_snes->cart->romImageSize;
     if (bound_rom == g_rom && bound_size == size) return;
     FoundationClearReset(); bound_rom = g_rom; bound_size = size;
@@ -40,7 +56,7 @@ void FoundationClearBeforeFrame(void) {
 }
 
 static int Context(const CpuState *cpu, uint32_t pc) {
-    if (!enabled || !identity || !g_snes || !g_snes->ppu || !cpu ||
+    if ((!enabled && !generated_enabled) || !identity || !g_snes || !g_snes->ppu || !cpu ||
         cpu->emulation || cpu->m_flag || cpu->x_flag || cpu->A ||
         cpu->DB != 1 || (cpu->PB & 0x7f) != 1 || cpu->D != 0x900 ||
         cpu->S < 0x1b00 || cpu->S + 2 >= 0x1e00 ||
@@ -64,7 +80,16 @@ static uint8_t Fetch(CpuState *cpu, uint32_t pc) {
 }
 
 static void NativeInstruction(CpuState *cpu, uint32_t pc) {
-    if (!Context(cpu, pc) || !interp_bridge_native_begin(cpu)) return;
+    if (!Context(cpu, pc)) return;
+    if (generated_enabled) {
+        if (!GeneratedClearSupports(pc) || !interp_bridge_native_begin(cpu)) return;
+        unsigned original_cycles; uint32_t next_pc;
+        unsigned step = GeneratedClearStep(cpu, pc, &original_cycles, &next_pc);
+        ++generated_steps[step];
+        interp_bridge_native_commit(cpu, original_cycles, next_pc);
+        return;
+    }
+    if (!interp_bridge_native_begin(cpu)) return;
     /* Real opcode/operand bus fetches preserve open bus and hardware epochs.
      * The whole image was validated before any transaction can begin. */
     Fetch(cpu, pc);
@@ -108,18 +133,30 @@ void FoundationClearInit(void) {
         fast_cost = !strcmp(env, "fast");
         enabled = reduced_cost || fast_cost || !strcmp(env, "original");
     }
-    if (enabled && !installed) {
+    const char *generated = getenv("SNESRECOMP_FOUNDATION_GENERATED_CLEAR");
+    generated_enabled = GENERATED_CLEAR_AVAILABLE && !reduced_cost && !fast_cost &&
+        (!generated || !strcmp(generated, "1") || !strcmp(generated, "original"));
+    /* Explicit diagnostics: 0 disables generated execution; combined with
+     * NativeClear=0 this leaves the interpreter. This convenience selects
+     * only the old handwritten original-cost path, never a faster policy. */
+    if (generated && !strcmp(generated, "handwritten-original")) {
+        generated_enabled = 0; enabled = 1; reduced_cost = fast_cost = 0;
+    }
+    if ((enabled || generated_enabled) && !installed) {
         installed = interp_bridge_add_pre_opcode_hook(0x01cb2e, NativeInstruction) &&
             interp_bridge_add_pre_opcode_hook(0x01cb31, NativeInstruction) &&
             interp_bridge_add_pre_opcode_hook(0x01cb32, NativeInstruction);
-        if (!installed) enabled = 0;
+        if (!installed) enabled = generated_enabled = 0;
     }
-    fprintf(stderr, "[foundation] native_clear_original_cost=%d\n", enabled && !reduced_cost && !fast_cost);
+    fprintf(stderr, "[foundation] native_clear_original_cost=%d\n", enabled && !generated_enabled && !reduced_cost && !fast_cost);
+    fprintf(stderr, "[foundation_generated_clear] enabled=%d available=%d\n", generated_enabled, GENERATED_CLEAR_AVAILABLE);
     if (reduced_cost) fprintf(stderr, "[foundation] native_clear_reduced_internal_cost=1\n");
     if (fast_cost) fprintf(stderr, "[foundation] native_clear_fast_cost=1\n");
 }
 
 void FoundationClearShutdown(void) {
-    if (enabled) fprintf(stderr, "[foundation_clear] native_instructions=%llu\n", completed_instructions);
-    enabled = reduced_cost = fast_cost = 0; FoundationClearReset();
+    fprintf(stderr, "[foundation_clear] native_instructions=%llu\n", completed_instructions);
+    fprintf(stderr, "[foundation_generated_clear] generated_instructions=%llu sta=%llu dey=%llu bne=%llu\n",
+        generated_steps[0]+generated_steps[1]+generated_steps[2], generated_steps[0], generated_steps[1], generated_steps[2]);
+    enabled = reduced_cost = fast_cost = generated_enabled = 0; FoundationClearReset();
 }

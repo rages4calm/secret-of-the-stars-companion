@@ -24,33 +24,42 @@ def main():
     parser.add_argument('--exe',type=Path,required=True)
     parser.add_argument('--reference-exe',type=Path,required=True)
     parser.add_argument('--native-proof',action='store_true')
+    parser.add_argument('--rom',type=Path,default=ROOT/'local/inputs/clean-usa.sfc')
+    parser.add_argument('--fixture',type=Path,default=ROOT/'local/runs/likado-inside-a/saves/save0.sav')
+    parser.add_argument('--legacy-state',type=Path,help='Optional real schema-v2 mid-clear checkpoint; otherwise the reference must produce it')
+    parser.add_argument('--output',type=Path,help='Fresh private evidence output directory')
     args=parser.parse_args()
-    base=ROOT/'local/runs'/('loading-'+time.strftime('%Y%m%d-%H%M%S'));base.mkdir(exist_ok=False)
-    fixture=ROOT/'local/runs/likado-inside-a/saves/save0.sav'
+    base=(args.output or ROOT/'local/runs'/('loading-'+time.strftime('%Y%m%d-%H%M%S'))).resolve();base.mkdir(parents=True,exist_ok=False)
+    fixture=args.fixture.resolve();rom=args.rom.resolve()
     report={'executable_sha256':sha(args.exe),'reference_sha256':sha(args.reference_exe),
         'source_state_sha256':sha(fixture),'checks':{},'cases':{},'limits':[
             'Bounded natural house exit and copied mid-clear state; not a campaign or scrolling slowdown proof',
             'Original-cost native execution retains SNES CPU budget; lower interpreted work does not mean fewer loading fields',
             'Headless telemetry is not physical controller/audio listening or display scanout certification']}
 
-    def run(name,exe,state=fixture,trace=False,native=False,script=SCRIPT,save=False,load_at=None):
+    def run(name,exe,state=fixture,trace=False,native=False,generated=False,script=SCRIPT,save=False,load_at=None):
         directory=base/name;directory.mkdir();(directory/'dump').mkdir()
         shutil.copy2(exe,directory/'game.exe');shutil.copy2(state,directory/'resume.state')
         (directory/'input.txt').write_text(script)
         (directory/'config.ini').write_text('[Graphics]\nRenderer=software\nVSync=0\n[Sound]\nEnableAudio=0\n'
             '[General]\nDisableFrameDelay=1\nAutosave=0\nRunAhead=0\n[GamepadMap]\nEnableGamepad1=0\nEnableGamepad2=0\n')
+        (directory/'foundation.ini').write_text('NativeClear=0\nNativeColumns=0\nNavigationMap=0\n')
         env={k:v for k,v in os.environ.items() if not k.startswith('SNESRECOMP_')}
         env.update(SDL_VIDEODRIVER='dummy',SDL_AUDIODRIVER='dummy',SNESRECOMP_DUMP_DIR=str(directory/'dump'),
             SNESRECOMP_FOUNDATION_CPU_TRACE=str(directory/'cpu.csv'),SNESRECOMP_FOUNDATION_TRACE=str(directory/'field.csv'),
             SNESRECOMP_FOUNDATION_FAST_MENUS='0',SNESRECOMP_FOUNDATION_BATTLE_INFO='0',SNESRECOMP_FOUNDATION_JOURNAL='0',
             SNESRECOMP_FOUNDATION_ENHANCED_PIXELS='0',SNESRECOMP_FOUNDATION_WIDE='0',
-            SNESRECOMP_FOUNDATION_NATIVE_CLEAR='original' if native else '0')
+            SNESRECOMP_FOUNDATION_NATIVE_CLEAR='original' if native else '0',
+            SNESRECOMP_FOUNDATION_GENERATED_CLEAR='0')
+        # Historical observer/handwritten lanes retain their exact meaning.
+        # The default lane omits this variable and keeps NativeClear=0.
+        if generated:env.pop('SNESRECOMP_FOUNDATION_GENERATED_CLEAR')
         if trace:env['SNESRECOMP_FOUNDATION_LOADING_TRACE']=str(directory/'loading.csv')
         if save:env.update(SNESRECOMP_OVERLAY_SELFTEST='126',SNESRECOMP_OVERLAY_SELFTEST_SAVEONLY='1')
         if load_at is not None:env.update(SNESRECOMP_OVERLAY_SELFTEST_LOADAT=str(load_at),SNESRECOMP_RUN_FRAMES='280')
         with (directory/'host.log').open('w') as log:
             start=time.perf_counter()
-            result=subprocess.run([str(directory/'game.exe'),'--no-launcher','--rom',str(ROOT/'local/inputs/clean-usa.sfc'),
+            result=subprocess.run([str(directory/'game.exe'),'--no-launcher','--rom',str(rom),
                 '--resume-state',str(directory/'resume.state'),'--script',str(directory/'input.txt')],cwd=directory,env=env,
                 stdout=log,stderr=log,timeout=40,creationflags=subprocess.CREATE_NO_WINDOW)
         rows=list(csv.DictReader((directory/'loading.csv').open())) if (directory/'loading.csv').exists() else []
@@ -59,6 +68,8 @@ def main():
             'event_counts':dict(collections.Counter(r['event'] for r in rows)),'loading_rows':len(rows)}
         count=re.search(r'\[foundation_clear\] native_instructions=(\d+)',(directory/'host.log').read_text(errors='replace'))
         report['cases'][name]['native_instructions']=int(count.group(1)) if count else 0
+        generated_count=re.search(r'\[foundation_generated_clear\] generated_instructions=(\d+)',(directory/'host.log').read_text(errors='replace'))
+        report['cases'][name]['generated_instructions']=int(generated_count.group(1)) if generated_count else 0
         return directory,rows
 
     def compare(name,left,right,native=False):
@@ -100,6 +111,12 @@ def main():
     report['checks']['original_instruction_costs_match']=valid_costs and len(phases)==6144*3+1
     report['clear_exit']=exits[0] if exits else None
     report['constructor_context']=[r for r in rows if r['event'].startswith('constructor_')]
+    generated,grows=run('generated-default',args.exe,trace=True,generated=True)
+    compare('generated_default',observed,generated,native=True)
+    report['checks']['generated_default_every_seam_row_identical']=rows==grows
+    report['checks']['generated_default_positive_steps']=report['cases']['generated-default']['generated_instructions']==18432
+    report['checks']['generated_default_no_handwritten_steps']=report['cases']['generated-default']['native_instructions']==0
+    report['checks']['generated_default_removed_interpreter_steps_exact']=report['cases']['generated-default']['interpreted_instructions_removed']==18432
     if args.native_proof:
         native,nrows=run('native-original',args.exe,trace=True,native=True)
         compare('native_original',observed,native,native=True)
@@ -118,6 +135,12 @@ def main():
         report['checks']['cold_restore_retains_coherent_vram_cursor']=bool(partial) and int(partial[0]['vram_pointer'])==0x6000-int(partial[0]['y'])
         report['checks']['cold_partial_really_native']=report['cases']['cold-native']['native_instructions']>0
         report['checks']['cold_matches_uninterrupted_after']=all((observed/'dump'/('after.'+ext)).read_bytes()==(cold_on/'dump'/('after.'+ext)).read_bytes() for ext in EXTENSIONS)
+        cold_generated,cold_generated_rows=run('cold-generated-default',args.exe,state,trace=True,generated=True,script=cold_script)
+        compare('cold_generated_default',cold_off,cold_generated,native=True)
+        report['checks']['cold_generated_default_seams_identical']=cold_rows==cold_generated_rows
+        report['checks']['cold_generated_default_positive_steps']=report['cases']['cold-generated-default']['generated_instructions']>0
+        report['checks']['cold_generated_default_no_handwritten_steps']=report['cases']['cold-generated-default']['native_instructions']==0
+        report['checks']['cold_generated_default_removed_steps_exact']=report['cases']['cold-generated-default']['interpreted_instructions_removed']==report['cases']['cold-generated-default']['generated_instructions']
         rollback_off,rollback_rows=run('rollback-original',args.exe,trace=True,save=True,load_at=170)
         rollback_on,rollback_native=run('rollback-native',args.exe,trace=True,native=True,save=True,load_at=170)
         compare('rollback_mid_clear',rollback_off,rollback_on,native=True)
@@ -132,14 +155,27 @@ def main():
         elapsed=target-int(partial[0]['frame']);assert elapsed>0
         uninterrupted,_=run('rollback-uninterrupted-cold',args.exe,state,native=True,script=f'wait {elapsed}\ndump after\nquit\n')
         report['checks']['rollback_matches_uninterrupted_continuation']=all((uninterrupted/'dump'/('after.'+ext)).read_bytes()==(rollback_on/'dump'/('after.'+ext)).read_bytes() for ext in EXTENSIONS)
-        legacy_saved,_=run('v2-mid-save',args.reference_exe,save=True)
-        legacy_state=legacy_saved/'saves/save0.sav'
+        rollback_generated,rollback_generated_rows=run('rollback-generated-default',args.exe,trace=True,generated=True,save=True,load_at=170)
+        compare('rollback_generated_default',rollback_off,rollback_generated,native=True)
+        report['checks']['rollback_generated_default_seams_identical']=rollback_rows==rollback_generated_rows
+        report['checks']['rollback_generated_default_positive_replay']=report['cases']['rollback-generated-default']['generated_instructions']>18432
+        report['checks']['rollback_generated_default_no_handwritten_steps']=report['cases']['rollback-generated-default']['native_instructions']==0
+        report['checks']['rollback_generated_default_removed_steps_exact']=report['cases']['rollback-generated-default']['interpreted_instructions_removed']==report['cases']['rollback-generated-default']['generated_instructions']
+        report['checks']['rollback_generated_default_uninterrupted_guest']=all((uninterrupted/'dump'/('after.'+ext)).read_bytes()==(rollback_generated/'dump'/('after.'+ext)).read_bytes() for ext in EXTENSIONS)
+        if args.legacy_state:legacy_state=args.legacy_state.resolve()
+        else:
+            legacy_saved,_=run('v2-mid-save',args.reference_exe,save=True)
+            legacy_state=legacy_saved/'saves/save0.sav'
         assert legacy_state.read_bytes().find(struct.pack('<II',0x53544f53,2))>=48, \
             'Legacy missing-cursor proof requires a reference that produces schema v2, not a current v3 build.'
         legacy_off,_=run('v2-old-reference',args.reference_exe,legacy_state,script=cold_script)
         legacy_on,_=run('v2-native-fallback',args.exe,legacy_state,trace=True,native=True,script=cold_script)
         compare('v2_missing_cursor_compatibility',legacy_off,legacy_on)
         report['checks']['v2_missing_cursor_retains_original']=report['cases']['v2-native-fallback']['native_instructions']==0
+        legacy_generated,_=run('v2-generated-fallback',args.exe,legacy_state,trace=True,generated=True,script=cold_script)
+        compare('v2_generated_cursor_fallback',legacy_off,legacy_generated)
+        report['checks']['v2_missing_cursor_no_generated_steps']=report['cases']['v2-generated-fallback']['generated_instructions']==0
+        report['checks']['v2_missing_cursor_no_handwritten_steps']=report['cases']['v2-generated-fallback']['native_instructions']==0
         # Change only a copied v3 hardware latch to another valid SNES setting.
         # Unsupported port state must execute the original instructions exactly.
         raw=state.read_bytes();header=raw.find(struct.pack('<II',0x53544f53,3))
@@ -154,6 +190,11 @@ def main():
             compare(name+'_fallback',fallback_off,fallback_on,native=True)
             report['checks'][name+'_fallback_seams_identical']=fallback_rows==fallback_native
             report['checks'][name+'_guard_retains_original']=report['cases'][name+'-native']['native_instructions']==0 and bool(fallback_rows)
+            fallback_generated,generated_rows=run(name+'-generated-fallback',args.exe,changed_state,trace=True,generated=True,script=cold_script)
+            compare(name+'_generated_fallback',fallback_off,fallback_generated,native=True)
+            report['checks'][name+'_generated_fallback_seams_identical']=fallback_rows==generated_rows
+            report['checks'][name+'_guard_no_generated_steps']=report['cases'][name+'-generated-fallback']['generated_instructions']==0 and bool(fallback_rows)
+            report['checks'][name+'_guard_no_handwritten_steps']=report['cases'][name+'-generated-fallback']['native_instructions']==0
     report['checks']['source_state_preserved']=sha(fixture)==report['source_state_sha256']
     report['checks']['all_processes_exit_and_resume']=all(c['exit']==0 and c['resumed'] for c in report['cases'].values())
     report['passed']=all(report['checks'].values())

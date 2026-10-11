@@ -58,6 +58,15 @@ CRC32/SHA-256, `recomp/symbols.toml` and `recomp/bank00.cfg`. The CMake build us
 not make the entire game AOT/native. All generated bodies and `recomp/funcs.h`
 remain under ignored `local/`.
 
+Native 0.2.8 also runs `tools/generate_faithful_clear.py` from the copied native
+project. It generates a private three-instruction original-cost clear island
+and a provenance file; the source receipt binds their hashes to the owned ROM
+and authored generator. Generated execution defaults on only under its exact
+context and port guards. `SNESRECOMP_FOUNDATION_GENERATED_CLEAR=0`, together
+with `NativeClear=0` and no native-clear override, selects the interpreter for
+developer comparisons. This bounded island retains the existing scheduler
+entry and original RTS; it does not make the full game AOT.
+
 The resulting `source-build-receipt.json` says **compiled_unqualified** and
 records exact input/executable hashes. Compilation is separate from gameplay
 qualification. Source modifications are recorded as differing from the
@@ -198,7 +207,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation map (native 0.2.7 / Companion 0.3.2)
+## Navigation map (native 0.2.8 / Companion 0.3.2)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and

@@ -84,6 +84,10 @@ if [ "$VERIFY" -eq 1 ]; then GEN_ARGS+=("${VERIFY_ARGS[@]}"); fi
 echo "== Generating src/gen =="
 "$PYTHON" "$CLI" generate "${GEN_ARGS[@]}"
 
+# Always verify the narrow generated instruction island's pinned identity,
+# including when exploratory upstream generation used --no-verify.
+"$PYTHON" "$ROOT/tools/generate_faithful_clear.py" --rom "$ROM" --project-root "$ROOT"
+
 echo
 echo "Done. Build with:"
 echo "  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j"
