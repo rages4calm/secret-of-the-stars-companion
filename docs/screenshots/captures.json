@@ -1,5 +1,5 @@
 {
-  "scope": "Six actual owner-requested documentation captures. Five preceding025/031 captures retain historical scope; navigation map is the exact native027 capture at native400x224 resolution. No mockups or replacement artwork.",
+  "scope": "Six actual owner-requested documentation captures. Five preceding025/031 captures retain historical scope; navigation map is an actual native027 final GPU screenshot at1920x1080 with enhanced pixels and widescreen enabled. No mockups or replacement artwork.",
   "captures": {
     "docs/screenshots/widescreen-world.png": {
       "title": "Wider world, including original vehicles",
@@ -58,17 +58,17 @@
     },
     "docs/screenshots/navigation-map.png": {
       "title": "Position, towns and a verified next destination",
-      "sha256": "b91814c94c0333c0838863a962cfcad1c07fe0d52b055ab79acd2d859a72eae7",
+      "sha256": "3abd8313f0a37753d8d907c3e7fdd3c08089ecdd8bd8d75c08b7c9ca42645f9a",
       "dimensions": [
-        400,
-        224
+        1920,
+        1080
       ],
       "application_version": "native0.2.7",
       "application_sha256": "3ed0364374f670679f82aebb1d70bc92acc837ba34de7afeadfd8273ef5bf87a",
-      "caption": "The optional map uses original selected world terrain: gold marks the party position, cyan marks original town entrances, and pink blinks at the verified Decatas route after Morgan. Legend text uses the same colors as its icons. This unmodified native400x224 capture uses a copied development checkpoint from original payment and ordinary world-return execution with staged prerequisites; it is not a natural full-campaign playthrough. Objective marking can be disabled independently.",
+      "caption": "Actual native0.2.7 OpenGL screenshot of the final1920x1080 game output, with EnhancedPixels and widescreen enabled. The optional map uses original selected world terrain, gold position/cyan towns, and an optional pink blinking verified destination. This frame catches the blink hidden. Legend text matches the marker colors. Copied original Morgan payment/world-return development checkpoint with staged prerequisites; not a natural full-campaign playthrough. PNG conversion preserves every GPU-captured RGB pixel; no screenshot resizing or reconstructed artwork.",
       "source_receipt_sha256": "9bf48b56fe4a2d544fd4800128b64687d2c004a0f575a5611eb8c4f567cf4385",
-      "capture_proof": "local/evidence/map-legend-colors-20261011/qa/final027-cell-cache/report.json",
-      "capture_proof_sha256": "8ffb85774134c84119054b424c98d80d5133a2be8583e83171b9f2f48d5f97a7"
+      "capture_proof": "local/evidence/github-map-display-20261011/enhanced-capture-proof.json",
+      "capture_proof_sha256": "0a81e4333884809eeb8cebc5df1ddb842a10664ca2f40fda8cead6432542166b"
     }
   }
 }

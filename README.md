@@ -34,7 +34,7 @@ These are actual captures of features added for this PC project. **[View all six
 
 <img src="docs/screenshots/navigation-map.png" alt="Navigation map with your position, towns and a blinking verified destination" width="1200">
 
-*Gold shows your position, cyan marks towns, and the optional pink marker blinks at a verified next destination.*
+*Captured from the running game at 1080p with enhanced pixels and widescreen enabled. Gold shows your position, cyan marks towns, and the optional pink marker blinks at a verified next destination.*
 
 The gameplay images use isolated development checkpoints. Widescreen is optional and uses the original view where a scene is not qualified; the journal is still being expanded. Upscaling preserves original artwork. See the gallery for exact capture scope and example launcher settings.
 

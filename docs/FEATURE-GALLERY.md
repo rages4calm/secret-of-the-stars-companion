@@ -40,7 +40,8 @@ Assign fullscreen, HUD, journal, movement boost, checkpoints and more to keyboar
 
 <img src="screenshots/navigation-map.png" alt="Navigation map" width="1200">
 
-Gold marks your position, cyan marks original town entrances, and the optional
+This is an actual 1920×1080 screenshot from the game's final GPU output, with
+enhanced pixels and widescreen enabled. Gold marks your position, cyan marks original town entrances, and the optional
 pink destination blinks. The legend text matches those marker colors. This is
 actual native0.2.7 output from a copied original
 Morgan payment/world-return route with staged prerequisites. The terrain,
