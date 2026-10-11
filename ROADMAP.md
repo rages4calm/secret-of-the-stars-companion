@@ -4,12 +4,12 @@ The target is a polished, editable Windows PC edition with attractive original
 pixels, true wider scenery/actors, reliable controls/audio and a useful journal.
 This is active foundation work, not a completed native recompilation. The [0.3.0 continuation](docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md) generates the original outer constructor and long-call/return sites alongside the earlier loading routine, retaining original instruction timing. Its original callees remain interpreted; full native/AOT generation remains a major unfinished task.
 
-Native 0.3.0 / Companion 0.3.4 are installed after exact constructor/loading,
-both-party journal/map, settled laboratory rendering, original Bun recruitment,
-input/restore and launcher update/rollback qualification. Ten normal and nine
-modal GPU/audio routes pass, followed by eighteen copied-installed controls.
-ROM-free package extraction and relocation have separate qualification.
-These proofs keep their bounded scopes.
+Native 0.3.1 / Companion 0.3.4 add corrected town/objective coordinates and
+verified current Bun/architect clues. The [current continuation](docs/FOUNDATION-MAP-TOWN-2026-10-11.md)
+separates map/journal input and restore, independent original background checks,
+launcher adoption/update and seven paced GPU/audio routes. Existing 0.3.0
+constructor, party and modal reports retain their original artifact scope.
+ROM-free packaging and copied-installed checks remain separate.
 
 ## 1. Public first-run setup and packaging
 

@@ -55,7 +55,7 @@ def expected_card(background,font,lead,groups,ram=None,width=256,height=224):
     elif lead==7:
         objective=("Seek Dynamite's help.",'Find a way to defeat Golan.')
         route=("Dynamite's laboratory is",'in the town Morgan entered.')
-        progress='Current Dynamite route'
+        progress='The architect is working.'
         # Original07BB FA01 precedes the6E award. FA03 precedes escort movement.
         # Flags and current item evidence are independent; this is not history.
         if ram is not None:
@@ -80,6 +80,8 @@ def expected_card(background,font,lead,groups,ram=None,width=256,height=224):
         if ram is not None and ram[0x5360]&1:
             route=('Find architects to build','and farmers to grow crops.')
             progress="Uncle Save's current advice"
+        if ram is not None and ram[0x5360]&0xc0==0xc0 and ram[0x5364]&8 and not ram[0x4b6]&0x80:
+            progress='Master: take care of Bun.'
         if ram is not None and ram[0x5360]&32:
             objective=('Find a way to defeat Golan.','Ask Dynamite for help.')
             route=('Morgan offers town access.','Bring 100 gold for entry.')

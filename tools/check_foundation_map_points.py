@@ -80,7 +80,8 @@ def main():
         stream=selected(r,scene);idx=read(stream+10,2);assert idx<384;cursor=0x80000|read(0x8aa00+idx*2,2);records=[]
         for _ in range(512):
             if read(cursor,2)==65535:return records
-            records.append((read(cursor),read(cursor+1),read(cursor+2),read(cursor+3,2)&16383));cursor+=8
+            # Original019DE3 loads0404(X),0405(Y), then XBA: exit record bytes are Y,X.
+            records.append((read(cursor+1),read(cursor),read(cursor+2),read(cursor+3,2)&16383));cursor+=8
         raise AssertionError('Exit list not terminated')
     def oracle(r,destination):
         groups={}

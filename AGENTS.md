@@ -1,3 +1,15 @@
+# Current installed continuation — native 0.3.1 / Companion 0.3.4 (2026-10-11)
+
+Read docs/FOUNDATION-MAP-TOWN-2026-10-11.md first (under github-repo in the private workspace). Exact native83ddd8e3 / immutable receipt85177ace and unchanged GUIb6328fc5 / receiptf7a714c0 are installed. Preserve compiled_unqualified source receipts,58native/24GUI manifests, original runtime pin/four patches/declared ABI and retained earlier caches. Separate exact031 qualification and installed18 controls pass; source-first package/publication receipts remain separate.
+
+Original entrance records pack Y,X; town/objective pins now follow that format, while the player anchor was already correct. Current original Bun/master and architect-working clues are integrated with existing later objective priorities. No durable construction completion/history is inferred. Same-Bun chapter6 original first-house dialogue is newly executed private evidence for a later feature, not current031 journal coverage.
+
+Exact031 map259/13 coherent copied runs, journal95/18, independent background18, unchanged GUI adoption60/update52 and seven finite normal GPU/audio routes pass. The previous camera-only staged world fixture displayed corrupt ORIGINAL256 background; original town-exit loading repairs the fixture without renderer/source changes. Keep negative evidence. Never qualify graphics from camera-only staging or original-center parity alone: require original producers and independent selected tile/art identity. Source input masks and packet/resource/actor guards remain installed.
+
+Next: separately admit REA FF20 hard-data masks/non-promoting labels and preserve unknown mode/frame semantics; continue faithful generic automatic generation, broader original effects/party/story contexts and verified later clues. Three selected FF20 tables remain LLE; existing aot_eligible flags are not proof of correct dispatch. No native-body hand rewrite or whole-game AOT/campaign claim follows. Owner ROM, preferences and other projects remain protected; development fixtures are disposable. Earlier blocks retain historical artifact scopes.
+
+---
+
 # Current installed continuation — native0.3.0 / Companion0.3.4 (2026-10-11)
 
 Read docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md first (under github-repo in the private workspace). Exact nativefc80699c / immutable receiptc9f1c467 and GUIb6328fc5 / receiptf7a714c0 are installed. Canonical58 native/24 GUI inputs; real public compilation receipts remain compiled_unqualified. Exact qualification, installation and source-first package evidence are separate. Runtime pin/four patches and declared guest/checkpoint ABI stay unchanged; old caches and reports remain retained.

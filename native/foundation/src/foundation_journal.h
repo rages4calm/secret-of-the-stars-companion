@@ -72,6 +72,19 @@ static inline int FoundationJournalHasMorganClue(unsigned stage, unsigned flags)
     return stage == 4 && (flags & 0x20) != 0;
 }
 
+/* Original0758 places its other-party branch before chapter4/flag01 care of
+ * Bun. The observed original148 branch has currentC0 and global5364bit08;
+ * that global bit alone also occurs in earlier dialogue and proves no award.
+ * Original0425's ordered chapter5 branch2B95BF says the architect is working,
+ * without a current/global flag or party test. Neither clue is completion. */
+static inline unsigned FoundationJournalTownBuilderClue(unsigned stage, unsigned flags,
+                                                        unsigned global_flags, unsigned party) {
+    if (flags > 255 || global_flags > 255 || party > 255) return 0;
+    if (stage == 5) return 2;
+    if (stage == 4 && (flags & 0xc0) == 0xc0 && (global_flags & 0x08) && !(party & 0x80)) return 1;
+    return 0;
+}
+
 /* Private candidate, based on original07BB chapter5 only. FA01 sets bit40
  * before the weapon award, so possession is checked independently. FA03
  * sets bit10 before the original escort event. Neither flag is history.

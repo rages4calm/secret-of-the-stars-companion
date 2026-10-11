@@ -1,4 +1,4 @@
-# Authored foundation source — native 0.3.0
+# Authored foundation source — native 0.3.1
 
 This directory contains 58 authored inputs: game-specific native glue, rendering,
 input, state adapters, build configuration and generators. ROM bytes, extracted
@@ -51,3 +51,7 @@ Broader party/effect/cutscene rendering, later construction/story guidance,
 hardware/session coverage and complete native execution remain active work.
 Historical documents retain their artifact scopes; synthetic resource checks
 and private counter totals are not counts of completed playable maps.
+
+The 0.3.1 source corrects original Y,X entrance coordinates for town and
+objective pins and adds stage-scoped original town-building clues. Its exact
+native/input/audio qualification is separate from the previous release.

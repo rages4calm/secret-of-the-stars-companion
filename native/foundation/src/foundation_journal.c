@@ -157,7 +157,7 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         objective[1] = "Find a way to defeat Golan.";
         route[0] = "Dynamite's laboratory is";
         route[1] = "in the town Morgan entered.";
-        progress = "Current Dynamite route";
+        progress = "The architect is working.";
         unsigned weapon_groups = JournalItemGroups(g_ram, 0x20000, 0x6e);
         unsigned dynamite = FoundationJournalDynamiteRoute(g_ram[0x5372], g_ram[0x5360], weapon_groups);
         if (dynamite == 1) {
@@ -197,6 +197,9 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             route[1] = "and farmers to grow crops.";
             progress = "Uncle Save's current advice";
         }
+        if (FoundationJournalTownBuilderClue(g_ram[0x5372], g_ram[0x5360],
+                                            g_ram[0x5364], g_ram[0x4b6]) == 1)
+            progress = "Master: take care of Bun.";
         if (FoundationJournalHasMorganClue(g_ram[0x5372], g_ram[0x5360])) {
             objective[0] = "Find a way to defeat Golan.";
             objective[1] = "Ask Dynamite for help.";

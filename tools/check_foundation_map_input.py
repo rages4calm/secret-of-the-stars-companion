@@ -58,7 +58,8 @@ def original_objective(rom,ram,destination):
         if read(cursor,2)==65535:break
         if read(cursor+3,2)&16383==destination:
             if read(cursor+2):raise ValueError('conditional objective entrance')
-            records.append((read(cursor),read(cursor+1)))
+            # Original019DE3/019DE6 packs the source cell as Y,X.
+            records.append((read(cursor+1),read(cursor)))
         cursor+=8
     else:raise ValueError('original exit list unterminated')
     if not records or len(records)>4:raise ValueError('objective world entrance ambiguous')

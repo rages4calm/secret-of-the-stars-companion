@@ -112,6 +112,7 @@ typedef struct Group {
 } Group;
 /* At most one original exit hop from a named world town. Conditional/nonzero
  * flags are excluded; ambiguity never produces an objective pin. */
+/* Original019DE3 compares packed source Y,X; map coordinates are X,Y. */
 static int TownContains(const Image *image,const uint8_t *ram,unsigned scene,unsigned destination) {
     unsigned stream,index,pointer,end=0x090000,dims,value;
     if(!Selected(image,ram,scene,&stream)||!Read(image,stream+5,1,&dims)||
@@ -126,7 +127,7 @@ static int TownContains(const Image *image,const uint8_t *ram,unsigned scene,uns
         unsigned first,x,y,flags,dest,entry;
         if(pointer+2>end||!Read(image,pointer,2,&first))return -1;
         if(first==0xffff)return found;
-        if(pointer+8>end||!Read(image,pointer,1,&x)||!Read(image,pointer+1,1,&y)||
+        if(pointer+8>end||!Read(image,pointer,1,&y)||!Read(image,pointer+1,1,&x)||
            !Read(image,pointer+2,1,&flags)||!Read(image,pointer+3,2,&dest)||!Read(image,pointer+5,3,&entry)||
            x>=(dims>>4)*16||y>=(dims&15)*16||(dest&0x3fff)>=337)return -1;
         (void)entry;
@@ -153,7 +154,7 @@ static int Build(const Image *image,const uint8_t *ram,unsigned scene,unsigned w
         if(pointer+2>end||!Read(image,pointer,2,&first))return 0;
         if(first==0xffff){terminated=1;break;}
         unsigned x,y,flags,dest,entry;
-        if(pointer+8>end||!Read(image,pointer,1,&x)||!Read(image,pointer+1,1,&y)||
+        if(pointer+8>end||!Read(image,pointer,1,&y)||!Read(image,pointer+1,1,&x)||
            !Read(image,pointer+2,1,&flags)||!Read(image,pointer+3,2,&dest)||
            !Read(image,pointer+5,3,&entry)||x*16>=width||y*16>=height)return 0;
         (void)flags;(void)entry;dest&=0x3fff;

@@ -227,7 +227,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.3.0 / Companion 0.3.4)
+## Navigation and display (native 0.3.1 / Companion 0.3.4)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -262,3 +262,8 @@ does not satisfy gameplay, installation or ROM-free package qualification.
 Package extraction/relocation checks are recorded separately in the release
 document; a package contains the launcher, authored source and notices, with
 no ROM, saves, native game executable or ROM-derived generated code.
+
+Native 0.3.1 corrects the original Y,X entrance format used by town/objective pins
+and adds current Bun/architect clues. See [the exact continuation](docs/FOUNDATION-MAP-TOWN-2026-10-11.md).
+For development captures, coordinate staging must be followed by original loaders
+and an independent background check; parity against another corrupt fixture is insufficient.
