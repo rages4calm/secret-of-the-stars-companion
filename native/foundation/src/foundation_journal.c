@@ -152,6 +152,28 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         route[0] = "Dynamite's laboratory is";
         route[1] = "in the town Morgan entered.";
         progress = "Current Dynamite route";
+        unsigned weapon_groups = JournalItemGroups(g_ram, 0x20000, 0x6e);
+        unsigned dynamite = FoundationJournalDynamiteRoute(g_ram[0x5372], g_ram[0x5360], weapon_groups);
+        if (dynamite == 1) {
+            objective[0] = "Take Dynamite to your town.";
+            objective[1] = "He asks for a laboratory.";
+            route[0] = "Dynamite asks you to";
+            route[1] = "take him to the new town.";
+        } else if (dynamite >= 2) {
+            objective[0] = "Find a way to defeat Golan.";
+            objective[1] = dynamite == 2 ? "Use Graviton against Golan." : "Graviton is not held now.";
+            route[0] = "Dynamite's weapon advice:";
+            route[1] = "use Graviton against Golan.";
+        }
+        if (dynamite) {
+            /* Pack selection uses the original signed004B6 convention.
+             * This is mutable possession information, not a usable-item
+             * guarantee or a claim that the escort has completed. */
+            unsigned pack = (g_ram[0x4b6] & 0x80) != 0;
+            progress = weapon_groups == 3 ? "GRAVITON: BOTH PACKS" :
+                !weapon_groups ? "GRAVITON: NOT HELD NOW" :
+                (weapon_groups & (1u << pack)) ? "GRAVITON: CURRENT PACK" : "GRAVITON: OTHER PACK";
+        }
     } else if (lead == 6) {
         objective[0] = "Find builders and farmers.";
         objective[1] = "Help build the new town.";

@@ -78,12 +78,54 @@ int LargeWrappingParked(const uint8_t *ram, size_t size) {
     }
     return 1;
 }
+/* Original01:CEEB..CF92 and01:CFD2..D05D may both run in the same scene.
+ * This additional exact roster keeps the existing single-roster predicate
+ * byte-identical. All coordinates come from saved original loader sources;
+ * no record is activated or changed by the presentation observer. */
+int LargeWrappingCombined(const uint8_t *ram, size_t size) {
+    static const uint8_t selected[12] = {0x58,0x87,3,0x58,0x8f,3,0x18,0x84,10,0x18,0x88,10};
+    static const uint8_t grids[6] = {0x5c,0xa8,9,0,0x97,9};
+    if (!ram || size != 131072 || ram[0x20] != 1 || ram[0x401] != 12 ||
+        ram[0x407] != 1 || ram[0x400] || Read16(ram,0x40e) || ram[0x4b6] ||
+        ram[0x5372] != 17 || (ram[0x5361] & 0x40) ||
+        (ram[0x409] != 0 && ram[0x409] != 2) ||
+        Read16(ram,0x543f) || Read16(ram,0x5441) ||
+        Read16(ram,0x46d) != 0x0e0e || Read16(ram,0x46f) != 0x0404 ||
+        memcmp(ram+0x500,selected,12) || memcmp(ram+0x513,grids,6) ||
+        Read16(ram,0x537) != 0x8110 || ram[0x539] != 9 ||
+        Read16(ram,0x55c) != 0x8210 || ram[0x55e] != 9 ||
+        Read16(ram,0x471) || Read16(ram,0x473)) return 0;
+    unsigned x=Read16(ram,0x5449),y=Read16(ram,0x5453);
+    unsigned sx=Read16(ram,0x544b),sy=Read16(ram,0x5455);
+    unsigned shadow=!!(ram[0x5457]&0x40);
+    if (x>=3584 || y>=3584 || sx>=3584 || sy>=3584) return 0;
+    for (unsigned i=0;i<19;++i) {
+        unsigned at=0x4100+25*i,wx=0,wy=0,base=0,pose=2;
+        if (i<2) { wx=1536; wy=i?544:528; base=0x598; pose=i?0:2; }
+        else if (i==15 && shadow) { wx=x; wy=y; base=0xa8; }
+        else if (i==16) { wx=sx; wy=sy; base=0xa8; }
+        else if (i==17) { wx=x; wy=shadow?(y+3584-32)%3584:y; base=0xa0; }
+        else if (i==18) { wx=(sx+3584-8)%3584; wy=(sy+3584-48)%3584; base=0xb0; }
+        else { if (ram[at]!=255) return 0; continue; }
+        if (ram[at]!=pose || Read16(ram,at+1)!=wx || Read16(ram,at+3)!=wy ||
+            Read16(ram,at+5)!=base) return 0;
+    }
+    for (unsigned i=0;i<5;++i) {
+        unsigned at=0x4000+18*i,base=Read16(ram,at+3);
+        unsigned gfx=base+2*ram[at]+(ram[at+10]>>7);
+        if (ram[at]!=255 && (base==0xb0 || (gfx&0xfff8)==0xa8 || ram[at]>3)) return 0;
+    }
+    return 1;
+}
+int LargeWrappingRoster(const uint8_t *ram, size_t size) {
+    return LargeWrappingParked(ram,size) || LargeWrappingCombined(ram,size);
+}
 static int ViewValid(const LargeView *view) {
     return identity && view && view->ram && view->ram_size == 131072 &&
         view->vram && view->vram_words == 32768 && view->cgram && view->cgram_words == 256 &&
         view->field_eligible && view->obsel == 3 && !view->rotation && !view->setini &&
         view->ram[0x20] == 1 && view->ram[0x401] == 12 &&
-        (!view->ram[0x407] || LargeWrappingParked(view->ram,view->ram_size)) &&
+        (!view->ram[0x407] || LargeWrappingRoster(view->ram,view->ram_size)) &&
         !Read16(view->ram, 0x471) && !Read16(view->ram, 0x473);
 }
 int LargeBindRom(const uint8_t *rom, size_t size) {

@@ -123,7 +123,7 @@ static int WrappingResource(const Ppu *ppu) {
         ppu->bgmode != 9 || PPU_mosaicSize(ppu) > 1 || ppu->setini) return 0;
     for (unsigned i = 0; i < 8; ++i)
         if (g_snes->dma->channel[i].hdmaActive) return 0;
-    if (LargeWrappingParked(g_ram,131072) || KnownWrappingOrdinaryVehicle()) return 1;
+    if (LargeWrappingRoster(g_ram,131072) || KnownWrappingOrdinaryVehicle()) return 1;
     /* No arbitrary other ordinary allocations become qualified by flags. */
     for (unsigned i = 0; i < kRegular; ++i) {
         unsigned at = 0x4100 + 25 * i;
@@ -293,7 +293,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (g_ppu) Resource(g_ppu, producing.resource);
         /* Wrapped B0 needs its original saved allocation relation; ordinary
          * wrapping retains the separate strict resource/packet proof. */
-        if (sequence && (!g_ram[0x407] || LargeWrappingParked(g_ram,131072))) {
+        if (sequence && (!g_ram[0x407] || LargeWrappingRoster(g_ram,131072))) {
             LargeView view = LargeInput(g_ppu);
             if (!LargeBegin(&producing.large, &view, g_ram + 0x2200, kPacketBytes)) sequence = 0;
         }
@@ -314,7 +314,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             if (g_ram[at] != 255) {
                 unsigned base = R16(at + 5), gfx = base + g_ram[at] * 2 + (g_ram[0x475] >> 7);
                 if ((g_ram[0x407] && base == 0xb0 &&
-                    !(i==18 && LargeWrappingParked(g_ram,131072))) ||
+                    !(i==18 && LargeWrappingRoster(g_ram,131072))) ||
                     (base != 0xb0 && (g_ram[at] > 3 ||
                     gfx >= (0xd800 - 0x9800) / 8))) sequence = 0;
                 else producing.expected |= 1u << (kParty + i);
@@ -327,7 +327,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
     if (!sequence) return;
     if (!SameResource(g_ppu, &producing)) { Reject("reject_resource", cpu); return; }
     if (pc == 0x01d989 || pc == 0x01db68) {
-        if (g_ram[0x407] && !LargeWrappingParked(g_ram,131072)) { Reject("reject_wrapping_large", cpu); return; }
+        if (g_ram[0x407] && !LargeWrappingRoster(g_ram,131072)) { Reject("reject_wrapping_large", cpu); return; }
         enum LargeFamily family = pc == 0x01d989 ? LARGE_PARTY : LARGE_REGULAR;
         unsigned index = g_ram[family == LARGE_PARTY ? 0x0e13 : 0x0e14];
         unsigned rank = (family == LARGE_PARTY ? 0 : kParty) + index;
@@ -595,12 +595,12 @@ int FoundationWideActorsPeriodicRaster(const Ppu *source, int *world_x, int *wor
     if (displayed.large.writers) {
         const LargeActor *body=&displayed.large.last;
         if (!displayed.large.valid || !displayed.large.displayed ||
-            displayed.large.writers!=1 || !LargeWrappingParked(g_ram,131072) ||
+            displayed.large.writers!=1 || !LargeWrappingRoster(g_ram,131072) ||
             body->family!=LARGE_REGULAR || body->index!=18 || body->pose!=2 ||
             body->descriptor!=0x0e9d88 || body->world_x!=R16(0x42c3) ||
             body->world_y!=R16(0x42c5) || body->camera_x!=displayed.camera_x ||
             body->camera_y!=displayed.camera_y) return 0;
-    } else if (LargeWrappingParked(g_ram,131072)) return 0;
+    } else if (LargeWrappingRoster(g_ram,131072)) return 0;
     int raster[2] = {source->m7matrix[6],source->m7matrix[7]};
     int live[2] = {R16(0x2ad),R16(0x2af)};
     int packet[2] = {displayed.camera_x,displayed.camera_y};
@@ -707,7 +707,7 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
             }
         }
     }
-    if ((!wrap || LargeWrappingParked(g_ram,131072)) && displayed.large.writers) {
+    if ((!wrap || LargeWrappingRoster(g_ram,131072)) && displayed.large.writers) {
         LargeView view = LargeInput(source); LargePiece pieces[2];
         unsigned extra = LargePrepare(&displayed.large, &view, displayed.bytes, kPacketBytes,
             cx - displayed.camera_x, cy - displayed.camera_y, line, pieces, large_colors);

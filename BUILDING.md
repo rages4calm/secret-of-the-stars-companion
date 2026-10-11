@@ -77,12 +77,13 @@ off. It does not load, convert or advance an existing owner save. In that
 profile's `foundation.ini`, enable both `ExperimentalFieldWide=1` and
 `ExperimentalFieldActors=1` to exercise the experimental wide presentation.
 Unsupported states retain the original centered picture with side bars.
-The 0.2.2 snapshot includes guarded Algos/selected world-map actor policies.
+The 0.2.7 snapshot includes guarded original single/compound vehicle and selected world-map actor policies.
 Journal current possession defaults on within the existing Journal feature;
 `JournalPossession=0` in foundation.ini disables its inventory line.
-Chapter-one Bosen advice derives from original current stage after the rescue;
-loading an earlier checkpoint removes it.
-See [current scope](docs/FOUNDATION-PROGRESSION-2026-10-09.md) and the retained
+Verified current advice now extends through selected chapter-five Graviton states;
+loading an earlier checkpoint removes later advice. Item possession and story
+flags are not permanent completion history.
+See [current scope](docs/FOUNDATION-CONTINUATION-2026-10-11.md) and the retained
 [integrated actor scope](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md).
 
 The engine's default input and hotkeys may differ from an already configured
@@ -197,7 +198,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation map (native 0.2.6 / Companion 0.3.2)
+## Navigation map (native 0.2.7 / Companion 0.3.2)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -211,4 +212,7 @@ runtime caches, records both patch hashes, and produces a real
 `compiled_unqualified` receipt. The host-only changes retain the declared guest
 execution-state ABI; matching metadata is still required for changed-binary
 profile updates. There are 54 native authored inputs and 24 Companion inputs.
-[Exact qualification and remaining limits](docs/FOUNDATION-NAVIGATION-MAP-2026-10-11.md).
+The matching legend and source-proven cache-key fixes preserve completed terrain
+during checked same-area movement. Work remains capped at 1,024 samples per
+host frame, with the existing 120-frame graphics refresh and restore reset.
+[Exact qualification and remaining limits](docs/FOUNDATION-CONTINUATION-2026-10-11.md).

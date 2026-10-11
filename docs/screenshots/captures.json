@@ -1,5 +1,5 @@
 {
-  "scope": "Six actual owner-requested documentation captures. Five preceding025/031 captures retain historical scope; navigation map is exact026. No mockups or replacement artwork.",
+  "scope": "Six actual owner-requested documentation captures. Five preceding025/031 captures retain historical scope; navigation map is the exact native027 capture at native400x224 resolution. No mockups or replacement artwork.",
   "captures": {
     "docs/screenshots/widescreen-world.png": {
       "title": "Wider world, including original vehicles",
@@ -58,14 +58,17 @@
     },
     "docs/screenshots/navigation-map.png": {
       "title": "Position, towns and a verified next destination",
-      "sha256": "4d473aaa17b9850ad37a947c366d69b2098ae4677bbd97d22b442c7f58640f55",
+      "sha256": "b91814c94c0333c0838863a962cfcad1c07fe0d52b055ab79acd2d859a72eae7",
       "dimensions": [
-        1200,
-        672
+        400,
+        224
       ],
-      "application_version": "native0.2.6",
-      "application_sha256": "adf0a16b04c262e7247c84d92d85a6865d0a05bfc781af10039e0a33932d5d6a",
-      "caption": "The optional map uses original selected world terrain: gold marks the party position, cyan marks original town entrances, and pink blinks at the verified Decatas route after Morgan. This copied development checkpoint comes from original payment and ordinary world-return execution with staged prerequisites; it is not a natural full-campaign playthrough. Objective marking can be disabled independently."
+      "application_version": "native0.2.7",
+      "application_sha256": "3ed0364374f670679f82aebb1d70bc92acc837ba34de7afeadfd8273ef5bf87a",
+      "caption": "The optional map uses original selected world terrain: gold marks the party position, cyan marks original town entrances, and pink blinks at the verified Decatas route after Morgan. Legend text uses the same colors as its icons. This unmodified native400x224 capture uses a copied development checkpoint from original payment and ordinary world-return execution with staged prerequisites; it is not a natural full-campaign playthrough. Objective marking can be disabled independently.",
+      "source_receipt_sha256": "9bf48b56fe4a2d544fd4800128b64687d2c004a0f575a5611eb8c4f567cf4385",
+      "capture_proof": "local/evidence/map-legend-colors-20261011/qa/final027-cell-cache/report.json",
+      "capture_proof_sha256": "8ffb85774134c84119054b424c98d80d5133a2be8583e83171b9f2f48d5f97a7"
     }
   }
 }

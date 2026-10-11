@@ -52,6 +52,20 @@ def expected_card(background,font,lead,groups,ram=None,width=256,height=224):
         objective=("Seek Dynamite's help.",'Find a way to defeat Golan.')
         route=("Dynamite's laboratory is",'in the town Morgan entered.')
         progress='Current Dynamite route'
+        # Original07BB FA01 precedes the6E award. FA03 precedes escort movement.
+        # Flags and current item evidence are independent; this is not history.
+        if ram is not None:
+            weapon=sum(1<<pack for pack in range(2) if 0x6e in ram[0x5373+32*pack:0x5393+32*pack])
+            flags=ram[0x5360]
+            if (flags&0xc0)==0xc0 and (weapon or flags&0x10):
+                if flags&0x10:
+                    objective=('Find a way to defeat Golan.','Use Graviton against Golan.' if weapon else 'Graviton is not held now.')
+                    route=("Dynamite's weapon advice:",'use Graviton against Golan.')
+                else:
+                    objective=('Take Dynamite to your town.','He asks for a laboratory.')
+                    route=('Dynamite asks you to','take him to the new town.')
+                active=bool(ram[0x4b6]&0x80)
+                progress='GRAVITON: BOTH PACKS' if weapon==3 else 'GRAVITON: NOT HELD NOW' if not weapon else 'GRAVITON: CURRENT PACK' if weapon&(1<<active) else 'GRAVITON: OTHER PACK'
     elif lead==6:
         objective=('Find builders and farmers.','Help build the new town.')
         route=('Talk to Uncle Save at home.','Ask people about town help.')
@@ -181,7 +195,7 @@ def main():
     unit=out/'stage-unit.c'
     unit.write_text('#include "foundation_journal.h"\n#include <stdio.h>\nint main(void){unsigned n=0;'
         'for(unsigned s=0;s<256;s++)for(unsigned f=0;f<256;f++){unsigned e=s==1?2:(s==2?5:(s==3?4:(s==4?6:(s==5?7:(s==0?(f&2?3:(f&0x40?1:0)):0)))));'
-        'if(FoundationJournalLead(s,f)!=e||FoundationJournalHasLead(s,f)!=(e!=0)||FoundationJournalHasLikadoClue(s,f)!=(s==1&&(f&16)!=0)||FoundationJournalHasTownClue(s,f)!=(s==4&&(f&1)!=0)||FoundationJournalHasMorganClue(s,f)!=(s==4&&(f&32)!=0))return 1;n+=5;for(unsigned g=0;g<4;g++)for(unsigned p=0;p<2;p++){unsigned r=(s==2||(s==1&&(f&32)))?(g&(1u<<p)?2:(g?3:1)):0;unsigned d=r?(r>=2?58:67):s==3&&!(f&128)?59:(s==4&&(f&32))||s==5?85:65535;if(FoundationJournalBadbadRoute(s,f,g,p)!=r||FoundationJournalDestination(s,f,g,p)!=d)return 2;n+=2;}}'
+        'if(FoundationJournalLead(s,f)!=e||FoundationJournalHasLead(s,f)!=(e!=0)||FoundationJournalHasLikadoClue(s,f)!=(s==1&&(f&16)!=0)||FoundationJournalHasTownClue(s,f)!=(s==4&&(f&1)!=0)||FoundationJournalHasMorganClue(s,f)!=(s==4&&(f&32)!=0))return 1;n+=5;for(unsigned g=0;g<4;g++)for(unsigned p=0;p<2;p++){unsigned r=(s==2||(s==1&&(f&32)))?(g&(1u<<p)?2:(g?3:1)):0;unsigned d=r?(r>=2?58:67):s==3&&!(f&128)?59:s==5&&(f&0x50)?65535:(s==4&&(f&32))||s==5?85:65535;unsigned dy=s==5&&(f&0xc0)==0xc0?((f&16)?(g?2:3):(g?1:0)):0;if(FoundationJournalBadbadRoute(s,f,g,p)!=r||FoundationJournalDestination(s,f,g,p)!=d||FoundationJournalDynamiteRoute(s,f,g)!=dy)return 2;n+=3;}}'
         'printf("{\\"passed\\":true,\\"checks\\":%u}\\n",n);return 0;}\n')
     compiled=subprocess.run([str(a.cc),str(unit),'-I',str(ROOT/'native/foundation/src'),'-I',str(a.runtime/'runner/src/desktop'),'-o',str(out/'stage-unit.exe')],capture_output=True,text=True)
     (out/'stage-unit.log').write_text(compiled.stdout+compiled.stderr)
@@ -393,7 +407,7 @@ def main():
         'protected_inputs':{str(k):v for k,v in protected.items()},'staging':receipts,'pure_predicate':pure,
         'limits':['Supplied private original-event checkpoints; natural route and event provenance must be documented separately.',
             'Manufactured inventory and later-stage controls are host/predicate tests, not original awards or campaign counts.',
-            'Chapter-scoped current advice and active-pack possession only; no Crest completion, permanent quest history or campaign certification. Original Dog Pill acquisition, Ringo victory/Crest advancement and Dynamite weapon acquisition are separately unqualified. Chapter4/5 event tests use explicitly staged prerequisites.',
+            'Chapter-scoped current advice and active-pack possession only; no Crest completion, permanent quest history or campaign certification. Original Dog Pill acquisition and Ringo victory/Crest advancement remain separately unqualified. Dynamite weapon acquisition needs independent original-producer evidence; staged inventory cases cannot prove it. Chapter4/5 event tests use explicitly staged prerequisites.',
             'Real SDL keyboard/indexed virtual-controller events; physical controller and paced GPU/audio remain separate.',
             'Original View checks its launcher-equivalent Journal=0 override, not a new launcher route certification.']}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n')

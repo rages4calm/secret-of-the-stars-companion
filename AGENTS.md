@@ -1,3 +1,24 @@
+# Current source continuation - native0.2.7 / unchanged Companion0.3.2 (2026-10-11)
+
+Read docs/FOUNDATION-CONTINUATION-2026-10-11.md first. Exact native3ed03643/source
+receipt9bf48b56 passes finite map, compound/single vehicle, journal, core, GUI
+update/rollback and eight separate paced audio routes. Compilation remains
+compiled_unqualified; installation/qualification records remain separate.
+Canonical54 native/GUI24 inputs, base17/host3 runtime patches and guest ABI are
+preserved. Original01:B248 stream cursor051C/051D and01:93B8 current-cell low
+nibble0402 are excluded only from derived map terrain keys; retain independent
+resource/story/eligibility guards,1024 sample budget,120-frame refresh and reset.
+Guard compound A0/A8 plus AlgosA8/B0 by original allocation/packet/resources and
+slot order; unsupported contexts retain fallback. Current chapter5 Graviton6E
+advice derives from original award/escort flags and mutable both-pack possession.
+Offer/escort flags are not successful acquisition or durable completion history.
+Suppress the old lab pin after those flags; Golan location remains unknown.
+Protect owner data; copied-EXE original-loader staged proofs do not certify a
+natural campaign or physical controller. CPU experiments stay archived. Broader
+story/party/effect scenes and complete native/AOT remain unfinished.
+
+---
+
 # Current source continuation - native0.2.6 / Companion0.3.2 (2026-10-11)
 
 Read docs/FOUNDATION-NAVIGATION-MAP-2026-10-11.md and latest private receipts first.

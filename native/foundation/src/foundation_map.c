@@ -78,6 +78,10 @@ int FoundationMapSample(const uint8_t *ram, size_t size, const uint16_t *vram,
 #include <stdio.h>
 #include <stdlib.h>
 extern Ppu *g_ppu;
+/* Each legend label shares the exact ink of its corresponding marker. */
+#define MAP_PLAYER_INK 0xffffdf78u
+#define MAP_TOWN_INK 0xff67e6efu
+#define MAP_OBJECTIVE_INK 0xffff86e9u
 static int enabled, objective_enabled, visible, eligible, ready, failed, building;
 static unsigned completed, generations, samples;
 static unsigned snapshot_frame, snapshot_writes, host_frame, point_scene;
@@ -147,13 +151,22 @@ static void Key(void) {
      * excluded. Field eligibility independently authenticates the full stream. */
     memset(current_key, 0, sizeof(current_key));
     memcpy(current_key, g_ram + 0x400, 4);
+    /* Original01:93B8 stores the current-cell attribute low nibble in0402.
+     * Movement changes it, while selected full terrain is unchanged;
+     * field eligibility authenticates the attribute stream independently. Keep
+     *0400/0401/0403 and every resource/story guard. */
+    current_key[2] = 0;
     /* Original0404/0405 animation scalars change on the steady Likado field.
      * They are not selected terrain identity. Keep topology/wrap0406/0407;
      * graphics changes use the bounded120-frame snapshot refresh below. */
     current_key[6] = g_ram[0x406]; current_key[7] = g_ram[0x407];
     memcpy(current_key + 8, g_ram + 0x453, 6);
     memcpy(current_key + 14, g_ram + 0x46d, 4);
-    memcpy(current_key + 18, g_ram + 0x500, 30);
+    /* Original01:B248 updates051C/051D as the camera streaming cursor.
+     * It does not select terrain: Field eligibility independently authenticates
+     * resources, and moving this cursor preserves the full overview tile words.
+     * Keep resource/selectors0500..051B; graphics retain bounded refresh. */
+    memcpy(current_key + 18, g_ram + 0x500, 28);
     memcpy(current_key + 48, g_ram + 0x537, 3);
     memcpy(current_key + 51, g_ram + 0x55c, 3);
     memcpy(current_key + 54, g_ram + 0x5360, 19);
@@ -246,7 +259,7 @@ void FoundationMapDraw(uint8_t *dst, size_t pitch, int w, int h) {
             if (mx>left+(int)canvas_width-3) mx=left+(int)canvas_width-3;
             if (my<top+2) my=top+2;
             if (my>top+(int)canvas_height-3) my=top+(int)canvas_height-3;
-            uint32_t ink=points[i].objective ? 0xffff86e9 : 0xff67e6ef;
+            uint32_t ink=points[i].objective ? MAP_OBJECTIVE_INK : MAP_TOWN_INK;
             snes_ovl_fill_rect(pixels,stride,h,mx-2,my-2,5,5,0xff050914);
             snes_ovl_stroke_rect(pixels,stride,h,mx-1,my-1,3,3,ink);
         }
@@ -261,7 +274,7 @@ void FoundationMapDraw(uint8_t *dst, size_t pitch, int w, int h) {
             if (my<top+2) my=top+2;
             if (my>top+(int)canvas_height-3) my=top+(int)canvas_height-3;
             snes_ovl_fill_rect(pixels,stride,h,mx-2,my-2,5,5,0xff050914);
-            snes_ovl_fill_rect(pixels,stride,h,mx-1,my-1,3,3,0xffffdf78);
+            snes_ovl_fill_rect(pixels,stride,h,mx-1,my-1,3,3,MAP_PLAYER_INK);
             if (point_scene==Word(g_ram,0x40e)) {
                 unsigned nearest=0xffffffffu; const char *label=NULL;
                 for (size_t i=0; i<point_count; ++i) if (!points[i].objective && points[i].label[0]) {
@@ -282,12 +295,22 @@ void FoundationMapDraw(uint8_t *dst, size_t pitch, int w, int h) {
                 }
             }
         }
-        snes_ovl_draw_text(pixels,stride,h,x+8,y+170,player ? "GOLD: YOU  CYAN: TOWNS" : "PLAYER POSITION UNAVAILABLE",0xffffdf78,1);
+        if (player) {
+            snes_ovl_draw_text(pixels,stride,h,x+8,y+170,"GOLD: YOU",MAP_PLAYER_INK,1);
+            snes_ovl_draw_text(pixels,stride,h,x+96,y+170,"CYAN: TOWNS",MAP_TOWN_INK,1);
+        } else snes_ovl_draw_text(pixels,stride,h,x+8,y+170,"PLAYER POSITION UNAVAILABLE",0xffffdf78,1);
     }
     const char *foot="POSITION + TOWNS";
+    int objective_legend=0;
     if (objective_enabled && point_scene==Word(g_ram,0x40e))
-        for (size_t i=0; i<point_count; ++i) if (points[i].objective) { foot="PINK BLINK: NEXT OBJECTIVE"; break; }
-    snes_ovl_draw_text(pixels,stride,h,x+8,y+184,foot,0xffa7b9d8,1);
+        for (size_t i=0; i<point_count; ++i) if (points[i].objective) { foot="PINK BLINK: NEXT OBJECTIVE"; objective_legend=1; break; }
+    if (objective_legend)
+        snes_ovl_draw_text(pixels,stride,h,x+8,y+184,foot,MAP_OBJECTIVE_INK,1);
+    else {
+        snes_ovl_draw_text(pixels,stride,h,x+8,y+184,"POSITION",MAP_PLAYER_INK,1);
+        snes_ovl_draw_text(pixels,stride,h,x+72,y+184," + ",0xffa7b9d8,1);
+        snes_ovl_draw_text(pixels,stride,h,x+96,y+184,"TOWNS",MAP_TOWN_INK,1);
+    }
 }
 void FoundationMapShutdown(void) {
     if (trace) { fclose(trace); trace=NULL; }

@@ -1,6 +1,26 @@
 # Validation scope — 2026-10-11
 
-## Current native0.2.6 / Companion0.3.2
+## Current native0.2.7 / unchanged Companion0.3.2
+
+Exact native `3ed0364374f670679f82aebb1d70bc92acc837ba34de7afeadfd8273ef5bf87a`
+and its real source receipt `9bf48b56fe4a2d544fd4800128b64687d2c004a0f575a5611eb8c4f567cf4385`
+pass separate finite qualification: 333 map checks / 11 copied-native runs,
+30 compound checks / 24 runs, 62 single-family checks / 30 runs, 125 focused
+journal checks / 34 runs, and 729 public journal checks / 150 runs with
+1,900,544 pure predicates. All seven core input/QoL/menu/checkpoint suites pass.
+Unchanged GUI `3d1846f8a781ebc572dab49059ef804afffde3e6c3e08a7d8191d6210cc87554`
+passes 60 source-adoption and 52 changed-binary profile update/rollback checks.
+Eight separate exclusive Direct3D playback routes pass at 60.011–60.028 fps
+with zero steady underflow, missing-frame and dropped-audible deltas.
+
+Compilation remains `compiled_unqualified`; qualification and installation
+records are separate. Original-loader staged award/vehicle evidence, host
+predicates and silent native pixel/state checks do not certify a natural
+campaign, a physical controller or complete native/AOT execution. Earlier failed
+cache/playback harness results remain retained. [Exact artifacts, source-writer
+proofs and remaining limits](FOUNDATION-CONTINUATION-2026-10-11.md).
+
+## Earlier native0.2.6 / Companion0.3.2
 
 Exact native `adf0a16b04c262e7247c84d92d85a6865d0a05bfc781af10039e0a33932d5d6a`
 and GUI `3d1846f8a781ebc572dab49059ef804afffde3e6c3e08a7d8191d6210cc87554`
@@ -231,7 +251,7 @@ See [BUILDING.md](../BUILDING.md).
 
 The ROM-free checker checks exactly the Git-tracked file set, excludes private
 payload paths and binary types, checks recognizable credential formats,
-parses Python source, verifies 48 foundation and 21 Companion authored-file
+parses Python source, verifies 54 foundation and 24 Companion authored-file
 hashes, checks the pinned runtime/patch and verifies nine verbatim notice
 hashes. It also checks links in the public entry documents.
 

@@ -20,6 +20,8 @@ Do not distribute the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
 
+The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) authenticates selected original compound A0/A8 and Algos A8/B0 vehicle rosters, including overlap, descriptor phases, original slot order and restore. Unsupported contexts retain fallback; staged original allocations do not establish natural acquisition or campaign coverage.
+
 The [native0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) adds another original driving/parked vehicle family with original-producer, packet/raster, independent art and restore checks. Unknown contexts retain fallback; natural acquisition and fullcampaign remain open.
 
 The [native0.2.4 bundle](docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md)
@@ -47,6 +49,8 @@ staged execution. Experimental build receipts stay refused by normal Setup.
 
 ## 3. Expand the quest journal
 
+The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) executes the original chapter-five Graviton award and escort route with recorded prerequisite staging. Advice uses current chapter/flags and mutable possession, recomputes after rollback, and suppresses the old lab objective after the route advances. Golan's exact world location is unverified, so no new pin is guessed. Further original Golan/story guidance remains open; durable completion/history is separate.
+
 The [native0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) expands current quest directions from original dialogue and item conditions. Challenge flags and mutable item possession remain separate from durable completion/history.
 
 The integrated current-Starcrest-possession card reads both original inventories
@@ -71,7 +75,7 @@ objective marker only when original quest evidence identifies a destination.
 Keyboard/controller actions are assignable. Terrain is built incrementally and
 cached; opening/reopening and paired audio checks are recorded separately from
 host-only tests. Broader maps, story conditions and hardware remain to qualify.
-No visited history or guessed route markers are shown.
+The native0.2.7 legend matches marker colors. Two source-proven camera-stream/current-cell attribute changes no longer restart same-area terrain generation; independent resource/story/eligibility guards and bounded refresh remain. No visited history or guessed route markers are shown.
 [Map and chapter-four/five update](docs/FOUNDATION-NAVIGATION-MAP-2026-10-11.md).
 
 ## 4. Audio and presentation polish

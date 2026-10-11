@@ -66,6 +66,18 @@ static inline int FoundationJournalHasMorganClue(unsigned stage, unsigned flags)
     return stage == 4 && (flags & 0x20) != 0;
 }
 
+/* Private candidate, based on original07BB chapter5 only. FA01 sets bit40
+ * before the weapon award, so possession is checked independently. FA03
+ * sets bit10 before the original escort event. Neither flag is history.
+ * Route1: current weapon plus escort request; route2: current weapon and
+ * escort flag; route3: current escort flag, weapon no longer present. */
+static inline unsigned FoundationJournalDynamiteRoute(unsigned stage, unsigned flags,
+                                                      unsigned graviton_groups) {
+    if (stage != 5 || flags > 255 || graviton_groups > 3 || (flags & 0xc0) != 0xc0) return 0;
+    if (flags & 0x10) return graviton_groups ? 2 : 3;
+    return graviton_groups ? 1 : 0;
+}
+
 /* Read-only navigation hint: exact original destination scene, not a guessed
  * world coordinate. FFFF means no qualified destination. Original0762 paid
  * entry/014A actually loads scene85; no Ringo/Crest completion is inferred. */
@@ -74,6 +86,10 @@ static inline unsigned FoundationJournalDestination(unsigned stage, unsigned fla
     unsigned town = FoundationJournalBadbadRoute(stage, flags, dog_groups, active_pack);
     if (town) return town >= 2 ? 58 : 67;
     if (stage == 3 && !(flags & 0x80)) return 59;
+    /* Original offer/escort flags do not prove a Golan world location.
+     * Suppress the old lab marker after the current offer/escort branch;
+     * item removal must not restore an outdated destination. */
+    if (stage == 5 && (flags & 0x50)) return 0xffff;
     if (FoundationJournalHasMorganClue(stage, flags) || stage == 5) return 85;
     return 0xffff;
 }
