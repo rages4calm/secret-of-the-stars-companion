@@ -50,13 +50,19 @@ Its two recorded submodule pins are in
 [`native/foundation/framework_pins.txt`](native/foundation/framework_pins.txt).
 The script checks those pins and applies `patches/runtime-foundation.patch`,
 `patches/runtime-navigation-map.patch`, `patches/runtime-faithful-clear.patch`
-and `patches/runtime-modal-audio.patch`.
+`patches/runtime-modal-audio.patch` and
+`patches/runtime-automatic-faithful.patch`.
 Each patch has an independently recorded hash in the cache key and marker; the
 combined resulting source hashes are checked before reusing a checkout. Unexpected
 revisions or edits stop the build without deleting or resetting that checkout.
 
 Generation invokes the pinned `snesrecomp_cli.py generate` with the checked
-CRC32/SHA-256, `recomp/symbols.toml` and `recomp/bank00.cfg`. The CMake build uses
+CRC32/SHA-256, `recomp/symbols.toml` and all three reviewed bank configurations, with
+`--cfg-roots`. The automatic faithful patch retains upstream decoded instruction
+and IR generation while committing original bus transfers and internal clocks
+one instruction at a time. Unsupported modes return to the original interpreter.
+The three reviewed inline-data ranges remain hard-masked; their special return
+dispatchers stay interpreted. ROM-derived generated files remain private. The CMake build uses
 `SNESRECOMP_FRAME_IMPL=HLE`, SDL3 and no netplay. HLE selects host staging; it does
 not make the entire game AOT/native. All generated bodies and `recomp/funcs.h`
 remain under ignored `local/`.
@@ -84,6 +90,18 @@ party/resource/port contexts retain the original path. For explicit developer
 comparison, `SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR=0` disables this
 constructor separately from the clear options. This is another bounded routine,
 not complete game AOT.
+
+Native 0.3.2 records the automatic generation manifest, discovered mode contexts,
+refusal dispositions and its private original-entry diagnostic list in the
+compilation receipt. These counts describe generation, not executed campaign
+coverage. Normal launches retain the existing guarded clear and constructor
+islands. For a strict automatic-only comparison, disable both islands using
+`SNESRECOMP_FOUNDATION_GENERATED_CLEAR=0` and
+`SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR=0`. To select the original-byte
+oracle too, set `SNESRECOMP_LLE_INTERP_TARGET_FILE` to the receipt's generated
+`automatic-original-targets.txt` path. Actual execution counters and exact guest
+comparisons must verify each diagnostic route. No profile setting enables this
+oracle by default. See [automatic generation and town scope](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md).
 
 The resulting `source-build-receipt.json` says **compiled_unqualified** and
 records exact input/executable hashes. Compilation is separate from gameplay
@@ -227,7 +245,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.3.1 / Companion 0.3.4)
+## Navigation and display (native 0.3.2 / Companion 0.3.4)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -237,15 +255,15 @@ Original View disables both map and objective marker for that launch.
 
 The public builder applies the pinned seventeen-file base runtime patch and the
 separately audited three-file host navigation/input patch, plus the two-file
-faithful-instruction API supplement and host-only modal/audio repair. It preserves
-previous runtime caches, records all four patch hashes, and produces a real
+faithful-instruction API supplement, host-only modal/audio repair and generic
+automatic-faithful patch. It preserves previous runtime caches, records all five patch hashes, and produces a real
 `compiled_unqualified` receipt. The host-only changes retain the declared guest
 execution-state ABI; matching metadata is still required for changed-binary
-profile updates. There are 58 native authored inputs and 24 Companion inputs.
+profile updates. There are 60 native authored inputs and 24 Companion inputs.
 The matching legend and source-proven cache-key fixes preserve completed terrain
 during checked same-area movement. Work remains capped at 1,024 samples per
 host frame, with the existing 120-frame graphics refresh and restore reset.
-[Exact artifact qualification and remaining limits](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md).
+[Exact artifact qualification and remaining limits](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md).
 
 Companion Display offers Auto or exact 1280×720, 1600×900, 1920×1080,
 2560×1440 and 3840×2160 window sizes; existing custom sizes remain editable.
@@ -254,7 +272,7 @@ uses Window scale, while fullscreen follows the display. Neither setting adds
 scenery: select Widescreen separately for supported scenes. Apply validates
 changed values, and Revert restores the loaded profile.
 
-The installed 0.2.9/0.3.3 pair passes exact-artifact qualification and 18
+The installed 0.3.2/0.3.4 pair passes exact-artifact qualification and 18
 copied-installed controls. The host modal/audio patch waits for genuine guest
 DSP prefill before resuming the device and consumes a keyboard rewind request
 once, preserving original guest timing and checkpoint ABI. Compilation alone

@@ -1,3 +1,17 @@
+# Current installed continuation — native 0.3.2 / Companion 0.3.4 (2026-10-11)
+
+Read docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md first (under github-repo in the private workspace). Exact native3f849747 / immutable receiptfcb76c09 and unchanged GUIb6328fc5 / receiptf7a714c0 are installed. Canonical60native/24GUI inputs. Preserve compiled_unqualified receipts, original runtime pin/preceding four patches and new automatic-faithful3909fc5f separately checked cache. Serialized guest/checkpoint ABI remains identical; copied031→032 update/rollback actually executes both versions.
+
+Standard analyzer/emitter generation uses authentic PC/M/X roots:13contexts/41variants,37eligible/four interpreted are generation counts, not campaign or executed-function coverage. Exact automatic166/14 and original save/cold restore/rollback controls pass. Unsupported instructions/modes keep original execution; FF20 inline tables have hard masks and known callers/helpers remain interpreted. Existing guarded clear/constructor islands still default on; strict automatic oracle controls disable both and use the actual target file. No new native-body hand rewrite.
+
+Original zero-special-layer mode0E now admits verified nonwrapping town/house NPC packets without a roster whitelist. Keep full544 producer/resource/center/raster and transient/effect refusals. Art129024terrain/500NPC pixels, three descriptors/both phases, genuine house dialogue-close112 and original-oracle closure159 pass. Old031 default house differences remain retained; same032 original controls match all frames/clocks/dumps plus33985entry/34696exit ordered states. Old031 original matches, proving its default interrupt approximation caused those historical discrepancies.
+
+Current chapter-six first-house clue is verified available dialogue, not durable history/completion. Exact journal333/64 plus1916931pure predicates; map259/13; unchanged GUI60/52; nine normal and nine modal GPU/audio routes;18copied-installed controls pass. Packaging/publication evidence remains separate. No listening, new physical-controller, full campaign or full native/AOT certification.
+
+Next authentic original gameplay trace feedback for the standard analyzer, broader original party/effect/story contexts and later verified quest advice. Star Fox REA is read-only reference; no renderer/shader imported. Current composition is below1ms mean in the checked routes, so that reference-exploration lane is closed at the owner's request. Owner ROM/preferences/other projects stay protected; development saves remain disposable. Earlier blocks keep historical artifact scopes. Overall goal remains active.
+
+---
+
 # Current installed continuation — native 0.3.1 / Companion 0.3.4 (2026-10-11)
 
 Read docs/FOUNDATION-MAP-TOWN-2026-10-11.md first (under github-repo in the private workspace). Exact native83ddd8e3 / immutable receipt85177ace and unchanged GUIb6328fc5 / receiptf7a714c0 are installed. Preserve compiled_unqualified source receipts,58native/24GUI manifests, original runtime pin/four patches/declared ABI and retained earlier caches. Separate exact031 qualification and installed18 controls pass; source-first package/publication receipts remain separate.

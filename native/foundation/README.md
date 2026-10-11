@@ -1,6 +1,6 @@
-# Authored foundation source — native 0.3.1
+# Authored foundation source — native 0.3.2
 
-This directory contains 58 authored inputs: game-specific native glue, rendering,
+This directory contains 60 authored inputs: game-specific native glue, rendering,
 input, state adapters, build configuration and generators. ROM bytes, extracted
 assets, generated instruction bodies and development checkpoints remain private.
 It is an authored snapshot, not a complete standalone runtime checkout.
@@ -9,10 +9,10 @@ Use [the source-first instructions](../../BUILDING.md) and the public helper. It
 freezes a fresh isolated build and retains a real `compiled_unqualified` receipt;
 exact gameplay and installation qualification are separate. Do not build over
 an older edited runtime cache or assume a rebuild inherits its checks.
-[Current evidence and limits](../../docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md).
+[Current evidence and limits](../../docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md).
 
 The shared runtime is pinned at
-`7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`. Four independently hashed patches retain
+`7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`. Five independently hashed patches retain
 its guest execution ABI while exposing guarded instruction transactions,
 navigation input and modal audio recovery. Most game execution is interpreted;
 complete game AOT remains unfinished.
@@ -55,3 +55,9 @@ and private counter totals are not counts of completed playable maps.
 The 0.3.1 source corrects original Y,X entrance coordinates for town and
 objective pins and adds stage-scoped original town-building clues. Its exact
 native/input/audio qualification is separate from the previous release.
+
+Native 0.3.2 also uses the upstream automatic analyzer/emitter from authentic
+PC/M/X contexts, with original instruction bus/stack/clock transactions and
+checked fallback. Inline dispatch tables have hard data masks and remain
+interpreted. Original empty special layers now admit verified town/house NPC
+packets; the current first-house clue is not permanent journal history.

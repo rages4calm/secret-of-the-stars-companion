@@ -211,6 +211,12 @@ def main():
         errors.append('Modal audio patch differs from the audited snapshot.')
     elif sha(audio_patch) not in helper:
         errors.append('Modal audio audit hash is missing from the build helper.')
+    automatic_patch = ROOT / 'patches/runtime-automatic-faithful.patch'
+    if ('patches/runtime-automatic-faithful.patch' not in tracked or not automatic_patch.is_file()
+            or sha(automatic_patch) != provenance.get('automatic_faithful_patch_sha256')):
+        errors.append('Automatic instruction patch differs from the audited snapshot.')
+    elif sha(automatic_patch) not in helper:
+        errors.append('Automatic instruction patch audit hash is missing from the build helper.')
     if provenance['runtime_commit'] not in pins or provenance['runtime_commit'] not in helper:
         errors.append('Runtime pin mismatch.')
     if 'PolyForm Noncommercial' not in (ROOT / 'LICENSE').read_text(encoding='utf-8'):

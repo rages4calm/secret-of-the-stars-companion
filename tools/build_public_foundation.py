@@ -12,6 +12,7 @@ RUNTIME_PIN='7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0'
 FAITHFUL_INSTRUCTION_PATCH_SHA256='0d342317b3f997c2f56517c02363a9162d68194ce8e473a43207c25da62050a3'
 HOST_AUDIO_PATCH_SHA256='6381bc9937a9ed478bc27b3cdcd29e5653921478fe1ee2c536dd9d7cb6d7ec5e'
 HOST_NAVIGATION_PATCH_SHA256='91fea10b53d3eca67364eceebfb802a2c1c79432ff7424d02c5f8755438dc028'
+AUTOMATIC_FAITHFUL_PATCH_SHA256='3909fc5f917461da99c18c1ac5f44267d11f7f0c287f2f93ecc68506139d5e40'
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def command(args,cwd=None):
@@ -49,7 +50,7 @@ def snapshot_authored(source,project):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--rom',type=Path,required=True)
-    p.add_argument('--runtime-cache-dir',type=Path,help='Optional isolated runtime cache directory; same pinned four-patch key and validation')
+    p.add_argument('--runtime-cache-dir',type=Path,help='Optional isolated runtime cache directory; same pinned five-patch key and validation')
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
@@ -94,11 +95,18 @@ def main():
     audio_names=re.findall(r'^diff --git a/(\S+) b/',audio_patch.read_text(encoding='utf-8'),re.M)
     if audio_names!=['runner/src/desktop/host_main.c']:
         raise RuntimeError('Modal audio extension exceeds its host-only source boundary.')
+    automatic_patch=out/'runtime-automatic-faithful.patch'
+    shutil.copy2(ROOT/'patches/runtime-automatic-faithful.patch',automatic_patch)
+    if sha(automatic_patch)!=AUTOMATIC_FAITHFUL_PATCH_SHA256:
+        raise RuntimeError('Automatic instruction patch changed; explicitly review its architectural, bus and scheduler compatibility before building.')
+    automatic_names=re.findall(r'^diff --git a/(\S+) b/',automatic_patch.read_text(encoding='utf-8'),re.M)
+    if set(automatic_names)!={'recompiler/v2/emit_function.py','recompiler/v2/codegen.py','runner/src/cpu_state.h','runner/src/snes/interp_bridge.c'} or len(automatic_names)!=4:
+        raise RuntimeError('Automatic instruction extension exceeds its four-file generator/bridge boundary.')
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
     cache_root=args.runtime_cache_dir.absolute() if args.runtime_cache_dir else ROOT/'local/upstream'
     reject_links(cache_root)
-    runtime=cache_root/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12]+'-'+sha(host_patch)[:12]+'-'+sha(faithful_patch)[:12]+'-'+sha(audio_patch)[:12])
+    runtime=cache_root/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12]+'-'+sha(host_patch)[:12]+'-'+sha(faithful_patch)[:12]+'-'+sha(audio_patch)[:12]+'-'+sha(automatic_patch)[:12])
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     reject_links(runtime);reject_links(marker)
     if not runtime.exists():
@@ -109,12 +117,13 @@ def main():
         command(['git','submodule','update','--init','--recursive'],runtime)
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:
         raise RuntimeError('Existing runtime is at another revision; it has been preserved.')
-    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names))
+    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names))
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
         if (receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
                 or receipt.get('faithful_instruction_patch_sha256')!=sha(faithful_patch)
                 or receipt.get('host_modal_audio_patch_sha256')!=sha(audio_patch)
+                or receipt.get('automatic_faithful_patch_sha256')!=sha(automatic_patch)
                 or set(receipt['patched_sources'])!=set(patch_names)
                 or any(sha(runtime/n)!=h for n,h in receipt['patched_sources'].items())):
             raise RuntimeError('Existing patched runtime differs from its receipt; it has been preserved.')
@@ -127,10 +136,12 @@ def main():
         command(['git','apply','--check',host_patch],runtime);command(['git','apply',host_patch],runtime)
         command(['git','apply','--check',faithful_patch],runtime);command(['git','apply',faithful_patch],runtime)
         command(['git','apply','--check',audio_patch],runtime);command(['git','apply',audio_patch],runtime)
+        command(['git','apply','--check',automatic_patch],runtime);command(['git','apply',automatic_patch],runtime)
         marker.write_text(json.dumps({'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
           'host_navigation_patch_sha256':sha(host_patch),
           'faithful_instruction_patch_sha256':sha(faithful_patch),
           'host_modal_audio_patch_sha256':sha(audio_patch),
+          'automatic_faithful_patch_sha256':sha(automatic_patch),
           'patched_sources':{n:sha(runtime/n) for n in patch_names}},indent=2)+'\n',encoding='utf-8')
     pins=dict(line.split('=',1) for line in (source/'framework_pins.txt').read_text().splitlines() if '=' in line)
     for key,name in [('rbengine','retcomm-rbengine'),('recomp-net','recomp-net')]:
@@ -142,10 +153,35 @@ def main():
     print('Generating private local code from the verified ROM.',flush=True)
     generate=[sys.executable,runtime/'snesrecomp_cli.py','generate','--rom',rom,
       '--cfg-dir','recomp','--out-dir','src/gen','--funcs-h','recomp/funcs.h','--project-root',project,
-      '--expected-crc32',identity['expected_crc32'],'--expected-sha256',expected]
+      '--expected-crc32',identity['expected_crc32'],'--expected-sha256',expected,'--cfg-roots']
     with (out/'generate.log').open('w',encoding='utf-8') as log:
         r=subprocess.run(list(map(str,generate)),cwd=project,stdout=log,stderr=subprocess.STDOUT)
     if r.returncode:raise RuntimeError('Generation failed; inspect '+str(out/'generate.log'))
+    automatic_manifest_path=project/'src/gen/program_manifest.json'
+    reject_links(automatic_manifest_path)
+    automatic_manifest=json.loads(automatic_manifest_path.read_text(encoding='utf-8'))
+    if (automatic_manifest.get('format_version')!=3
+            or not isinstance(automatic_manifest.get('nodes'),dict)
+            or not automatic_manifest['nodes']
+            or not isinstance(automatic_manifest.get('roots'),list)):
+        raise RuntimeError('Unrecognized automatic generation manifest; preserve this build and explicitly review its contract.')
+    dispositions={};diagnostic_targets=set()
+    for node in automatic_manifest['nodes'].values():
+        key=node.get('key',{});pc=key.get('pc24');disposition=node.get('disposition')
+        if (type(pc)is not int or not 0<=pc<=0xffffff
+                or key.get('m')not in (0,1) or key.get('x')not in (0,1)
+                or disposition not in ('aot_eligible','lle_only')):
+            raise RuntimeError('Unrecognized automatic node context; preserve this build without assuming native eligibility.')
+        dispositions[disposition]=dispositions.get(disposition,0)+1
+        diagnostic_targets.add(pc)
+    # Private derived list, not published guest code. The existing runtime
+    # diagnostic can refuse every discovered entry, including interrupt calls;
+    # bounce=0 alone does not do that. Runtime hit counts must still confirm
+    # an actual original-byte oracle for each qualification route.
+    diagnostic_target_path=project/'src/gen/automatic-original-targets.txt'
+    reject_links(diagnostic_target_path)
+    with diagnostic_target_path.open('x',encoding='ascii',newline='\n')as diagnostic:
+        diagnostic.write(''.join(f'{pc:06X}\n'for pc in sorted(diagnostic_targets)))
     clear_generator=project/'tools/generate_faithful_clear.py'
     if not clear_generator.is_file():raise RuntimeError('Authored snapshot is missing the faithful-clear generator; refresh its manifest before building.')
     with (out/'generate-faithful-clear.log').open('w',encoding='utf-8') as log:
@@ -203,6 +239,19 @@ def main():
       'host_navigation_patch_sha256':sha(host_patch),
           'faithful_instruction_patch_sha256':sha(faithful_patch),
           'host_modal_audio_patch_sha256':sha(audio_patch),
+      'automatic_faithful_patch_sha256':sha(automatic_patch),
+      'automatic_faithful_patch_scope':'Upstream decoded instruction/IR emission with original bus transfers and internal clocks, per-instruction scheduler commits, cached effective addresses, native flag/return semantics and faithful unsupported continuation. No serialized guest fields or checkpoint/SRAM layout changes.',
+      'automatic_generation':{'mode':'upstream-faithful-instruction','cfg_roots':True,
+          'manifest':automatic_manifest_path.relative_to(out).as_posix(),'manifest_sha256':sha(automatic_manifest_path),
+          'root_mode_contexts':len(automatic_manifest['roots']),'discovered_mode_nodes':len(automatic_manifest['nodes']),
+          'dispositions':dispositions,'eligibility_is_execution_coverage':False,
+          'guarded_clear_constructor_default':'Existing authored guarded islands remain enabled simultaneously in normal player launches; exact automatic-native qualification separately disables both using explicit environment controls.',
+          'original_byte_diagnostic':{'target_file':diagnostic_target_path.relative_to(out).as_posix(),
+              'target_file_sha256':sha(diagnostic_target_path),'unique_entry_targets':len(diagnostic_targets),
+              'enabled_by_default':False,'environment':{
+                  'SNESRECOMP_LLE_INTERP_TARGET_FILE':'<absolute path to this generated target file>',
+                  'SNESRECOMP_FOUNDATION_GENERATED_CLEAR':'0','SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR':'0'},
+              'limits':'Diagnostic configuration only; actual compiled-call/instruction evidence must verify original-byte admission. Does not change normal profile settings.'}},
       'host_navigation_patch_scope':'Appended map hotkey, parser/defaults and host dispatch only; existing command ids and serialized guest execution unchanged.',
       'host_modal_audio_patch_scope':'Host playback pause/prefill resume and overlay request consumption only; no guest machine or checkpoint layout changes.',
       'faithful_instruction_patch_scope':'Byte transaction wrapper/declaration only; existing bus/clock and checkpoint layout unchanged.',

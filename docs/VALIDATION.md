@@ -1,3 +1,9 @@
+# Current validation — native 0.3.2 / Companion 0.3.4
+
+The [exact current continuation](FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md) records standard automatic generation, original town/house NPC art, current first-house advice, map/restore, launcher update and exclusive playback qualification. Compilation receipts remain `compiled_unqualified`; finite installation qualification is separate from complete native/AOT and campaign coverage. Historical reports below retain their exact artifact scope.
+
+---
+
 # Validation scope — 2026-10-11
 
 ## Current installed native 0.2.9 / Companion 0.3.3

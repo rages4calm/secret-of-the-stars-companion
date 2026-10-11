@@ -10,14 +10,14 @@
 name = "I_RESET"
 addr = "8000"
 bank = 0
-emit = false
+emit = true
 note = "Emulation RESET vector ($FFFC)"
 
 [[func]]
 name = "I_NMI"
 addr = "80e6"
 bank = 0
-emit = false
+emit = true
 note = "Native NMI vector ($FFEA)"
 
 [[func]]
@@ -28,3 +28,287 @@ emit = true
 entry_m = 1
 entry_x = 0
 note = "Call observed from 008111 in opening fixture; semantic name unverified"
+
+# Read-only-lab nonpromoting FF20 quarantine overlay.
+# Supplemental source-of-truth labels; merge into existing symbols.toml under guarded lab staging.
+# emit=false adds symbol + force_lle; no new AOT requests or width/exit contracts.
+
+[[func]]
+name = "FF20_Quarantine_0084D9"
+bank = "00"
+addr = "84D9"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_00FF20"
+bank = "00"
+addr = "FF20"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C400"
+bank = "01"
+addr = "C400"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C415"
+bank = "01"
+addr = "C415"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C91D"
+bank = "01"
+addr = "C91D"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C969"
+bank = "01"
+addr = "C969"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C96D"
+bank = "01"
+addr = "C96D"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C981"
+bank = "01"
+addr = "C981"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C9AE"
+bank = "01"
+addr = "C9AE"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C9D7"
+bank = "01"
+addr = "C9D7"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01C9FB"
+bank = "01"
+addr = "C9FB"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01CA26"
+bank = "01"
+addr = "CA26"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01CA4A"
+bank = "01"
+addr = "CA4A"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01CA6E"
+bank = "01"
+addr = "CA6E"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_01CA95"
+bank = "01"
+addr = "CA95"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02910C"
+bank = "02"
+addr = "910C"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BA4C"
+bank = "02"
+addr = "BA4C"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BAA2"
+bank = "02"
+addr = "BAA2"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BAD1"
+bank = "02"
+addr = "BAD1"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BAD5"
+bank = "02"
+addr = "BAD5"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BAEB"
+bank = "02"
+addr = "BAEB"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BB18"
+bank = "02"
+addr = "BB18"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BB41"
+bank = "02"
+addr = "BB41"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BB65"
+bank = "02"
+addr = "BB65"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BB90"
+bank = "02"
+addr = "BB90"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BBB4"
+bank = "02"
+addr = "BBB4"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BBD8"
+bank = "02"
+addr = "BBD8"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BBFF"
+bank = "02"
+addr = "BBFF"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02BC0F"
+bank = "02"
+addr = "BC0F"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02D54A"
+bank = "02"
+addr = "D54A"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02D623"
+bank = "02"
+addr = "D623"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02D74D"
+bank = "02"
+addr = "D74D"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02D829"
+bank = "02"
+addr = "D829"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02D924"
+bank = "02"
+addr = "D924"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02DA16"
+bank = "02"
+addr = "DA16"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02DA85"
+bank = "02"
+addr = "DA85"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02DBCD"
+bank = "02"
+addr = "DBCD"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02DBDD"
+bank = "02"
+addr = "DBDD"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02DBE9"
+bank = "02"
+addr = "DBE9"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02DBEF"
+bank = "02"
+addr = "DBEF"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02DBF6"
+bank = "02"
+addr = "DBF6"
+emit = false
+
+[[func]]
+name = "FF20_Quarantine_02DC03"
+bank = "02"
+addr = "DC03"
+emit = false
+
+
+[[func]]
+name = "Observed_01C403"
+addr = "c403"
+bank = 1
+emit = true
+entry_m = 1
+entry_x = 1
+note = "Actual C6FA/C7AF JSL trampoline, exact030 original trace"
+
+[[func]]
+name = "Observed_01B006"
+addr = "b006"
+bank = 1
+emit = true
+entry_m = 0
+entry_x = 1
+note = "Actual original D0B6 JSL producer entry, exact030 trace"
+
+[[func]]
+name = "Observed_00FF35"
+addr = "ff35"
+bank = 0
+emit = true
+entry_m = 0
+entry_x = 1
+note = "Actual original D0D4 JSL coordinate entry, exact030 trace"

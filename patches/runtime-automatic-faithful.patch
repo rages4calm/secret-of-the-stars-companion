@@ -1,0 +1,401 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -282,7 +282,7 @@
+     except Exception:
+         return {}
+ 
+-    cfg = build_cfg(graph, instruction_blocks=get_rom_mapping() == ROM_MAP_SA1)
++    cfg = build_cfg(graph, instruction_blocks=True)
+     if cfg.entry not in cfg.blocks:
+         return {}
+ 
+@@ -389,7 +389,7 @@
+     except Exception:
+         return None
+ 
+-    cfg = build_cfg(graph, instruction_blocks=get_rom_mapping() == ROM_MAP_SA1)
++    cfg = build_cfg(graph, instruction_blocks=True)
+     if cfg.entry not in cfg.blocks:
+         return None
+ 
+@@ -612,7 +612,7 @@
+     # cfg directive, no auto-recovery). v2_regen hard-fails on any.
+     if unresolved_indirect_collector is not None:
+         unresolved_indirect_collector.extend(graph.unresolved_indirects)
+-    cfg = build_cfg(graph, instruction_blocks=get_rom_mapping() == ROM_MAP_SA1)
++    cfg = build_cfg(graph, instruction_blocks=True)
+ 
+     # A tight, side-effect-free memory poll cannot execute atomically under
+     # the LLE frame scheduler: the value it observes is commonly changed by
+@@ -632,7 +632,8 @@
+         'BCC', 'BCS', 'BEQ', 'BNE', 'BMI', 'BPL', 'BVC', 'BVS',
+     }
+     has_lle_memory_poll = False
+-    for poll_key, poll_blk in cfg.blocks.items():
++    _faithful_poll_pcs = set()
++    for poll_key, poll_blk in build_cfg(graph, instruction_blocks=False).blocks.items():
+         if poll_key not in poll_blk.successors or not poll_blk.insns:
+             continue
+         poll_insns = [di.insn for di in poll_blk.insns]
+@@ -643,8 +644,7 @@
+             continue
+         if all(insn.mnem in _poll_reads and insn.mode != _MODE_IMM
+                for insn in poll_body):
+-            has_lle_memory_poll = True
+-            break
++            _faithful_poll_pcs.update(di.key.pc for di in poll_blk.insns)
+ 
+     # ── PEI-trampoline detector (2026-05-24, narrow variant) ──────────
+     #
+@@ -2009,6 +2009,45 @@
+                     f"return interp_tier_dispatch_balanced(cpu, {_transfer_target_expr(fall_pc24, False)}, "
+                     f"0x{fall_pc24:06x}u, _entry_s, _hrv, false); "
+                     f"/* truncated (no successor): interpret continuation, balanced */")
++        # Private generic faithful mode: one decoded instruction per CFG block.
++        # Keep upstream IR semantics/control flow; correct only bus and commit timing.
++        assert len(pairs) == 1
++        _di = pairs[0][0]
++        _supported = {'LDA','LDX','LDY','STA','STX','STY','STZ','ADC','SBC','AND','ORA','EOR','CMP','CPX','CPY','BIT',
++            'CLC','SEC','CLD','SED','CLI','SEI','CLV','REP','SEP','NOP','INX','INY','DEX','DEY','TAX','TAY','TXA','TYA','TXS','TSX','TCS','TSC','TCD','TDC','TXY','TYX','XBA',
++            'PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB','PLP','PEA','PER',
++            'JSR','JSL','RTS','RTL','JMP','JML','BRA','BRL','BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
++        _unsupported = _di.mnem not in _supported or bool(skip_emit_idx) or bool(nlr_info)
++        # Pointer wrapping/page-cross and RMW ordering remain explicit unsupported gates.
++        from snes65816 import MODE_STR
++        _mode_id = getattr(_di, 'mode', -1)
++        _mode = MODE_STR.get(_mode_id, 'unknown')
++        if _mode_id < 0 or _mode_id in (14,15):
++            _unsupported = True
++        if _unsupported:
++            lines = [f'return interp_tier_dispatch_faithful(cpu, (((uint32)cpu->PB << 16) | 0x{key.pc & 0xffff:04x}u), 0x{((bank<<16)|key.pc):06x}u, _entry_s, _hrv, false, _host_return_pc24); /* precise-mode unsupported: {_di.mnem} {_mode} */']
++        else:
++            import re as _faithful_re
++            _new_lines = []
++            for _ln in lines:
++                # Existing CPU dynamic penalties become part of this instruction's commit.
++                _ln = _faithful_re.sub(r'cpu->cycles \+= ([0-9]+);', r'cpu_aot_extra(cpu, \1);', _ln)
++                _ln = _faithful_re.sub(r'cpu->master_cycles \+= [^;]+;', '', _ln)
++                for _a in ['read8','read16','write8','write16','read16_linear','write16_linear']:
++                    _ln = _ln.replace('cpu_'+_a+'(', 'cpu_aot_'+_a+'(')
++                # 65816 pushes write high first, low last; ordinary stores retain low first.
++                if _di.mnem in {'PHA','PHX','PHY','PHD','PEA','PER'}:
++                    _ln = _ln.replace('cpu_aot_write16(', 'cpu_aot_write16_reverse(')
++                # Real call frame is already pushed before these upstream paired calls.
++                if 'RecompReturn ' in _ln:
++                    _new_lines.append('cpu_aot_commit(cpu);')
++                # A commit is idempotent outside an instruction, so nested dispatch control
++                # can keep its existing branch/return structure without a live transaction.
++                _ln = _ln.replace('return ', 'return cpu_aot_commit(cpu), ')
++                _ln = _faithful_re.sub(r'goto ([^;]+);', r'{ cpu_aot_commit(cpu); goto \1; }', _ln)
++                _new_lines.append(_ln)
++            _new_lines.append('cpu_aot_commit(cpu);')
++            lines = _new_lines
+         block_lines[key] = lines
+ 
+     # Compose the function source with labels per block.
+@@ -2153,14 +2192,18 @@
+         # (D.l/page-cross/branch-taken) are charged dynamically in block_lines.
+         # Axis-5: also charge the region-weighted MASTER clocks (CPU cycles x
+         # code-region speed) into cpu->master_cycles, which paces the SPC700.
+-        _cyc_const = _block_cycle_const(block_per_insn_ir.get(key, []))
+-        if _cyc_const:
+-            src.append(f'    cpu->cycles += {_cyc_const};')
+-            _spd_expr, _spd_const = _block_speed(bank, key.pc)
+-            if _spd_const is not None:
+-                src.append(f'    cpu->master_cycles += {_cyc_const * _spd_const};')
+-            else:
+-                src.append(f'    cpu->master_cycles += {_cyc_const} * {_spd_expr};')
++        _pairs = block_per_insn_ir.get(key, [])
++        _cyc_const = _block_cycle_const(_pairs)
++        _insn = _pairs[0][0]
++        if key.pc in _faithful_poll_pcs:
++            src.append('    if (interp_bridge_in_lle_scheduler()) { RecompStackPopYield();')
++            src.append(f'      return interp_bridge_lle_yield_unwind(cpu, {_transfer_target_expr(block_pc24, False)}); }}')
++        # Fetch actual opcode/operand bytes through the original bus, then execute
++        # upstream generated IR using the same data/stack callbacks as original code.
++        _is_refusal = 'precise-mode unsupported:' in '\n'.join(block_lines[key])
++        if not _is_refusal:
++            src.append(f'    if (!cpu_aot_begin(cpu, {block_pc24}u, {_insn.length}u, {_cyc_const}u)) {{')
++            src.append(f'      RecompStackPop(); return interp_tier_dispatch_faithful(cpu, {_transfer_target_expr(block_pc24, False)}, 0x{block_pc24:06x}u, _entry_s, _hrv, false, _host_return_pc24); }}')
+         for ln in block_lines[key]:
+             # Inject a stack-auditor pop before any return so the shadow
+             # stack stays balanced. An LLE yield unwind is NOT a return: the
+diff --git a/recompiler/v2/codegen.py b/recompiler/v2/codegen.py
+--- a/recompiler/v2/codegen.py
++++ b/recompiler/v2/codegen.py
+@@ -628,15 +628,55 @@
+ 
+ # ── Per-op handlers ─────────────────────────────────────────────────────────
+ 
++def _cached_address(seg, read=False):
++    # A pointer is a bus transaction, never a repeatable C expression. Native
++    # mode pointer bytes wrap within bank zero; effective data addresses carry
++    # across banks. Explicit statements prescribe low/high/bank read ordering.
++    k = seg.kind
++    idx = 'cpu->X' if seg.index == Reg.X else 'cpu->Y' if seg.index == Reg.Y else '0'
++    lines = []
++    if k in (SegKind.DP_INDIRECT, SegKind.DP_INDIRECT_LONG, SegKind.DP_INDIRECT_X, SegKind.STACK_REL_INDIRECT_Y):
++        base = 'cpu->S' if k == SegKind.STACK_REL_INDIRECT_Y else 'cpu->D'
++        ptr_idx = ' + cpu->X' if k == SegKind.DP_INDIRECT_X else ''
++        lines += [f'uint16 _ea_p = (uint16)({base} + {seg.offset:#06x}{ptr_idx});',
++                  'uint16 _ea_lo = cpu_read16(cpu, 0x00, _ea_p);']
++        if k == SegKind.DP_INDIRECT_LONG:
++            lines += ['uint8 _ea_hi = cpu_read8(cpu, 0x00, (uint16)(_ea_p + 2u));',
++                      f'uint32 _ea = ((((uint32)_ea_hi << 16) | _ea_lo) + {idx}) & 0xffffffu;']
++        else:
++            # (dp,X) indexes the pointer, not the resolved data address.
++            data_idx = 'cpu->Y' if k == SegKind.STACK_REL_INDIRECT_Y else idx if k == SegKind.DP_INDIRECT else '0'
++            if read and k == SegKind.DP_INDIRECT and seg.index == Reg.Y:
++                # CPU x=0 penalty is already folded in the shared static table.
++                lines += ['if (cpu->x_flag && ((_ea_lo >> 8) != (((uint32)_ea_lo + cpu->Y) >> 8))) cpu_aot_extra(cpu, 1u);']
++            lines += [f'uint32 _ea = (((uint32)cpu->DB << 16) + _ea_lo + {data_idx}) & 0xffffffu;']
++    elif k == SegKind.DIRECT:
++        lines += [f'uint32 _ea = (uint16)(cpu->D + {seg.offset:#06x} + {idx});']
++    elif k == SegKind.STACK:
++        lines += [f'uint32 _ea = (uint16)(cpu->S + {seg.offset:#06x});']
++    elif k == SegKind.ABS_BANK:
++        lines += [f'uint32 _ea = (((uint32)cpu->DB << 16) + {seg.offset:#06x} + {idx}) & 0xffffffu;']
++    elif k == SegKind.LONG:
++        lines += [f'uint32 _ea = ({(((seg.bank or 0) << 16) | seg.offset):#08x}u + {idx}) & 0xffffffu;']
++    else:
++        raise ValueError(f'unsupported cached data address {k}')
++    return lines, '(uint8)(_ea >> 16)', '(uint16)_ea'
++
+ def _emit_read(op: Read) -> List[str]:
+-    bank, addr = _segref_addr_expr(op.seg)
+-    return [f"{widths.ctype(op.width)} {_v(op.out)} = "
+-            f"{widths.read_fn(op.width)}(cpu, {bank}, {addr});"]
+-
++    lines,bank,addr = _cached_address(op.seg, read=True)
++    read_fn = widths.read_fn(op.width)
++    if op.width == 2 and op.seg.kind not in (SegKind.DIRECT, SegKind.STACK):
++        read_fn = 'cpu_read16_linear'
++    # Keep the IR result live beyond the address temporary's lexical scope.
++    return [f'{widths.ctype(op.width)} {_v(op.out)};', '{', *lines,
++            f'{_v(op.out)} = {read_fn}(cpu, {bank}, {addr});', '}']
+ 
+ def _emit_write(op: Write) -> List[str]:
+-    bank, addr = _segref_addr_expr(op.seg)
+-    return [f"{widths.write_fn(op.width)}(cpu, {bank}, {addr}, {_v(op.src)});"]
++    lines,bank,addr = _cached_address(op.seg)
++    write_fn = widths.write_fn(op.width)
++    if op.width == 2 and op.seg.kind not in (SegKind.DIRECT, SegKind.STACK):
++        write_fn = 'cpu_write16_linear'
++    return ['{', *lines, f'{write_fn}(cpu, {bank}, {addr}, {_v(op.src)});', '}']
+ 
+ 
+ def _emit_readreg(op: ReadReg) -> List[str]:
+@@ -999,15 +1039,22 @@
+     return widths.set_nz(widths.masked(_v(op.src), op.width), op.width)
+ 
+ 
++def _faithful_modify_p_via_mirrors(mask, kind):
++    lines = emitter_helpers.modify_p_via_mirrors(mask, kind)
++    index = lines.index("cpu_p_to_mirrors(cpu);") + 1
++    lines.insert(index, "if (cpu->x_flag) { cpu->X &= 0x00ffu; cpu->Y &= 0x00ffu; }")
++    return lines
++
++
+ def _emit_repflags(op: RepFlags) -> List[str]:
+     # mirrors_to_p BEFORE modifying P (44c96a7) — see emitter_helpers.
+     return ["{"] + [f"  {s}" for s in
+-                    emitter_helpers.modify_p_via_mirrors(op.mask, "rep")] + ["}"]
++                    _faithful_modify_p_via_mirrors(op.mask, "rep")] + ["}"]
+ 
+ 
+ def _emit_sepflags(op: SepFlags) -> List[str]:
+     return ["{"] + [f"  {s}" for s in
+-                    emitter_helpers.modify_p_via_mirrors(op.mask, "sep")] + ["}"]
++                    _faithful_modify_p_via_mirrors(op.mask, "sep")] + ["}"]
+ 
+ 
+ def _emit_xce(op: XCE) -> List[str]:
+@@ -1149,6 +1196,7 @@
+         return ["{ uint8 _old_p = cpu->P; uint16 _old_s = cpu->S;",
+                 *(f"  {s}" for s in emitter_helpers.pop_byte_assign(field)),
+                 "  cpu_p_to_mirrors(cpu);",
++                "  if (cpu->x_flag) { cpu->X &= 0x00ffu; cpu->Y &= 0x00ffu; }",
+                 "  cpu_trace_stack_op(cpu, 0, CPU_STACK_OP_PLP, _old_s, +1);",
+                 "  cpu_trace_event(cpu, 0, CPU_TR_PLP, _old_p, cpu->P);",
+                 "  cpu_trace_px_record(cpu, 0, 2 /*PLP*/, _old_p, cpu->P); }"]
+@@ -1636,7 +1684,7 @@
+             )
+         if is_rts_stack_dispatch:
+             lines.append("  {")
+-            for stmt in emitter_helpers.modify_p_via_mirrors(0x30, "sep"):
++            for stmt in _faithful_modify_p_via_mirrors(0x30, "sep"):
+                 lines.append(f"    {stmt}")
+             lines.append("  }")
+         lines.append("  switch (_target) {")
+@@ -1816,7 +1864,7 @@
+         )
+     if is_rts_stack_dispatch:
+         lines.append("  {")
+-        for stmt in emitter_helpers.modify_p_via_mirrors(0x30, "sep"):
++        for stmt in _faithful_modify_p_via_mirrors(0x30, "sep"):
+             lines.append(f"    {stmt}")
+         lines.append("  }")
+     # An index outside the recovered target list is a coverage gap, not an
+@@ -2487,6 +2535,7 @@
+     if op.long:
+         lines.append("  cpu->S = (uint16)(cpu->S + 1);")
+         lines.append("  uint8 _rpb = cpu_read8(cpu, 0x00, cpu->S);")
++        lines.append("  cpu->PB = _rpb; /* architectural RTL bank before commit */")
+     else:
+         lines.append("  uint8 _rpb = cpu->PB;")
+     # Frame size this RTS/RTL pops (RTS = 2 bytes, RTL = 3). The dispatch
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -775,3 +775,16 @@
+ #ifdef __cplusplus
+ }
+ #endif
++
++/* Private upstream automatic faithful-instruction mode. No CpuState fields. */
++bool cpu_aot_begin(CpuState*, uint32, unsigned, unsigned);
++RecompReturn interp_tier_dispatch_faithful(CpuState*,uint32,uint32,uint16,uint8,bool,uint32);
++void cpu_aot_extra(CpuState*, unsigned);
++void cpu_aot_commit(CpuState*);
++uint8 cpu_aot_read8(CpuState*,uint8,uint16);
++uint16 cpu_aot_read16(CpuState*,uint8,uint16);
++uint16 cpu_aot_read16_linear(CpuState*,uint8,uint16);
++void cpu_aot_write8(CpuState*,uint8,uint16,uint8);
++void cpu_aot_write16(CpuState*,uint8,uint16,uint16);
++void cpu_aot_write16_linear(CpuState*,uint8,uint16,uint16);
++void cpu_aot_write16_reverse(CpuState*,uint8,uint16,uint16);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -525,6 +525,52 @@
+     s_native_instruction_committed = true;
+     bridge_charge_instruction(cpu, cycles, s_interp_bus_cycles, s_interp_bus_master, false);
+     interp_bridge_pre_opcode_redirect(next_pc24);
++}
++
++/* PRIVATE generic faithful upstream generated instruction ownership. */
++static CpuState *s_aot_instruction;
++static unsigned s_aot_cycles;
++static uint32_t s_aot_pc;
++static int s_aot_apu_driving;
++unsigned long long g_faithful_aot_steps;
++static void private_instruction_trace(CpuState *cpu,uint32 pc,char kind,unsigned cycles,unsigned bus,uint64_t bus_master) {
++  static int initialized,low=-1,high=-1;static FILE *trace;extern int snes_frame_counter;
++  if(!initialized){initialized=1;const char *e=getenv("PRIVATE_INSTRUCTION_TRACE");if(e){sscanf(e,"%d-%d",&low,&high);trace=fopen("private-instruction.tsv","wx");if(!trace){perror("private trace output");abort();}}}
++  if(low>=0&&snes_frame_counter>=low&&snes_frame_counter<=high)
++    fprintf(trace,"[private-insn] kind=%c f=%d pc=%06X cycles=%u bus=%u bus_master=%llu master=%llu cpu=%llu A=%04X X=%04X Y=%04X S=%04X D=%04X DB=%02X PB=%02X P=%02X open=%02X\n",kind,snes_frame_counter,pc,cycles,bus,(unsigned long long)bus_master,(unsigned long long)cpu->master_cycles,(unsigned long long)cpu->cycles,cpu->A,cpu->X,cpu->Y,cpu->S,cpu->D,cpu->DB,cpu->PB,cpu->P,cpu->open_bus);
++}
++static void aot_require(CpuState *cpu) {
++  if(s_aot_instruction!=cpu || !s_interp_bus_timing_active) {fputs("Invalid AOT transaction\n",stderr);abort();}
++}
++bool cpu_aot_begin(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles) {
++  if(!cpu || cpu->emulation || s_aot_instruction || s_native_instruction_cpu || s_interp_bus_timing_active || !cycles || !length) return false;
++  s_aot_instruction=cpu;s_aot_cycles=cycles;s_aot_pc=((uint32)cpu->PB<<16)|(pc&0xffff);
++  s_aot_apu_driving=g_interp_apu_driving;g_interp_apu_driving=1;
++  s_interp_bus_cycles=0;s_interp_bus_master=0;s_interp_bus_timing_active=1;
++  cpu->coprocessor_master_cycles=cpu->master_cycles;
++  cpu_mirrors_to_p(cpu);
++  for(unsigned i=0;i<length;i++) (void)bridge_bus_read(cpu,((uint32)cpu->PB<<16)|((pc+i)&0xffff));
++  return true;
++}
++void cpu_aot_extra(CpuState *cpu,unsigned n){aot_require(cpu);s_aot_cycles+=n;}
++uint8 cpu_aot_read8(CpuState *cpu,uint8 b,uint16 a){aot_require(cpu);return bridge_bus_read(cpu,((uint32)b<<16)|a);}
++uint16 cpu_aot_read16(CpuState *cpu,uint8 b,uint16 a){aot_require(cpu);uint16 value;uint32 lo=((uint32)b<<16)|a,hi=((uint32)b<<16)|(uint16)(a+1);if(bridge_bus_read_word(cpu,lo,hi,&value))return value;value=bridge_bus_read(cpu,lo);return value|((uint16)bridge_bus_read(cpu,hi)<<8);}
++uint16 cpu_aot_read16_linear(CpuState *cpu,uint8 b,uint16 a){aot_require(cpu);uint16 value;uint32 lo=((uint32)b<<16)|a,hi=(lo+1)&0xffffffu;if(bridge_bus_read_word(cpu,lo,hi,&value))return value;value=bridge_bus_read(cpu,lo);return value|((uint16)bridge_bus_read(cpu,hi)<<8);}
++void cpu_aot_write8(CpuState *cpu,uint8 b,uint16 a,uint8 v){aot_require(cpu);bridge_bus_write(cpu,((uint32)b<<16)|a,v);}
++void cpu_aot_write16(CpuState *cpu,uint8 b,uint16 a,uint16 v){aot_require(cpu);uint32 lo=((uint32)b<<16)|a,hi=((uint32)b<<16)|(uint16)(a+1);if(!bridge_bus_write_word(cpu,lo,hi,v,false)){bridge_bus_write(cpu,lo,(uint8)v);bridge_bus_write(cpu,hi,(uint8)(v>>8));}}
++void cpu_aot_write16_linear(CpuState *cpu,uint8 b,uint16 a,uint16 v){aot_require(cpu);uint32 lo=((uint32)b<<16)|a,hi=(lo+1)&0xffffffu;if(!bridge_bus_write_word(cpu,lo,hi,v,false)){bridge_bus_write(cpu,lo,(uint8)v);bridge_bus_write(cpu,hi,(uint8)(v>>8));}}
++void cpu_aot_write16_reverse(CpuState *cpu,uint8 b,uint16 a,uint16 v){aot_require(cpu);bridge_bus_write(cpu,((uint32)b<<16)|(uint16)(a+1),(uint8)(v>>8));bridge_bus_write(cpu,((uint32)b<<16)|a,(uint8)v);}
++void cpu_aot_commit(CpuState *cpu) {
++  if(!s_aot_instruction)return;
++  aot_require(cpu);
++  if(s_aot_cycles<s_interp_bus_cycles){fprintf(stderr,"AOT bus exceeds cycles PC=%06X cycles=%u bus=%u\n",s_aot_pc,s_aot_cycles,s_interp_bus_cycles);abort();}
++  unsigned cycles=s_aot_cycles,bus=s_interp_bus_cycles;uint64_t master=s_interp_bus_master;
++  s_interp_bus_timing_active=0;s_aot_instruction=NULL;g_interp_apu_driving=s_aot_apu_driving;
++  bridge_charge_instruction(cpu,cycles,bus,master,false);g_faithful_aot_steps++;cpu_mirrors_to_p(cpu);
++  private_instruction_trace(cpu,s_aot_pc,'g',cycles,bus,master);
++  static int init=0,lo=-1,hi=-1;extern int snes_frame_counter;
++  if(!init){const char *e=getenv("PRIVATE_FAITHFUL_TRACE");init=1;if(e)sscanf(e,"%d-%d",&lo,&hi);}
++  if(lo>=0&&snes_frame_counter>=lo&&snes_frame_counter<=hi)fprintf(stderr,"[faithful-auto] f=%d pc=%06X cycles=%u bus=%u bus_master=%llu master_delta=%llu total_master=%llu steps=%llu S=%04X DB=%02X PB=%02X P=%02X open_bus=%02X\n",snes_frame_counter,s_aot_pc,cycles,bus,(unsigned long long)master,(unsigned long long)(master+(uint64_t)(cycles-bus)*6),(unsigned long long)cpu->master_cycles,g_faithful_aot_steps,cpu->S,cpu->DB,cpu->PB,cpu->P,cpu->open_bus);
+ }
+ 
+ static void bridge_progress_checkpoint(CpuState *cpu, bool auto_quiescent,
+@@ -2592,6 +2638,8 @@
+         }
+         bridge_charge_instruction(cpu, (unsigned)_cyc, s_interp_bus_cycles,
+                                   s_interp_bus_master, true);
++        { CpuState observed=*cpu;sync_interp_to_cpu(&in,&observed);
++          private_instruction_trace(&observed,pc_before,'i',(unsigned)_cyc,s_interp_bus_cycles,s_interp_bus_master); }
+ 
+         /* Env-gated per-instruction cycle watch (SNESRECOMP_CYC_WATCH="lo-hi"
+          * hex pc24): log the LLE charge components for each interpreted
+@@ -3531,8 +3579,8 @@
+  * cpu_unresolved_abandon_balanced): run the target instead of dropping it. On
+  * a clean return the routine's RTS/RTL has balanced the stack; on a bail fall
+  * back to the stack-safe abandon so we are never worse than the drop path. */
+-RecompReturn interp_tier_dispatch_balanced(CpuState *cpu, uint32_t target_pc24,
+-    uint32_t site_pc24, uint16_t entry_s, uint8_t hrv, bool from_indirect) {
++static RecompReturn dispatch_continuation(CpuState *cpu, uint32_t target_pc24,
++    uint32_t site_pc24,uint16_t entry_s,uint8_t hrv,bool from_indirect,uint32_t expected_return_pc) {
+     interp_tier_note(target_pc24);
+     const uint8_t mx = tier2_entry_mx(cpu);
+     const uint8_t kind = from_indirect ? TIER2_KIND_INDIRECT_GOTO
+@@ -3543,6 +3591,7 @@
+         tier2_discover(site_pc24 & 0xFFFFFF, target_pc24 & 0xFFFFFF, mx,
+                        kind, -1);
+     uint32_t landing = target_pc24 & 0xFFFFFF;
++    uint32_t actual_return_pc = 0xffffffffu;
+     /* Write-log scope: capture the interp's write sequence for a targeted node
+      * so it can be first-divergence-diffed against the AOT body. Gated to the
+      * function under investigation; a leaf runs exactly its own writes here. */
+@@ -3562,7 +3611,7 @@
+      * a PEA+JMP idiom may have pushed a return below entry). Exit when the
+      * function RTS/RTLs past entry_s. */
+     int ok = interp_bridge_run_ex2(cpu, target_pc24 & 0xFFFFFF, entry_s,
+-                                   &landing, NULL, 0, 0, 0, 0, NULL, 0, 0);
++                                   &landing, &actual_return_pc, 0, 0, 0, 0, NULL, 0, 0);
+     if (wlog_this) wlog_scope_exit();
+     /* For an indirect goto the recorded target is where the JMP actually
+      * resolved (the dynamically computed entry); for a dispatch default the
+@@ -3576,6 +3625,18 @@
+     if (interp_run_propagated_return(ok, &propagated))
+         return propagated;
+     if (ok) {
++        /* A faithful continuation can consume a rewritten or switched return
++         * frame. A NORMAL host return would resume the stale C caller even
++         * though original RTL selected a different PC. Preserve real stack,
++         * registers and clocks through the established owner-unwind ABI. */
++        if (expected_return_pc != 0xffffffffu && actual_return_pc != 0xffffffffu &&
++            actual_return_pc != expected_return_pc) {
++            int skip = cpu_resolve_post_return_skip(cpu->S);
++            if (skip > 0) return (RecompReturn)skip;
++            if (interp_bridge_has_direct_paired_bounce())
++                return interp_bridge_lle_yield_unwind(cpu, actual_return_pc);
++            return interp_tier_dispatch_rewritten_return(cpu, actual_return_pc, site_pc24);
++        }
+         /* A shared suffix may perform a guest non-local return (for example,
+          * PLA; PLA; RTS) after an AOT function tails into LLE past its static
+          * ownership boundary.  The interpreter has then consumed not only
+@@ -3598,6 +3659,21 @@
+         return RECOMP_RETURN_NORMAL;
+     }
+     return cpu_unresolved_abandon_balanced(cpu, site_pc24, entry_s, hrv);
++}
++
++RecompReturn interp_tier_dispatch_balanced(CpuState *cpu,uint32_t target_pc24,
++    uint32_t site_pc24,uint16_t entry_s,uint8_t hrv,bool from_indirect) {
++    return dispatch_continuation(cpu,target_pc24,site_pc24,entry_s,hrv,from_indirect,0xffffffffu);
++}
++RecompReturn interp_tier_dispatch_faithful(CpuState *cpu,uint32_t target_pc24,
++    uint32_t site_pc24,uint16_t entry_s,uint8_t hrv,bool from_indirect,uint32_t expected_return_pc) {
++    /* Unsupported generated instructions resume in their existing scheduler
++     * interpreter, not a nested non-scheduler interpreter that can swallow
++     * deadlines/IRQ while spinning in original hardware polls. Preserve the
++     * exact unexecuted PC, guest stack, and existing owner-unwind contract. */
++    if (s_lle_sched_depth > 0 && s_interp_bounce_owner_depth > 0)
++        return interp_bridge_lle_yield_unwind(cpu,target_pc24);
++    return dispatch_continuation(cpu,target_pc24,site_pc24,entry_s,hrv,from_indirect,expected_return_pc);
+ }
+ 
+ RecompReturn interp_tier_dispatch_popped_return(CpuState *cpu,

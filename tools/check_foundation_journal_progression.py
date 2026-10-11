@@ -14,6 +14,20 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
 def JournalGroups(ram):return sum(1<<pack for pack in range(2) if 0x00 in ram[0x5373+32*pack:0x5393+32*pack])
 
+def TownFirstHouseAvailable(ram):
+    # Independent current-resource oracle from original chapter6 scene321,
+    # ordered child0421 text and the executed six-member0AF01E roster.
+    if ram is None or len(ram)<0x53b3:return False
+    word=lambda at:int.from_bytes(ram[at:at+2],'little')
+    pointer=lambda at:int.from_bytes(ram[at:at+3],'little')
+    if not(ram[0x20]==1 and ram[0x5372]==6 and ram[0x5360:0x5362]==bytes(2)
+        and not ram[0x4b6]&128 and word(0x40e)==321 and word(0x46d)==word(0x46f)==0x0403
+        and pointer(0x513)==0x09a0d0 and pointer(0x516)==0x09a190 and pointer(0x537)==0x098510):return False
+    memberships=((0x0310,0x0420),(0x0320,0x0421),(0x0328,0x0422),
+                 (0x0338,0x0423),(0x0348,0x0424),(0x03d8,0x041a))
+    active=[(word(at+5),word(at+12)) for at in range(0x4100,0x42db,25) if ram[at]!=255]
+    return active==list(memberships) and all(ram[0x4100+25*i]&127<=3 for i in range(6))
+
 def font_oracle(runtime):
     source=(runtime/'runner/src/snes_overlay_draw.c').read_text()
     body=re.search(r'FONT8\[59\]\[8\]\s*=\s*\{(.*?)\n\};',source,re.S)
@@ -52,6 +66,7 @@ def expected_card(background,font,lead,groups,ram=None,width=256,height=224):
         objective=('Help the new town grow.','Find builders and farmers.')
         route=('Baz plans to cut trees','and plant crops here.')
         progress='Current town farming advice'
+        if TownFirstHouseAvailable(ram):progress='Child: first house is built.'
     elif lead==7:
         objective=("Seek Dynamite's help.",'Find a way to defeat Golan.')
         route=("Dynamite's laboratory is",'in the town Morgan entered.')
@@ -135,7 +150,7 @@ def main():
     p.add_argument('--pennon-before-state',type=Path,help='Optional original pre-award stage-zero checkpoint')
     p.add_argument('--pennon-after-state',type=Path,help='Optional original post-award stage-zero checkpoint')
     p.add_argument('--likado-state',type=Path,help='Optional original stage-one Uncle Save clue checkpoint')
-    for name in ('badbad-state','dog-pill-state','returned-state','mayor-state','town-clue-state','morgan-state','dynamite-route-state','joined-state','chapter6-state'):
+    for name in ('badbad-state','dog-pill-state','returned-state','mayor-state','town-clue-state','morgan-state','dynamite-route-state','joined-state','chapter6-state','town-house-state'):
         p.add_argument('--'+name,type=Path,help='Optional explicitly staged original-event fixture; see its private source receipts')
     a=p.parse_args()
     a.exe=a.exe.resolve(strict=True);a.rom=a.rom.resolve(strict=True)
@@ -180,7 +195,7 @@ def main():
         if lr[0x20]!=1 or lr[0x5372]!=1 or not lr[0x5360]&0x10 or ar[0x5360]&0x10:
             raise ValueError('Expected original before/after stage-one clue bit10 evidence')
     town_inputs=[];town_rams={}
-    for field in ('badbad_state','dog_pill_state','returned_state','mayor_state','town_clue_state','morgan_state','dynamite_route_state','joined_state','chapter6_state'):
+    for field in ('badbad_state','dog_pill_state','returned_state','mayor_state','town_clue_state','morgan_state','dynamite_route_state','joined_state','chapter6_state','town_house_state'):
         state=getattr(a,field)
         if state:
             state=state.resolve(strict=True);setattr(a,field,state);town_inputs.append(state)
@@ -194,6 +209,7 @@ def main():
             if field=='morgan_state' and not(ram[0x5372]==4 and ram[0x5360]&32):raise ValueError('Expected original chapter4 Morgan bit20 clue')
             if field=='dynamite_route_state' and not(ram[0x5372]==5 and ram[0x5360]==0):raise ValueError('Expected original Morgan paid-entry chapter5 outcome')
             if field=='chapter6_state' and not(ram[0x5372]==6 and ram[0x5360]==0):raise ValueError('Expected original Baz chapter6 cleared-flags outcome')
+            if field=='town_house_state' and not TownFirstHouseAvailable(ram):raise ValueError('Expected original chapter6 town118/six-member current child-clue fixture')
             if field=='joined_state' and not(ram[0x5372]==5 and (ram[0x5360]&0xd2)==0xd2):raise ValueError('Expected original chapter5 current joined02 with offer/escort flags')
     protected={path:sha(path) for path in (a.exe,a.rom,a.before_state,a.after_state,*pennon_inputs,*likado_inputs,*town_inputs,ROOT/'native/foundation/src/foundation_journal.h',ROOT/'native/foundation/src/foundation_journal.c',a.runtime/'runner/src/snes_overlay_draw.c')}
     out.mkdir(parents=True);(out/'runs').mkdir();(out/'staged').mkdir()
@@ -312,6 +328,18 @@ def main():
     for field,name,lead in (('town_clue_state','town-building-clue',6),('morgan_state','morgan-clue',6),('dynamite_route_state','dynamite-route',7),('joined_state','dynamite-joined-GIANT',7),('chapter6_state','chapter6-farming',8)):
         state=getattr(a,field)
         if state:fixtures[name]=(state,lead,JournalGroups(town_rams[field]))
+    if a.town_house_state:
+        state=a.town_house_state;groups=JournalGroups(town_rams['town_house_state'])
+        fixtures['town-first-house']=(state,8,groups)
+        # Manufactured refusal controls only, not original scene loading/SWAP
+        # or later campaign proof. Source/output hashes and every edit retained.
+        for name,edits,lead in (
+            ('earlier',['5372=06:05'],7),('later',['5372=06:07'],0),
+            ('other-party',['04b6=00:80'],8),('current1',['5361=00:01'],8),
+            ('stale-grid',['0513=d0:b8'],8),('stale-roster',['4105=1003:a001'],8),
+            ('wrong-scene',['040e=4101:4001'],8),('nonzero-flags',['5360=00:80'],0)):
+            refused=manufactured('town-house-'+name,state,edits)
+            fixtures['town-house-'+name]=(refused,lead,groups)
     if a.town_clue_state:
         ram=town_rams['town_clue_state']
         default=manufactured('chapter4-before-town-clue',a.town_clue_state,[f'5360={ram[0x5360]:02x}:00'])
@@ -368,7 +396,7 @@ def main():
         check('chapter_restore_replaces_pennon_with_bosen',int(rows[0]['lead_kind'])==3 and all(int(row['lead_kind'])==2 for row in rows if int(row['frame'])>=81) and parity(next_off,next_on) and surface(next_on)==oracle(next_off,2,0,load=True))
     wide_names=['stage1','pennon' if pennon_inputs else 'david']
     if likado_inputs:wide_names.append('likado-clue')
-    wide_names.extend(name for name in ('badbad-advice','dog-pill-current','dog-pill-other','town-returned','mayor-clue','town-building-clue','town-building-default','morgan-clue','morgan-priority','dynamite-route','dynamite-joined-GIANT','chapter6-farming') if name in fixtures)
+    wide_names.extend(name for name in ('badbad-advice','dog-pill-current','dog-pill-other','town-returned','mayor-clue','town-building-clue','town-building-default','morgan-clue','morgan-priority','dynamite-route','dynamite-joined-GIANT','chapter6-farming','town-first-house','town-house-other-party','town-house-stale-grid') if name in fixtures)
     for name in wide_names:
         state,lead,groups=fixtures[name]
         wide_off,_=run(name+'-wide-off',state,0,wide=True)
@@ -389,7 +417,7 @@ def main():
         check('likado_rollback_guest_and_font_exact',parity(lroff,lrback) and surface(lrback)==oracle(lroff,2,0,load=True))
         lv,rows=run('likado-original-view',a.likado_state,original=True)
         check('likado_original_view_exact',all(int(row['enabled'])==int(row['visible'])==0 for row in rows) and parity(lv,out/'runs/likado-clue-off') and surface(lv)==surface(out/'runs/likado-clue-off'))
-    for name in ('badbad-advice','dog-pill-current','town-returned','mayor-clue','town-building-clue','morgan-clue','dynamite-route'):
+    for name in ('badbad-advice','dog-pill-current','town-returned','mayor-clue','town-building-clue','morgan-clue','dynamite-route','town-first-house'):
         if name not in fixtures:continue
         state,lead,groups=fixtures[name]
         cold,rows=run(name+'-cold',state)
@@ -398,6 +426,17 @@ def main():
         check(name+'_pad_toggle_guest_font',cases[name+'-pad-on']['virtual_pad_attached'] and cases[name+'-pad-on']['shown']==cases[name+'-pad-on']['hidden']==1 and parity(poff,pon) and parity(pon,results[name]) and surface(pon)==surface(results[name]))
         original,rows=run(name+'-original-view',state,original=True)
         check(name+'_original_view_exact',all(int(row['enabled'])==int(row['visible'])==0 for row in rows) and parity(original,out/'runs'/(name+'-off')) and surface(original)==surface(out/'runs'/(name+'-off')))
+    if a.town_house_state and a.dynamite_route_state:
+        for initial,target,label,lead in ((a.town_house_state,a.dynamite_route_state,'town-house-to-before',7),
+                                         (a.dynamite_route_state,a.town_house_state,'before-to-town-house',8)):
+            data=target.read_bytes();tr=data[wram_offset(data):wram_offset(data)+0x20000]
+            off,_=run(label+'-off',initial,0,capture=100,load=target)
+            on,rows=run(label+'-on',initial,capture=100,load=target)
+            check(label+'_actual_restore_recomputes_card','[overlay_selftest] load issued' in (on/'host.log').read_text()
+                and all(int(row['lead_kind'])==lead for row in rows if int(row['frame'])>=81)
+                and parity(off,on) and surface(on)==oracle(off,lead,JournalGroups(tr),load=True))
+            check(label+'_closes_then_reopens',cases[label+'-on']['shown']==2
+                and any(81<=int(row['frame'])<=89 and int(row['visible'])==0 for row in rows))
     if a.dog_pill_state and a.returned_state:
         off,_=run('town-return-rollback-off',a.returned_state,0,capture=100,load=a.dog_pill_state)
         on,rows=run('town-return-rollback-on',a.returned_state,capture=100,load=a.dog_pill_state)

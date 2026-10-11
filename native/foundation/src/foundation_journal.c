@@ -152,6 +152,8 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         route[0] = "Baz plans to cut trees";
         route[1] = "and plant crops here.";
         progress = "Current town farming advice";
+        if (FoundationJournalTownHouseClue(g_ram, 0x20000))
+            progress = "Child: first house is built.";
     } else if (lead == 7) {
         objective[0] = "Seek Dynamite's help.";
         objective[1] = "Find a way to defeat Golan.";

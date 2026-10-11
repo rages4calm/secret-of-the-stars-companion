@@ -85,6 +85,36 @@ static inline unsigned FoundationJournalTownBuilderClue(unsigned stage, unsigned
     return 0;
 }
 
+/* Current available child0421 clue, not an interacted/finished-quest log.
+ * Ordered original2B8327/2C/31 clauses select2BA9FE only at chapter6.
+ * Original scene321 then selects town118/grid09A0D0; actor listAC selects
+ * 0AF01E. Require the observed original six base/message memberships,
+ * allowing their normal direction/movement bytes to change. Unknown/stale
+ * resources or the other party cannot borrow this scene-specific clue. */
+static inline int FoundationJournalTownHouseClue(const uint8_t *ram, size_t size) {
+    static const uint16_t bases[6] = {0x0310,0x0320,0x0328,0x0338,0x0348,0x03d8};
+    static const uint16_t messages[6] = {0x0420,0x0421,0x0422,0x0423,0x0424,0x041a};
+    if (!ram || size < 0x53b3 || ram[0x20] != 1 || ram[0x5372] != 6 ||
+        ram[0x5360] || ram[0x5361] || (ram[0x4b6] & 0x80) ||
+        ram[0x40e] != 0x41 || ram[0x40f] != 1 ||
+        ram[0x46d] != 3 || ram[0x46e] != 4 ||
+        ram[0x46f] != 3 || ram[0x470] != 4 ||
+        ram[0x513] != 0xd0 || ram[0x514] != 0xa0 || ram[0x515] != 9 ||
+        ram[0x516] != 0x90 || ram[0x517] != 0xa1 || ram[0x518] != 9 ||
+        ram[0x537] != 0x10 || ram[0x538] != 0x85 || ram[0x539] != 9)
+        return 0;
+    for (unsigned i = 0; i < 19; ++i) {
+        unsigned at = 0x4100 + 25 * i;
+        if (i >= 6) {
+            if (ram[at] != 0xff) return 0;
+        } else if ((ram[at] & 0x7f) > 3 ||
+                   (ram[at+5] | ((unsigned)ram[at+6] << 8)) != bases[i] ||
+                   (ram[at+12] | ((unsigned)ram[at+13] << 8)) != messages[i])
+            return 0;
+    }
+    return 1;
+}
+
 /* Private candidate, based on original07BB chapter5 only. FA01 sets bit40
  * before the weapon award, so possession is checked independently. FA03
  * sets bit10 before the original escort event. Neither flag is history.

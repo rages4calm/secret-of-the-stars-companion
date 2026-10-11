@@ -172,6 +172,18 @@ static int SettledLabBlankPrefix(const Ppu *ppu) {
     return 8;
 }
 
+/* Original DC3D/DC41 skips each variable record whose flag is exactly zero.
+ * D80F initializes cursor0030 and DP24=10; with all eight records skipped,
+ * DD84 sees aligned low bits and emits no padding. Metadata behind zero flags
+ * is not consumed. This is the ordinary zero-prefix producer, independent of
+ * scene/roster; active or default-FF special records retain their own policy. */
+static int InactiveSpecialLayer(void) {
+    if (g_ram[0x401] != 14 || g_ram[0x407]) return 0;
+    for (unsigned i = 0; i < 8; ++i)
+        if (g_ram[0x4300 + 21 * i]) return 0;
+    return 1;
+}
+
 static int LocalWrappingResource(const Ppu *ppu) {
     if (!ppu || !g_snes || !g_snes->dma || g_ram[0x407] != 1 ||
         g_ram[0x409] || g_ram[0x400] != 0x80 ||
@@ -277,7 +289,7 @@ int FoundationWideActorsEnabled(void) { return enabled; }
 static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
-        (g_ram[0x401] == 12 || SettledLabBlankPrefix(ppu)) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
+        (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu)) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
         !R16(0x471) && !R16(0x473);
 }
 
@@ -299,6 +311,7 @@ static void Resource(const Ppu *ppu, uint8_t key[48]) {
      * metadata even when scene graphics remain the same original resource. */
     key[40] = SettledLabSeven() ? 0x71 : 0;
     key[41] = SettledLabBlankPrefix(ppu);
+    key[42] = InactiveSpecialLayer() ? 0xe0 : 0;
 }
 
 static int SameResource(const Ppu *ppu, const Packet *packet) {
@@ -391,7 +404,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (g_ppu) Resource(g_ppu, producing.resource);
         /* Wrapped B0 needs its original saved allocation relation; ordinary
          * wrapping retains the separate strict resource/packet proof. */
-        if (sequence && (!g_ram[0x407] || LargeWrappingRoster(g_ram,131072))) {
+        if (sequence && g_ram[0x401] == 12 &&
+            (!g_ram[0x407] || LargeWrappingRoster(g_ram,131072))) {
             LargeView view = LargeInput(g_ppu);
             if (!LargeBegin(&producing.large, &view, g_ram + 0x2200, kPacketBytes)) sequence = 0;
         }
