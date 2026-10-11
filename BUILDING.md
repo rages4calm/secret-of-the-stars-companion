@@ -43,7 +43,7 @@ The helper checks the ROM identity before generating anything. It creates a
 fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
-The runtime lives under ignored `local/upstream/snesrecomp`.
+The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current eight-patch key is `7931b53c4968-a8c90debfcb59a56`. All eight full ordered hashes remain in the marker and receipt. Previous caches are retained.
 
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
@@ -51,7 +51,9 @@ Its two recorded submodule pins are in
 The script checks those pins and applies `patches/runtime-foundation.patch`,
 `patches/runtime-navigation-map.patch`, `patches/runtime-faithful-clear.patch`
 `patches/runtime-modal-audio.patch` and
-`patches/runtime-automatic-faithful.patch`.
+`patches/runtime-automatic-faithful.patch`, followed by the separate
+`patches/runtime-paired-lifecycle.patch`, `patches/runtime-proven-prefix.patch`
+and `patches/runtime-faithful-hook-boundary.patch`.
 Each patch has an independently recorded hash in the cache key and marker; the
 combined resulting source hashes are checked before reusing a checkout. Unexpected
 revisions or edits stop the build without deleting or resetting that checkout.
@@ -91,7 +93,7 @@ comparison, `SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR=0` disables this
 constructor separately from the clear options. This is another bounded routine,
 not complete game AOT.
 
-Native 0.3.2 records the automatic generation manifest, discovered mode contexts,
+Native 0.3.3 records the automatic generation manifest, discovered mode contexts,
 refusal dispositions and its private original-entry diagnostic list in the
 compilation receipt. These counts describe generation, not executed campaign
 coverage. Normal launches retain the existing guarded clear and constructor
@@ -101,7 +103,17 @@ islands. For a strict automatic-only comparison, disable both islands using
 oracle too, set `SNESRECOMP_LLE_INTERP_TARGET_FILE` to the receipt's generated
 `automatic-original-targets.txt` path. Actual execution counters and exact guest
 comparisons must verify each diagnostic route. No profile setting enables this
-oracle by default. See [automatic generation and town scope](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md).
+oracle by default. See [native generation, renderer boundaries and exact scope](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md).
+
+Default setup uses reviewed roots with no local captures or proved prefixes.
+`--emit-proven-prefixes` is an explicit developer option. The optional
+`--profile-*` inputs require the exact supported original five-patch capture
+receipt/program/analyzer/runtime identity; arbitrary new-runtime captures are
+refused. Captured-source identity and target eight-patch generation identity
+stay separate. Private captures and generated game code are not included in
+this repository or package. The recorded-profile qualification cannot be
+reproduced from private inputs that are not supplied; ordinary public default
+setup has its own bounded qualification.
 
 The resulting `source-build-receipt.json` says **compiled_unqualified** and
 records exact input/executable hashes. Compilation is separate from gameplay
@@ -245,7 +257,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.3.2 / Companion 0.3.4)
+## Navigation and display (native 0.3.3 / Companion 0.3.4)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -256,14 +268,16 @@ Original View disables both map and objective marker for that launch.
 The public builder applies the pinned seventeen-file base runtime patch and the
 separately audited three-file host navigation/input patch, plus the two-file
 faithful-instruction API supplement, host-only modal/audio repair and generic
-automatic-faithful patch. It preserves previous runtime caches, records all five patch hashes, and produces a real
+automatic-faithful patch, paired lifecycle, explicit proved-prefix support and
+original registered-hook boundaries. It preserves previous runtime caches,
+records all eight patch hashes, and produces a real
 `compiled_unqualified` receipt. The host-only changes retain the declared guest
 execution-state ABI; matching metadata is still required for changed-binary
 profile updates. There are 60 native authored inputs and 24 Companion inputs.
 The matching legend and source-proven cache-key fixes preserve completed terrain
 during checked same-area movement. Work remains capped at 1,024 samples per
 host frame, with the existing 120-frame graphics refresh and restore reset.
-[Exact artifact qualification and remaining limits](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md).
+[Exact artifact qualification and remaining limits](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md).
 
 Companion Display offers Auto or exact 1280×720, 1600×900, 1920×1080,
 2560×1440 and 3840×2160 window sizes; existing custom sizes remain editable.
@@ -272,7 +286,7 @@ uses Window scale, while fullscreen follows the display. Neither setting adds
 scenery: select Widescreen separately for supported scenes. Apply validates
 changed values, and Revert restores the loaded profile.
 
-The installed 0.3.2/0.3.4 pair passes exact-artifact qualification and 18
+The installed 0.3.3/0.3.4 pair passes exact-artifact qualification and 18
 copied-installed controls. The host modal/audio patch waits for genuine guest
 DSP prefill before resuming the device and consumes a keyboard rewind request
 once, preserving original guest timing and checkpoint ABI. Compilation alone

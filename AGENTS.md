@@ -1,3 +1,30 @@
+# Current installed continuation — native0.3.3 / Companion0.3.4 (2026-10-11)
+
+Read docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md first. Exact native7f0501e2 /
+immutable receipt3122447e and unchanged GUIb6328fc5/receiptf7a714c0 are installed.
+Canonical60native/24GUI; preserve compiled_unqualified receipts and separate
+qualification. Three additive patches retain paired host contexts, proved
+prefixes and original pre-opcode callback boundaries; compact8cachea8c90debf
+records all eight full hashes. Old seven/five caches and failed builds remain.
+
+Recorded local profiles and explicit prefixes generate151full/93prefix/1LLE;
+these are generation counts. Actual named routes observe15.877–18.988% native
+instruction execution with separate clear/constructor islands disabled; no
+whole-game/frame-rate claim. Capture-source5 identity remains distinct from
+target8 generation. Public default has no prefixes/captures and its own proof.
+
+Strict468/24, callback288, actual original lab packets/art, coherent journal493/56
+and map486/18, GUI60/52,13paced contexts with four explicit quiet closures and
+ninemodal routes pass. Previous18249 loses callbacks and stays excluded. Four
+earlier camera-staged Decatas rooms are incoherent even in original execution;
+use original loaders/normal walking and independent tile words, not parity alone.
+Current advice/possession/party is not durable history or natural acquisition.
+Original center/collision/timing/checkpoint ABI and owner data stay protected.
+Full AOT/campaign and later original party/effect/quest contexts remain open.
+Earlier blocks keep historical artifact scope; overall goal active.
+
+---
+
 # Current installed continuation — native 0.3.2 / Companion 0.3.4 (2026-10-11)
 
 Read docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md first (under github-repo in the private workspace). Exact native3f849747 / immutable receiptfcb76c09 and unchanged GUIb6328fc5 / receiptf7a714c0 are installed. Canonical60native/24GUI inputs. Preserve compiled_unqualified receipts, original runtime pin/preceding four patches and new automatic-faithful3909fc5f separately checked cache. Serialized guest/checkpoint ABI remains identical; copied031→032 update/rollback actually executes both versions.

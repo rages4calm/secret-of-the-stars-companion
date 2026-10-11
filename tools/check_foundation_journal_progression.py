@@ -14,6 +14,21 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 
 def JournalGroups(ram):return sum(1<<pack for pack in range(2) if 0x00 in ram[0x5373+32*pack:0x5393+32*pack])
 
+def DecatasLeadOracle(ram):
+    # Independent ordered original0809 table29857C, group0782&FFFC=0780.
+    # The policy admits only executed chapter6 current80/C0/E0 states.
+    # Global5365bit10 precedes chapter/current flags and signed04B6 party;
+    # it cannot be bypassed by possession. Kustera's80 clerk route is unproven.
+    if ram is None or len(ram)<0x53b3:return 0
+    stage,flags,global_flags,party,mode=(ram[a] for a in (0x5372,0x5360,0x5365,0x4b6,0x20))
+    if stage!=6 or flags not in (128,192,224) or mode!=1:return 0
+    clauses=((bool(global_flags&16),0x298f0b),(stage<=5,0x298d5b),
+             (stage<=6 and not flags&64,0x29937a),(bool(party&128),0x298f7a),
+             (stage<=6 and not flags&32,0x298dda),(stage<=6 and not flags&16,0x298da6),
+             (True,0x298f0b))
+    target=next(address for applies,address in clauses if applies)
+    return {0x29937a:9 if not party&128 else 0,0x298dda:10,0x298da6:11,0x298f7a:12}.get(target,0)
+
 def TownFirstHouseAvailable(ram):
     # Independent current-resource oracle from original chapter6 scene321,
     # ordered child0421 text and the executed six-member0AF01E roster.
@@ -62,6 +77,26 @@ def expected_card(background,font,lead,groups,ram=None,width=256,height=224):
             objective=('Return with the Dog Pill.' if town_route==2 else 'Switch to the Dog Pill pack.','Help the townspeople.')
             route=('Speak to the person who','asked you to stop Badbad.')
             progress='DOG PILL: CURRENT PACK' if town_route==2 else 'DOG PILL: OTHER PARTY PACK'
+    elif lead in (9,10,11,12):
+        item=0x6f if lead==9 else 0x71
+        packs=[item in ram[0x5373+32*p:0x5393+32*p] for p in range(2)]
+        current=packs[bool(ram[0x4b6]&128)];held=any(packs)
+        item_name='BALLOT' if item==0x6f else 'TICKET'
+        progress=item_name+(': BOTH PACKS' if all(packs) else ': CURRENT PACK' if current else ': OTHER PACK' if held else ': NOT HELD NOW')
+        if lead==9:
+            objective=('Return with the ballot.' if current else 'Ask about the Decatas vote.',
+                       'Talk to the voting clerk.' if current else 'Ballot is in the other pack.' if held else 'Ballot is not held now.')
+            route=('Decatas: speak to the clerk.','Ask for voting clues.')
+        elif lead==12:
+            objective=('Aqutallion handles this.','No tickets for Kustera.')
+            route=("Decatas: the mayor's advice.",'Use the Aqutallion party.')
+        elif lead==10:
+            objective=('Ask the new mayor for help.','Circus ticket lead: Decatas.')
+            route=("Decatas: the mayor's house.",'Speak with the new mayor.')
+        else:
+            objective=('Take the ticket to circus.' if current else "Follow the mayor's advice.",
+                       "Follow the mayor's advice." if current else 'Ticket is in the other pack.' if held else 'Ticket is not held now.')
+            route=('Mayor: go to the circus.','Ask people for more clues.')
     elif lead==8:
         objective=('Help the new town grow.','Find builders and farmers.')
         route=('Baz plans to cut trees','and plant crops here.')
@@ -152,6 +187,8 @@ def main():
     p.add_argument('--likado-state',type=Path,help='Optional original stage-one Uncle Save clue checkpoint')
     for name in ('badbad-state','dog-pill-state','returned-state','mayor-state','town-clue-state','morgan-state','dynamite-route-state','joined-state','chapter6-state','town-house-state'):
         p.add_argument('--'+name,type=Path,help='Optional explicitly staged original-event fixture; see its private source receipts')
+    for name in ('decatas-ballot-state','decatas-mayor-state','decatas-ticket-state','decatas-kustera-state'):
+        p.add_argument('--'+name,type=Path,help='Optional original Decatas event outcome; documented transport prerequisites remain separate')
     a=p.parse_args()
     a.exe=a.exe.resolve(strict=True);a.rom=a.rom.resolve(strict=True)
     a.before_state=a.before_state.resolve(strict=True);a.after_state=a.after_state.resolve(strict=True)
@@ -211,7 +248,18 @@ def main():
             if field=='chapter6_state' and not(ram[0x5372]==6 and ram[0x5360]==0):raise ValueError('Expected original Baz chapter6 cleared-flags outcome')
             if field=='town_house_state' and not TownFirstHouseAvailable(ram):raise ValueError('Expected original chapter6 town118/six-member current child-clue fixture')
             if field=='joined_state' and not(ram[0x5372]==5 and (ram[0x5360]&0xd2)==0xd2):raise ValueError('Expected original chapter5 current joined02 with offer/escort flags')
-    protected={path:sha(path) for path in (a.exe,a.rom,a.before_state,a.after_state,*pennon_inputs,*likado_inputs,*town_inputs,ROOT/'native/foundation/src/foundation_journal.h',ROOT/'native/foundation/src/foundation_journal.c',a.runtime/'runner/src/snes_overlay_draw.c')}
+    decatas_inputs=[];decatas_rams={}
+    for field,expected_flags,expected_party in (('decatas_ballot_state',128,0),('decatas_mayor_state',192,0),
+                                               ('decatas_ticket_state',224,0),('decatas_kustera_state',192,128)):
+        state=getattr(a,field)
+        if state:
+            state=state.resolve(strict=True);setattr(a,field,state);decatas_inputs.append(state)
+            data=state.read_bytes();ram=data[wram_offset(data):wram_offset(data)+0x20000]
+            if not(ram[0x20]==1 and ram[0x5372]==6 and ram[0x5360]==expected_flags and
+                   ram[0x4b6]&128==expected_party and not ram[0x5365]&16):
+                raise ValueError('Expected documented current Decatas original event/party context')
+            decatas_rams[field]=ram
+    protected={path:sha(path) for path in (a.exe,a.rom,a.before_state,a.after_state,*pennon_inputs,*likado_inputs,*town_inputs,*decatas_inputs,ROOT/'native/foundation/src/foundation_journal.h',ROOT/'native/foundation/src/foundation_journal.c',a.runtime/'runner/src/snes_overlay_draw.c')}
     out.mkdir(parents=True);(out/'runs').mkdir();(out/'staged').mkdir()
     checks={};cases={};receipts={}
     def check(name,value):
@@ -337,7 +385,7 @@ def main():
             ('earlier',['5372=06:05'],7),('later',['5372=06:07'],0),
             ('other-party',['04b6=00:80'],8),('current1',['5361=00:01'],8),
             ('stale-grid',['0513=d0:b8'],8),('stale-roster',['4105=1003:a001'],8),
-            ('wrong-scene',['040e=4101:4001'],8),('nonzero-flags',['5360=00:80'],0)):
+            ('wrong-scene',['040e=4101:4001'],8),('nonzero-flags',['5360=00:80'],9)):
             refused=manufactured('town-house-'+name,state,edits)
             fixtures['town-house-'+name]=(refused,lead,groups)
     if a.town_clue_state:
@@ -350,6 +398,27 @@ def main():
         both=manufactured('chapter4-both-clues',a.morgan_state,[f'5360={ram[0x5360]:02x}:{ram[0x5360]|1:02x}'])
         wrong=manufactured('chapter3-morgan-bit-refused',a.morgan_state,['5372=04:03'])
         fixtures.update({'morgan-priority':(both,6,JournalGroups(ram)),'chapter3-morgan-bit-refused':(wrong,4,JournalGroups(ram))})
+
+    for field in decatas_rams:
+        state=getattr(a,field);ram=decatas_rams[field];name=field.replace('_state','').replace('_','-')
+        fixtures[name]=(state,DecatasLeadOracle(ram),JournalGroups(ram))
+        # Explicit mutable-pack controls, not acquisition/replacement ability.
+        item=0x6f if field=='decatas_ballot_state' else 0x71
+        for variant,packs in (('absent',(False,False)),('first',(True,False)),('second',(False,True)),('both',(True,True))):
+            desired=bytearray([255]*64)
+            for pack,present in enumerate(packs):
+                if present:desired[32*pack]=item
+            edits=[]
+            for i,value in enumerate(desired):
+                if ram[0x5373+i]!=value:edits.append(f'{0x5373+i:04x}={ram[0x5373+i]:02x}:{value:02x}')
+            for at,value in ((0x4ba,int(packs[0])),(0x4bb,32+int(packs[1]))):
+                if ram[at]!=value:edits.append(f'{at:04x}={ram[at]:02x}:{value:02x}')
+            control=manufactured(name+'-'+variant,state,edits) if edits else state
+            cr=bytearray(ram);cr[0x5373:0x53b3]=desired
+            fixtures[name+'-'+variant]=(control,DecatasLeadOracle(cr),JournalGroups(cr))
+        for variant,at,value in (('global-override',0x5365,ram[0x5365]|16),('later',0x5372,7),('unknown-flags',0x5360,ram[0x5360]|1)):
+            control=manufactured(name+'-'+variant,state,[f'{at:04x}={ram[at]:02x}:{value:02x}'])
+            fixtures[name+'-'+variant]=(control,0,JournalGroups(ram))
 
     for name,(state,lead,groups) in fixtures.items():
         off,_=run(name+'-off',state,0);on,rows=run(name+'-on',state)
@@ -397,6 +466,7 @@ def main():
     wide_names=['stage1','pennon' if pennon_inputs else 'david']
     if likado_inputs:wide_names.append('likado-clue')
     wide_names.extend(name for name in ('badbad-advice','dog-pill-current','dog-pill-other','town-returned','mayor-clue','town-building-clue','town-building-default','morgan-clue','morgan-priority','dynamite-route','dynamite-joined-GIANT','chapter6-farming','town-first-house','town-house-other-party','town-house-stale-grid') if name in fixtures)
+    wide_names.extend(name for name in fixtures if name.startswith('decatas-'))
     for name in wide_names:
         state,lead,groups=fixtures[name]
         wide_off,_=run(name+'-wide-off',state,0,wide=True)
@@ -417,7 +487,7 @@ def main():
         check('likado_rollback_guest_and_font_exact',parity(lroff,lrback) and surface(lrback)==oracle(lroff,2,0,load=True))
         lv,rows=run('likado-original-view',a.likado_state,original=True)
         check('likado_original_view_exact',all(int(row['enabled'])==int(row['visible'])==0 for row in rows) and parity(lv,out/'runs/likado-clue-off') and surface(lv)==surface(out/'runs/likado-clue-off'))
-    for name in ('badbad-advice','dog-pill-current','town-returned','mayor-clue','town-building-clue','morgan-clue','dynamite-route','town-first-house'):
+    for name in ('badbad-advice','dog-pill-current','town-returned','mayor-clue','town-building-clue','morgan-clue','dynamite-route','town-first-house','decatas-ballot','decatas-mayor','decatas-ticket','decatas-kustera'):
         if name not in fixtures:continue
         state,lead,groups=fixtures[name]
         cold,rows=run(name+'-cold',state)
@@ -437,6 +507,20 @@ def main():
                 and parity(off,on) and surface(on)==oracle(off,lead,JournalGroups(tr),load=True))
             check(label+'_closes_then_reopens',cases[label+'-on']['shown']==2
                 and any(81<=int(row['frame'])<=89 and int(row['visible'])==0 for row in rows))
+    for initial,target,label in ((a.decatas_ticket_state,a.decatas_mayor_state,'ticket-to-before-offer'),
+                                 (a.decatas_mayor_state,a.decatas_ticket_state,'before-offer-to-ticket'),
+                                 (a.decatas_ticket_state,a.decatas_kustera_state,'ticket-to-kustera'),
+                                 (a.decatas_kustera_state,a.decatas_ticket_state,'kustera-to-ticket')):
+        if not(initial and target):continue
+        data=target.read_bytes();ram=data[wram_offset(data):wram_offset(data)+0x20000]
+        lead=DecatasLeadOracle(ram)
+        off,_=run(label+'-off',initial,0,capture=100,load=target)
+        on,rows=run(label+'-on',initial,capture=100,load=target)
+        check(label+'_actual_restore_recomputes_current_party','[overlay_selftest] load issued' in (on/'host.log').read_text()
+            and all(int(row['lead_kind'])==lead for row in rows if int(row['frame'])>=81)
+            and parity(off,on) and surface(on)==oracle(off,lead,JournalGroups(ram),load=True))
+        check(label+'_closes_then_reopens',cases[label+'-on']['shown']==2
+            and any(81<=int(row['frame'])<=89 and int(row['visible'])==0 for row in rows))
     if a.dog_pill_state and a.returned_state:
         off,_=run('town-return-rollback-off',a.returned_state,0,capture=100,load=a.dog_pill_state)
         on,rows=run('town-return-rollback-on',a.returned_state,capture=100,load=a.dog_pill_state)

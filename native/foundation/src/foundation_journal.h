@@ -42,6 +42,30 @@ static inline unsigned FoundationJournalLead(unsigned stage, unsigned flags) {
     return 0;
 }
 
+/* Current Decatas ballot/mayor advice, not election history. Original0807
+ * supplies/consumes6F; original0809 tests global5365bit10 first, then current
+ * chapter6 flags and the signed04B6 party before offering71. Admit only the
+ * actually replayed exact current flag states; unknown/later states refuse.
+ * 9: Aqutallion ballot; 10: Aqutallion mayor; 11: Aqutallion circus advice;
+ * 12: Kustera mayor refusal. Possession remains independently mutable. */
+static inline unsigned FoundationJournalDecatasRoute(unsigned stage, unsigned flags,
+                                                      unsigned global_flags, unsigned party,
+                                                      unsigned mode) {
+    if (stage != 6 || flags > 255 || global_flags > 255 || party > 255 ||
+        mode != 1 || (global_flags & 0x10)) return 0;
+    if (flags == 0x80) return (party & 0x80) ? 0 : 9;
+    if (flags != 0xc0 && flags != 0xe0) return 0;
+    if (party & 0x80) return 12;
+    return flags == 0xc0 ? 10 : 11;
+}
+
+static inline unsigned FoundationJournalCurrentLead(const uint8_t *ram, size_t size) {
+    if (!ram || size < 0x53b3) return 0;
+    unsigned decatas = FoundationJournalDecatasRoute(ram[0x5372], ram[0x5360],
+        ram[0x5365], ram[0x4b6], ram[0x20]);
+    return decatas ? decatas : FoundationJournalLead(ram[0x5372], ram[0x5360]);
+}
+
 /* Original0755: introductory stage1/flag02 (FA02 -> bit20), then type2
  * accepts current chapters <=2. Original01D406 looks for6D in the ACTIVE
  * 32-slot pack only. Chapter2 independently selects the return branch;
@@ -153,6 +177,20 @@ static inline unsigned FoundationJournalDestination(unsigned stage, unsigned fla
     if (stage == 5 && (flags & 0x50)) return 0xffff;
     if (FoundationJournalHasMorganClue(stage, flags) || stage == 5) return 85;
     return 0xffff;
+}
+
+/* Keep the prior pure destination API unchanged. Root independently proved
+ * the original world destination/name identity separately: Decatas is
+ * original world destination85, not an indoor coordinate. The
+ * existing parser refuses flags10 interior links120/129. Never invent a
+ * circus pin, nor leave a Decatas marker after the current ticket offer. */
+static inline unsigned FoundationJournalDestinationState(const uint8_t *ram, size_t size) {
+    if (!ram || size < 0x53b3) return 0xffff;
+    unsigned route = FoundationJournalDecatasRoute(ram[0x5372], ram[0x5360],
+        ram[0x5365], ram[0x4b6], ram[0x20]);
+    if (route == 9 || route == 10) return 85;
+    return FoundationJournalDestination(ram[0x5372], ram[0x5360],
+        JournalItemGroups(ram, size, 0x6d), (ram[0x4b6] & 0x80) != 0);
 }
 
 void FoundationJournalInit(void);

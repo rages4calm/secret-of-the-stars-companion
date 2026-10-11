@@ -217,6 +217,16 @@ def main():
         errors.append('Automatic instruction patch differs from the audited snapshot.')
     elif sha(automatic_patch) not in helper:
         errors.append('Automatic instruction patch audit hash is missing from the build helper.')
+    for patch_name, identity, label in (
+            ('runtime-paired-lifecycle.patch', 'lifecycle_patch_sha256', 'Paired return lifecycle'),
+            ('runtime-proven-prefix.patch', 'prefix_patch_sha256', 'Proved instruction prefix'),
+            ('runtime-faithful-hook-boundary.patch', 'faithful_hook_boundary_patch_sha256', 'Original callback boundary')):
+        extension = ROOT / 'patches' / patch_name
+        if ('patches/' + patch_name not in tracked or not extension.is_file()
+                or sha(extension) != provenance.get(identity)):
+            errors.append(label + ' patch differs from the audited snapshot.')
+        elif sha(extension) not in helper:
+            errors.append(label + ' audit hash is missing from the build helper.')
     if provenance['runtime_commit'] not in pins or provenance['runtime_commit'] not in helper:
         errors.append('Runtime pin mismatch.')
     if 'PolyForm Noncommercial' not in (ROOT / 'LICENSE').read_text(encoding='utf-8'):

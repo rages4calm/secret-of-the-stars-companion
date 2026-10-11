@@ -1,0 +1,16 @@
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -545,6 +545,12 @@
+ }
+ bool cpu_aot_begin(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles) {
+   if(!cpu || cpu->emulation || s_aot_instruction || s_native_instruction_cpu || s_interp_bus_timing_active || !cycles || !length) return false;
++  /* Registered pre-opcode callbacks remain original execution boundaries.
++   * Refuse before any fetch/charge or callback: the faithful interpreter
++   * continuation invokes them once and owns mode changes/native redirects. */
++  const uint32_t hook_pc = (((uint32_t)cpu->PB << 16) | (pc & 0xffffu)) & 0x7fffffu;
++  for (int i = 0; i < s_pre_opcode_hook_count; ++i)
++    if (s_pre_opcode_hooks[i].pc24 == hook_pc) return false;
+   s_aot_instruction=cpu;s_aot_cycles=cycles;s_aot_pc=((uint32)cpu->PB<<16)|(pc&0xffff);
+   s_aot_apu_driving=g_interp_apu_driving;g_interp_apu_driving=1;
+   s_interp_bus_cycles=0;s_interp_bus_master=0;s_interp_bus_timing_active=1;

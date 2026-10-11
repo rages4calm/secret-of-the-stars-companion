@@ -12,7 +12,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.3.2 / Companion 0.3.4.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.3.3 / Companion 0.3.4.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The aim is to give this overlooked RPG a polished PC edition that is easier to play and easier to understand: attractive original pixel art, a genuinely wider world view, reliable controls and audio, a useful quest journal, and a map showing your position, towns and verified destinations. The launcher follows the familiar Companion approach used in [EarthBound Companion](https://github.com/rages4calm/earthbound-companion) and [Zelda Companion](https://github.com/rages4calm/zelda-companion).
 
@@ -38,7 +38,7 @@ These are actual captures of features added for this PC project. **[View all six
 
 The gameplay images use isolated development checkpoints. Widescreen is optional and uses the original view where a scene is not qualified; the journal is still being expanded. Upscaling preserves original artwork. See the gallery for exact capture scope and example launcher settings.
 
-The [0.3.2 continuation](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md) adds faithful standard automatic generation, verified town/house NPC margins and the current first-house journal clue. The unchanged build also passes [additional second-party town, SWAP and restore checks](docs/FOUNDATION-SECOND-PARTY-2026-10-11.md). The launcher remains 0.3.4.
+The [0.3.3 continuation](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md) adds verified Decatas ballot/election/ticket guidance, party-aware map destinations and broader recorded native generation with original renderer callbacks preserved. Room checks now use original loading and normal walking to avoid corrupt staged cameras. The launcher remains 0.3.4.
 
 ## What works today
 
@@ -52,7 +52,7 @@ The [0.3.2 continuation](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md) adds fait
 | Controls | Editable keyboard/controller game buttons and hotkeys, twenty checkpoint bindings, fullscreen and reachable HUD/journal/rewind controls | Broader physical-controller testing remains open |
 | Menu and battle QoL | Optional faster field menus and toggleable HP bars with a widescreen battle sidebar | The HP panel is an authored enhancement, not a bundled ROM hack |
 | Rewards and movement | Independently adjustable 1–10× battle XP/gold; bindable 1–3× field movement boost; hold/toggle fast-forward | Movement accelerates guarded ordinary walking; unsupported/scripted motion keeps original pace |
-| Quest journal | Objective, route/advice and current-progress panel; verified opening, Badbad/Dog Pill, town building, Morgan and current chapter-five Graviton/GIANT directions and narrow chapter-six farming advice; J / left-stick click toggles it | Current flags and possession recompute after restore; further chapters and deterministic quest history remain open |
+| Quest journal | Objective, route/advice and current-progress panel; verified opening, Badbad/Dog Pill, town building, Morgan and current chapter-five Graviton/GIANT directions and selected chapter-six farming and Decatas ballot/election/ticket advice with active-party and current-item checks; J / left-stick click toggles it | Current flags and possession recompute after restore; further chapters and deterministic quest history remain open |
 | Navigation map | Original current-area terrain and your position; original world towns and an optional blinking verified destination; M / Back + left-stick click | Unsupported areas use a clear fallback; no exploration history or guessed objective coordinates |
 | Audio and stability | Original SNES audio, cached host composition, repaired mosaic overrun and checked audio/OpenGL allocations | Finite paced GPU/audio routes pass; every cutscene and hardware configuration is not certified |
 | Saves and rollback | Guarded checkpoint loading, restore/cache reset and protected copied-save testing | Local state schemas are build-specific; test on copies and keep in-game saves backed up |
@@ -61,7 +61,7 @@ The [0.3.2 continuation](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md) adds fait
 
 ## Build from your own ROM
 
-[Download the WIP launcher/source package](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.3.2-wip), extract it and open **Start Secret of the Stars Companion.cmd**. Its Setup page validates your owned ROM and builds the native game locally. The package includes the launcher, authored source and notices; it does not include a playable game binary or original game data. Install the prerequisites in [BUILDING.md](BUILDING.md) first.
+[Download the WIP launcher/source package](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.3.3-wip), extract it and open **Start Secret of the Stars Companion.cmd**. Its Setup page validates your owned ROM and builds the native game locally. The package includes the launcher, authored source and notices; it does not include a playable game binary or original game data. Install the prerequisites in [BUILDING.md](BUILDING.md) first.
 
 Developers can also build from this source snapshot:
 

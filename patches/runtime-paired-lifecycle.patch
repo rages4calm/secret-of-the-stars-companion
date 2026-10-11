@@ -1,0 +1,43 @@
+diff --git a/runner/src/cpu_state.c b/runner/src/cpu_state.c
+--- a/runner/src/cpu_state.c
++++ b/runner/src/cpu_state.c
+@@ -1233,8 +1233,11 @@
+     _dispatch_log_record(pc24, source_pc24, mx_idx, fp != NULL, via_mirror);
+     if (fp != NULL) {
+         /* Paired host-call: handler host-returns through the pushed frame. */
++        const uint8 caller_return_context = cpu->host_return_valid;
+         cpu->host_return_valid = 2;
+-        return fp(cpu);
++        const RecompReturn result = fp(cpu);
++        cpu->host_return_valid = caller_return_context;
++        return result;
+     }
+     /* No AOT body for the live pointer -> interpreter tier. */
+     return interp_tier_run_call(cpu, pc24, source_pc24);
+@@ -1257,8 +1260,10 @@
+     }
+     _dispatch_log_record(pc24, source_pc24, mx_idx, fp != NULL, via_mirror);
+     if (fp != NULL) {
++        const uint8 caller_return_context = cpu->host_return_valid;
+         cpu->host_return_valid = frame_size;
+         RecompReturn r = fp(cpu);
++        cpu->host_return_valid = caller_return_context;
+         return r;
+     }
+     return interp_tier_run_call_frame(cpu, pc24, source_pc24, frame_size,
+@@ -1294,8 +1299,14 @@
+     }
+     _dispatch_log_record(pc24, 0xFFFFFFu, mx_idx, fp != NULL, via_mirror);
+     if (fp == NULL) return RECOMP_RETURN_NORMAL;  /* caller already checked has_entry */
++    /* A paired child owns this tag only while its C invocation is live.
++     * Guest RTS/RTL and owner/deadline unwind have already executed on
++     * return; restore the caller context, including NORMAL/SKIP results. */
++    const uint8 caller_return_context = cpu->host_return_valid;
+     cpu->host_return_valid = frame_size;
+-    return fp(cpu);
++    const RecompReturn result = fp(cpu);
++    cpu->host_return_valid = caller_return_context;
++    return result;
+ }
+ 
+ /* Read-only probe: would a dispatch to pc24 find an exact AOT body?

@@ -4,7 +4,7 @@ Never copies the ROM into the repository, publishes generated code, installs
 over an owner profile, or invents a gameplay qualification receipt.
 """
 from pathlib import Path
-import argparse,hashlib,json,re,shutil,subprocess,sys,time
+import argparse,hashlib,json,os,re,shutil,subprocess,sys,time
 
 ROOT=Path(__file__).resolve().parents[1]
 RUNTIME_URL='https://github.com/RetroPortingToolKit/snesrecomp.git'
@@ -13,8 +13,120 @@ FAITHFUL_INSTRUCTION_PATCH_SHA256='0d342317b3f997c2f56517c02363a9162d68194ce8e47
 HOST_AUDIO_PATCH_SHA256='6381bc9937a9ed478bc27b3cdcd29e5653921478fe1ee2c536dd9d7cb6d7ec5e'
 HOST_NAVIGATION_PATCH_SHA256='91fea10b53d3eca67364eceebfb802a2c1c79432ff7424d02c5f8755438dc028'
 AUTOMATIC_FAITHFUL_PATCH_SHA256='3909fc5f917461da99c18c1ac5f44267d11f7f0c287f2f93ecc68506139d5e40'
+LIFECYCLE_PATCH_SHA256='d8828f856964d8f9331fd1b9432ebff72c78a65109a75395e02a3e8fa6bf345a'
+PREFIX_PATCH_SHA256='32905d2a9be83e62a84cc0fb0286433ef0e509fe21fb60c64b38532834e0bf0f'
+FAITHFUL_HOOK_BOUNDARY_PATCH_SHA256='410d54a4e1e782dbabf2a11f8d4211035621ae77a8ed68138523dde32588024c'
+FOUNDATION_PATCH_SHA256='526f7d87b5cf736ce8b57da9db5f4435cce8d33ed1686a587a6a02ca66d73318'
+
+def runtime_source_accounting(runtime,patch_names,new_names=()):
+    tracked=set(command(['git','diff','--name-only'],runtime).splitlines())
+    untracked=set(command(['git','ls-files','--others','--exclude-standard'],runtime).splitlines())
+    if tracked!=set(patch_names)-set(new_names)or untracked!=set(new_names):
+        raise RuntimeError('Unexpected tracked or new runtime sources; preserved without reset.')
+
+def runtime_cache_identity(patch_hashes):
+    hashes=list(patch_hashes)
+    if len(hashes)!=8 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
+        raise ValueError('Runtime cache requires exactly eight ordered full patch hashes')
+    combined=hashlib.sha256(('\n'.join(hashes)+'\n').encode('ascii')).hexdigest()
+    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-eight-full-patch-hashes',
+      'ordered_patch_sha256':hashes,'combined_patch_sha256':combined,'directory_key':RUNTIME_PIN[:12]+'-'+combined[:16]}
+
+def check_cache_marker_identity(marker,identity):
+    if marker.get('runtime_cache_identity')!=identity:
+        raise RuntimeError('Existing compact runtime cache identity differs from its full ordered patch receipt; preserved without reset.')
+
+def validate_faithful_hook_boundary_patch(path):
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=FAITHFUL_HOOK_BOUNDARY_PATCH_SHA256 or names!=['runner/src/snes/interp_bridge.c']:
+        raise RuntimeError('Faithful hook-boundary patch identity/single-file scope changed; preserve build.')
+    return names
+
+def check_faithful_hook_boundary_marker(marker,digest):
+    if marker.get('faithful_hook_boundary_patch_sha256')!=digest:
+        raise RuntimeError('Existing runtime hook-boundary patch identity missing/stale; preserve cache.')
+
+def source_runtime_preflight(runtime,preflight):
+    if preflight is None:
+        if runtime:raise ValueError('--profile-runtime-dir requires --profile-manifest')
+        return None
+    if runtime is None:raise ValueError('Profiles require explicit original --profile-runtime-dir; target generator is a separate identity')
+    runtime=Path(runtime).absolute();reject_links(runtime);runtime=runtime.resolve(strict=True)
+    marker=profile_file(runtime.parent/(runtime.name+'-patch-receipt.json'),4*1024*1024)
+    receipt=json.loads(marker.read_bytes())
+    expected={'runtime_pin':RUNTIME_PIN,'patch_sha256':FOUNDATION_PATCH_SHA256,
+      'host_navigation_patch_sha256':HOST_NAVIGATION_PATCH_SHA256,
+      'faithful_instruction_patch_sha256':FAITHFUL_INSTRUCTION_PATCH_SHA256,
+      'host_modal_audio_patch_sha256':HOST_AUDIO_PATCH_SHA256,
+      'automatic_faithful_patch_sha256':AUTOMATIC_FAITHFUL_PATCH_SHA256}
+    if any(receipt.get(k)!=v for k,v in expected.items())or receipt.get('prefix_patch_sha256')or receipt.get('lifecycle_patch_sha256')or 'faithful_hook_boundary_patch_sha256' in receipt:
+        raise ValueError('Only original five-patch3909 captures are currently supported; newer source captures require explicit compatibility review')
+    sources=receipt.get('patched_sources',{})
+    if not isinstance(sources,dict)or not sources:raise ValueError('Original runtime source marker missing')
+    if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:raise ValueError('Original runtime pin changed')
+    runtime_source_accounting(runtime,sources)
+    for name,digest in sources.items():
+        if Path(name).is_absolute()or'..'in Path(name).parts:raise ValueError('Original runtime marker path escapes source')
+        path=profile_file(runtime/name)
+        if sha(path)!=digest:raise ValueError('Original runtime patched source changed: '+name)
+        preflight['protected'][str(path)]=digest
+    preflight['protected'][str(marker)]=sha(marker);preflight['source_runtime']=runtime
+    return runtime
+
+def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=False):
+    if prefixes:
+        emit=[sys.executable,runtime/'tools/v2_emit.py','--rom',rom,'--cfg-dir',project/'recomp',
+          '--out-dir',project/'src/gen','--analysis-backend','native','--cfg-roots','--no-host-root-scan','--faithful-prefixes']
+        sync=[sys.executable,runtime/'tools/v2_sync_funcs_h.py','--cfg-dir',project/'recomp','--out',project/'recomp/funcs.h']
+    else:
+        emit=[sys.executable,runtime/'snesrecomp_cli.py','generate','--rom',rom,'--cfg-dir','recomp',
+          '--out-dir','src/gen','--funcs-h','recomp/funcs.h','--project-root',project,
+          '--expected-crc32',identity['expected_crc32'],'--expected-sha256',identity['expected_sha256'],'--cfg-roots','--no-host-root-scan']
+        sync=None
+    for profile in profiles:emit+=['--profile-manifest',profile]
+    return [emit,sync]if sync else[emit]
+
+def admit_manifest(manifest,prefixes=False,force_lle=()):
+    if manifest.get('format_version')!=3 or not isinstance(manifest.get('nodes'),dict)or not manifest['nodes']or not isinstance(manifest.get('roots'),list):
+        raise RuntimeError('Unrecognized automatic generation manifest; preserve build.')
+    dispositions={};targets=set();forced=set(force_lle)
+    forced|={pc^0x800000 for pc in forced if pc>>16<0x40 and pc&0xffff>=0x8000}
+    for node in manifest['nodes'].values():
+        key=node.get('key',{});pc=key.get('pc24');disposition=node.get('disposition')
+        if type(pc)is not int or not 0<=pc<=0xffffff or type(key.get('m'))is not int or key['m']not in(0,1)or type(key.get('x'))is not int or key['x']not in(0,1)or disposition not in('aot_eligible','lle_only','aot_prefix'):
+            raise RuntimeError('Unrecognized automatic node context; preserve build.')
+        if disposition=='aot_prefix':
+            reasons=set(node.get('reasons',[]));base={'unproven_callee_exit','truncated_call_continuation'}
+            calls={r for r in reasons if re.fullmatch(r'unproven_call_at_[0-9A-F]{6}_to_[0-9A-F]{6}_m[01]x[01]',r)}
+            if not prefixes or pc in forced or pc>>16 in(0x7e,0x7f)or not calls or not base<=reasons or reasons!=base|calls:
+                raise RuntimeError('Unproved/forced prefix disposition refused; preserve build.')
+        elif disposition=='aot_eligible'and pc in forced:raise RuntimeError('Forced-LLE context emitted as full native; preserve build.')
+        dispositions[disposition]=dispositions.get(disposition,0)+1;targets.add(pc)
+    return dispositions,targets
+
+def diagnostic_dispatch_targets(path,expected_sha256):
+    reject_links(path)
+    if sha(path)!=expected_sha256:raise RuntimeError('Diagnostic dispatch source differs from generation cache; preserve build.')
+    text=path.read_text(encoding='utf-8')
+    tables=re.findall(r'const DispatchEntry g_dispatch_table\[\] = \{\s*\n(.*?)\n\};',text,re.S)
+    if len(tables)!=1:raise RuntimeError('Unrecognized actual generated dispatch table; refuse incomplete original-byte oracle.')
+    targets=set();rows=0
+    for line in tables[0].splitlines():
+        line=re.sub(r'/\*.*?\*/','',line).strip()
+        if not line:continue
+        row=re.fullmatch(r'\{\s*0x([0-9A-Fa-f]{6})u,\s*\{\s*([A-Za-z_][A-Za-z0-9_]*\s*,\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*[A-Za-z_][A-Za-z0-9_]*\s*,\s*[A-Za-z_][A-Za-z0-9_]*)\s*\},\s*(?:0x[0-9A-Fa-f]+|[0-9]+)u?\s*\},',line)
+        if row is None:raise RuntimeError('Unparsed actual dispatch row; refuse incomplete original-byte oracle.')
+        pc=int(row[1],16)
+        if pc in targets:raise RuntimeError('Duplicate actual dispatch PC; preserve build.')
+        targets.add(pc);rows+=1
+    if not targets:raise RuntimeError('Empty actual dispatch table; refuse incomplete original-byte oracle.')
+    return targets,rows
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+def write_runtime_marker(path,receipt):
+    reject_links(path)
+    with path.open('x',encoding='utf-8')as marker_file:
+        marker_file.write(json.dumps(receipt,indent=2)+'\n')
 def command(args,cwd=None):
     result=subprocess.run([str(v) for v in args],cwd=cwd,check=True,capture_output=True,text=True)
     return result.stdout.strip()
@@ -25,6 +137,162 @@ def reject_links(path):
         except FileNotFoundError: continue
         if item.is_symlink() or getattr(stat,'st_file_attributes',0)&0x400:
             raise ValueError('Linked build input/output preserved: '+str(item))
+
+def profile_file(path, maximum=64*1024*1024):
+    path=Path(path).absolute();reject_links(path);path=path.resolve(strict=True)
+    if not path.is_file() or not 0<path.stat().st_size<=maximum:
+        raise ValueError('Missing, empty or oversized local profile input: '+str(path))
+    return path
+
+def profile_records(path):
+    # The upstream reader tolerates a torn last journal line. An explicit
+    # source build requires complete observations, so refuse that case here.
+    raw=path.read_bytes()
+    if path.suffix=='.jsonl':
+        if not raw.endswith(b'\n'):raise ValueError('Incomplete profile journal preserved: '+str(path))
+        records=[json.loads(line) for line in raw.decode('utf-8').splitlines()]
+    elif path.suffix=='.json':records=[json.loads(raw)]
+    else:raise ValueError('Local profiles must be JSON checkpoints or JSONL journals')
+    def unpack(record,depth=0):
+        if depth>8:raise ValueError('Profile bundle nesting exceeds eight levels')
+        if isinstance(record,dict) and record.get('schema')=='snesrecomp tier2 bundle v2':
+            children=record.get('records')
+            if not isinstance(children,list) or not children:raise ValueError('Empty profile bundle')
+            for child in children:yield from unpack(child,depth+1)
+        else:yield record
+    for record in records:yield from unpack(record)
+
+def profile_preflight(paths,receipt_path,program_path,expected,source,analyzer_path=None):
+    if not paths:
+        if receipt_path or program_path or analyzer_path:raise ValueError('Original profile identity inputs require --profile-manifest')
+        return None
+    if not receipt_path or not program_path or not analyzer_path:
+        raise ValueError('Profiles require original --profile-build-receipt, --profile-program-manifest and --profile-analyzer')
+    if len(paths)>32:raise ValueError('At most32 explicit profile files per build')
+    profiles=[profile_file(p)for p in paths]
+    if len(set(profiles))!=len(profiles):raise ValueError('Repeated local profile path')
+    if sum(p.stat().st_size for p in profiles)>128*1024*1024:raise ValueError('Local profile bundle exceeds128MiB')
+    receipt_path=profile_file(receipt_path,4*1024*1024);program_path=profile_file(program_path)
+    receipt=json.loads(receipt_path.read_bytes());program=json.loads(program_path.read_bytes())
+    if receipt.get('status')!='compiled_unqualified' or receipt.get('public_build')is not True:
+        raise ValueError('Unrecognized original public build receipt; historical/experimental builds are preserved')
+    if receipt.get('rom_sha256')!=expected or receipt.get('runtime_pin')!=RUNTIME_PIN:
+        raise ValueError('Original profile ROM/runtime identity mismatch')
+    if receipt.get('automatic_faithful_patch_sha256')!=AUTOMATIC_FAITHFUL_PATCH_SHA256:
+        raise ValueError('Original profile generator patch is unrecognized; explicit compatibility review required')
+    for field,digest in [('runtime_patch_sha256',FOUNDATION_PATCH_SHA256),('host_navigation_patch_sha256',HOST_NAVIGATION_PATCH_SHA256),('faithful_instruction_patch_sha256',FAITHFUL_INSTRUCTION_PATCH_SHA256),('host_modal_audio_patch_sha256',HOST_AUDIO_PATCH_SHA256)]:
+        if receipt.get(field)!=digest:raise ValueError('Original build patch identity mismatch: '+field)
+    if receipt.get('prefix_patch_sha256')or receipt.get('lifecycle_patch_sha256')or receipt.get('automatic_generation',{}).get('faithful_prefixes')or 'faithful_hook_boundary_patch_sha256' in receipt:
+        raise ValueError('New prefix/lifecycle captures require explicit source-generation compatibility review; current import supports original3909 captures only')
+    automatic=receipt.get('automatic_generation',{})
+    relative=automatic.get('manifest','')
+    if Path(relative).is_absolute()or'..'in Path(relative).parts or not relative:
+        raise ValueError('Invalid original program manifest location')
+    if (receipt_path.parent/relative).resolve(strict=True)!=program_path or sha(program_path)!=automatic.get('manifest_sha256'):
+        raise ValueError('Original program manifest does not match its build receipt')
+    if program.get('format_version')!=3 or not isinstance(program.get('nodes'),dict)or not program.get('nodes'):
+        raise ValueError('Unrecognized original program manifest')
+    executable=profile_file(receipt_path.parent/'build/SecretOfTheStarsSNESRecomp.exe',128*1024*1024)
+    analyzer=profile_file(analyzer_path,128*1024*1024)
+    if sha(executable)!=receipt.get('executable_sha256'):raise ValueError('Original executable identity mismatch')
+    cache_path=profile_file(program_path.parent/'.snesrecomp-cache.json',4*1024*1024);cache=json.loads(cache_path.read_bytes())
+    if cache.get('format_version')!=5 or cache.get('module')!={'id':'main','prefix':''}:
+        raise ValueError('Unrecognized original generation cache/module')
+    outputs=cache.get('outputs',{})
+    if not isinstance(outputs,dict)or outputs.get('program_manifest.json')!=sha(program_path):raise ValueError('Original generation output identity mismatch')
+    protected={str(p):sha(p)for p in [receipt_path,program_path,executable,cache_path,analyzer,*profiles]}
+    for name,digest in outputs.items():
+        if Path(name).is_absolute()or'..'in Path(name).parts:raise ValueError('Original generated output escapes its directory')
+        output=profile_file(program_path.parent/name)
+        if sha(output)!=digest:raise ValueError('Original generated output changed: '+name)
+        protected[str(output)]=digest
+    authored=receipt.get('authored_inputs',{})
+    if not isinstance(authored,dict)or not authored:raise ValueError('Original authored provenance missing')
+    # Do not replace current authority/configuration with historical contents.
+    # Original captured config and current authored config must agree exactly.
+    for name,digest in authored.items():
+        if Path(name).is_absolute()or'..'in Path(name).parts:raise ValueError('Original authored input escapes source')
+        old=profile_file(receipt_path.parent/'project'/name)
+        if sha(old)!=digest:raise ValueError('Original authored input changed: '+name)
+        protected[str(old)]=digest
+        if name.startswith('recomp/'):
+            current=profile_file(source/name)
+            if sha(current)!=digest:raise ValueError('Current CFG/authority differs from captured build: '+name)
+            protected[str(current)]=digest
+    generator=cache.get('generator_digest');config=cache.get('config_digest')
+    if any(not re.fullmatch('[0-9a-f]{64}',str(v))for v in [generator,config]):raise ValueError('Original generator/config identity missing')
+    generation=hashlib.sha256((generator+config+program_path.read_text(encoding='utf-8')).encode()).hexdigest()
+    module=(program_path.parent/'module_v2.c').read_text(encoding='utf-8')
+    if f'g_program_module.program_digest = "{sha(program_path)}";'not in module or f'g_program_module.build_digest = "{generation}";'not in module:
+        raise ValueError('Original emitted module identity mismatch')
+    identity={'rom_sha256':expected,'module_id':'main','mapper':'lorom','program_digest':sha(program_path),'build_digest':sha(executable),'generation_digest':generation}
+    captures={};journals={}
+    for path in profiles:
+        for record in profile_records(path):
+            if not isinstance(record,dict)or record.get('schema')not in ['snesrecomp tier2 coverage v2','snesrecomp tier2 discovery v2']:
+                raise ValueError('Only current identity-bound Tier2v2 observations are admitted')
+            observed=record.get('identity',{})
+            if any(observed.get(k)!=v for k,v in identity.items()):raise ValueError('Profile does not match original ROM/module/program/executable/generator')
+            capture=record.get('capture_id');sequence=record.get('sequence')
+            if not isinstance(capture,str)or not 1<=len(capture)<=256 or type(sequence)is not int or sequence<0:raise ValueError('Profile capture/sequence invalid')
+            for key in ['overflowed_tuples','dropped_cost_samples','journal_write_failures','ram_routines_overflow']:
+                value=record.get(key,0)
+                if type(value)is not int or value!=0:raise ValueError('Profile capture is incomplete: '+key)
+            if record['schema']=='snesrecomp tier2 discovery v2':journals[capture]=max(sequence,journals.get(capture,-1))
+            elif record.get('checkpoint_complete')is True:captures[capture]=max(sequence,captures.get(capture,-1))
+            else:raise ValueError('Profile checkpoint is not complete')
+    if not captures or any(seq>captures.get(cap,-1)for cap,seq in journals.items()):raise ValueError('Journal extends beyond complete checkpoint')
+    return {'identity':identity,'profiles':profiles,'receipt':receipt_path,'program':program_path,'analyzer':analyzer,'protected':protected,'captures':sorted(captures),'original_generator_digest':generator,'original_config_digest':config}
+
+def profile_audit(preflight,runtime,source):
+    if preflight is None:return None
+    # The pinned SDK's documented generate command forwards these same repeated
+    # paths to v2_emit. Audit with its exact reader first; warnings are fatal.
+    sys.path.insert(0,str(runtime/'recompiler'));sys.path.insert(0,str(runtime/'tools'))
+    from v2.coverage_profile import load_profiles
+    from tier2_ingest import audit
+    import v2_emit
+    if Path(v2_emit.__file__).resolve()!=runtime/'tools/v2_emit.py':raise ValueError('Profile auditor imported another runtime')
+    analyzer=preflight['analyzer']
+    paths=[runtime/'recompiler/v2',runtime/'tools/v2_emit.py',runtime/'recompiler/snes65816.py',runtime/'tools/v2_analyze.py',runtime/'tools/disassembly_layout.py',runtime/'tools/sync_symbols.py',runtime/'tools/ingest_disassembly_authority.py',runtime/'recompiler-rs/src',runtime/'recompiler-rs/Cargo.toml',runtime/'recompiler-rs/Cargo.lock',analyzer]
+    generator=hashlib.sha256((v2_emit._tree_digest(paths)+'\0aot_deny_gate=0').encode()).hexdigest()
+    if generator!=preflight['original_generator_digest']:
+        raise ValueError('Original profile generator/analyzer is not the recognized pinned build; explicit compatibility review required')
+    for root in paths:
+        reject_links(root)
+        files=sorted(p for p in root.rglob('*')if p.is_file()and p.suffix in ['.py','.rs','.toml'])if root.is_dir()else[root]
+        for file in files:reject_links(file);preflight['protected'][str(file.resolve())]=sha(file)
+    for path in [runtime/'tools/sdk_generate.py',runtime/'tools/tier2_ingest.py']:
+        reject_links(path);preflight['protected'][str(path.resolve())]=sha(path)
+    # SDK syncs funcs.h AFTER emission; the captured build's final generated
+    # header is not a generation input. Reconstruct from the receipt-matching
+    # authored CFG directory, exactly as a fresh snapshot supplies it.
+    parsed=[(int(path.stem[-2:],16),path,None)for path in sorted((source/'recomp').glob('bank[0-9a-fA-F][0-9a-fA-F].cfg'))]
+    if v2_emit._config_digest(parsed)!=preflight['original_config_digest']:raise ValueError('Original configuration digest does not match actual CFG inputs')
+    profile=load_profiles(preflight['profiles'],expected_rom=preflight['identity']['rom_sha256'],expected_module='main')
+    if profile.warnings:raise ValueError('Profile audit refused: '+'; '.join(profile.warnings))
+    declared=set()
+    for path in(source/'recomp').glob('bank*.cfg'):
+        bank=re.fullmatch('bank([0-9a-fA-F]{2})',path.stem)
+        if bank:
+            for line in path.read_text(encoding='utf-8').splitlines():
+                m=re.match(r'\s*func\s+\S+\s+([0-9a-fA-F]+)',line)
+                if m:declared.add(int(bank[1],16)<<16|int(m[1],16))
+    report=audit(profile,declared,json.loads(preflight['program'].read_bytes()))
+    if report['warnings']:raise ValueError('Profile ingest warnings are fatal')
+    return report
+
+def snapshot_profiles(preflight,out):
+    if preflight is None:return []
+    folder=out/'profile-inputs';folder.mkdir(exist_ok=False);copies=[]
+    for index,path in enumerate(preflight['profiles']):
+        copy=folder/(f'capture-{index:02d}'+path.suffix);shutil.copy2(path,copy)
+        if sha(copy)!=preflight['protected'][str(path)]or sha(path)!=sha(copy):raise RuntimeError('Profile changed during immutable snapshot')
+        copies.append(copy)
+    for label,key in [('original-source-build-receipt.json','receipt'),('original-program-manifest.json','program')]:
+        path=preflight[key];copy=folder/label;shutil.copy2(path,copy)
+        if sha(copy)!=preflight['protected'][str(path)]:raise RuntimeError('Profile identity changed during snapshot')
+    return copies
 
 def snapshot_authored(source,project):
     reject_links(source.absolute());reject_links(project.absolute())
@@ -50,7 +318,13 @@ def snapshot_authored(source,project):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--rom',type=Path,required=True)
-    p.add_argument('--runtime-cache-dir',type=Path,help='Optional isolated runtime cache directory; same pinned five-patch key and validation')
+    p.add_argument('--profile-manifest',type=Path,action='append',default=[],help='Optional owned local Tier2v2 JSON checkpoint/JSONL journal (repeatable); never a release default')
+    p.add_argument('--profile-build-receipt',type=Path,help='Original public source-build receipt belonging to these captures')
+    p.add_argument('--profile-program-manifest',type=Path,help='Exact original generated program manifest belonging to these captures')
+    p.add_argument('--profile-analyzer',type=Path,help='Exact existing original native analyzer; actual generator digest must match captured build, no cache path guessing')
+    p.add_argument('--profile-runtime-dir',type=Path,help='Explicit unchanged original five-patch capture runtime, separately validated from target runtime')
+    p.add_argument('--emit-proven-prefixes',action='store_true',help='Enable the distinct proved aot_prefix disposition via pinned v2_emit --faithful-prefixes; unknown calls continue in original code')
+    p.add_argument('--runtime-cache-dir',type=Path,help='Optional isolated runtime cache directory; same pinned eight-patch key and validation')
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
@@ -65,6 +339,9 @@ def main():
     if sha(rom)!=expected or rom.stat().st_size!=int(identity['rom_size']):
         raise RuntimeError('Unsupported input. Supply the exact unheadered clean USA ROM specified in rom_identity.txt.')
     if args.jobs<1 or args.jobs>64:raise ValueError('--jobs must be 1..64')
+    profile_inputs=profile_preflight(args.profile_manifest,args.profile_build_receipt,args.profile_program_manifest,expected,source,args.profile_analyzer)
+    capture_runtime=source_runtime_preflight(args.profile_runtime_dir,profile_inputs)
+    profile_report=profile_audit(profile_inputs,capture_runtime,source)
     for tool in ('git','cargo',args.cmake,args.cc,args.cxx,args.ninja):
         if not shutil.which(tool):raise RuntimeError('Required tool is unavailable: '+tool)
     out=ROOT/'local/source-builds'/time.strftime('%Y%m%d-%H%M%S')
@@ -72,6 +349,7 @@ def main():
     out.mkdir(parents=True,exist_ok=False)
     patch=out/'runtime-foundation.patch'
     shutil.copy2(ROOT/'patches/runtime-foundation.patch',patch)
+    if sha(patch)!=FOUNDATION_PATCH_SHA256:raise RuntimeError('Original foundation patch changed; preserve build.')
     # A separate title-input extension cannot change serialized machine state.
     # Retain the original execution patch hash for checkpoint ABI comparison.
     host_patch=out/'runtime-navigation-map.patch'
@@ -102,11 +380,25 @@ def main():
     automatic_names=re.findall(r'^diff --git a/(\S+) b/',automatic_patch.read_text(encoding='utf-8'),re.M)
     if set(automatic_names)!={'recompiler/v2/emit_function.py','recompiler/v2/codegen.py','runner/src/cpu_state.h','runner/src/snes/interp_bridge.c'} or len(automatic_names)!=4:
         raise RuntimeError('Automatic instruction extension exceeds its four-file generator/bridge boundary.')
+    lifecycle_patch=out/'runtime-paired-lifecycle.patch';prefix_patch=out/'runtime-proven-prefix.patch'
+    shutil.copy2(ROOT/'patches/runtime-paired-lifecycle.patch',lifecycle_patch)
+    shutil.copy2(ROOT/'patches/runtime-proven-prefix.patch',prefix_patch)
+    lifecycle_names=re.findall(r'^diff --git a/(\S+) b/',lifecycle_patch.read_text(encoding='utf-8'),re.M)
+    prefix_names=re.findall(r'^diff --git a/(\S+) b/',prefix_patch.read_text(encoding='utf-8'),re.M)
+    if sha(lifecycle_patch)!=LIFECYCLE_PATCH_SHA256 or lifecycle_names!=['runner/src/cpu_state.c']:
+        raise RuntimeError('Lifecycle patch identity/single-file scope changed; preserve build.')
+    if sha(prefix_patch)!=PREFIX_PATCH_SHA256 or len(prefix_names)!=6 or set(prefix_names)!={'recompiler/v2/program_analysis.py','recompiler/v2/faithful_prefix.py','recompiler/v2/program_emit.py','recompiler/v2/emit_function.py','tools/v2_emit.py','runner/src/snes/interp_bridge.c'}:
+        raise RuntimeError('Proved prefix patch identity/six-file scope changed; preserve build.')
+    hook_boundary_patch=out/'runtime-faithful-hook-boundary.patch'
+    shutil.copy2(ROOT/'patches/runtime-faithful-hook-boundary.patch',hook_boundary_patch)
+    hook_boundary_names=validate_faithful_hook_boundary_patch(hook_boundary_patch)
+    new_patch_names={'recompiler/v2/faithful_prefix.py'}
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
     cache_root=args.runtime_cache_dir.absolute() if args.runtime_cache_dir else ROOT/'local/upstream'
     reject_links(cache_root)
-    runtime=cache_root/(RUNTIME_PIN[:12]+'-'+sha(patch)[:12]+'-'+sha(host_patch)[:12]+'-'+sha(faithful_patch)[:12]+'-'+sha(audio_patch)[:12]+'-'+sha(automatic_patch)[:12])
+    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch)])
+    runtime=cache_root/cache_identity['directory_key']
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     reject_links(runtime);reject_links(marker)
     if not runtime.exists():
@@ -117,63 +409,85 @@ def main():
         command(['git','submodule','update','--init','--recursive'],runtime)
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:
         raise RuntimeError('Existing runtime is at another revision; it has been preserved.')
-    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names))
+    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names))
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
-        if (receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
+        check_cache_marker_identity(receipt,cache_identity)
+        check_faithful_hook_boundary_marker(receipt,sha(hook_boundary_patch))
+        if (receipt.get('runtime_pin')!=RUNTIME_PIN or receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
                 or receipt.get('faithful_instruction_patch_sha256')!=sha(faithful_patch)
                 or receipt.get('host_modal_audio_patch_sha256')!=sha(audio_patch)
                 or receipt.get('automatic_faithful_patch_sha256')!=sha(automatic_patch)
+                or receipt.get('lifecycle_patch_sha256')!=sha(lifecycle_patch)
+                or receipt.get('prefix_patch_sha256')!=sha(prefix_patch)
+                or set(receipt.get('new_patched_sources',[]))!=new_patch_names
                 or set(receipt['patched_sources'])!=set(patch_names)
                 or any(sha(runtime/n)!=h for n,h in receipt['patched_sources'].items())):
             raise RuntimeError('Existing patched runtime differs from its receipt; it has been preserved.')
-        if set(command(['git','diff','--name-only'],runtime).splitlines())!=set(patch_names):
-            raise RuntimeError('Unexpected runtime changes; preserved without reset.')
+        runtime_source_accounting(runtime,patch_names,new_patch_names)
     else:
-        if command(['git','diff','--name-only'],runtime):
+        if command(['git','diff','--name-only'],runtime)or command(['git','ls-files','--others','--exclude-standard'],runtime):
             raise RuntimeError('Unrecognized runtime modifications; preserved without reset.')
         command(['git','apply','--check',patch],runtime);command(['git','apply',patch],runtime)
         command(['git','apply','--check',host_patch],runtime);command(['git','apply',host_patch],runtime)
         command(['git','apply','--check',faithful_patch],runtime);command(['git','apply',faithful_patch],runtime)
         command(['git','apply','--check',audio_patch],runtime);command(['git','apply',audio_patch],runtime)
         command(['git','apply','--check',automatic_patch],runtime);command(['git','apply',automatic_patch],runtime)
-        marker.write_text(json.dumps({'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
+        command(['git','apply','--check',lifecycle_patch],runtime);command(['git','apply',lifecycle_patch],runtime)
+        command(['git','apply','--check',prefix_patch],runtime);command(['git','apply',prefix_patch],runtime)
+        command(['git','apply','--check',hook_boundary_patch],runtime);command(['git','apply',hook_boundary_patch],runtime)
+        runtime_source_accounting(runtime,patch_names,new_patch_names)
+        write_runtime_marker(marker,{'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
+          'runtime_cache_identity':cache_identity,
           'host_navigation_patch_sha256':sha(host_patch),
           'faithful_instruction_patch_sha256':sha(faithful_patch),
           'host_modal_audio_patch_sha256':sha(audio_patch),
           'automatic_faithful_patch_sha256':sha(automatic_patch),
-          'patched_sources':{n:sha(runtime/n) for n in patch_names}},indent=2)+'\n',encoding='utf-8')
+          'lifecycle_patch_sha256':sha(lifecycle_patch),'prefix_patch_sha256':sha(prefix_patch),
+          'faithful_hook_boundary_patch_sha256':sha(hook_boundary_patch),
+          'new_patched_sources':sorted(new_patch_names),
+          'patched_sources':{n:sha(runtime/n) for n in patch_names}})
+    target_sources={n:sha(runtime/n)for n in patch_names};target_marker_digest=sha(marker)
     pins=dict(line.split('=',1) for line in (source/'framework_pins.txt').read_text().splitlines() if '=' in line)
     for key,name in [('rbengine','retcomm-rbengine'),('recomp-net','recomp-net')]:
         if command(['git','rev-parse','HEAD'],runtime/'lib'/name)!=pins[key]:
             raise RuntimeError('Upstream submodule pin mismatch: '+name)
     project=out/'project'
     manifest,actual=snapshot_authored(source,project)
+    profile_snapshots=snapshot_profiles(profile_inputs,out)
+    if profile_report is not None:
+        with(out/'profile-ingest.json').open('x',encoding='utf-8')as report_file:report_file.write(json.dumps(profile_report,indent=2)+'\n')
     (project/'mods/preloaded/packages').mkdir(parents=True)
     print('Generating private local code from the verified ROM.',flush=True)
-    generate=[sys.executable,runtime/'snesrecomp_cli.py','generate','--rom',rom,
-      '--cfg-dir','recomp','--out-dir','src/gen','--funcs-h','recomp/funcs.h','--project-root',project,
-      '--expected-crc32',identity['expected_crc32'],'--expected-sha256',expected,'--cfg-roots']
+    generates=generation_commands(runtime,project,rom,identity,profile_snapshots,args.emit_proven_prefixes)
+    generation_env={k:v for k,v in os.environ.items()if not k.startswith('SNESRECOMP_')}
+    generation_env['PYTHONDONTWRITEBYTECODE']='1'
+    if profile_inputs is not None:generation_env['SNESRECOMP_NATIVE_ANALYZER']=str(profile_inputs['analyzer'])
     with (out/'generate.log').open('w',encoding='utf-8') as log:
-        r=subprocess.run(list(map(str,generate)),cwd=project,stdout=log,stderr=subprocess.STDOUT)
-    if r.returncode:raise RuntimeError('Generation failed; inspect '+str(out/'generate.log'))
+        for generate in generates:
+            r=subprocess.run(list(map(str,generate)),cwd=project,stdout=log,stderr=subprocess.STDOUT,env=generation_env)
+            if r.returncode:raise RuntimeError('Generation failed; inspect '+str(out/'generate.log'))
     automatic_manifest_path=project/'src/gen/program_manifest.json'
     reject_links(automatic_manifest_path)
     automatic_manifest=json.loads(automatic_manifest_path.read_text(encoding='utf-8'))
-    if (automatic_manifest.get('format_version')!=3
-            or not isinstance(automatic_manifest.get('nodes'),dict)
-            or not automatic_manifest['nodes']
-            or not isinstance(automatic_manifest.get('roots'),list)):
-        raise RuntimeError('Unrecognized automatic generation manifest; preserve this build and explicitly review its contract.')
-    dispositions={};diagnostic_targets=set()
-    for node in automatic_manifest['nodes'].values():
-        key=node.get('key',{});pc=key.get('pc24');disposition=node.get('disposition')
-        if (type(pc)is not int or not 0<=pc<=0xffffff
-                or key.get('m')not in (0,1) or key.get('x')not in (0,1)
-                or disposition not in ('aot_eligible','lle_only')):
-            raise RuntimeError('Unrecognized automatic node context; preserve this build without assuming native eligibility.')
-        dispositions[disposition]=dispositions.get(disposition,0)+1
-        diagnostic_targets.add(pc)
+    generated_cache=project/'src/gen/.snesrecomp-cache.json'
+    reject_links(generated_cache);generated_metadata=json.loads(generated_cache.read_bytes())
+    if generated_metadata.get('format_version')!=5 or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
+        raise RuntimeError('Target generated cache/module identity mismatch; preserve build.')
+    for name,digest in generated_metadata.get('outputs',{}).items():
+        if Path(name).is_absolute()or'..'in Path(name).parts:raise RuntimeError('Target generated output escapes build; preserve build.')
+        output=project/'src/gen'/name;reject_links(output)
+        if sha(output)!=digest:raise RuntimeError('Target generated output/cache mismatch; preserve build.')
+    from_cfg=set()
+    sys.path.insert(0,str(runtime/'recompiler'))
+    from v2.cfg_loader import load_bank_cfg
+    for cfg_path in(project/'recomp').glob('bank*.cfg'):
+        from_cfg.update(load_bank_cfg(str(cfg_path)).force_lle)
+    dispositions,diagnostic_targets=admit_manifest(automatic_manifest,args.emit_proven_prefixes,from_cfg)
+    manifest_targets=set(diagnostic_targets)
+    dispatch_path=project/'src/gen/dispatch_v2.c'
+    dispatch_targets,dispatch_rows=diagnostic_dispatch_targets(dispatch_path,generated_metadata['outputs'].get('dispatch_v2.c'))
+    diagnostic_targets|=dispatch_targets
     # Private derived list, not published guest code. The existing runtime
     # diagnostic can refuse every discovered entry, including interrupt calls;
     # bounce=0 alone does not do that. Runtime hit counts must still confirm
@@ -220,6 +534,11 @@ def main():
         if r.returncode:raise RuntimeError(name+' failed; inspect '+str(out/(name+'.log')))
     if any(sha(source/n)!=h or sha(project/n)!=h for n,h in actual.items()):
         raise RuntimeError('Authored inputs changed during build; compilation retained unqualified.')
+    if profile_inputs is not None and any(sha(Path(path))!=digest for path,digest in profile_inputs['protected'].items()):
+        raise RuntimeError('Original profile/source identity changed during build; compilation retained unqualified.')
+    if sha(marker)!=target_marker_digest or any(sha(runtime/n)!=digest for n,digest in target_sources.items()):
+        raise RuntimeError('Target patched source identity changed during build; compilation retained unqualified.')
+    runtime_source_accounting(runtime,patch_names,new_patch_names)
     binary=out/'build/SecretOfTheStarsSNESRecomp.exe'
     if not binary.exists():raise RuntimeError('Windows executable missing after build.')
     profile=out/'profile';profile.mkdir();shutil.copy2(binary,profile/binary.name)
@@ -236,18 +555,30 @@ def main():
       'version':(project/'VERSION').read_text().strip(),'rom_sha256':expected,'rom_copied':False,
       'authored_inputs':actual,'matches_authored_snapshot':actual==manifest,
       'runtime_pin':RUNTIME_PIN,'runtime_patch_sha256':sha(patch),
+      'runtime_source_provenance':{'runtime_dir':str(runtime),'runtime_cache_identity':cache_identity,'marker_sha256':target_marker_digest,'patched_sources':target_sources,'new_patched_sources':sorted(new_patch_names)},
       'host_navigation_patch_sha256':sha(host_patch),
           'faithful_instruction_patch_sha256':sha(faithful_patch),
           'host_modal_audio_patch_sha256':sha(audio_patch),
       'automatic_faithful_patch_sha256':sha(automatic_patch),
+      'lifecycle_patch_sha256':sha(lifecycle_patch),'prefix_patch_sha256':sha(prefix_patch),
+          'faithful_hook_boundary_patch_sha256':sha(hook_boundary_patch),
+      'lifecycle_patch_scope':'Scoped paired host return-tag lifecycle in three original dispatch branches; no guest/checkpoint layout or instruction timing change.',
+      'faithful_hook_boundary_patch_scope':'Single interp_bridge pre-opcode hook boundary refusal preserves original callback producers; no generated opcode executes across that boundary and original transfer/timing remain authoritative.',
+      'prefix_patch_scope':'Distinct aot_prefix disposition with exact unknown-call stop and original hard masks; never guesses callee exit modes or full-function eligibility. Generator option is explicit and recorded separately.',
       'automatic_faithful_patch_scope':'Upstream decoded instruction/IR emission with original bus transfers and internal clocks, per-instruction scheduler commits, cached effective addresses, native flag/return semantics and faithful unsupported continuation. No serialized guest fields or checkpoint/SRAM layout changes.',
-      'automatic_generation':{'mode':'upstream-faithful-instruction','cfg_roots':True,
+      'automatic_generation':{'mode':'upstream-faithful-instruction','cfg_roots':True,'host_root_scan':False,
+          'faithful_prefixes':args.emit_proven_prefixes,'prefix_wrapper_option':'--emit-proven-prefixes','prefix_generator_option':'--faithful-prefixes',
+          'generation_commands':[list(map(str,cmd))for cmd in generates],
+          'generator_digest':generated_metadata['generator_digest'],'config_digest':generated_metadata['config_digest'],
+          'cache_sha256':sha(generated_cache),'emitted_output_hashes':generated_metadata['outputs'],
           'manifest':automatic_manifest_path.relative_to(out).as_posix(),'manifest_sha256':sha(automatic_manifest_path),
           'root_mode_contexts':len(automatic_manifest['roots']),'discovered_mode_nodes':len(automatic_manifest['nodes']),
           'dispositions':dispositions,'eligibility_is_execution_coverage':False,
           'guarded_clear_constructor_default':'Existing authored guarded islands remain enabled simultaneously in normal player launches; exact automatic-native qualification separately disables both using explicit environment controls.',
           'original_byte_diagnostic':{'target_file':diagnostic_target_path.relative_to(out).as_posix(),
               'target_file_sha256':sha(diagnostic_target_path),'unique_entry_targets':len(diagnostic_targets),
+              'manifest_unique_entry_targets':len(manifest_targets),'actual_dispatch_unique_entry_targets':len(dispatch_targets),
+              'actual_dispatch_rows':dispatch_rows,'dispatch_source_sha256':sha(dispatch_path),'target_policy':'Union of every actual manifest entry and strictly parsed generated DispatchEntry row, including original interrupt entries and aliases.',
               'enabled_by_default':False,'environment':{
                   'SNESRECOMP_LLE_INTERP_TARGET_FILE':'<absolute path to this generated target file>',
                   'SNESRECOMP_FOUNDATION_GENERATED_CLEAR':'0','SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR':'0'},
@@ -274,11 +605,29 @@ def main():
           'default_variant':'whole-routine','legacy_variant':'three-instruction','legacy_entry_pcs':[node['pc'] for node in clear_provenance['legacy_nodes']]}},
       'profile':profile.relative_to(ROOT).as_posix(),
       'limits':'Fresh developer compilation only; gameplay qualification and owner installation remain separate.'}
-    (out/'source-build-receipt.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
+    if profile_inputs is not None:
+        generated_cache=project/'src/gen/.snesrecomp-cache.json'
+        generated_metadata=json.loads(generated_cache.read_bytes())
+        captured_roots=json.loads(profile_inputs['program'].read_bytes())['roots']
+        key=lambda item:(item['pc24'],item['m'],item['x'])
+        original_roots={key(item)for item in captured_roots}
+        result['local_profile_generation']={'enabled':True,'default':False,'capture_identity':profile_inputs['identity'],
+          'original_receipt_sha256':sha(profile_inputs['receipt']),'original_program_manifest_sha256':sha(profile_inputs['program']),
+          'original_generator_digest':profile_inputs['original_generator_digest'],'original_config_digest':profile_inputs['original_config_digest'],
+          'original_runtime_dir':str(profile_inputs['source_runtime']),
+          'analyzer_path':str(profile_inputs['analyzer']),'analyzer_sha256':sha(profile_inputs['analyzer']),
+          'capture_ids':profile_inputs['captures'],'profile_inputs':[{'original_path':str(original),'sha256':sha(copy),'snapshot':copy.relative_to(out).as_posix()}for original,copy in zip(profile_inputs['profiles'],profile_snapshots)],
+          'protected_source_provenance':profile_inputs['protected'],'ingest_report':'profile-ingest.json','ingest_sha256':sha(out/'profile-ingest.json'),
+          'target_generator_digest':generated_metadata['generator_digest'],'target_config_digest':generated_metadata['config_digest'],
+          'generated_cache_sha256':sha(generated_cache),'emitted_outputs':{p.relative_to(out).as_posix():sha(p)for p in(project/'src/gen').rglob('*')if p.is_file()},
+          'new_observed_root_contexts':[r for r in automatic_manifest['roots']if key(r)not in original_roots],
+          'admission_is_execution_qualification':False,'historical_or_legacy_import':False,
+          'limits':'Optional exact original-build local observations seed normal pinned analysis. CFG authority/force-LLE remain authoritative; observations and compiled source are not gameplay or release qualification. No captures are bundled into public source.'}
+    with(out/'source-build-receipt.json').open('x',encoding='utf-8')as receipt_file:receipt_file.write(json.dumps(result,indent=2)+'\n')
     print('Built: '+str(binary));print('Fresh profile: '+str(profile))
     print('Run from the fresh profile: SecretOfTheStarsSNESRecomp.exe --no-launcher --rom "<your original ROM path>"')
 
 if __name__=='__main__':
     try:main()
-    except (RuntimeError,ValueError,subprocess.CalledProcessError) as error:
+    except (RuntimeError,ValueError,OSError,KeyError,subprocess.CalledProcessError) as error:
         print(str(error),file=sys.stderr);raise SystemExit(1)

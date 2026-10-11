@@ -1,0 +1,241 @@
+diff --git a/recompiler/v2/program_analysis.py b/recompiler/v2/program_analysis.py
+--- a/recompiler/v2/program_analysis.py
++++ b/recompiler/v2/program_analysis.py
+@@ -20,6 +20,7 @@
+ 
+     LLE_ONLY = "lle_only"
+     AOT_ELIGIBLE = "aot_eligible"
++    AOT_PREFIX = "aot_prefix"
+     AOT_EMITTED = "aot_emitted"
+     HLE_OVERLAY = "hle_overlay"
+ 
+diff --git a/recompiler/v2/faithful_prefix.py b/recompiler/v2/faithful_prefix.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/faithful_prefix.py
+@@ -0,0 +1,49 @@
++"""Private generic prefix contract: never assume an unknown callee exit."""
++from dataclasses import replace
++import re
++
++from .program_analysis import NodeDisposition
++
++_CALL = re.compile(r"unproven_call_at_([0-9A-F]{6})_to_([0-9A-F]{6})_m[01]x[01]$")
++_BASE = {"unproven_callee_exit", "truncated_call_continuation"}
++
++
++def unknown_call_sites(node):
++    return frozenset(int(m[1], 16) for reason in node.reasons
++                     if (m := _CALL.fullmatch(reason)))
++
++
++def prefix_admissible(node, force_lle=()):
++    """A distinct emission disposition, never full-function qualification."""
++    if node.disposition != NodeDisposition.LLE_ONLY:
++        return False
++    if node.key.pc24 in force_lle or node.key.pc24 >> 16 in (0x7E, 0x7F):
++        return False
++    reasons = set(node.reasons)
++    return (_BASE <= reasons and bool(unknown_call_sites(node)) and
++            all(reason in _BASE or _CALL.fullmatch(reason) for reason in reasons))
++
++
++def prepare_prefix_manifest(manifest, parsed):
++    excluded = set()
++    for _bank, _path, cfg in parsed:
++        for pc in cfg.force_lle:
++            excluded.add(pc)
++            if pc >> 16 < 0x40 and pc & 0xFFFF >= 0x8000:
++                excluded.add(pc ^ 0x800000)
++    nodes = {key: replace(node, disposition=NodeDisposition.AOT_PREFIX)
++             if prefix_admissible(node, excluded) else node
++             for key, node in manifest.nodes.items()}
++    return replace(manifest, nodes=nodes)
++
++
++def prefix_contracts(manifest, parsed):
++    """Exact stop sites and original hard masks, copied without relaxation."""
++    masks = []
++    for bank, _path, cfg in parsed:
++        for start, end in (*cfg.exclude_ranges, *cfg.authority_data):
++            masks.append((bank, start, end))
++        masks.extend(cfg.data_regions)
++    return {key: (unknown_call_sites(node), tuple(masks))
++            for key, node in manifest.nodes.items()
++            if node.disposition == NodeDisposition.AOT_PREFIX}
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -542,7 +542,7 @@
+         has_hle = bool(enable_hle and cfg is not None and (
+             pc16 in getattr(cfg, "hle_func", {}) or
+             pc16 in getattr(cfg, "hle_spc_upload", ())))
+-        if node.disposition != NodeDisposition.AOT_ELIGIBLE and not has_hle:
++        if node.disposition not in (NodeDisposition.AOT_ELIGIBLE, NodeDisposition.AOT_PREFIX) and not has_hle:
+             continue
+         # An HLE annotation replaces the architectural boundary, not one
+         # decoder specialization of it.  Runtime P.M/P.X can legitimately
+@@ -776,6 +776,9 @@
+         rom_sha256_hex = hashlib.sha256(rom).hexdigest()
+     if rom_size is None:
+         rom_size = len(rom)
++    from .faithful_prefix import prefix_contracts
++    from .emit_function import set_faithful_prefix_contracts
++    set_faithful_prefix_contracts(prefix_contracts(manifest, parsed))
+     entries_by_bank, emitted, name_for_pc, cfg_by_bank = build_emission_entries(
+         manifest, parsed, enable_hle=enable_hle)
+     cfg_dirs = sorted({pathlib.Path(path).resolve().parent
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -444,6 +444,13 @@
+     return next(iter(rts_deltas))
+ 
+ 
++_FAITHFUL_PREFIX_CONTRACTS = {}
++
++def set_faithful_prefix_contracts(contracts):
++    global _FAITHFUL_PREFIX_CONTRACTS
++    _FAITHFUL_PREFIX_CONTRACTS = {(key.pc24, key.m, key.x): value
++                                  for key, value in contracts.items()}
++
+ def emit_function(rom: bytes, bank: int, start: int,
+                   entry_m: int, entry_x: int,
+                   *, end: Optional[int] = None,
+@@ -480,6 +487,10 @@
+         block-end op → goto / fall-through wiring
+     """
+     base_func_name = func_name if func_name is not None else _default_func_name(bank, start)
++    _prefix_expected, _prefix_masks = _FAITHFUL_PREFIX_CONTRACTS.get(
++        ((bank << 16) | (start & 0xFFFF), entry_m, entry_x), (frozenset(), ()))
++    _prefix_stops = frozenset()
++
+     # HLE bypass: if cfg declared this function's PC as the SPC upload
+     # entry (`hle_spc_upload <pc>` in the bank cfg), replace the entire
+     # decoded body with a RtlUploadSpcImageFromDp call followed by an
+@@ -594,8 +605,30 @@
+                             inline_arg_map=inline_arg_map,
+                             terminal_jsr_sites=terminal_jsr_sites,
+                             noreturn_jsr_sites=noreturn_jsr_sites,
++                            stop_on_unknown_callee_exit=bool(_prefix_expected),
+                             hle_entry_pcs=(set(hle_func or ()) |
+                                            set(hle_spc_upload or ())))
++    if _prefix_expected:
++        _prefix_stops = frozenset(site for site, _target, _m, _x
++                                 in graph.unknown_callee_exit_sites)
++        # The emitter may bound this function at a sibling entry and hence
++        # decode a strict subset of the analyzer CFG. Every decoded unknown
++        # call still has to be an explicitly recorded stop, and every recorded
++        # stop that is actually decoded must remain a stop. No exit mode or
++        # continuation is inferred for omitted, undecoded blocks.
++        _prefix_decoded = frozenset(d.insn.addr & 0xFFFFFF
++                                   for d in graph.insns.values())
++        if (not _prefix_stops <= _prefix_expected or
++                (_prefix_expected & _prefix_decoded) != _prefix_stops):
++            raise ValueError(f"prefix unknown-call contract mismatch at {bank:02X}:{start:04X} M{entry_m}X{entry_x}: expected={sorted(_prefix_expected)} actual={sorted(_prefix_stops)} decoded_expected={sorted(_prefix_expected & _prefix_decoded)} rows={graph.unknown_callee_exit_sites}")
++        for decoded in graph.insns.values():
++            insn = decoded.insn
++            pc24 = insn.addr & 0xFFFFFF
++            for byte in range(insn.length):
++                at = (pc24 & 0xFF0000) | ((pc24 + byte) & 0xFFFF)
++                for mbank, begin, finish in _prefix_masks:
++                    if (at >> 16) in (mbank, mbank ^ 0x80) and begin <= (at & 0xFFFF) < finish:
++                        raise ValueError("prefix decode overlaps original hard data/exclude mask")
+     # Forward any suppressed indirect calls upward so emit_bank can
+     # aggregate them into the build report. List-of-records.
+     if suppressed_collector is not None:
+@@ -2018,6 +2051,8 @@
+             'PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB','PLP','PEA','PER',
+             'JSR','JSL','RTS','RTL','JMP','JML','BRA','BRL','BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
+         _unsupported = _di.mnem not in _supported or bool(skip_emit_idx) or bool(nlr_info)
++        _prefix_refusal = ((bank << 16) | (key.pc & 0xFFFF)) in _prefix_stops
++        _unsupported = _unsupported or _prefix_refusal
+         # Pointer wrapping/page-cross and RMW ordering remain explicit unsupported gates.
+         from snes65816 import MODE_STR
+         _mode_id = getattr(_di, 'mode', -1)
+@@ -2048,6 +2083,11 @@
+                 _new_lines.append(_ln)
+             _new_lines.append('cpu_aot_commit(cpu);')
+             lines = _new_lines
++        if _prefix_expected:
++            lines = [line.replace('cpu_aot_commit(cpu)',
++                     'cpu_aot_prefix_commit(cpu)') for line in lines]
++            if _prefix_refusal:
++                lines.insert(0, f'cpu_aot_prefix_refusal(cpu, 0x{((bank << 16) | (key.pc & 0xFFFF)):06X}u);')
+         block_lines[key] = lines
+ 
+     # Compose the function source with labels per block.
+@@ -2056,6 +2096,9 @@
+     # Diagnostics — same call-stack plumbing v1 emitted, so the runtime
+     # debug_server's `call_stack` cmd and crash-handler attribution work.
+     src.append(f'  extern const char *g_last_recomp_func;')
++    if _prefix_expected:
++        src.append('  extern void cpu_aot_prefix_commit(CpuState *cpu);')
++        src.append('  extern void cpu_aot_prefix_refusal(CpuState *cpu, uint32 pc);')
+     src.append(f'  g_last_recomp_func = "{func_name}";')
+     src.append(f'  RecompStackPush("{func_name}");')
+     src.append(f'  cpu_dbg_funcname("{func_name}");')
+diff --git a/tools/v2_emit.py b/tools/v2_emit.py
+--- a/tools/v2_emit.py
++++ b/tools/v2_emit.py
+@@ -231,6 +231,7 @@
+         default=0x0800,
+         help="entry-PC range per bank translation unit (default: 0x800; "
+              "0 disables sharding)")
++    parser.add_argument("--faithful-prefixes", action="store_true", help="Private exact-prefix proof; unknown calls stay original")
+     args = parser.parse_args()
+     if args.analysis_backend == "python":
+         parser.error("the Python analyzer was retired; the native analyzer "
+@@ -328,7 +329,7 @@
+         # value as enabled to match emit_function.py's codegen guard.
+         deny_gate = bool(os.environ.get("SNESRECOMP_EMIT_AOT_DENY_GATE"))
+         return hashlib.sha256(
+-            f"{tree_digest}\0aot_deny_gate={int(deny_gate)}".encode()
++            f"{tree_digest}\0aot_deny_gate={int(deny_gate)}\0faithful_prefixes={int(args.faithful_prefixes)}".encode()
+         ).hexdigest()
+ 
+     generator_digest = generator_digest_for()
+@@ -382,6 +383,9 @@
+         parser.error(f"native analysis failed: {exc}")
+     if native_output:
+         print(native_output)
++    if args.faithful_prefixes:
++        from v2.faithful_prefix import prepare_prefix_manifest
++        manifest = prepare_prefix_manifest(manifest, parsed)
+     result = emit_program(
+         rom=rom,
+         parsed=parsed,
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -533,6 +533,7 @@
+ static uint32_t s_aot_pc;
+ static int s_aot_apu_driving;
+ unsigned long long g_faithful_aot_steps;
++unsigned long long g_faithful_aot_prefix_steps;
+ static void private_instruction_trace(CpuState *cpu,uint32 pc,char kind,unsigned cycles,unsigned bus,uint64_t bus_master) {
+   static int initialized,low=-1,high=-1;static FILE *trace;extern int snes_frame_counter;
+   if(!initialized){initialized=1;const char *e=getenv("PRIVATE_INSTRUCTION_TRACE");if(e){sscanf(e,"%d-%d",&low,&high);trace=fopen("private-instruction.tsv","wx");if(!trace){perror("private trace output");abort();}}}
+@@ -570,7 +571,21 @@
+   private_instruction_trace(cpu,s_aot_pc,'g',cycles,bus,master);
+   static int init=0,lo=-1,hi=-1;extern int snes_frame_counter;
+   if(!init){const char *e=getenv("PRIVATE_FAITHFUL_TRACE");init=1;if(e)sscanf(e,"%d-%d",&lo,&hi);}
+-  if(lo>=0&&snes_frame_counter>=lo&&snes_frame_counter<=hi)fprintf(stderr,"[faithful-auto] f=%d pc=%06X cycles=%u bus=%u bus_master=%llu master_delta=%llu total_master=%llu steps=%llu S=%04X DB=%02X PB=%02X P=%02X open_bus=%02X\n",snes_frame_counter,s_aot_pc,cycles,bus,(unsigned long long)master,(unsigned long long)(master+(uint64_t)(cycles-bus)*6),(unsigned long long)cpu->master_cycles,g_faithful_aot_steps,cpu->S,cpu->DB,cpu->PB,cpu->P,cpu->open_bus);
++  if(lo>=0&&snes_frame_counter>=lo&&snes_frame_counter<=hi)fprintf(stderr,"[faithful-auto] f=%d pc=%06X cycles=%u bus=%u bus_master=%llu master_delta=%llu total_master=%llu steps=%llu prefix_steps=%llu S=%04X DB=%02X PB=%02X P=%02X open_bus=%02X\n",snes_frame_counter,s_aot_pc,cycles,bus,(unsigned long long)master,(unsigned long long)(master+(uint64_t)(cycles-bus)*6),(unsigned long long)cpu->master_cycles,g_faithful_aot_steps,g_faithful_aot_prefix_steps,cpu->S,cpu->DB,cpu->PB,cpu->P,cpu->open_bus);
++}
++
++void cpu_aot_prefix_commit(CpuState *cpu) {
++  if (!s_aot_instruction) return;
++  aot_require(cpu);
++  ++g_faithful_aot_prefix_steps;
++  cpu_aot_commit(cpu);
++}
++void cpu_aot_prefix_refusal(CpuState *cpu, uint32 pc) {
++  static int initialized, enabled;
++  if (!initialized) { initialized=1; enabled=getenv("PRIVATE_PREFIX_TRACE")!=NULL; }
++  if (enabled) fprintf(stderr,"[faithful-prefix-refusal] pc=%06X master=%llu cpu=%llu S=%04X P=%02X prefix_steps=%llu\n",
++      ((uint32)cpu->PB << 16) | (pc & 0xffff), (unsigned long long)cpu->master_cycles,
++      (unsigned long long)cpu->cycles,cpu->S,cpu->P,g_faithful_aot_prefix_steps);
+ }
+ 
+ static void bridge_progress_checkpoint(CpuState *cpu, bool auto_quiescent,

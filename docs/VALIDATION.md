@@ -1,6 +1,6 @@
-# Current validation — native 0.3.2 / Companion 0.3.4
+# Current validation — native 0.3.3 / Companion 0.3.4
 
-The [exact current continuation](FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md) records standard automatic generation, original town/house NPC art, current first-house advice, map/restore, launcher update and exclusive playback qualification. Compilation receipts remain `compiled_unqualified`; finite installation qualification is separate from complete native/AOT and campaign coverage. Historical reports below retain their exact artifact scope.
+The [exact current continuation](FOUNDATION-DECATAS-NATIVE-2026-10-11.md) records native generation with original renderer callbacks, independent actual sprite art, coherent Decatas rooms/journal/map, launcher update/rollback, default public setup and separate normal/modal playback. Raw failed camera, hook and concurrent frame-rate evidence remains distinct from successful repairs. Compilation receipts remain `compiled_unqualified`; finite installation qualification is separate from complete native/AOT and campaign coverage. Historical reports below retain their exact artifact scope.
 
 ---
 

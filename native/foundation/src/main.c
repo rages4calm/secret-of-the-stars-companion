@@ -86,8 +86,7 @@ static void FoundationAfterFrame(const SnesDesktopHostFrameStats *stats) {
     FoundationPresentationAfterFrame(stats);
     FoundationJournalAfterFrame(stats);
     FoundationMapAfterFrame(stats);
-    FoundationMapPointsAfterFrame((int)FoundationJournalDestination(g_ram[0x5372],
-        g_ram[0x5360],JournalItemGroups(g_ram,0x20000,0x6d),(g_ram[0x4b6]&0x80)!=0));
+    FoundationMapPointsAfterFrame((int)FoundationJournalDestinationState(g_ram, 0x20000));
 }
 static void FoundationReset(void) {
     FoundationHotkeysReset();

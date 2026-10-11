@@ -4,13 +4,13 @@ The target is a polished, editable Windows PC edition with attractive original
 pixels, true wider scenery/actors, reliable controls/audio and a useful journal.
 This is active foundation work, not a completed native recompilation. The [0.3.0 continuation](docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md) generates the original outer constructor and long-call/return sites alongside the earlier loading routine, retaining original instruction timing. Its original callees remain interpreted; full native/AOT generation remains a major unfinished task.
 
-Native 0.3.2 / Companion 0.3.4 add faithful standard automatic generation,
-reviewed inline-table safeguards, original town/house NPC margins and the
-current first-house clue. The [current continuation](docs/FOUNDATION-AUTOMATIC-TOWN-2026-10-11.md)
-separates exact original instruction/clock checks, independent art, journal/map,
-launcher adoption/update and nine normal plus nine modal GPU/audio routes.
-Complete AOT and campaign coverage remain unfinished; original callee and
-unsupported-mode discovery continue through actual gameplay traces.
+Native 0.3.3 / Companion 0.3.4 add verified Decatas ballot/election/ticket
+guidance and party-aware destinations. The [current continuation](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md)
+also extends faithful native generation from authentic local gameplay records,
+preserving original registered renderer callbacks and proving actual sprite art.
+Original room loaders and ordinary walking replace incoherent camera fixtures.
+Public default setup is separately built without private captures. Complete AOT,
+campaign/effect coverage and later verified quest guidance remain unfinished.
 
 ## 1. Public first-run setup and packaging
 
@@ -19,7 +19,7 @@ cancellation, isolated profile adoption, explicit compilation status, title-firs
 launch and selected copied-save resume. Public Play no longer requires private
 fixture/checkpoint data. XP/gold rates, guarded movement boost and keyboard/
 controller hotkeys are editable in the launcher.
-The [WIP release](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.3.2-wip) now provides a ROM-free launcher/source ZIP, checksum and version manifest. Users still need their owned ROM and the documented development tools to build the game locally.
+The [WIP release](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.3.3-wip) now provides a ROM-free launcher/source ZIP, checksum and version manifest. Users still need their owned ROM and the documented development tools to build the game locally.
 Source-profile updates now create verified new folders and retain old profiles
 for selection-only rollback. A source-first package tool includes one
 self-contained GUI, authored source and notices; native game and original data

@@ -103,7 +103,7 @@ void FoundationJournalBeforeFrame(void) {
 
 void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
     frame_number = stats->frame;
-    has_lead = FoundationJournalHasLead(g_ram[0x5372], g_ram[0x5360]);
+    has_lead = FoundationJournalCurrentLead(g_ram, 0x20000) != 0;
     int toggle = FoundationHotkeysConsumeJournal();
     if (enabled && g_ram[0x20] == 1 && toggle) {
         visible = !visible;
@@ -114,7 +114,7 @@ void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
         fprintf(trace, "%u,%u,%u,%u,%d,%d,%d,%u,%u\n", frame_number, g_ram[0x20],
                 g_ram[0x5372], g_ram[0x5360], enabled, visible, has_lead,
                 JournalPossessionGroups(g_ram, 0x20000),
-                FoundationJournalLead(g_ram[0x5372], g_ram[0x5360]));
+                FoundationJournalCurrentLead(g_ram, 0x20000));
         fflush(trace);
     }
 }
@@ -124,7 +124,7 @@ void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
 void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
     if (!enabled || !visible || g_ram[0x20] != 1 || w < 256 || h < 212) return;
     /* A restore can precede the next guest update. Always derive here too. */
-    unsigned lead = FoundationJournalLead(g_ram[0x5372], g_ram[0x5360]);
+    unsigned lead = FoundationJournalCurrentLead(g_ram, 0x20000);
     unsigned groups = possession_enabled ? JournalPossessionGroups(g_ram, 0x20000) : 0;
     unsigned used[2] = {0, 0};
     for (unsigned pack = 0; pack < 2; ++pack)
@@ -145,6 +145,38 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             route[0] = "Speak to the person who";
             route[1] = "asked you to stop Badbad.";
             progress = town_route == 2 ? "DOG PILL: CURRENT PACK" : "DOG PILL: OTHER PARTY PACK";
+        }
+    } else if (lead >= 9 && lead <= 12) {
+        unsigned item = lead == 9 ? 0x6f : 0x71;
+        unsigned item_groups = JournalItemGroups(g_ram, 0x20000, item);
+        unsigned current = item_groups & (1u << ((g_ram[0x4b6] & 0x80) != 0));
+        if (lead == 9) {
+            objective[0] = current ? "Return with the ballot." : "Ask about the Decatas vote.";
+            objective[1] = current ? "Talk to the voting clerk." :
+                item_groups ? "Ballot is in the other pack." : "Ballot is not held now.";
+            route[0] = "Decatas: speak to the clerk.";
+            route[1] = "Ask for voting clues.";
+            progress = item_groups == 3 ? "BALLOT: BOTH PACKS" : current ? "BALLOT: CURRENT PACK" :
+                item_groups ? "BALLOT: OTHER PACK" : "BALLOT: NOT HELD NOW";
+        } else {
+            objective[0] = "Ask the new mayor for help.";
+            objective[1] = "Circus ticket lead: Decatas.";
+            route[0] = "Decatas: the mayor's house.";
+            route[1] = "Speak with the new mayor.";
+            if (lead == 11) {
+                objective[0] = current ? "Take the ticket to circus." : "Follow the mayor's advice.";
+                objective[1] = current ? "Follow the mayor's advice." :
+                    item_groups ? "Ticket is in the other pack." : "Ticket is not held now.";
+                route[0] = "Mayor: go to the circus.";
+                route[1] = "Ask people for more clues.";
+            } else if (lead == 12) {
+                objective[0] = "Aqutallion handles this.";
+                objective[1] = "No tickets for Kustera.";
+                route[0] = "Decatas: the mayor's advice.";
+                route[1] = "Use the Aqutallion party.";
+            }
+            progress = item_groups == 3 ? "TICKET: BOTH PACKS" : current ? "TICKET: CURRENT PACK" :
+                item_groups ? "TICKET: OTHER PACK" : "TICKET: NOT HELD NOW";
         }
     } else if (lead == 8) {
         objective[0] = "Help the new town grow.";
