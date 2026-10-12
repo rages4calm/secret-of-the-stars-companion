@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "afe4e1ab4476432f1bcb48ab1fc6e5d35f90b357c21996518d358e2e5bf0ac03",
+  "files": {
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "3c4b6aa69a20493093c3e81a84e8833fece4a5854882821271751f1f471fa11c",
+      "normalized_predecessor_sha256": "3c4b6aa69a20493093c3e81a84e8833fece4a5854882821271751f1f471fa11c",
+      "final_sha256": "03798893ca713513981ef25f823490c9d7ae485262283531d704727cb704273d",
+      "normalized_final_sha256": "03798893ca713513981ef25f823490c9d7ae485262283531d704727cb704273d"
+    },
+    "runner/src/cpu_state.c": {
+      "predecessor_sha256": "25dd3fc3c1646548b0958f3e69c2183c3614739705be9608ec9dcbf60d6151f3",
+      "normalized_predecessor_sha256": "25dd3fc3c1646548b0958f3e69c2183c3614739705be9608ec9dcbf60d6151f3",
+      "final_sha256": "f18d54e9c186d7acfcd22001c7c83dcc82392b7216b3332cc64843922666044b",
+      "normalized_final_sha256": "f18d54e9c186d7acfcd22001c7c83dcc82392b7216b3332cc64843922666044b"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "6bd6971837a5b8f284035027b7ac793211132362fef88cb187a8762d7b754b0f",
+      "normalized_predecessor_sha256": "6bd6971837a5b8f284035027b7ac793211132362fef88cb187a8762d7b754b0f",
+      "final_sha256": "1a54e67c79bfc507406439bae89554c6232c443fd03102de62ba07e13a48d331",
+      "normalized_final_sha256": "1a54e67c79bfc507406439bae89554c6232c443fd03102de62ba07e13a48d331"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "eee2b4daac66a46a891582ef853875166073c5311d6f95347cfe6b37a7d17628",
+      "normalized_predecessor_sha256": "eee2b4daac66a46a891582ef853875166073c5311d6f95347cfe6b37a7d17628",
+      "final_sha256": "ae17036181dcbf4828f49083c514b57baa2e9d155467f945df22ed046dead26a",
+      "normalized_final_sha256": "ae17036181dcbf4828f49083c514b57baa2e9d155467f945df22ed046dead26a"
+    }
+  },
+  "scope": "Original scheduler runs composed callbacks once, then transfers a single source-certified instruction through CPU/PC/dispatch/registry/lifecycle/frame/restore/opcode-and-mapped-ROM-byte ownership. Ordinary begin and nested callback/fetch refuse; mutation/redirect/transaction/reset/refusal preserve original publication and clocks. Registry/lifecycle overflow fail closed. Existing cpu_continuation_reset invalidates new transient handoff; calculate fresh declared ABI/profile normally, no unchanged assertion."
+}

@@ -1,6 +1,6 @@
 {
   "snapshot_date": "2026-10-12",
-  "native_version": "0.4.9",
+  "native_version": "0.5.0",
   "companion_version": "0.3.6",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
@@ -54,5 +54,8 @@
   "native_regions_scope": "Source-certified CFG poll leaves execute genuine generated IR bodies inside original preopcode scheduler. Exact E0 M/X/PC; read/conditional branch only; masks/hooks/unknown modes retain original. Transient next-PC output; no serialized state changes. Cache7; program manifest3; native regions metadata1.",
   "native_leaf_regions_patch_sha256": "a7a6d68e3e94edd085a254a3c1ec242670289ba1b6cf6051e2d207dae4522b95",
   "native_leaf_regions_source_binding_sha256": "0deb13e01fa610c402c266610896c6ae2effde9e3ec3898772e9c10c6c4a556b",
-  "native_leaf_regions_scope": "Source-certified known-E0-PC/M/X stack-neutral instruction regions from existing faithful typed IR. Original scheduler/coroutine/call/stack/return/hook/IRQ/deadline ownership, hard masks and addressing residual fallback remain. Cache8/regionmetadata2; no serialized state change."
+  "native_leaf_regions_scope": "Source-certified known-E0-PC/M/X stack-neutral instruction regions from existing faithful typed IR. Original scheduler/coroutine/call/stack/return/hook/IRQ/deadline ownership, hard masks and addressing residual fallback remain. Cache8/regionmetadata2; no serialized state change.",
+  "native_hook_handoff_patch_sha256": "afe4e1ab4476432f1bcb48ab1fc6e5d35f90b357c21996518d358e2e5bf0ac03",
+  "native_hook_handoff_source_binding_sha256": "59cef99dfc9068e8b22455ba6364e58a48dad8aa1bfe0bb359039cb425ae5d94",
+  "native_hook_handoff_scope": "Original scheduler runs composed callbacks once, then transfers a single source-certified instruction through CPU/PC/dispatch/registry/lifecycle/frame/restore/opcode-and-mapped-ROM-byte ownership. Ordinary begin and nested callback/fetch refuse; mutation/redirect/transaction/reset/refusal preserve original publication and clocks. Registry/lifecycle overflow fail closed. Existing cpu_continuation_reset invalidates new transient handoff; calculate fresh declared ABI/profile normally, no unchanged assertion."
 }

@@ -1,0 +1,216 @@
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -53,7 +53,7 @@
+     for row in sorted(rows,key=lambda r:(r['pc24'],r['m'],r['x'])):
+         case=(row['pc24']<<2)|(row['m']<<1)|row['x']
+         out.extend([f'    case {case}u: {{ /* {row["pc24"]:06x} M{row["m"]}X{row["x"]} {row["mnemonic"]}; ROM {row["bytes"]} */',
+-                    f'      if(!cpu_aot_begin(cpu,pc24,{row["length"]}u,{row["cycles"]}u)) return false;',
++                    f'      if(!cpu_aot_begin_scheduler_region(cpu,pc24,{row["length"]}u,{row["cycles"]}u,(const uint8[]){{{','.join(str(b) for b in bytes.fromhex(row['bytes']))}}},cpu_native_region_step)) return false;',
+                     f'      *next_pc={row["next_pc"]}u;',row['body'],'      cpu_aot_commit(cpu); return true; }'])
+     out.extend(['    default: return false;','  }','}',''])
+     return '\n'.join(out)
+diff --git a/runner/src/cpu_state.c b/runner/src/cpu_state.c
+--- a/runner/src/cpu_state.c
++++ b/runner/src/cpu_state.c
+@@ -1438,6 +1438,7 @@
+ extern int snes_frame_counter;
+ 
+ void cpu_continuation_reset(void) {
++    cpu_native_region_reset();
+     memset(s_native_continuations, 0, sizeof s_native_continuations);
+     s_native_continuation_depth = 0;
+ }
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -833,6 +833,8 @@
+ /* Generated scheduler-owned instruction leaf; next PC is transient output. */
+ bool cpu_native_region_step(CpuState*, uint32 pc24, uint8 mx, uint16 *next_pc);
+ bool cpu_aot_begin(CpuState*, uint32, unsigned, unsigned);
++void cpu_native_region_reset(void);
++bool cpu_aot_begin_scheduler_region(CpuState*, uint32, unsigned, unsigned, const uint8*, bool (*)(CpuState*, uint32, uint8, uint16*));
+ RecompReturn interp_tier_dispatch_faithful(CpuState*,uint32,uint32,uint16,uint8,bool,uint32);
+ void cpu_aot_extra(CpuState*, unsigned);
+ void cpu_aot_commit(CpuState*);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -427,6 +427,26 @@
+     InterpPreOpcodeHook hook;
+ } s_pre_opcode_hooks[kInterpPreOpcodeHookSlots];
+ static int s_pre_opcode_hook_count;
++static uint64_t s_pre_opcode_hook_generation, s_scheduler_hook_lifecycle;
++static bool s_scheduler_hook_epoch_exhausted;
++typedef struct SchedulerHookHandoff {
++  CpuState *cpu;
++  uint32_t pc24;
++  uint64_t generation;
++  uint8_t opcode;
++  bool observed_hooks;
++  int host_frame;
++  uint64_t lifecycle, state_generation;
++  bool (*dispatch)(CpuState *, uint32, uint8, uint16 *);
++} SchedulerHookHandoff;
++static CpuState *s_scheduler_hook_begin_cpu;
++static uint32_t s_scheduler_hook_begin_pc;
++static SchedulerHookHandoff s_scheduler_hook_handoff;
++extern int snes_frame_counter;
++static void scheduler_hook_epoch_advance(uint64_t *epoch) {
++  if (*epoch == UINT64_MAX) s_scheduler_hook_epoch_exhausted = true;
++  else ++*epoch;
++}
+ static int s_pre_opcode_redirect_valid;
+ static uint32_t s_pre_opcode_redirect_pc24;
+ static CpuState *s_pre_opcode_callback_cpu;
+@@ -547,14 +567,57 @@
+ static void aot_require(CpuState *cpu) {
+   if(s_aot_instruction!=cpu || !s_interp_bus_timing_active) {fputs("Invalid AOT transaction\n",stderr);abort();}
+ }
++void cpu_native_region_reset(void) {
++  s_scheduler_hook_handoff = (SchedulerHookHandoff){0};
++  s_scheduler_hook_begin_cpu = NULL;
++  s_scheduler_hook_begin_pc = 0;
++  scheduler_hook_epoch_advance(&s_scheduler_hook_lifecycle);
++}
++
++bool cpu_aot_begin_scheduler_region(CpuState *cpu, uint32 pc, unsigned length,
++    unsigned cycles, const uint8 *expected,
++    bool (*dispatch)(CpuState *, uint32, uint8, uint16 *)) {
++  if (!cpu || !expected || !length || length > 4 || !dispatch) return false;
++  const uint32_t key = ((((uint32_t)cpu->PB) << 16) | (pc & 0xffffu)) & 0x7fffffu;
++  bool hooked = false;
++  for (int i = 0; i < s_pre_opcode_hook_count; ++i)
++    hooked |= s_pre_opcode_hooks[i].pc24 == key;
++  if (!hooked && !s_scheduler_hook_handoff.observed_hooks) return cpu_aot_begin(cpu, pc, length, cycles);
++  const SchedulerHookHandoff handoff = s_scheduler_hook_handoff;
++  s_scheduler_hook_handoff.cpu = NULL; /* attempt consumes the handoff */
++  if (s_scheduler_hook_epoch_exhausted || g_watchdog_tripped || s_pre_opcode_callback_cpu || handoff.cpu != cpu ||
++      handoff.pc24 != key || handoff.dispatch != dispatch ||
++      handoff.generation != s_pre_opcode_hook_generation ||
++      handoff.lifecycle != s_scheduler_hook_lifecycle || handoff.host_frame != snes_frame_counter ||
++      handoff.state_generation != RtlStateGeneration() ||
++      handoff.opcode != expected[0] || !g_snes || !g_snes->cart)
++    return false;
++  /* The actual post-hook ROM bytes must still match the generated row.
++   * Read-only cartridge mapping adds no bus access, clock or device callback. */
++  for (unsigned byte = 0; byte < length; ++byte) {
++    const uint8_t *rom = cart_getRomPtr(g_snes->cart, cpu->PB, (uint16_t)(pc + byte));
++    if (!rom || *rom != expected[byte]) return false;
++  }
++  s_scheduler_hook_handoff.cpu = NULL; /* single use, before any bus callback */
++  const CpuState *previous_cpu = s_scheduler_hook_begin_cpu;
++  const uint32_t previous_pc = s_scheduler_hook_begin_pc;
++  s_scheduler_hook_begin_cpu = cpu;
++  s_scheduler_hook_begin_pc = key;
++  const bool begun = cpu_aot_begin(cpu, pc, length, cycles);
++  s_scheduler_hook_begin_cpu = (CpuState *)previous_cpu;
++  s_scheduler_hook_begin_pc = previous_pc;
++  return begun;
++}
++
+ bool cpu_aot_begin(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles) {
+   if(!cpu || cpu->emulation || s_aot_instruction || s_native_instruction_cpu || s_interp_bus_timing_active || !cycles || !length) return false;
+-  /* Registered pre-opcode callbacks remain original execution boundaries.
+-   * Refuse before any fetch/charge or callback: the faithful interpreter
+-   * continuation invokes them once and owns mode changes/native redirects. */
++  /* Ordinary AOT entries always refuse registered hook PCs. A scheduler
++   * region wrapper authorizes only its own immediate, source-verified begin. */
+   const uint32_t hook_pc = (((uint32_t)cpu->PB << 16) | (pc & 0xffffu)) & 0x7fffffu;
+   for (int i = 0; i < s_pre_opcode_hook_count; ++i)
+-    if (s_pre_opcode_hooks[i].pc24 == hook_pc) return false;
++    if (s_pre_opcode_hooks[i].pc24 == hook_pc &&
++        (s_scheduler_hook_begin_cpu != cpu || s_scheduler_hook_begin_pc != hook_pc))
++      return false;
+   s_aot_instruction=cpu;s_aot_cycles=cycles;s_aot_pc=((uint32)cpu->PB<<16)|(pc&0xffff);
+   s_aot_length=length;memset(s_aot_fetched,0,sizeof s_aot_fetched);
+   s_aot_rmw_read=false;s_aot_rmw_written=false;
+@@ -684,6 +747,7 @@
+     s_pre_opcode_hooks[s_pre_opcode_hook_count].pc24=key;
+     s_pre_opcode_hooks[s_pre_opcode_hook_count].hook=hook;
+     ++s_pre_opcode_hook_count;
++    scheduler_hook_epoch_advance(&s_pre_opcode_hook_generation);
+     return true;
+ }
+ 
+@@ -691,12 +755,14 @@
+                                        InterpPreOpcodeHook hook) {
+     if (!hook) {
+         s_pre_opcode_hook_count = 0;
++        scheduler_hook_epoch_advance(&s_pre_opcode_hook_generation);
+         return;
+     }
+     const uint32_t key = pc24 & 0x7FFFFFu;
+     for (int i = 0; i < s_pre_opcode_hook_count; i++) {
+         if (s_pre_opcode_hooks[i].pc24 == key) {
+             s_pre_opcode_hooks[i].hook = hook;
++            scheduler_hook_epoch_advance(&s_pre_opcode_hook_generation);
+             return;
+         }
+     }
+@@ -704,6 +770,7 @@
+         s_pre_opcode_hooks[s_pre_opcode_hook_count].pc24 = key;
+         s_pre_opcode_hooks[s_pre_opcode_hook_count].hook = hook;
+         s_pre_opcode_hook_count++;
++        scheduler_hook_epoch_advance(&s_pre_opcode_hook_generation);
+     } else {
+         static int warned;
+         if (!warned) {
+@@ -2224,11 +2291,19 @@
+             }
+             qring[steps & 63]=now;
+         }
++        extern int snes_frame_counter;
++        const uint64_t scheduler_hook_entry_lifecycle = s_scheduler_hook_lifecycle;
++        const uint64_t scheduler_hook_entry_state = RtlStateGeneration();
++        const int scheduler_hook_entry_frame = snes_frame_counter;
++        bool scheduler_hooks_completed = false, scheduler_hooks_observed = false;
++        uint64_t scheduler_hooks_generation = 0;
+         if (s_pre_opcode_hook_count > 0) {
++            bool hook_matched = false;
+             const uint32_t key = pc_before & 0x7FFFFFu;
+             bool redirected = false;
+             for (int hi = 0; hi < s_pre_opcode_hook_count; hi++) {
+                 if (s_pre_opcode_hooks[hi].pc24 == key) {
++                    hook_matched = true;
+                     native_arrival_valid = 0;
+                     sync_interp_to_cpu(&in, cpu);
+                     s_pre_opcode_redirect_valid = 0;
+@@ -2262,6 +2337,13 @@
+                         &progress_write_epoch, &progress_dynamic_epoch, &steps);
+                 continue;
+             }
++            scheduler_hooks_observed = hook_matched;
++            scheduler_hooks_completed = hook_matched && !s_native_instruction_committed &&
++                !s_scheduler_hook_epoch_exhausted && !g_watchdog_tripped &&
++                scheduler_hook_entry_lifecycle == s_scheduler_hook_lifecycle &&
++                scheduler_hook_entry_state == RtlStateGeneration() && scheduler_hook_entry_frame == snes_frame_counter &&
++                !s_pre_opcode_callback_cpu && (((uint32_t)in.k << 16) | in.pc) == pc_before;
++            scheduler_hooks_generation = s_pre_opcode_hook_generation;
+         }
+         /* Opt-in control-flow tripwire: game code normally executes from the
+          * LoROM $8000-$FFFF half of a bank.  If a return/jump crosses from ROM
+@@ -2823,9 +2905,23 @@
+         const uint8 unpublished_p = cpu->P;
+         s_interp_bus_timing_active = 0; /* no instruction bus work has begun */
+         sync_interp_to_cpu(&in, cpu);
++        const SchedulerHookHandoff previous_handoff = s_scheduler_hook_handoff;
++        s_scheduler_hook_handoff = (SchedulerHookHandoff){0};
++        s_scheduler_hook_handoff.observed_hooks = scheduler_hooks_observed;
++        if (scheduler_hooks_completed && scheduler_hooks_generation == s_pre_opcode_hook_generation) {
++            s_scheduler_hook_handoff.cpu = cpu;
++            s_scheduler_hook_handoff.pc24 = pc_before & 0x7fffffu;
++            s_scheduler_hook_handoff.generation = scheduler_hooks_generation;
++            s_scheduler_hook_handoff.opcode = op;
++            s_scheduler_hook_handoff.lifecycle = s_scheduler_hook_lifecycle;
++            s_scheduler_hook_handoff.state_generation = RtlStateGeneration();
++            s_scheduler_hook_handoff.host_frame = snes_frame_counter;
++            s_scheduler_hook_handoff.dispatch = cpu_native_region_step;
++        }
+         const bool region_completed = lle_yield_bounce_enabled() &&
+             cpu_native_region_step(cpu, pc_before,
+             coverage_mx, &region_next_pc);
++        s_scheduler_hook_handoff = previous_handoff;
+         int _cyc;
+         if (region_completed) {
+             _cyc = (int)(cpu->cycles - region_cycles_before);

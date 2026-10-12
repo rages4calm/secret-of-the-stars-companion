@@ -1,7 +1,7 @@
 {
   ".gitmodules": "d75d80e840891a8e8723d38134165f166c6d8236b0e7ed718d39c9c751937743",
   "CMakeLists.txt": "22f572b56d5b327c5446df6ea70b646af11d4651193ab04f951883cff8f6a0c9",
-  "VERSION": "1c43c7b1a49f08db663e5ab8b3fc9e3ff84743543ce0b5e2a5fc3c2d33c574e6",
+  "VERSION": "a0ad50640139a524f86591157145bf1d4674ea9c065bfea21558f0f7b04430c8",
   "framework_pins.txt": "fd8b6d4e6e1057018df3e61eeaa5d357316e204a3e35084cda5c7157e0383a9a",
   "recomp/bank00.cfg": "1d62c9d87f77fed226749284851e31ebfab981538a6f520dbc1ac46b36d4c44c",
   "recomp/bank01.cfg": "74f3144991f0f77da913ce274432f50358acb2c1ba5ed5711c3288af37d9b747",
@@ -51,7 +51,7 @@
   "src/foundation_state.h": "ed1262bce8f8915e82801cf45d0d94886b165453e35911adf134565cae6716db",
   "src/foundation_wide.c": "cc0b939eb6c1a592021dfc03a2e0cea67bf49bdbfc38cd54a748bd231e29781e",
   "src/foundation_wide.h": "fde97f82f5385a1efe4dcae48f99fe6a87636ad3b88117425708a761d40afdd6",
-  "src/foundation_wide_actors.c": "2f2bc5f19ff6405d682e8a50b073a2acd8f6efd13a8f69529140e11b58f636cb",
+  "src/foundation_wide_actors.c": "819361b0da36166f03d32991f191b4e9efe1391434845fa6166c02e8f51dba49",
   "src/foundation_wide_actors.h": "ccfa687f694597bd1e99511461707ace764ab924f288de211fab31dc46834b36",
   "src/game_rtl.c": "0449248d35e805002a93a2da16fa21efc91bd06dea0ecd9248a9ff504e35bae1",
   "src/game_rtl.h": "618c4aa15560d7b94eb07c4b6bd95229c632a02692f0bba5afd61985b6259907",

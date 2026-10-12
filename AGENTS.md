@@ -1,3 +1,35 @@
+# Current continuation — native0.5.0 / unchanged Companion0.3.6 (2026-10-12)
+
+Read github-repo/docs/FOUNDATION-NATIVE-HOOK-TRAVEL-OFFSETS-2026-10-12.md
+and local/evidence/continuation050-20261012/plan.json and closure-report.json.
+Native 2ce796dc; immutable compiled_unqualified receipt
+78568f81; GUI f1bc6792 unchanged.17patches/63native/24GUI;
+cache8/regionmetadata2/manifest3;21outputs/5325source mode rows generation only.
+Original composed callbacks complete once; source-byte/CPU/PC/dispatch/registry/
+lifecycle/frame/restore token permits one generated instruction. Mutation,
+redirect/transaction/recursion/reset/unmapped/stale ownership falls back.
+Existing continuation reset clears transient token; serializedfields unchanged,
+actual fresh declaredABI de6eb89e same, strict profile/fresh adoption rules stay.
+Original masks/roots/call/stack/return/scheduler/IRQ/deadline ownership retained.
+Three finite24744boundaries exact;24590native/154original; actual8414reads4097
+native after original callback. B8descriptor10985native/1originalRTL remains.
+Active42 A0/A8 originaloffsetonce/fixedshadow124..127 +ordinarybodyflag80 now
+source-derived guarded route; strictprimaryworld resources/roster/specialprefix.
+Actual coherentoriginal loader stageschapter17and40942 only; no camera/actor/
+OAM placement edits.84engine/21input controls and300frameD3D11audio pass.
+Active42offset(-8,+3)frames3/6originaltile mismatch retainsblackmarginfallback;
+compactshadow geometry remainscenter,88loadedpixels exact, no sideart claim.
+Active42 zerooffset packetspositive/sidepieces0; original positive-margin pace
+expectation retainedfailed, ordinary routepositive. Startupaudio separate.
+Full42Guide/25Current/finerleads/maps/configuredcontrols/QoL remain.
+Owner/playtesters verifycampaign; complete native/AOT and further rendering
+unfinished. Next source-certified stack primitive group private051; no new
+roots/masks/return/coroutine guesses. Rootalone lifecycle/build/install/delivery.
+Goal ACTIVE; largeoutputsTemp050, steady5GBcap. Never retry policyblockedcleanup;
+fixedmanualCMD owner-run only. Historical receipts retain exactartifactscope.
+
+---
+
 # Current continuation — native0.4.9 / unchanged Companion0.3.6 (2026-10-12)
 
 Read github-repo/docs/FOUNDATION-NATIVE-DESCRIPTOR-REGIONS-2026-10-12.md

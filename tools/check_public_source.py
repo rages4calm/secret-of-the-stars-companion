@@ -287,7 +287,7 @@ def main():
                 or sha(continuation_binding)!=provenance.get('native_continuation_source_binding_sha256')
                 or len(names)!=12 or set(names)!=set(binding['files'])
                 or 'validate_continuation_runtime' not in helper
-                or 'ordered-sixteen-full-patch-hashes' not in helper):
+                or 'ordered-seventeen-full-patch-hashes' not in helper):
             errors.append('Native continuation patch/source binding differs from the current snapshot.')
     except (OSError,ValueError,KeyError,TypeError) as error:
         errors.append('Native continuation source binding unreadable: '+str(error))
@@ -351,6 +351,21 @@ def main():
             errors.append('Native leaf region patch/source binding differs from the current snapshot.')
     except (OSError,ValueError,KeyError,TypeError) as error:
         errors.append('Native leaf region source binding unreadable: '+str(error))
+    handoff_patch=ROOT/'patches/runtime-native-hook-handoff.patch'
+    handoff_binding=ROOT/'patches/runtime-native-hook-handoff.json'
+    try:
+        binding=json.loads(handoff_binding.read_bytes())
+        names=re.findall(r'^diff --git a/(\S+) b/',handoff_patch.read_text(encoding='utf-8'),re.M)
+        if ('patches/runtime-native-hook-handoff.patch' not in tracked
+                or 'patches/runtime-native-hook-handoff.json' not in tracked
+                or sha(handoff_patch)!=binding['patch_sha256']
+                or sha(handoff_patch)!=provenance.get('native_hook_handoff_patch_sha256')
+                or sha(handoff_binding)!=provenance.get('native_hook_handoff_source_binding_sha256')
+                or len(names)!=4 or set(names)!=set(binding['files'])
+                or sha(handoff_patch) not in helper or 'validate_hook_handoff_patch' not in helper):
+            errors.append('Native hook handoff patch/source binding differs from the current snapshot.')
+    except (OSError,ValueError,KeyError,TypeError) as error:
+        errors.append('Native hook handoff source binding unreadable: '+str(error))
     reviewed = ROOT / 'native/foundation/recomp/reviewed-roots.json'
     if ('native/foundation/recomp/reviewed-roots.json' not in tracked
             or sha(reviewed) != provenance.get('reviewed_analysis_roots_sha256')):

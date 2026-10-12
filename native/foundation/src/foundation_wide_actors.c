@@ -444,11 +444,52 @@ static int LargeOffsetRoster(const Ppu *ppu) {
     return large;
 }
 
+static int KnownTravelProxy(unsigned index);
+/* Exact original mode42 A8 compact shadow plus A0 append body. Both ordinary
+ * party coordinates already contain producer0471/0473 at D917. Other special
+ * regular allocations and mode82 retain their separately bounded contracts. */
+static int OrdinaryTravelOffsetRoster(void) {
+    if ((g_ram[0x401]!=12 && !InactiveSpecialLayer()) ||
+        g_ram[0x409]!=0x42 || !KnownTravelProxy(0)) return 0;
+    for (unsigned i=0; i<kRegular; ++i) {
+        unsigned at=0x4100+25*i;
+        if (g_ram[at]==255) continue;
+        unsigned base=R16(at+5), gfx=base+2*g_ram[at]+(g_ram[0x475]>>7);
+        if (g_ram[at]>3 || base==0xb0 || (gfx>=0xa0 && gfx<0xb0) ||
+            gfx>=(0xd800-0x9800)/8) return 0;
+    }
+    return 1;
+}
+
+/* Original CBC1 mode42 allocator in the selected chapter17 world may
+ * retain mode0E with all eight special flags inactive. This is a separate
+ * exact roster/resource route, not general effect or alternate-world admission. */
+static int OrdinaryTravelWrappingResource(const Ppu *ppu) {
+    if (!ppu || !g_snes || !g_snes->dma || !OrdinaryTravelOffsetRoster() ||
+        g_ram[0x407]!=1 || R16(0x40e) || g_ram[0x400] ||
+        g_ram[0x5372]!=17 || (g_ram[0x5361]&0x40) ||
+        R16(0x46d)!=0x0e0e || R16(0x46f)!=0x0404 ||
+        R24(0x500)!=0x038758 || R24(0x503)!=0x038f58 ||
+        R24(0x506)!=0x0a8418 || R24(0x509)!=0x0a8818 ||
+        R24(0x513)!=0x09a85c || R24(0x516)!=0x099700 ||
+        R24(0x537)!=0x098110 || R24(0x55c)!=0x098210 ||
+        ppu->bgmode!=9 || PPU_mosaicSize(ppu)>1 || ppu->setini) return 0;
+    for (unsigned i=0; i<8; ++i) if (g_snes->dma->channel[i].hdmaActive) return 0;
+    for (unsigned i=0; i<kRegular; ++i) {
+        unsigned at=0x4100+25*i;
+        if (i<2) {
+            if (g_ram[at]!=(i?0:2) || R16(at+1)!=1536 ||
+                R16(at+3)!=(i?544:528) || R16(at+5)!=0x598) return 0;
+        } else if (g_ram[at]!=255) return 0;
+    }
+    return 1;
+}
+
 static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
-        (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu) || VariableRoster()) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
-        ((!R16(0x471) && !R16(0x473)) || OrdinaryOffsetRoster() || ParkedOrdinaryOffsetRoster(ppu) || LargeOffsetRoster(ppu));
+        (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu) || VariableRoster()) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu) || OrdinaryTravelWrappingResource(ppu)) &&
+        ((!R16(0x471) && !R16(0x473)) || OrdinaryOffsetRoster() || ParkedOrdinaryOffsetRoster(ppu) || LargeOffsetRoster(ppu) || OrdinaryTravelOffsetRoster());
 }
 
 static void Resource(const Ppu *ppu, uint8_t key[48]) {
@@ -643,7 +684,8 @@ static int KnownTravelProxy(unsigned index) {
         g_ram[0x4000] <= 3 && g_ram[0x4000] == g_ram[0x4012] &&
         R16(0x4003) == 0xa8 && R16(0x4015) == (large ? 0xb0 : 0xa0) &&
         R16(0x4001) == 0x7080 && R16(0x4013) == (large ? 0x4078 : 0x5080) &&
-        g_ram[0x4005] == 0 && g_ram[0x4017] == 0 &&
+        g_ram[0x4005] == 0 &&
+        (g_ram[0x4017] == 0 || (ordinary && g_ram[0x4017] == 0x80)) &&
         g_ram[0x4009] == g_ram[0x4000] && g_ram[0x401b] == 0x42 &&
         g_ram[0x4024] == 255 && g_ram[0x4036] == 255 && g_ram[0x4048] == 255;
 }
@@ -867,9 +909,10 @@ static void Observe(CpuState *cpu, uint32_t pc) {
                     unsigned at = 0x2200 + proxy_slot * 4;
                     unsigned high = (g_ram[0x2400 + proxy_slot / 4] >>
                                      (proxy_slot % 4 * 2)) & 3;
-                    if (g_ram[at] != 128 + (part & 1) * 8 ||
-                        g_ram[at + 1] != 111 + (part >> 1) * 8 ||
-                        R16(at + 2) != actor->words[part] || high != 0) {
+                    int x=actor->screen_x+(int)(part & 1)*8;
+                    int y=actor->screen_y+(int)(part >> 1)*8;
+                    if (g_ram[at] != (x & 255) || g_ram[at + 1] != (y & 255) ||
+                        R16(at + 2) != actor->words[part] || high != ((x >> 8) & 1)) {
                         Reject("reject_travel_proxy_packet", cpu); return;
                     }
                 }
@@ -1041,7 +1084,8 @@ static int LocalPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
 int FoundationWideActorsPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
     if (LocalWrappingResource(source)) return LocalPeriodicRaster(source,world_x,world_y);
     if (!source || !world_x || !world_y || world_x == world_y ||
-        !displayed.valid || !Scene(source) || !WrappingResource(source) ||
+        !displayed.valid || !Scene(source) ||
+        (!WrappingResource(source) && !OrdinaryTravelWrappingResource(source)) ||
         !SameResource(source,&displayed) || !PacketMatches(source,displayed.bytes) ||
         (unsigned)(snes_frame_counter-displayed.producer_frame) != 2) return 0;
     for (unsigned i=0;i<kParty;++i) {
@@ -1159,9 +1203,10 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
     }
     for (unsigned index = 0; index < kActors; ++index) {
         const Actor *actor = &displayed.actors[index];
-        /* The checked A8 shadow is entirely in the original center. Its
-         * reserved packet words participate in identity, never side drawing. */
-        if (!actor->present || actor->travel_proxy) continue;
+        /* The checked A8 compact shadow retains original slots124..127.
+         * Captured producer coordinates may extend into a margin; the
+         * completed packet owns its geometry and fixed-slot priority. */
+        if (!actor->present) continue;
         for (unsigned part = 0; part < 4; ++part) {
             int x = (actor->party ? Period512(actor->screen_x, 128) - dx :
                      local ? LocalDistance(actor->world_x + displayed.offset_x - cx,128,(unsigned)displayed.resource[24]*256)+128 :
@@ -1189,7 +1234,8 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
                     colors[count][row * 8 + col] = pixel ? 0x8000 | (source->cgram[palette + pixel] & 0x7fff) : 0;
                 }
             }
-            unsigned virtual_slot = index >= kParty + kAppendRegular ?
+            unsigned virtual_slot = actor->travel_proxy ? 124+part :
+                index >= kParty + kAppendRegular ?
                 4 + (index - kParty - kAppendRegular) * 4 + part : 12 + bits_index;
             unsigned virtual_order=virtual_slot+1;
             if (displayed.effects.valid && index<kParty+kAppendRegular) {
