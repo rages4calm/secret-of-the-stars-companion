@@ -207,13 +207,52 @@ static int SettledLabBlankPrefix(const Ppu *ppu) {
  * is not consumed. This is the ordinary zero-prefix producer, independent of
  * scene/roster; active or default-FF special records retain their own policy. */
 static int InactiveSpecialLayer(void) {
-    if (g_ram[0x401] != 14 || g_ram[0x407]) return 0;
+    if (g_ram[0x401] != 14) return 0;
     for (unsigned i = 0; i < 8; ++i)
         if (g_ram[0x4300 + 21 * i]) return 0;
     return 1;
 }
 
+/* Ordinary DAxx producers share the selected primary map's periods. Scene()
+ * authenticates that selection and the entire completed OAM packet below;
+ * chapter, town, party leader and NPC identities are not rendering contracts.
+ * A 256px horizontal period needs duplicate instances in a 400px picture, so
+ * retain fallback there. Special layers and vehicle descriptor families keep
+ * their separate original producer contracts. */
+static int OrdinaryWrappingResource(const Ppu *ppu) {
+    /* Preserve the existing world's separately supported raster continuation
+     * and specialized allocations; the new path fills unsupported families. */
+    if (WrappingResource(ppu)) return 0;
+    if (!ppu || !g_snes || !g_snes->dma || g_ram[0x407] != 1 ||
+        g_ram[0x409] || (g_ram[0x401] != 12 && !InactiveSpecialLayer()) || R16(0x471) || R16(0x473) ||
+        ppu->obsel != 3 || PPU_objPriority(ppu) ||
+        ppu->bgmode != 9 || PPU_mosaicSize(ppu) > 1 || ppu->setini) return 0;
+    unsigned px = g_ram[0x46d] * 256u, py = g_ram[0x46e] * 256u;
+    if (px < 512 || py < 256 || px > 3840 || py > 3840) return 0;
+    for (unsigned i = 0; i < 8; ++i)
+        if (g_snes->dma->channel[i].hdmaActive) return 0;
+    for (unsigned i = 0; i < kParty; ++i) {
+        unsigned at = 0x4000 + i * 18;
+        if (g_ram[at] == 255) continue;
+        unsigned base = R16(at + 3);
+        unsigned gfx = base + g_ram[at] * 2 + (g_ram[at + 10] >> 7);
+        if (g_ram[at] > 3 || base == 0xb0 ||
+            (gfx >= 0xa0 && gfx < 0xb0) || gfx >= (0xd800 - 0x9800) / 8) return 0;
+    }
+    for (unsigned i = 0; i < kRegular; ++i) {
+        unsigned at = 0x4100 + i * 25;
+        if (g_ram[at] == 255) continue;
+        unsigned base = R16(at + 5);
+        unsigned gfx = base + g_ram[at] * 2 + (g_ram[0x475] >> 7);
+        if (g_ram[at] > 3 || base == 0xb0 ||
+            (gfx >= 0xa0 && gfx < 0xb0) || gfx >= (0xd800 - 0x9800) / 8 ||
+            R16(at + 1) >= px || R16(at + 3) >= py) return 0;
+    }
+    return 1;
+}
+
 static int LocalWrappingResource(const Ppu *ppu) {
+    if (OrdinaryWrappingResource(ppu)) return 1;
     if (!ppu || !g_snes || !g_snes->dma || g_ram[0x407] != 1 ||
         g_ram[0x409] || g_ram[0x400] != 0x80 ||
         R16(0x46f) != 0x0202 || R24(0x503) != 0x03ae70 ||
@@ -734,7 +773,7 @@ static int LocalPeriodicRaster(const Ppu *source, int *world_x, int *world_y) {
     int jumped=0;
     for (unsigned i=0;i<2;++i) {
         unsigned period=(unsigned)displayed.resource[24+i]*256;
-        if ((period!=512 && period!=2048) || raster[i]<0 || raster[i]>=(int)period ||
+        if (period < (i ? 256u : 512u) || period > 3840 || raster[i]<0 || raster[i]>=(int)period ||
             live[i]<0 || live[i]>=(int)period || packet[i]<0 || packet[i]>=(int)period ||
             raster[i]!=packet[i] || (raster[i]&1023)!=scroll[i]) return 0;
         int delta=LocalDistance(live[i],packet[i],period),raw=live[i]-packet[i];

@@ -10,7 +10,7 @@ ROOT=Path(__file__).resolve().parents[1]
 ROM_SHA='7da4a3cfa5de4bb4722a6e2a42c26aae322b5e668f1645d8c870fb99e6080600'
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 class Point(C.Structure):
-    _fields_=[('x',C.c_int),('y',C.c_int),('objective',C.c_uint),('label',C.c_char*24)]
+    _fields_=[('x',C.c_int),('y',C.c_int),('objective',C.c_uint),('label',C.c_char*24),('name_index',C.c_uint)]
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--rom',type=Path,required=True);p.add_argument('--runtime',type=Path,required=True,help='Runtime runner/src with sha256.c/h');p.add_argument('--cc');p.add_argument('--output',type=Path,required=True);a=p.parse_args()

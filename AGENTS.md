@@ -1,3 +1,22 @@
+# Current continuation - native0.4.3 / unchanged Companion0.3.6 (2026-10-12)
+
+Read docs/FOUNDATION-GUIDE-TRACKING-WIDESCREEN-2026-10-12.md first (under github-repo at root).
+Installed native 90289390; immutable compiled_unqualified
+receipt 98d0b910; GUI f1bc6792 unchanged. Guide GameX tracks/clears
+20explicit town pages via original name/entrance identity; temporary target,
+pink GUIDE DESTINATION, no quest completion/history/guessed coordinates.
+Ordinary wrapped party/NPC families use authenticated independent periods,
+full544 packet/raster/DMA and original descriptors; empty special layers also
+supported. Prior world/vehicle contracts remain; active effects/offsets/fallback
+stay separate. OriginalFFFFHP shows IMMUNE; black battle transitions hidden.
+13runtimepatches/62nativeinputs/24GUIinputs, declaredexecutionABI unchanged.
+Owner/play testers verifycampaign; focused implementation/render/input/audio
+checks only. No exhaustivecampaign gate. GoalACTIVE; requiredlargeoutputsTemp,
+steadyproject5GBcap. Neverretry oldpolicyblockedcleanup/elevation/VerifyOnly.
+Historical blocks retain their own artifact scopes.
+
+---
+
 # Current continuation - native0.4.2 / unchanged Companion0.3.6 (2026-10-12)
 
 Read docs/FOUNDATION-MEMORY-RMW-2026-10-12.md first (under github-repo at root).

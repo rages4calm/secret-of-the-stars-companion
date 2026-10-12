@@ -196,12 +196,14 @@ static int Build(const Image *image,const uint8_t *ram,unsigned scene,unsigned w
         FoundationMapPoint *point=&result[output_count++];memset(point,0,sizeof(*point));
         point->x=(int)(groups[i].xsum*16/groups[i].count+8);
         point->y=(int)(groups[i].ysum*16/groups[i].count+8);
+        point->name_index=groups[i].name;
         memcpy(point->label,groups[i].label,24);
     }
     if(objective_group>=0&&!ambiguous){
         if(output_count>=MaxPoints)return 0;
         FoundationMapPoint *point=&result[output_count++];Group *g=&groups[objective_group];memset(point,0,sizeof(*point));
         point->x=(int)(g->xsum*16/g->count+8);point->y=(int)(g->ysum*16/g->count+8);point->objective=1;
+        point->name_index=g->name;
         memcpy(point->label,g->label,24);
     }
     if(output_count>capacity)return 0;
@@ -230,6 +232,14 @@ static size_t bound_size;
 static int bound_identity;
 void FoundationMapPointsReset(void){cached_valid=0;memset(cached_story,0,sizeof(cached_story));memset(cached_town_name,0,sizeof(cached_town_name));}
 void FoundationMapPointsInit(void){bound_image=NULL;bound_size=0;bound_identity=0;FoundationMapPointsReset();}
+int FoundationMapPointsFindTown(unsigned name_index,FoundationMapPoint *output){
+    if(!output||name_index>=23||!g_snes||!g_snes->cart||!g_rom||
+       g_ram[0x40e]||g_ram[0x40f])return 0;
+    FoundationMapPoint live[MaxPoints];size_t count=0;
+    if(!FoundationMapPointsBuild(g_rom,g_snes->cart->romImageSize,g_ram,RamSize,
+        0,g_ram[0x46d]*256u,g_ram[0x46e]*256u,-1,live,MaxPoints,&count))return 0;
+    return FoundationMapTownByName(live,count,0,name_index,output);
+}
 void FoundationMapPointsAfterFrame(int verified_destination){
     if(verified_destination==0xffff)verified_destination=-1;
     if(!FoundationMapVisible())return;

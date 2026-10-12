@@ -9,6 +9,8 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
+The [native 0.4.3 presentation bundle](docs/FOUNDATION-GUIDE-TRACKING-WIDESCREEN-2026-10-12.md) implements guide town tracking, broader ordinary wrapped-map actor rendering and an original invulnerability display. Human testers verify campaign behavior; focused developer checks cover implementation and rendering.
+
 The [native 0.4.2 instruction update](docs/FOUNDATION-MEMORY-RMW-2026-10-12.md) adds all24 supported memory increment/decrement, shift/rotate opcodes and accumulator increment/decrement. Two finite executions retain identical state and clocks with 263 newly native instructions in the sampled window; separate guide/combat rendering and paced audio pass. Companion remains 0.3.6. The [0.4.0 story guide](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) contains 42 pages in 14 sections through the ending. Owner and play testers verify campaign directions; developer checks focus on implementation, rendering and reported failures.
 
 Full native/AOT execution, broader story/party/effect rendering and hardware coverage remain unfinished. Guide coverage does not establish automatic campaign event detection, permanent quest history or new objective pins. Current original execution and guarded renderer fallback remain authoritative.
@@ -69,7 +71,7 @@ The suggested section uses original current chapter 0-24, with selected earlier 
 
 The owner and play testers verify campaign directions. Implement useful corrections from their reports without making exhaustive developer campaign replay a prerequisite for each content change. Additional automatic event-specific advice and objective pins still require original source/state evidence; possession, current party and permanent completion remain distinct. Durable quest history is future work and would need defined reset/load/rewind semantics.
 
-The navigation map retains original area terrain, player position, towns and independently qualified destinations. Wider map/story rendering, two-party town changes and effects remain separate work. No guessed route pins or exploration history are added by the full story guide.
+The navigation map retains original area terrain, player position, towns and independently qualified destinations. Wider map/story rendering, two-party town changes and effects remain separate work. Game X explicitly tracks towns named on mapped guide pages using original entrance coordinates. No guessed route pins or exploration history are added.
 
 ## 4. Audio and presentation polish
 
@@ -98,6 +100,6 @@ incorrect step when possible. Developers implement corrections and run focused
 rendering, input, restoration and playback checks on protected copies.
 
 Physical controller variation, listening, long sessions and broad story/effect
-coverage remain open. A manually complete guide does not certify full campaign
+coverage remain open. A manually complete guide and player-selected marker do not certify full campaign
 execution or every renderer context. Keep observed failures and tested coverage
 separate, and preserve owner data.

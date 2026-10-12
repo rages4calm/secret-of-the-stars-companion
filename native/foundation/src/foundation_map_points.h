@@ -13,4 +13,7 @@ int FoundationMapPointsBuild(const uint8_t *rom, size_t rom_size,
 void FoundationMapPointsInit(void);
 void FoundationMapPointsAfterFrame(int verified_destination);
 void FoundationMapPointsReset(void);
+/* Resolve the player's manual choice from live original world metadata even
+ * with the map panel closed. Returns no point for any other area. */
+int FoundationMapPointsFindTown(unsigned name_index, FoundationMapPoint *output);
 #endif

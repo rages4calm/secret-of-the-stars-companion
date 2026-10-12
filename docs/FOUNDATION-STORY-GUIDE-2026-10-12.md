@@ -1,3 +1,5 @@
+Current continuation: [native 0.4.3 guide town tracking](FOUNDATION-GUIDE-TRACKING-WIDESCREEN-2026-10-12.md) adds Game X tracking without automatic quest completion. The following 0.4.0 block retains its original artifact scope.
+
 # Native 0.4.0 / Companion 0.3.6 story guide
 
 The journal now contains a manually browsable **42-page story guide in 14

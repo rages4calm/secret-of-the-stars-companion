@@ -2,7 +2,7 @@
 #define FOUNDATION_GUIDE_DATA_H
 
 /* Authored, manually browsable walkthrough notes. These are written-guide
- * directions, not observed events, completion history, flags or map pins.
+ * directions, not observed events, completion history or quest flags.
  * part is an editorial walkthrough section, not the original story byte.
  * Sources and inaccessible source links: docs/JOURNAL-GUIDE-SOURCES.md. */
 typedef struct FoundationGuidePage {
@@ -271,5 +271,38 @@ static const FoundationGuidePage foundation_guide_pages[] = {
 
 #define FOUNDATION_GUIDE_PAGE_COUNT \
     (sizeof(foundation_guide_pages) / sizeof(foundation_guide_pages[0]))
+
+/* Optional player-chosen town for each page. These are original 04:C200
+ * name identities, never coordinates or an inferred next event. Unmapped
+ * shrines, castles, upper-world locations and Kaja-House stay unavailable.
+ * The map resolves only a unique currently accepted world0 town point. */
+static const int foundation_guide_towns[] = {
+    18, -1, -1, 17, 1, 1, 2, 2, 3, -1, -1, 0, 3, -1,
+    5, 7, 21, 9, 0, -1, -1, -1, -1, 11, 3, -1, -1, -1,
+    -1, -1, 15, 15, 14, 0, -1, -1, -1, -1, -1, -1, -1, -1
+};
+_Static_assert(sizeof(foundation_guide_towns)/sizeof(foundation_guide_towns[0]) ==
+    FOUNDATION_GUIDE_PAGE_COUNT, "Every guide page has an explicit town choice");
+static inline int FoundationGuideTownName(unsigned page) {
+    return page < FOUNDATION_GUIDE_PAGE_COUNT ? foundation_guide_towns[page] : -1;
+}
+static inline const char *FoundationGuideTownLabel(unsigned page) {
+    switch (FoundationGuideTownName(page)) {
+    case 0: return "OLD HILL";
+    case 1: return "BEEGEES";
+    case 2: return "GIANT";
+    case 3: return "DECATAS";
+    case 5: return "BOX TOWN";
+    case 7: return "KARAPPON";
+    case 9: return "BRASCA";
+    case 11: return "EDON";
+    case 14: return "DONTO";
+    case 15: return "HIDON";
+    case 17: return "WINDS";
+    case 18: return "LIKADO";
+    case 21: return "LAGOON";
+    default: return "";
+    }
+}
 
 #endif

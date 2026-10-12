@@ -72,6 +72,7 @@ int FoundationMapSample(const uint8_t *ram, size_t size, const uint16_t *vram,
 #include "common_rtl.h"
 #include "foundation_hotkeys.h"
 #include "foundation_journal.h"
+#include "foundation_map_points.h"
 #include "snes/ppu.h"
 #include "snes/snes.h"
 #include "snes_overlay_draw.h"
@@ -87,6 +88,9 @@ static unsigned completed, generations, samples;
 static unsigned snapshot_frame, snapshot_writes, host_frame, point_scene;
 static size_t point_count;
 static FoundationMapPoint points[32];
+static int guide_town = -1;
+static uint64_t guide_generation;
+static FoundationMapPoint guide_point;
 static uint8_t resource_key[0x200], current_key[0x200];
 static uint16_t palette[256], graphics[0x8000];
 static uint32_t terrain[FOUNDATION_MAP_WIDTH * FOUNDATION_MAP_HEIGHT];
@@ -97,6 +101,7 @@ static FILE *trace;
 void FoundationMapReset(void) {
     visible = eligible = ready = failed = building = 0; completed = 0;
     point_count = 0;
+    FoundationMapClearGuideTown();
     memset(resource_key, 0, sizeof(resource_key));
 }
 void FoundationMapInit(void) {
@@ -126,6 +131,24 @@ void FoundationMapInit(void) {
 void FoundationMapBeforeFrame(void) {}
 int FoundationMapVisible(void) { return enabled && visible; }
 void FoundationMapHide(void) { visible = 0; }
+void FoundationMapClearGuideTown(void) {
+    if (guide_town >= 0)
+        fprintf(stderr,"[foundation] guide destination cleared name=%d\n",guide_town);
+    guide_town = -1;
+}
+int FoundationMapGuideTown(void) { return guide_town; }
+int FoundationMapTrackGuideTown(unsigned name_index) {
+    if (name_index >= 23) return 0;
+    if (guide_town == (int)name_index) { FoundationMapClearGuideTown(); return 1; }
+    if (!enabled || !objective_enabled || !g_ppu ||
+        !FoundationFieldSceneEligible(g_ppu) || !FoundationFieldLayerActive(0) ||
+        !FoundationMapPointsFindTown(name_index, &guide_point)) return 0;
+    guide_town = (int)name_index;
+    guide_generation = RtlStateGeneration();
+    fprintf(stderr,"[foundation] guide destination name=%d label=%.23s x=%d y=%d\n",
+        guide_town,guide_point.label,guide_point.x,guide_point.y);
+    return 1;
+}
 int FoundationMapBounds(unsigned *scene, unsigned *width, unsigned *height) {
     if (!eligible || !scene || !width || !height) return 0;
     *scene=Word(g_ram,0x40e); *width=map_width; *height=map_height;
@@ -133,7 +156,7 @@ int FoundationMapBounds(unsigned *scene, unsigned *width, unsigned *height) {
 }
 void FoundationMapSetPoints(unsigned scene, const FoundationMapPoint *input, size_t count) {
     point_count=0; point_scene=scene;
-    if (!input || count>32) return;
+    if (!input || count>32) { FoundationMapClearGuideTown(); return; }
     for (size_t i=0; i<count; ++i)
         if (input[i].x>=0 && input[i].y>=0 && input[i].x<(int)map_width && input[i].y<(int)map_height)
         {
@@ -144,6 +167,8 @@ void FoundationMapSetPoints(unsigned scene, const FoundationMapPoint *input, siz
                     points[point_count].label[j]='?';
             ++point_count;
         }
+    if (guide_town >= 0 && !FoundationMapTownByName(points,point_count,scene,
+        (unsigned)guide_town,&guide_point)) FoundationMapClearGuideTown();
 }
 
 static void Key(void) {
@@ -181,6 +206,10 @@ static void Key(void) {
 
 void FoundationMapAfterFrame(const SnesDesktopHostFrameStats *stats) {
     host_frame=stats->frame;
+    if (guide_town >= 0 && (Word(g_ram,0x40e) != 0 ||
+        guide_generation != RtlStateGeneration() || !g_ppu ||
+        !FoundationFieldSceneEligible(g_ppu) || !FoundationFieldLayerActive(0)))
+        FoundationMapClearGuideTown();
     if (FoundationHotkeysConsumeMap() && enabled) {
         visible = !visible;
         fprintf(stderr,"[foundation] frame %u map %s\n",stats->frame,visible ? "shown" : "hidden");
@@ -239,7 +268,10 @@ void FoundationMapDraw(uint8_t *dst, size_t pitch, int w, int h) {
     snes_ovl_fill_rect(pixels,stride,h,x,y,240,196,0xff080e1c);
     snes_ovl_stroke_rect(pixels,stride,h,x,y,240,196,0xff809bc8);
     snes_ovl_draw_text(pixels,stride,h,x+8,y+8,"AREA MAP",0xffffdf78,1);
-    snes_ovl_draw_text(pixels,stride,h,x+8,y+22,"CURRENT AREA TERRAIN",0xffa7b9d8,1);
+    if (guide_town >= 0) {
+        char caption[32]; snprintf(caption,sizeof(caption),"GUIDE: %.20s",guide_point.label);
+        snes_ovl_draw_text(pixels,stride,h,x+8,y+22,caption,MAP_OBJECTIVE_INK,1);
+    } else snes_ovl_draw_text(pixels,stride,h,x+8,y+22,"CURRENT AREA TERRAIN",0xffa7b9d8,1);
     if (!eligible || failed) {
         snes_ovl_draw_text(pixels,stride,h,x+8,y+76,"MAP UNAVAILABLE HERE",0xfff0f3fa,1);
         snes_ovl_draw_text(pixels,stride,h,x+8,y+92,"RETURN TO ORDINARY FIELD",0xffa7b9d8,1);
@@ -252,14 +284,20 @@ void FoundationMapDraw(uint8_t *dst, size_t pitch, int w, int h) {
         for (unsigned row=0; row<canvas_height; ++row)
             memcpy(pixels+(top+(int)row)*stride+left,front+row*canvas_width,canvas_width*4);
         if (point_scene==Word(g_ram,0x40e)) for (size_t i=0; i<point_count; ++i) {
-            if (points[i].objective && (!objective_enabled || (host_frame/30)%2)) continue;
+            /* A manual guide destination temporarily replaces the automatic
+             * objective icon. Ordinary current town metadata stays intact. */
+            unsigned marker = guide_town >= 0 ?
+                (!points[i].objective && points[i].name_index == (unsigned)guide_town ? 2u : 0u) :
+                points[i].objective;
+            if (guide_town >= 0 && points[i].objective) continue;
+            if (marker && (!objective_enabled || (host_frame/30)%2)) continue;
             int mx=left+points[i].x*(int)canvas_width/(int)map_width;
             int my=top+points[i].y*(int)canvas_height/(int)map_height;
             if (mx<left+2) mx=left+2;
             if (mx>left+(int)canvas_width-3) mx=left+(int)canvas_width-3;
             if (my<top+2) my=top+2;
             if (my>top+(int)canvas_height-3) my=top+(int)canvas_height-3;
-            uint32_t ink=points[i].objective ? MAP_OBJECTIVE_INK : MAP_TOWN_INK;
+            uint32_t ink=marker ? MAP_OBJECTIVE_INK : MAP_TOWN_INK;
             snes_ovl_fill_rect(pixels,stride,h,mx-2,my-2,5,5,0xff050914);
             snes_ovl_stroke_rect(pixels,stride,h,mx-1,my-1,3,3,ink);
         }
@@ -275,7 +313,7 @@ void FoundationMapDraw(uint8_t *dst, size_t pitch, int w, int h) {
             if (my>top+(int)canvas_height-3) my=top+(int)canvas_height-3;
             snes_ovl_fill_rect(pixels,stride,h,mx-2,my-2,5,5,0xff050914);
             snes_ovl_fill_rect(pixels,stride,h,mx-1,my-1,3,3,MAP_PLAYER_INK);
-            if (point_scene==Word(g_ram,0x40e)) {
+            if (guide_town < 0 && point_scene==Word(g_ram,0x40e)) {
                 unsigned nearest=0xffffffffu; const char *label=NULL;
                 for (size_t i=0; i<point_count; ++i) if (!points[i].objective && points[i].label[0]) {
                     int dx=px-points[i].x,dy=py-points[i].y;
@@ -302,7 +340,10 @@ void FoundationMapDraw(uint8_t *dst, size_t pitch, int w, int h) {
     }
     const char *foot="POSITION + TOWNS";
     int objective_legend=0;
-    if (objective_enabled && point_scene==Word(g_ram,0x40e))
+    if (objective_enabled && eligible && ready && guide_town >= 0 && point_scene==0 && Word(g_ram,0x40e)==0) {
+        foot="PINK: GUIDE DESTINATION";
+        objective_legend=1;
+    } else if (objective_enabled && point_scene==Word(g_ram,0x40e))
         for (size_t i=0; i<point_count; ++i) if (points[i].objective) { foot="PINK BLINK: NEXT OBJECTIVE"; objective_legend=1; break; }
     if (objective_legend)
         snes_ovl_draw_text(pixels,stride,h,x+8,y+184,foot,MAP_OBJECTIVE_INK,1);

@@ -131,6 +131,15 @@ void FoundationPresentationPrepare(int drawable_w, int drawable_h, int *w, int *
 
 /* Current enemy records only; bars never write battle state or cache max HP.
  * The wide sidebar fits inside the authentic 72-pixel left margin. */
+static int BattleInfoReady(void) {
+    /* A43F sets 0410=1 before the original battle loader; A6E3 sets 2 on
+     * exit. A93E/A941 clear brightness before AA81..ABCF loads records, and
+     * A9CD..A9D2 starts the fade only after that loader returns. Do not paint
+     * stale enemy records over a black/forced-blank transition. */
+    return g_ppu && g_ram[0x20] == 5 && g_ram[0x0410] == 1 &&
+           !PPU_forcedBlank(g_ppu) && PPU_brightness(g_ppu) != 0;
+}
+
 static void DrawHpBar(uint32_t *pixels, int stride, int h, int x, int y,
                       int width, unsigned hp, unsigned maximum) {
     snes_ovl_fill_rect(pixels, stride, h, x, y, width, 6, 0xff293a57);
@@ -143,6 +152,7 @@ static void DrawHpBar(uint32_t *pixels, int stride, int h, int x, int y,
 }
 
 static void DrawBattleInfo(uint8_t *dst, size_t pitch, int w, int h) {
+    if (!BattleInfoReady()) return;
     unsigned slots[4], count = 0;
     for (unsigned i = 0; i < 4; ++i)
         if (!(g_ram[0x6100 + i * 0x1c] & 0x80)) slots[count++] = i;
@@ -160,26 +170,38 @@ static void DrawBattleInfo(uint8_t *dst, size_t pitch, int w, int h) {
         unsigned offset = 0x6100 + slots[row] * 0x1c, id = g_ram[offset];
         unsigned hp = g_ram[offset + 1] | g_ram[offset + 2] << 8;
         unsigned maximum = g_ram[offset + 3] | g_ram[offset + 4] << 8;
+        /* B6D9 copies the original 0F:C200+id*14 HP word to +1/+3.
+         * E16A..E16F explicitly skips damage when current HP is FFFF;
+         * Golan25 uses that sentinel until Graviton changes it to enemy26.
+         * It is not a quantitative 65,535-HP health pool. */
+        int immune = hp == 0xffff;
+        int quantified_maximum = maximum && maximum != 0xffff;
         int top = side ? y + 26 + (int)row * 42 : y + 22 + (int)row * 18;
         char text[32];
         if (side) {
             snprintf(text, sizeof(text), "%u #%02X", slots[row] + 1, id);
             snes_ovl_draw_text(pixels, stride, h, x + 6, top, text, 0xfff0f3fa, 1);
-            snprintf(text, sizeof(text), "%u HP", hp);
+            if (immune) snprintf(text, sizeof(text), "IMMUNE");
+            else snprintf(text, sizeof(text), "%u HP", hp);
             /* Five-digit values need their own row in this narrow sidebar. */
-            if (hp > 999) snprintf(text, sizeof(text), "%u", hp);
+            if (!immune && hp > 999) snprintf(text, sizeof(text), "%u", hp);
             snes_ovl_draw_text(pixels, stride, h, x + 6, top + 10, text, 0xfff0f3fa, 1);
-            if (maximum) snprintf(text, sizeof(text), "/%u", maximum);
-            else snprintf(text, sizeof(text), "MAX ?");
-            snes_ovl_draw_text(pixels, stride, h, x + 6, top + 20, text, 0xffa7b9d8, 1);
-            DrawHpBar(pixels, stride, h, x + 6, top + 31, 52, hp, maximum);
+            if (!immune) {
+                if (quantified_maximum) snprintf(text, sizeof(text), "/%u", maximum);
+                else snprintf(text, sizeof(text), "/--");
+                snes_ovl_draw_text(pixels, stride, h, x + 6, top + 20, text, 0xffa7b9d8, 1);
+                if (quantified_maximum)
+                    DrawHpBar(pixels, stride, h, x + 6, top + 31, 52, hp, maximum);
+            }
         } else {
             snprintf(text, sizeof(text), "%u #%02X", slots[row] + 1, id);
             snes_ovl_draw_text(pixels, stride, h, x + 6, top, text, 0xfff0f3fa, 1);
-            if (maximum) snprintf(text, sizeof(text), "%5u / %-5u", hp, maximum);
-            else snprintf(text, sizeof(text), "%5u / ?", hp);
+            if (immune) snprintf(text, sizeof(text), "IMMUNE");
+            else if (quantified_maximum) snprintf(text, sizeof(text), "%5u / %-5u", hp, maximum);
+            else snprintf(text, sizeof(text), "%5u / --", hp);
             snes_ovl_draw_text(pixels, stride, h, x + 54, top, text, 0xfff0f3fa, 1);
-            DrawHpBar(pixels, stride, h, x + 166, top + 1, 66, hp, maximum);
+            if (!immune && quantified_maximum)
+                DrawHpBar(pixels, stride, h, x + 166, top + 1, 66, hp, maximum);
         }
     }
 }

@@ -22,6 +22,7 @@ static SDL_Joystick *test_pad;
 static FILE *trace;
 static int guide_visible;
 static size_t guide_page;
+static int guide_tracking_unavailable;
 static uint16_t previous_buttons, blocked_buttons, filtered_buttons;
 static uint64_t input_generation;
 
@@ -75,6 +76,7 @@ uint16_t FoundationJournalFilterInput(uint16_t buttons) {
     uint64_t generation = RtlStateGeneration();
     if (generation != input_generation) {
         FoundationJournalHide();
+        FoundationMapClearGuideTown();
         if (enabled) blocked_buttons |= buttons;
         previous_buttons = buttons;
         input_generation = generation;
@@ -98,12 +100,20 @@ uint16_t FoundationJournalFilterInput(uint16_t buttons) {
             FoundationJournalHide();
         } else if (edge & 4u) { /* Configured SNES Select: guide/current view. */
             guide_visible = !guide_visible;
+            guide_tracking_unavailable = 0;
             if (guide_visible) guide_page = GuideCurrentPage();
         } else if (guide_visible) {
+            size_t old_page = guide_page;
             if ((edge & 0xc0u) == 0x40u && guide_page) --guide_page;
             if ((edge & 0xc0u) == 0x80u && guide_page + 1 < GuideCount()) ++guide_page;
             if ((edge & 0x30u) == 0x10u) GuideSection(-1);
             if ((edge & 0x30u) == 0x20u) GuideSection(1);
+            if (guide_page != old_page) guide_tracking_unavailable = 0;
+            if (edge & SNES_PAD_X) { /* Configured logical SNES X, not a raw key. */
+                int town = FoundationGuideTownName((unsigned)guide_page);
+                guide_tracking_unavailable = town < 0 ||
+                    !FoundationMapTrackGuideTown((unsigned)town);
+            }
         }
         filtered_buttons = 0;
     } else {
@@ -116,6 +126,8 @@ void FoundationJournalReset(void) {
     visible = has_lead = 0;
     guide_visible = 0;
     guide_page = 0;
+    guide_tracking_unavailable = 0;
+    FoundationMapClearGuideTown();
     previous_buttons = blocked_buttons = filtered_buttons = 0;
     input_generation = RtlStateGeneration();
 }
@@ -227,8 +239,11 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         snes_ovl_stroke_rect(pixels, stride, h, x, y, 240, 196, 0xff809bc8);
         snes_ovl_stroke_rect(pixels, stride, h, x + 2, y + 2, 236, 192, 0xff293a57);
         char heading[32], section[32];
+        int town = FoundationGuideTownName((unsigned)guide_page);
         snprintf(heading, sizeof(heading), "STORY GUIDE  %02zu/%02zu", guide_page + 1, GuideCount());
-        snprintf(section, sizeof(section), "SECTION %u - CHOOSE A STEP", page->part);
+        if (town >= 0) snprintf(section,sizeof(section),"SECTION %u  MAP: %s",page->part,
+            FoundationGuideTownLabel((unsigned)guide_page));
+        else snprintf(section, sizeof(section), "SECTION %u - CHOOSE A STEP", page->part);
         snes_ovl_draw_text(pixels, stride, h, x + 8, y + 8, heading, 0xffffdf78, 1);
         snes_ovl_fill_rect(pixels, stride, h, x + 8, y + 22, 224, 1, 0xff293a57);
         snes_ovl_draw_text(pixels, stride, h, x + 8, y + 28, page->title, 0xffffdf78, 1);
@@ -236,7 +251,10 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             snes_ovl_draw_text(pixels, stride, h, x + 8, y + 44 + i * 12,
                               page->lines[i], 0xfff0f3fa, 1);
         snes_ovl_draw_text(pixels, stride, h, x + 8, y + 148, section, 0xffa7b9d8, 1);
-        snes_ovl_draw_text(pixels, stride, h, x + 8, y + 160, "CURRENT VIEW: SELECT", 0xffa7b9d8, 1);
+        const char *tracking = town < 0 ? "NO TOWN TO TRACK" :
+            guide_tracking_unavailable ? "TRACKING UNAVAILABLE HERE" :
+            FoundationMapGuideTown() == town ? "X: CLEAR TRACKED TOWN" : "X: TRACK TOWN";
+        snes_ovl_draw_text(pixels, stride, h, x + 8, y + 160, tracking, 0xffa7b9d8, 1);
         snes_ovl_draw_text(pixels, stride, h, x + 8, y + 176, "L/R: PAGE  U/D: SECTION", 0xffffdf78, 1);
         snes_ovl_draw_text(pixels, stride, h, x + 8, y + 186, "SELECT: CURRENT  B: CLOSE", 0xffffdf78, 1);
         return;

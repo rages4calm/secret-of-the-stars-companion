@@ -99,8 +99,11 @@ void FoundationHotkeysBeforeFrame(void) {
     if (map_test) {
         int open_only = strstr(map_test, "open") != NULL;
         int reopen = strstr(map_test, "reopen") != NULL;
+        /* Finite combined guide/map fixture: first choose a guide town, then
+         * open its map. Avoid simultaneous journal/map openers at field30. */
+        int from_guide = strstr(map_test, "guide") != NULL;
         if (reopen) open_only = 0;
-        int event_frame = f == 30 || (f >= 31 && f < 60) || f == 60 ||
+        int event_frame = (!from_guide && (f == 30 || (f >= 31 && f < 60) || f == 60)) ||
                           (!open_only && (f == 90 || f == 120)) ||
                           (reopen && (f == 130 || f == 140));
         if ((test_mode & 1) && event_frame) {
