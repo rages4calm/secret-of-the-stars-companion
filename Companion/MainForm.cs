@@ -25,6 +25,7 @@ public sealed partial class MainForm : Form
     readonly Label qolCapability=Theme.Text("",10,Theme.Muted);
     readonly Label journalCapability=Theme.Text("",10,Theme.Muted);
     readonly Label mapCapability=Theme.Text("",10,Theme.Muted);
+    readonly Label encounterCapability=Theme.Text("",10,Theme.Muted);
     readonly ComboBox checkpoints=Theme.Combo(480);
     readonly CompanionButton apply=Theme.Button("Apply settings",true,164);
     readonly CompanionButton revert=Theme.Button("Revert changes",false,150);
@@ -135,9 +136,11 @@ public sealed partial class MainForm : Form
     {
         var page=Page("enhancements","Enhancements","Optional improvements, with the original presentation available on Play.");
         page.Add(qolCapability,10);
-        Section(page,"Rewards and movement");
+        Section(page,"Battle rewards and travel");
         AddNumber(page,"Experience rate (%)","100% is the original reward; 200% gives twice the experience earned in battle.",100,1000,25,s=>s.XpMultiplierPercent,(s,v)=>s.XpMultiplierPercent=v);
         AddNumber(page,"Gold rate (%)","Changes earned battle gold. Purchases, sales and existing savings keep their original amounts.",100,1000,25,s=>s.GoldMultiplierPercent,(s,v)=>s.GoldMultiplierPercent=v);
+        AddNumber(page,"Random encounter rate (%)","100% keeps the original random battle check. Lower values reduce encounters; 0% turns them off. Scripted battles stay enabled.",0,100,10,s=>s.RandomEncounterPercent,(s,v)=>s.RandomEncounterPercent=v);
+        page.Add(encounterCapability,10);
         AddNumber(page,"Movement boost (%)","Hold your assigned movement button for faster field travel. 200% is twice the normal movement rate.",100,300,25,s=>s.MovementSpeedPercent,(s,v)=>s.MovementSpeedPercent=v);
         AddFeature(page,"Faster field menus","Shortens checked menu slides and rows while keeping gameplay timing intact.",s=>s.FastMenus,(s,v)=>s.FastMenus=v);
         AddFeature(page,"Battle information","Shows enemy HP bars. In widescreen, a side panel keeps the battle clear. Toggle it with your assigned Battle information shortcut.",s=>s.BattleInfo,(s,v)=>s.BattleInfo=v);
@@ -297,6 +300,9 @@ public sealed partial class MainForm : Form
             if(control.AccessibleName is "Experience rate (%)" or "Gold rate (%)" or "Movement boost (%)" or "Fast-forward is a toggle" or "Legacy controller menu gestures" or "Movement boost keyboard" or "Movement boost controller" or "Battle information keyboard" or "Battle information controller" or "Quest journal keyboard" or "Quest journal controller")
                 control.Enabled=snapshot!=null&&!running&&supportsQol;
         qolCapability.Text=supportsQol?"":"Reward rates, movement boost and native hotkey changes require foundation 0.2.0 or newer. Build or select a new compilation on Setup.";
+        bool supportsEncounters=snapshot!=null&&ProfileService.SupportsEncounterRate(snapshot);
+        foreach(var control in settingControls.Where(c=>c.AccessibleName=="Random encounter rate (%)"))control.Enabled=snapshot!=null&&!running&&supportsEncounters;
+        encounterCapability.Text=supportsEncounters?"":"Update the selected native build on Setup to change random encounters.";
         bool supportsJournalSummary=snapshot!=null&&ProfileService.SupportsJournalPossession(snapshot);
         foreach(var control in settingControls.Where(c=>c.AccessibleName=="Journal item summary"))control.Enabled=snapshot!=null&&!running&&supportsJournalSummary;
         journalCapability.Text=supportsJournalSummary?"":"Update the selected native build on Setup to change the journal item summary.";

@@ -91,6 +91,8 @@ public static class ProfileService
                 throw new InvalidOperationException("Journal item-summary choices require native foundation 0.2.3 or newer. Update the selected source build in Setup first. Existing settings and saves are preserved.");
             if (!SupportsNavigationMap(snapshot) && (settings.NavigationMap != snapshot.OriginalSettings.NavigationMap || settings.NavigationMapObjective != snapshot.OriginalSettings.NavigationMapObjective || settings.HotkeyBindings.GetValueOrDefault("Map") != snapshot.OriginalSettings.HotkeyBindings.GetValueOrDefault("Map")))
                 throw new InvalidOperationException("Current-area map choices require native foundation 0.2.6 or newer. Update the selected source build in Setup first. Existing settings and saves are preserved.");
+            if (!SupportsEncounterRate(snapshot) && settings.RandomEncounterPercent != snapshot.OriginalSettings.RandomEncounterPercent)
+                throw new InvalidOperationException("Random encounter choices require native foundation 0.3.6 or newer. Update the selected source build in Setup first.");
             EnsureUnchanged(snapshot);
             if (running()) throw new InvalidOperationException("Close this profile's game before applying settings.");
             RejectReparse(snapshot.ProfileDirectory);
@@ -252,6 +254,7 @@ public static class ProfileService
     public static bool SupportsQol(ProfileSnapshot snapshot) => SupportsQol(snapshot.ProfileDirectory, snapshot.Files);
     public static bool SupportsJournalPossession(ProfileSnapshot snapshot) => SupportsFoundationVersion(snapshot.ProfileDirectory, snapshot.Files, new Version(0, 2, 3));
     public static bool SupportsNavigationMap(ProfileSnapshot snapshot) => SupportsFoundationVersion(snapshot.ProfileDirectory, snapshot.Files, new Version(0, 2, 6));
+    public static bool SupportsEncounterRate(ProfileSnapshot snapshot) => SupportsFoundationVersion(snapshot.ProfileDirectory, snapshot.Files, new Version(0, 3, 6));
 
     private static bool SupportsQol(string profile, IReadOnlyDictionary<string, FileIdentity> files) => SupportsFoundationVersion(profile, files, new Version(0, 2, 0));
 
@@ -303,7 +306,7 @@ public static class ProfileService
         {
             foreach (var enhancement in new[] { "BATTLE_INFO", "ENHANCED_PIXELS", "WIDE", "WIDE_ACTORS", "FAST_MENUS", "JOURNAL", "NAVIGATION_MAP", "NAVIGATION_MAP_OBJECTIVE", "NATIVE_CLEAR", "NATIVE_COLUMNS", "HD_MENU_FRAMES" })
                 start.Environment["SNESRECOMP_FOUNDATION_" + enhancement] = "0";
-            foreach (var modifier in new[] { "XP_PERCENT", "GOLD_PERCENT", "MOVEMENT_PERCENT" }) start.Environment["SNESRECOMP_FOUNDATION_" + modifier] = "100";
+            foreach (var modifier in new[] { "XP_PERCENT", "GOLD_PERCENT", "MOVEMENT_PERCENT", "ENCOUNTER_PERCENT" }) start.Environment["SNESRECOMP_FOUNDATION_" + modifier] = "100";
         }
         if (request.Mode == LaunchMode.Resume)
         {
@@ -404,6 +407,7 @@ public static class ProfileService
         ExperimentalFieldActors = Bool(foundation.Get("Enhancements", "ExperimentalFieldActors", true), false),
         XpMultiplierPercent = Number(foundation.Get("Enhancements", "XpMultiplierPercent", true), 100),
         GoldMultiplierPercent = Number(foundation.Get("Enhancements", "GoldMultiplierPercent", true), 100),
+        RandomEncounterPercent = Number(foundation.Get("Enhancements", "RandomEncounterPercent", true), 100),
         MovementSpeedPercent = Number(foundation.Get("Enhancements", "MovementSpeedPercent", true), 200),
         FastForwardToggle = Bool(foundation.Get("Enhancements", "FastForwardToggle", true), false),
         LegacyControllerGestures = Bool(foundation.Get("Enhancements", "LegacyControllerGestures", true), true),
@@ -448,6 +452,7 @@ public static class ProfileService
             [("foundation.ini", "Enhancements", "ExperimentalFieldActors")] = B(settings.ExperimentalFieldActors),
             [("foundation.ini", "Enhancements", "XpMultiplierPercent")] = N(settings.XpMultiplierPercent),
             [("foundation.ini", "Enhancements", "GoldMultiplierPercent")] = N(settings.GoldMultiplierPercent),
+            [("foundation.ini", "Enhancements", "RandomEncounterPercent")] = N(settings.RandomEncounterPercent),
             [("foundation.ini", "Enhancements", "MovementSpeedPercent")] = N(settings.MovementSpeedPercent),
             [("foundation.ini", "Enhancements", "FastForwardToggle")] = B(settings.FastForwardToggle),
             [("foundation.ini", "Enhancements", "LegacyControllerGestures")] = B(settings.LegacyControllerGestures)
@@ -491,6 +496,7 @@ public static class ProfileService
         if (value.Renderer is null || value.Renderer.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0) throw new ArgumentException("Renderer must be a single setting value.");
         if (value.XpMultiplierPercent != old.XpMultiplierPercent && value.XpMultiplierPercent is < 100 or > 1000) throw new ArgumentException("XP rate must be 100 to 1000 percent.");
         if (value.GoldMultiplierPercent != old.GoldMultiplierPercent && value.GoldMultiplierPercent is < 100 or > 1000) throw new ArgumentException("Gold rate must be 100 to 1000 percent.");
+        if (value.RandomEncounterPercent != old.RandomEncounterPercent && value.RandomEncounterPercent is < 0 or > 100) throw new ArgumentException("Random encounter rate must be 0 to 100 percent.");
         if (value.MovementSpeedPercent != old.MovementSpeedPercent && value.MovementSpeedPercent is < 100 or > 300) throw new ArgumentException("Movement boost must be 100 to 300 percent.");
         HotkeyCatalog.Validate(value, old);
     }

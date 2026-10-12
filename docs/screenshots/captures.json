@@ -1,5 +1,5 @@
 {
-  "scope": "Six actual owner-requested documentation captures. Five preceding025/031 captures retain historical scope; navigation map is an actual native027 final GPU screenshot at1920x1080 with enhanced pixels and widescreen enabled. No mockups or replacement artwork.",
+  "scope": "Six actual owner-requested documentation captures. Four025/031 captures retain historical scope; the map is actual native027 final1920x1080 GPU output; Enhancements is actual Companion035 on native036. No mockups or replacement artwork.",
   "captures": {
     "docs/screenshots/widescreen-world.png": {
       "title": "Wider world, including original vehicles",
@@ -36,14 +36,21 @@
     },
     "docs/screenshots/companion-enhancements.png": {
       "title": "Choose your own pace",
-      "sha256": "592f8c2f1940bdf13f777545267cd37e9aa003bb01220b7dd9c6738d8ba00647",
+      "sha256": "e4d45aee930efb93f787621a9132592837581c0217de16dcd6ac4e0a7eb746f1",
       "dimensions": [
         1136,
         799
       ],
-      "application_version": "Companion0.3.1",
-      "application_sha256": "c644b4f27b7c8763aff490ad6f2a85e30930fd4e94fe2d18c4831d5ddf8129a7",
-      "caption": "Separate XP and gold modifiers range from 100% to 1000%; held ordinary movement boost ranges from 100% to 300%. Faster menus, enemy HP information and the journal are configurable. These are example settings from an isolated profile."
+      "application_version": "Companion0.3.5",
+      "application_sha256": "eb6876c3b5bdcadfa51686bf7ec59c231d29ab0b89d067c5a3aa85f82d086adc",
+      "source_receipt_sha256": "2793fd8c9a0abfb99fae041266faf491b1c9f6cf477743d1b402b212755ff37d",
+      "native_version": "0.3.6",
+      "native_sha256": "b9ebdf8920e6a39e47235f82b1e0f848a49875ffacfccec5a54f0a78163a1cbd",
+      "native_source_receipt_sha256": "98f3759c6c2ab9ff8d32c7dbf4b7a5e4134569a8a9401652aa4c2200a1e331bb",
+      "caption": "Separate XP and gold modifiers range from 100% to 1000%; held ordinary movement boost ranges from 100% to 300%. Companion 0.3.5 adds a 0–100% ordinary random encounter modifier for native 0.3.6: default 100 keeps the original check and 0 disables qualified random battles, while scripted battles remain enabled. Reduced values scale integer threshold bins, not an exact campaign fight frequency. These are example settings from an isolated profile (275% XP, 350% gold, 250% movement); random encounters are shown at the original 100%.",
+      "capture_proof": "local/evidence/encounter-rate-20261011/companion-tests/y/isolated-ui-current/report.json",
+      "capture_proof_sha256": "d44430353ca71755eff4abc87114fe48c4feaff40d97825357427e2715dd8edb",
+      "capture_scope": "Actual Windows Forms capture, copied1:1 with no resizing or reconstruction; other five images retain their historical versions."
     },
     "docs/screenshots/companion-hotkeys.png": {
       "title": "Keyboard and controller hotkeys",

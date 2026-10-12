@@ -212,6 +212,7 @@ try {
         $env:SNESRECOMP_FOUNDATION_XP_PERCENT = '100'
         $env:SNESRECOMP_FOUNDATION_GOLD_PERCENT = '100'
         $env:SNESRECOMP_FOUNDATION_MOVEMENT_PERCENT = '100'
+        $env:SNESRECOMP_FOUNDATION_ENCOUNTER_PERCENT = '100'
     }
     $process = Start-Process -FilePath $installed -ArgumentList $arguments -WorkingDirectory $preview -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     # Windows PowerShell 5.1 needs a retained handle to read ExitCode reliably.

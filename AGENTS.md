@@ -1,3 +1,22 @@
+# Current source continuation - native0.3.6 / Companion0.3.5 (2026-10-11)
+
+Read docs/FOUNDATION-ENCOUNTER-RATE-2026-10-11.md first. The new
+RandomEncounterPercent setting in Enhancements is0-100/default100, with0
+declining guarded ordinary random battles. It changes the original inclusive
+threshold bins, never the RNG/counter/scheduler. Scripted FF26 battles retain
+their separate original producer. Original View forces100 for its launch;
+older native builds refuse changes to this setting. Unknown contexts fall back.
+Native b9ebdf89/GUI eb6876c3 are the current frozen compiled artifacts. Preserve
+immutable compiled_unqualified receipts,19 identical emitted game outputs,
+checkpoint/save ABI,nine runtime patches,61 native/24 GUI input manifests and
+copied-EXE isolation. Finite source,gameplay,GUI,playback and delivery evidence
+remain separate; source identity does not transfer prior execution qualification.
+Full native/AOT and campaign work remain incomplete. No unsaved encounter-history
+latch or guessed progression flag is introduced. Current required fixtures and
+compact proof remain; closed redundant binaries are deleted after qualification.
+
+---
+
 # Current source continuation — native0.3.5 / unchanged Companion0.3.4 (2026-10-11)
 
 Read docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md first. Exact native76db66cd /

@@ -216,7 +216,13 @@ In **Controls**, edit the single player's keyboard and controller game buttons.
 **Hotkeys** supports keyboard names/modifier chords, controller buttons/chords,
 explicit `None`, and all twenty save/load checkpoint slots. Enable hold/toggle
 fast-forward there. **Enhancements** exposes independent XP/gold rates (100–1000%)
-and movement boost (100–300%). Defaults are Tab/R2 for fast-forward and Left
+and movement boost (100–300%). Companion 0.3.5 also exposes
+**Random encounter rate (%)** from 0 to 100 for native 0.3.6 or later. Default 100
+keeps the original ordinary check; 0 disables qualified random battles, while
+scripted battles retain their separate path. Reduced values scale integer
+threshold bins, not an exact campaign frequency. Original View forces 100 for
+that launch without rewriting the profile. Defaults are Tab/R2 for fast-forward
+and Left
 Shift/L2 for movement. Explicit existing mappings take priority. Unsupported
 scripted movement retains original pace. Changing settings requires the game
 to be closed; Apply validates changed bindings and backs up edited files.
@@ -269,7 +275,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.3.5 source / Companion 0.3.4)
+## Navigation and display (native 0.3.6 source / Companion 0.3.5)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -323,5 +329,12 @@ patches, generated original-game outputs and checkpoint ABI retain034 identity.
 [Circus/priest source qualification](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md)
 records fresh overlay/map/launcher/playback checks and the corrected original
 entrance-produced scene inputs. Do not reuse the old Golan/room227 development
-checkpoints for positive scenery evidence. Random-encounter-rate control is a
-new owner-requested next feature; it is not part of0.3.5.
+checkpoints for positive scenery evidence.
+
+Native 0.3.6 adds guarded ordinary random encounter control in the QoL module;
+Companion 0.3.5 adds its setting and current/older-build tests. The default remains
+100%, including profiles without `RandomEncounterPercent`. Close the game before
+Apply. The control is unavailable on earlier native builds; use Setup to update
+the selected profile with genuine compatible receipts. Custom bindings, rewards,
+movement, checkpoint/SRAM formats and execution-state ABI are preserved.
+[Encounter settings, exact artifacts and qualification](docs/FOUNDATION-ENCOUNTER-RATE-2026-10-11.md).

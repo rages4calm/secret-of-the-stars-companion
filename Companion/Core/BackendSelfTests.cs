@@ -121,6 +121,77 @@ public static class BackendSelfTests
             var fallbackConfig = new IniDocument(File.ReadAllBytes(config));
             Check("Disabling gamepad-only player1 restores keyboard source", keyboardFallback.Success && fallbackConfig.Get("Controller", "SourceP1") == "1" && fallbackConfig.Get("GamepadMap", "EnableGamepad1") == "0");
             Check("Player2 custom keyboard source survives unrelated pad disable", fallbackConfig.Get("Controller", "SourceP2") == "1");
+
+            // Settings-only capability fixtures declare a version, never native
+            // qualification. Actual source receipt adoption is tested separately.
+            var encounterProfile = Path.Combine(temporaryRoot, "encounter settings");
+            Directory.CreateDirectory(encounterProfile);
+            var encounterConfig = Path.Combine(encounterProfile, "config.ini");
+            var encounterFoundation = Path.Combine(encounterProfile, "foundation.ini");
+            var encounterBindings = Path.Combine(encounterProfile, "keybinds.ini");
+            var encounterSave = Path.Combine(encounterProfile, "saves", "save0.sav");
+            Directory.CreateDirectory(Path.GetDirectoryName(encounterSave)!);
+            File.WriteAllBytes(encounterConfig, Encoding.UTF8.GetBytes("[Sound]\nVolume = 70\n[Owner]\nOpaque=café\n"));
+            File.WriteAllBytes(encounterBindings, bindingBytes);
+            File.WriteAllBytes(encounterSave, saveBytes);
+            var settingsReceipt = Path.Combine(temporaryRoot, "local", "evidence", "build-receipt.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsReceipt)!);
+            void EncounterVersion(string version) => File.WriteAllText(settingsReceipt,
+                System.Text.Json.JsonSerializer.Serialize(new { release_version = version, fixture_scope = "settings capability only; not a qualified build" }));
+            Dictionary<string, string> EncounterHashes() => Directory.EnumerateFiles(encounterProfile, "*", SearchOption.AllDirectories)
+                .Where(p => !Path.GetRelativePath(encounterProfile, p).StartsWith("backups" + Path.DirectorySeparatorChar))
+                .ToDictionary(p => Path.GetRelativePath(encounterProfile, p), p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))));
+            bool SameEncounterHashes(Dictionary<string, string> before) => before.OrderBy(p => p.Key).SequenceEqual(EncounterHashes().OrderBy(p => p.Key));
+            var defaultEncounter = ProfileService.Load(temporaryRoot, encounterProfile);
+            Check("Encounter model and missing key default to original100 without writing", new GameSettings().RandomEncounterPercent == 100 && defaultEncounter.Settings.RandomEncounterPercent == 100 && !File.Exists(encounterFoundation));
+            var missingNoOp = ProfileService.ApplyCore(defaultEncounter, defaultEncounter.Settings.DeepCopy(), () => false);
+            Check("Missing encounter key no-op does not manufacture foundation setting", missingNoOp.Success && missingNoOp.BackupDirectory is null && !File.Exists(encounterFoundation));
+            var missingBefore = EncounterHashes();
+            Check("Missing native version refuses changed encounter setting without writes", !ProfileService.ApplyCore(defaultEncounter, defaultEncounter.Settings with { RandomEncounterPercent = 50 }, () => false).Success && SameEncounterHashes(missingBefore));
+            EncounterVersion("0.3.5");
+            var oldEncounter = ProfileService.Load(temporaryRoot, encounterProfile);
+            Check("Pre036 capability excludes encounter changes", !ProfileService.SupportsEncounterRate(oldEncounter));
+            var olderBefore = EncounterHashes();
+            Check("Pre036 encounter Apply refuses before changing any profile bytes", !ProfileService.ApplyCore(oldEncounter, oldEncounter.Settings with { RandomEncounterPercent = 0 }, () => false).Success && SameEncounterHashes(olderBefore));
+            var oldUnrelated = ProfileService.ApplyCore(oldEncounter, oldEncounter.Settings with { Volume = 69 }, () => false);
+            Check("Older native unrelated settings Apply keeps missing encounter key absent", oldUnrelated.Success && !File.Exists(encounterFoundation));
+            EncounterVersion("0.3.6");
+            var currentEncounter = ProfileService.Load(temporaryRoot, encounterProfile);
+            Check("036 capability admits encounter settings", ProfileService.SupportsEncounterRate(currentEncounter));
+            var unknownEncounterBytes = Encoding.UTF8.GetPreamble().Concat(utf8.GetBytes("# café 🎮\r\n[Enhancements]\nRandomEncounterPercent = 100 ; keep\r\n[Other]\nrandomencounterpercent=100\r\nOpaque=零\n")).ToArray();
+            File.WriteAllBytes(encounterFoundation, unknownEncounterBytes);
+            currentEncounter = ProfileService.Load(temporaryRoot, encounterProfile);
+            var unchangedConfig = File.ReadAllBytes(encounterConfig);
+            foreach (var percent in new[] { 0, 50, 100 })
+            {
+                var appliedEncounter = ProfileService.ApplyCore(currentEncounter, currentEncounter.Settings with { RandomEncounterPercent = percent }, () => false);
+                Check("Encounter rate applies and reloads " + percent, appliedEncounter.Success && appliedEncounter.Snapshot!.Settings.RandomEncounterPercent == percent);
+                currentEncounter = appliedEncounter.Snapshot!;
+                var expectedEncounter = new IniDocument(unknownEncounterBytes);
+                expectedEncounter.Set("Enhancements", "RandomEncounterPercent", percent.ToString(System.Globalization.CultureInfo.InvariantCulture), true);
+                Check("Encounter edit preserves BOM/unknown/comment/duplicate bytes " + percent, File.ReadAllBytes(encounterFoundation).AsSpan().SequenceEqual(expectedEncounter.ToBytes()));
+                Check("Encounter edit preserves config/custom bindings/save " + percent, File.ReadAllBytes(encounterConfig).AsSpan().SequenceEqual(unchangedConfig) && File.ReadAllBytes(encounterBindings).AsSpan().SequenceEqual(bindingBytes) && File.ReadAllBytes(encounterSave).AsSpan().SequenceEqual(saveBytes));
+            }
+            foreach (var badPercent in new[] { -1, 101, int.MinValue, int.MaxValue })
+            {
+                var beforeBad = EncounterHashes();
+                Check("Invalid encounter rate refuses with no writes " + badPercent, !ProfileService.ApplyCore(currentEncounter, currentEncounter.Settings with { RandomEncounterPercent = badPercent }, () => false).Success && SameEncounterHashes(beforeBad));
+            }
+            var beforeRunning = EncounterHashes();
+            Check("Running-game encounter edit refuses before writes", !ProfileService.ApplyCore(currentEncounter, currentEncounter.Settings with { RandomEncounterPercent = 50 }, () => true).Success && SameEncounterHashes(beforeRunning));
+            var noOpEncounter = ProfileService.ApplyCore(currentEncounter, currentEncounter.Settings.DeepCopy(), () => false);
+            Check("Explicit100 encounter no-op is byte exact and makes no backup", noOpEncounter.Success && noOpEncounter.BackupDirectory is null && SameEncounterHashes(beforeRunning));
+            File.WriteAllBytes(encounterFoundation, utf8.GetBytes("[Enhancements]\nRandomEncounterPercent=150\nUnknown=café\n"));
+            var legacyInvalidEncounter = ProfileService.Load(temporaryRoot, encounterProfile);
+            var invalidStoredBytes = File.ReadAllBytes(encounterFoundation);
+            var preservedInvalid = ProfileService.ApplyCore(legacyInvalidEncounter, legacyInvalidEncounter.Settings with { Volume = 68 }, () => false);
+            Check("Unchanged preexisting out-of-range encounter value survives unrelated Apply", preservedInvalid.Success && File.ReadAllBytes(encounterFoundation).AsSpan().SequenceEqual(invalidStoredBytes));
+            var correctedEncounter = ProfileService.ApplyCore(preservedInvalid.Snapshot!, preservedInvalid.Snapshot!.Settings with { RandomEncounterPercent = 100 }, () => false);
+            Check("Explicit user correction restores original100 from out-of-range setting", correctedEncounter.Success && correctedEncounter.Snapshot!.Settings.RandomEncounterPercent == 100);
+            var staleEncounter = correctedEncounter.Snapshot!;
+            File.AppendAllText(encounterFoundation, "# outside edit\n");
+            var staleBefore = EncounterHashes();
+            Check("Stale encounter Apply refuses and preserves external edit", !ProfileService.ApplyCore(staleEncounter, staleEncounter.Settings with { RandomEncounterPercent = 50 }, () => false).Success && SameEncounterHashes(staleBefore));
         }
         finally
         {

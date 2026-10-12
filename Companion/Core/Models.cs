@@ -28,6 +28,7 @@ public sealed record GameSettings
     public bool ExperimentalFieldActors { get; set; }
     public int XpMultiplierPercent { get; set; } = 100;
     public int GoldMultiplierPercent { get; set; } = 100;
+    public int RandomEncounterPercent { get; set; } = 100;
     public int MovementSpeedPercent { get; set; } = 200;
     public bool FastForwardToggle { get; set; }
     public bool LegacyControllerGestures { get; set; } = true;

@@ -21,11 +21,67 @@ internal static class HotkeyUiTests
         void Field(string name, bool value) => typeof(MainForm).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(form, value);
         var checks = new List<string>();
         void Check(string name, bool condition) { if (!condition) throw new InvalidOperationException(name); checks.Add(name); }
+        byte[]? PreferenceBytes(string name)
+        {
+            var path = Path.Combine(profile, name);
+            return File.Exists(path) ? File.ReadAllBytes(path) : null;
+        }
+        bool SamePreference(string name, byte[]? original)
+        {
+            var path = Path.Combine(profile, name);
+            return original is null ? !File.Exists(path) : File.Exists(path) && File.ReadAllBytes(path).AsSpan().SequenceEqual(original);
+        }
         var sourceSaves = Directory.EnumerateFiles(Path.Combine(profile, "saves"), "*", SearchOption.AllDirectories).ToDictionary(p => p, PublicSetupService.HashFile);
         var initial = ProfileService.Load(root, profile);
         Check("Disposable source profile ready for interactive checks", initial.Readiness.Ready);
         var apply = Find<Button>("Apply settings"); var play = Find<Button>("Start at title");
         Check("Initial source GUI title launch enabled with no unapplied changes", play.Enabled && !apply.Enabled);
+
+        form.ShowPage("enhancements");
+        var encounter = Find<NumericUpDown>("Random encounter rate (%)");
+        Check("Encounter numeric control exposes original0-to100 range", encounter.Minimum == 0 && encounter.Maximum == 100);
+        if (ProfileService.SupportsEncounterRate(initial))
+        {
+            Check("Current native enables encounter choice", encounter.Enabled);
+            var initialPreferenceBytes = new[] { "config.ini", "foundation.ini", "keybinds.ini" }.ToDictionary(n => n, PreferenceBytes);
+            encounter.Value = initial.Settings.RandomEncounterPercent == 0 ? 50 : 0;
+            Check("Encounter edit requires Apply before launch", apply.Enabled && !play.Enabled);
+            Find<Button>("Revert changes").PerformClick();
+            Check("Encounter Revert restores loaded value and clean launch state", encounter.Value == Math.Clamp(initial.Settings.RandomEncounterPercent, 0, 100) && !apply.Enabled && play.Enabled);
+            Check("Encounter Revert does not write any preferences", initialPreferenceBytes.All(p => SamePreference(p.Key, p.Value)));
+            foreach (var percent in new[] { 0, 50, 100 })
+            {
+                encounter.Value = percent; Method("ApplySettings");
+                var encounterSaved = ProfileService.Load(root, profile);
+                Check("Interactive encounter rate roundtrips " + percent, encounterSaved.Settings.RandomEncounterPercent == percent && !apply.Enabled && play.Enabled);
+                Check("Encounter change preserves config/keybinds/save bytes " + percent, initialPreferenceBytes.Where(p => p.Key != "foundation.ini").All(p => SamePreference(p.Key, p.Value)) && sourceSaves.All(p => PublicSetupService.HashFile(p.Key) == p.Value));
+                Check("Encounter change preserves independent QoL and hotkey settings " + percent, encounterSaved.Settings.XpMultiplierPercent == initial.Settings.XpMultiplierPercent && encounterSaved.Settings.GoldMultiplierPercent == initial.Settings.GoldMultiplierPercent && encounterSaved.Settings.MovementSpeedPercent == initial.Settings.MovementSpeedPercent && initial.Settings.HotkeyBindings.OrderBy(p => p.Key).SequenceEqual(encounterSaved.Settings.HotkeyBindings.OrderBy(p => p.Key)));
+            }
+            // The title setting is launch-local in Original View. Building a
+            // child command here never executes the game or writes a save.
+            encounter.Value = 0; Method("ApplySettings");
+            Check("Original View test retains an explicit disabled encounter preference", ProfileService.Load(root, profile).Settings.RandomEncounterPercent == 0);
+            string? inheritedEncounter = Environment.GetEnvironmentVariable("SNESRECOMP_FOUNDATION_ENCOUNTER_PERCENT");
+            Environment.SetEnvironmentVariable("SNESRECOMP_FOUNDATION_ENCOUNTER_PERCENT", "7");
+            try
+            {
+                var encounterSnapshot = ProfileService.Load(root, profile);
+                var beforeOriginal = new[] { "config.ini", "foundation.ini", "keybinds.ini" }.ToDictionary(n => n, PreferenceBytes);
+                var originalCommand = ProfileService.BuildLaunch(encounterSnapshot, new(LaunchMode.OriginalView));
+                var normalCommand = ProfileService.BuildLaunch(encounterSnapshot, new(LaunchMode.Play));
+                Check("Source Original View restores original100 encounter process override", originalCommand.Environment["SNESRECOMP_FOUNDATION_ENCOUNTER_PERCENT"] == "100");
+                Check("Normal source launch strips inherited encounter override", !normalCommand.Environment.ContainsKey("SNESRECOMP_FOUNDATION_ENCOUNTER_PERCENT"));
+                Check("Original View command leaves source preference bytes unchanged", beforeOriginal.All(p => SamePreference(p.Key, p.Value)));
+            }
+            finally { Environment.SetEnvironmentVariable("SNESRECOMP_FOUNDATION_ENCOUNTER_PERCENT", inheritedEncounter); }
+            if (initial.Settings.RandomEncounterPercent is >= 0 and <= 100)
+            { encounter.Value = initial.Settings.RandomEncounterPercent; Method("ApplySettings"); }
+        }
+        else
+        {
+            Check("Pre036 encounter control disabled without blocking ordinary launch", !encounter.Enabled && play.Enabled);
+            Check("Pre036 encounter capability explains Setup update", Walk(form).OfType<Label>().Any(c => c.Text == "Update the selected native build on Setup to change random encounters."));
+        }
         if (ProfileService.SupportsQol(initial))
         {
         form.ShowPage("enhancements");
@@ -67,8 +123,10 @@ internal static class HotkeyUiTests
         Check("GUI no-op Apply leaves exact profile bytes", beforeNoOp.All(f => PublicSetupService.HashFile(f.Key) == f.Value));
         Check("Every copied profile save remains byte-identical", sourceSaves.All(f => PublicSetupService.HashFile(f.Key) == f.Value));
         Field("sourceBuildRunning", true); Field("helperRunning", true); Field("busy", true); Method("UpdateEnabled");
+        Check("Source setup busy locks encounter choice", !encounter.Enabled);
         Check("Source setup busy locks settings launch and ROM selection", !Find<NumericUpDown>("Experience rate (%)").Enabled && !Find<ComboBox>("Fast-forward keyboard").Enabled && !Find<TextBox>("Owned clean USA ROM path").Enabled && !play.Enabled);
         Field("sourceBuildRunning", false); Field("helperRunning", false); Field("busy", false); Method("UpdateEnabled");
+        Check("Source setup completion honors encounter capability", encounter.Enabled == ProfileService.SupportsEncounterRate(ProfileService.Load(root, profile)));
         Check("Source setup completion unlocks settings", Find<NumericUpDown>("Experience rate (%)").Enabled && play.Enabled);
         }
         else Check("Old native version keeps new QoL settings disabled", !Find<NumericUpDown>("Experience rate (%)").Enabled);

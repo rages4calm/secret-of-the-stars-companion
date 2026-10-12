@@ -9,7 +9,9 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
-The [native 0.3.5 continuation](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md) adds verified circus-ticket and Cody/priest guidance with an original entrance-resolved Decatas destination. Its changed journal and map behavior are freshly checked on the exact candidate. Two bad staged room inputs have been regenerated through original entrance loaders and independently checked; this does not claim new campaign coverage or a renderer repair. Eleven selected playback contexts pass. Nine modal route contracts pass across the initial batch and a focused closure; an initial audio gap remains explicit with an unproven cause. Companion stays 0.3.4.
+The [native 0.3.6 / Companion 0.3.5 update](docs/FOUNDATION-ENCOUNTER-RATE-2026-10-11.md) adds editable ordinary random encounters: 0–100%, default 100%, with scripted battles retaining their original path. The modifier scales integer bins in the original threshold, not an exact observed campaign frequency. Actual current/older-build UI, source adoption and compatible update/rollback checks pass; broader campaign and hardware testing remain open.
+
+The preceding [native 0.3.5 continuation](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md) adds verified circus-ticket and Cody/priest guidance with an original entrance-resolved Decatas destination. Its changed journal and map behavior are freshly checked on the exact candidate. Two bad staged room inputs have been regenerated through original entrance loaders and independently checked; this does not claim new campaign coverage or a renderer repair. Eleven selected playback contexts pass. Nine modal route contracts pass across the initial batch and a focused closure; an initial audio gap remains explicit with an unproven cause. Companion stays 0.3.4.
 
 The [0.3.4 source continuation](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md) retains reviewed expanded generation reproducible from public source and an owned ROM. Complete AOT, broader effects/party/story coverage and later verified quest guidance remain unfinished.
 
@@ -19,7 +21,7 @@ Companion now connects ROM selection/validation, source-build progress and
 cancellation, isolated profile adoption, explicit compilation status, title-first
 launch and selected copied-save resume. Public Play no longer requires private
 fixture/checkpoint data. XP/gold rates, guarded movement boost and keyboard/
-controller hotkeys are editable in the launcher.
+controller hotkeys are editable in the launcher. Companion 0.3.5 adds an ordinary random encounter modifier alongside rewards and travel; Original View uses the original 100% check without rewriting the saved choice.
 The [WIP release](https://github.com/rages4calm/secret-of-the-stars-companion/releases) now provides a ROM-free launcher/source ZIP, checksum and version manifest. Users still need their owned ROM and the documented development tools to build the game locally.
 Source-profile updates now create verified new folders and retain old profiles
 for selection-only rollback. A source-first package tool includes one

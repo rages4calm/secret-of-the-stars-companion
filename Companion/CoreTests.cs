@@ -56,6 +56,23 @@ internal static class CoreTests
         {
             foreach (var mode in Enum.GetValues<LaunchMode>())
             {
+                if (mode is LaunchMode.WidescreenPreview or LaunchMode.HdMenuPreview)
+                {
+                    // Private legacy previews need their own explicit receipt
+                    // qualification; a current source-first build does not imply it.
+                    using var receipt = JsonDocument.Parse(snapshot.Files[Path.Combine(root, "local", "evidence", "build-receipt.json")].Bytes);
+                    var flag = mode == LaunchMode.WidescreenPreview ? "likado_terrain_preview_qualified" : "hd_menu_frames_qualified";
+                    bool qualified = receipt.RootElement.TryGetProperty(flag, out var value) && value.ValueKind == JsonValueKind.True;
+                    if (!qualified)
+                    {
+                        var beforePreview = Hashes(copy); bool refusedPreview = false;
+                        try { ProfileService.BuildLaunch(snapshot, new(mode)); }
+                        catch (InvalidOperationException error) { refusedPreview = error.Message == "This preview has no qualified receipt."; }
+                        Check(refusedPreview, mode + " refuses an unqualified legacy preview before launch.");
+                        Check(beforePreview.OrderBy(p => p.Key).SequenceEqual(Hashes(copy).OrderBy(p => p.Key)), mode + " refusal preserves exact copied preferences and checkpoints.");
+                        continue;
+                    }
+                }
                 var start = ProfileService.BuildLaunch(snapshot, new(mode, mode == LaunchMode.Resume ? extra : null));
                 Check(!start.UseShellExecute && start.ArgumentList.Contains(copy) && start.Arguments == "", mode + " uses structured arguments and the selected profile with spaces.");
                 Check(!start.Environment.Keys.Any(x => x.StartsWith("SNESRECOMP_", StringComparison.OrdinalIgnoreCase)), mode + " strips inherited game diagnostics.");
