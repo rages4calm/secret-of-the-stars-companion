@@ -101,8 +101,28 @@ static inline unsigned FoundationJournalAfterBridgeRoute(const uint8_t *ram, siz
     return 16;
 }
 
+/* Original0789 FA00 sets current chapter8 bit80 after accepting Kaja's
+ * request. FF3F70 searches only the active pack; other possession is mutable.
+ * Actual staged-current70 hand-in executes FB0152, original chapter9/reset,
+ * then0309 names Bonzley and Garados. These exact observed Aqutallion states
+ * are current advice, not Sidon acquisition or durable history. C0 and other
+ * parties remain outside this qualification, although the source bit test
+ * alone is broader. Refuse while original dialogue/event is busy. */
+static inline unsigned FoundationJournalKajaRoute(const uint8_t *ram, size_t size) {
+    if (!ram || size < 0x53b3 || ram[0x5361] || ram[0x5365] != 0x10 ||
+        ram[0x4b6] || ram[0x20] != 1 || ram[0x434] || ram[0x435] ||
+        ram[0x532] || ram[0x1410] || ram[0x1411] ||
+        ram[0x1415] || ram[0x1416] || ram[0x1417]) return 0;
+    if (ram[0x5372] == 8 && ram[0x5360] == 0x80)
+        return (JournalItemGroups(ram, size, 0x70) & 1u) ? 18 : 17;
+    if (ram[0x5372] == 9 && ram[0x5360] == 0) return 19;
+    return 0;
+}
+
 static inline unsigned FoundationJournalCurrentLead(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3) return 0;
+    unsigned kaja = FoundationJournalKajaRoute(ram, size);
+    if (kaja) return kaja;
     unsigned after_bridge = FoundationJournalAfterBridgeRoute(ram, size);
     if (after_bridge) return after_bridge;
     unsigned bridge = FoundationJournalBridgeRoute(ram[0x5372], ram[0x5360],
@@ -236,8 +256,14 @@ static inline unsigned FoundationJournalDestination(unsigned stage, unsigned fla
  * circus pin, nor leave a Decatas marker after the current ticket offer. */
 static inline unsigned FoundationJournalDestinationState(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3) return 0xffff;
-    /* No original Bonzley destination/entrance pin is qualified yet. */
-    if (FoundationJournalAfterBridgeRoute(ram, size)) return 0xffff;
+    unsigned kaja = FoundationJournalKajaRoute(ram, size);
+    /* Original loaded/named SIDON FOREST134 and BONZLEY135. The world
+     * parser still refuses Kaja's separated entrance groups; held70 must
+     * not create a guessed133 pin or leave the forest marker behind. */
+    if (kaja) return kaja == 17 ? 134 : kaja == 19 ? 135 : 0xffff;
+    /* Actual original135 loader, world entrances08AF60/68/70/78 and0782
+     * identify Bonzley. Town marker only, never a guessed door coordinate. */
+    if (FoundationJournalAfterBridgeRoute(ram, size)) return 135;
     /* Original bridge dialogue names a region, not a verified map entrance. */
     if (FoundationJournalBridgeRoute(ram[0x5372], ram[0x5360],
         ram[0x5361], ram[0x5365], ram[0x4b6], ram[0x20])) return 0xffff;

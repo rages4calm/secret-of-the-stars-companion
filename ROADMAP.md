@@ -9,14 +9,16 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
+The [native0.3.9 / unchanged Companion0.3.5 update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) adds current Kaja/MOUSTACHE request and hand-in directions, then the original chapter-nine Bonzley/Garados clue. Bonzley and Sidon Forest gain verified area destinations; Kaja's separated entrances retain no-pin fallback. Actual Sidon acquisition, broader party/flag contexts and later Garados/snowmelt remain next story targets. Current possession and advice recompute after restore; no durable quest history is inferred.
+
 The [native0.3.8 / unchanged Companion0.3.5 update](docs/FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md)
 adds current advice after original key-use and the Victory Bridge event, plus
 accumulator-only faithful native admission. The named battle witness moves5→112
 native instructions with exact original boundaries;113 remain original after a
 cross-frame call. Fresh public game, journal, input, restoration, playback and
-launcher update/rollback are separately checked. Next are actual Bonzley town
-loader/NPC/next-objective pin, later verified advice and broader native/campaign
-party/effect coverage. No permanent history or campaign-wide native percentage is inferred.
+launcher update/rollback are separately checked. Its original bridge work remains the
+preceding scope; native0.3.9 separately qualifies the Bonzley/Kaja continuation.
+Broader native/campaign party/effect coverage remains open. No permanent history or campaign-wide native percentage is inferred.
 
 The preceding [native0.3.7 / unchanged Companion0.3.5 update](docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md)
 adds original-event Morgan/WIN-KEY directions, fixes four selected Kustera world

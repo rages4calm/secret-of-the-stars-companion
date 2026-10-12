@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest WIP: native0.3.8 / Companion0.3.5.** Verified bridge-to-Bonzley journal advice and broader faithful native instruction execution are described in the [latest continuation](docs/FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md). Complete native/AOT execution and full campaign testing remain unfinished.
+**Latest WIP: native0.3.9 / unchanged Companion0.3.5.** Current Kaja/MOUSTACHE and Bonzley/Garados journal advice, with verified Bonzley and Sidon Forest map destinations, is described in the [latest continuation](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md). Complete native/AOT execution and full campaign testing remain unfinished.
 
 **Discord:** chrono.trigger
 
@@ -14,7 +14,9 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.3.8 / Companion 0.3.5.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.3.9 / Companion 0.3.5.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+
+The [0.3.9 journal update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) follows Kaja's current moustache request and his chapter-nine Garados advice. It distinguishes active and other-party packs and recomputes after restore. Bonzley and Sidon Forest have verified area markers; Kaja-House retains text guidance without a guessed pin. Sidon acquisition, later Garados progression and full campaign coverage remain open.
 
 The [preceding update](docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md) adds Morgan/WIN-KEY
 journal guidance, fixes four verified world-wrap scenery flashes, and broadens

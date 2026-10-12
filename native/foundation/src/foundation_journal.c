@@ -181,6 +181,25 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             progress = item_groups == 3 ? "TICKET: BOTH PACKS" : current ? "TICKET: CURRENT PACK" :
                 item_groups ? "TICKET: OTHER PACK" : "TICKET: NOT HELD NOW";
         }
+    } else if (lead == 17 || lead == 18) {
+        unsigned moustache_groups = JournalItemGroups(g_ram, 0x20000, 0x70);
+        unsigned current = moustache_groups & 1u;
+        objective[0] = current ? "Bring MOUSTACHE to Kaja." : "Seek Sidon's moustache.";
+        objective[1] = current ? "Help him return to normal." :
+            moustache_groups ? "Moustache: in OTHER PACK." : "Kaja asks for MOUSTACHE.";
+        route[0] = current ? "Return to Kaja-House." : "Search the southern forest.";
+        route[1] = current ? "Talk to Kaja with this pack." : "Kaja names SIDON FOREST.";
+        progress = moustache_groups == 3 ? "MOUSTACHE: BOTH PACKS" : current ? "MOUSTACHE: CURRENT PACK" :
+            moustache_groups ? "MOUSTACHE: OTHER PACK" : "MOUSTACHE: NOT HELD NOW";
+    } else if (lead == 19) {
+        unsigned moustache_groups = JournalItemGroups(g_ram, 0x20000, 0x70);
+        objective[0] = "Seek Garados in Bonzley.";
+        objective[1] = "Follow Kaja's advice.";
+        route[0] = "Go through Kaja's cave.";
+        route[1] = "Head south to Bonzley.";
+        /* Mutable item summary cannot establish or erase the chapter route. */
+        progress = moustache_groups == 3 ? "MOUSTACHE: BOTH PACKS" : (moustache_groups & 1u) ? "MOUSTACHE: CURRENT PACK" :
+            moustache_groups ? "MOUSTACHE: OTHER PACK" : "MOUSTACHE: NOT HELD NOW";
     } else if (lead == 16) {
         unsigned key_groups = JournalItemGroups(g_ram, 0x20000, 0x01);
         objective[0] = "Follow the Bonzley lead.";

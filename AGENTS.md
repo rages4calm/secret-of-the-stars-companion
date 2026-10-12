@@ -1,3 +1,29 @@
+# Current continuation — native0.3.9 / unchanged Companion0.3.5 (2026-10-12)
+
+Read docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md first. Native496e9607 / immutable
+public compiled_unqualified receipt5aedd188; GUIeb6876c3 unchanged. Three exact
+current Kaja/MOUSTACHE and chapter9 Bonzley/Garados cards are installed. Bonzley
+and Sidon Forest have original-entrance map destinations; held-item Kaja advice
+has no guessed pin because separated entrances retain parser refusal. Idle VM,
+current flags, party and mutable-pack guards remain; no durable history inferred.
+Eight staged original/native producer pairs are distinct from natural campaign,
+Sidon battle/award and Garados/snowmelt. Actual chapter writer is message0600
+FA7F through01D359; event0152 F7/90 selects actors, not the chapter.
+61 native inputs (3 changed/58 unchanged),24 unchangedGUI inputs; runtime,
+generated guest outputs, center/timing/collision and checkpoint ABI are exact.
+Fresh44 runs/1153 checks,4 accepted paced routes,GUI85 adoption/52 update-rollback
+and4 finite launches, plus39 copied-installed/visible checks qualify separately.
+The initial120MB GUI output cap refusal and initial one-frame pacing-checker
+expectation remain retained. Root finished unexecuted Resume only; successful
+gameplay was not rerun. Automatic deletion of closed test copies/rollback payloads
+was blocked by policy; manual cleanup remains separate, not silently completed.
+Full native/AOT, full campaign and new physical-controller coverage remain open.
+Next: original Sidon acquisition, later Garados producers, broader party/effect
+contexts and generic native continuation after an original cross-frame call.
+Historical continuation blocks below retain their own artifact scopes.
+
+---
+
 # Current continuation — native0.3.8 / unchanged Companion0.3.5 (2026-10-12)
 
 Read docs/FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md first. Exact native4ef65a36 /
