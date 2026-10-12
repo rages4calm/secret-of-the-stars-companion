@@ -9,6 +9,8 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
+The [native 0.4.5 sprite-offset update](docs/FOUNDATION-SPRITE-OFFSETS-WIDESCREEN-2026-10-12.md) adds packet-owned nonzero0471/0473 transforms for compatible ordinary actors/effects. Original terrain, packet, raster and center guards remain; large/travel offsets and ambiguous layouts retain fallback.
+
 The [native 0.4.4 effect rendering update](docs/FOUNDATION-VARIABLE-EFFECT-WIDESCREEN-2026-10-12.md) adds a bounded original variable-effect path in the widescreen margins. Original descriptors resolve the pieces; completed packet and displayed-resource checks own the added pixels. Unsupported anchors, offsets and layouts retain fallback.
 
 The [native 0.4.3 presentation bundle](docs/FOUNDATION-GUIDE-TRACKING-WIDESCREEN-2026-10-12.md) implements guide town tracking, broader ordinary wrapped-map actor rendering and an original invulnerability display. Human testers verify campaign behavior; focused developer checks cover implementation and rendering.

@@ -32,6 +32,7 @@ typedef struct VariableEffects {
     EffectPiece pieces[kEffectPieces];
     unsigned count, visits, emitted, prefix_count;
     uint8_t resource[48];
+    int16_t offset_x, offset_y;
     int valid, closed;
 } VariableEffects;
 typedef struct Actor {
@@ -50,6 +51,7 @@ typedef struct Packet {
     unsigned start_slot, party_end_slot, reserved_end_slot, mask;
     uint8_t resource[48];
     int camera_x, camera_y, valid;
+    int16_t offset_x, offset_y;
 } Packet;
 static Packet producing, queued, transfer, displayed;
 static VariableEffects effect_capture;
@@ -74,6 +76,24 @@ static const uint8_t clean_hash[32] = {
 static unsigned R16(unsigned at) { return g_ram[at] | (unsigned)g_ram[at + 1] << 8; }
 static unsigned R24(unsigned at) { return R16(at) | (unsigned)g_ram[at + 2] << 16; }
 static int Signed(unsigned word) { return (int16_t)word; }
+static int OffsetMatches(int x, int y) {
+    return x == Signed(R16(0x471)) && y == Signed(R16(0x473));
+}
+/* Original ordinary D906/D912, DA9F/DAAD and variable DC64/DC6C
+ * consume these signed word offsets. Large and travel families retain their
+ * separate zero-offset contracts; a sprite offset alone cannot admit them. */
+static int OrdinaryOffsetRoster(void) {
+    if (g_ram[0x409]) return 0;
+    for (unsigned i=0; i<kActors; ++i) {
+        unsigned party=i<kParty, at=party?0x4000+i*18:0x4100+(i-kParty)*25;
+        if (g_ram[at]==255) continue;
+        unsigned base=R16(at+(party?3:5));
+        unsigned gfx=base+g_ram[at]*2+(party?(g_ram[at+10]>>7):(g_ram[0x475]>>7));
+        if (g_ram[at]>3 || base==0xb0 || (gfx>=0xa0 && gfx<0xb0) ||
+            gfx>=(0xd800-0x9800)/8) return 0;
+    }
+    return 1;
+}
 static uint16_t RomWord(unsigned at) {
     unsigned offset = (at >> 16) * 0x8000 + (at & 0x7fff);
     return g_rom[offset] | (unsigned)g_rom[offset + 1] << 8;
@@ -255,7 +275,7 @@ static int OrdinaryWrappingResource(const Ppu *ppu) {
      * and specialized allocations; the new path fills unsupported families. */
     if (WrappingResource(ppu)) return 0;
     if (!ppu || !g_snes || !g_snes->dma || g_ram[0x407] != 1 ||
-        g_ram[0x409] || (g_ram[0x401] != 12 && !VariableRoster()) || R16(0x471) || R16(0x473) ||
+        g_ram[0x409] || (g_ram[0x401] != 12 && !VariableRoster()) ||
         ppu->obsel != 3 || PPU_objPriority(ppu) ||
         ppu->bgmode != 9 || PPU_mosaicSize(ppu) > 1 || ppu->setini) return 0;
     unsigned px = g_ram[0x46d] * 256u, py = g_ram[0x46e] * 256u;
@@ -392,7 +412,7 @@ static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
         (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu) || VariableRoster()) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
-        !R16(0x471) && !R16(0x473);
+        ((!R16(0x471) && !R16(0x473)) || OrdinaryOffsetRoster());
 }
 
 static void Resource(const Ppu *ppu, uint8_t key[48]) {
@@ -502,6 +522,7 @@ static void EffectCapturePiece(const CpuState *cpu) {
     unsigned raw_x=R16(0x0e03),raw_y=R16(0x0e00),record=g_ram[0x0e15];
     if (!effect_capture.valid || effect_capture.closed ||
         !Context(cpu,0x01d85b,1) || !EffectResourceMatches(g_ppu,&effect_capture) ||
+        !OffsetMatches(effect_capture.offset_x,effect_capture.offset_y) ||
         !VariableRoster() || record>=8 || !g_ram[0x4300+21*record] ||
         R24(0x0e1c)!=0x7e4300+21*record || cpu->A!=raw_x || cpu->Y>255 ||
         !g_ram[0x0e02] || g_ram[0x0e02]>=240 ||
@@ -601,6 +622,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             g_ram[0x0e24]==0x10 && R16(0x0e26)==0x203 &&
             R16(0x0e34)==0x10 && R16(0x0e38)==0x201;
         if (g_ppu) Resource(g_ppu,effect_capture.resource);
+        effect_capture.offset_x=Signed(R16(0x471)); effect_capture.offset_y=Signed(R16(0x473));
         if (!effect_capture.valid) RejectEffect("reject_effect_begin",cpu);
         return;
     }
@@ -608,7 +630,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
     if (pc==0x01dd84) {
         if (!effect_capture.valid) return;
         if (effect_capture.closed || !Context(cpu,0x01d85b,0) ||
-            !EffectResourceMatches(g_ppu,&effect_capture) || !EffectCursor(&effect_capture,0)) {
+            !EffectResourceMatches(g_ppu,&effect_capture) ||
+            !OffsetMatches(effect_capture.offset_x,effect_capture.offset_y) || !EffectCursor(&effect_capture,0)) {
             RejectEffect("reject_effect_close",cpu); return;
         }
         effect_capture.prefix_count=(effect_capture.emitted+3)&~3u;
@@ -619,6 +642,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         memset(&producing, 0, sizeof(producing)); sequence_done = party_done = 0;
         producing.epoch = ++next_epoch; producing.producer_frame = snes_frame_counter;
         producing.camera_x = Signed(R16(0x2ad)); producing.camera_y = Signed(R16(0x2af));
+        producing.offset_x=Signed(R16(0x471)); producing.offset_y=Signed(R16(0x473));
         sequence = Context(cpu, 0x01d865, 0);
         unsigned cursor = R16(0x46b);
         producing.start_slot = 12;
@@ -627,6 +651,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (VariableRoster()) {
             sequence=sequence && effect_capture.valid && effect_capture.closed &&
                 EffectResourceMatches(g_ppu,&effect_capture) && EffectCursor(&effect_capture,1) &&
+                effect_capture.offset_x==producing.offset_x && effect_capture.offset_y==producing.offset_y &&
                 EffectPrefixMatches(&effect_capture,g_ram+0x2200);
             producing.effects=effect_capture;
             prefix=effect_capture.prefix_count;
@@ -678,6 +703,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         return;
     }
     if (!sequence) return;
+    if (!OffsetMatches(producing.offset_x,producing.offset_y)) { Reject("reject_offset_epoch", cpu); return; }
     if (!SameResource(g_ppu, &producing)) { Reject("reject_resource", cpu); return; }
     if (pc == 0x01d989 || pc == 0x01db68) {
         if (g_ram[0x407] && !LargeWrappingRoster(g_ram,131072)) { Reject("reject_wrapping_large", cpu); return; }
@@ -716,8 +742,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         actor->screen_x = Signed(R16(0x0e16)); actor->screen_y = Signed(R16(0x0e18));
         unsigned gfx = actor->base + actor->flags * 2 + actor->phase;
         actor->descriptor = 0x0e9800 + gfx * 8;
-        if (actor->screen_x != Signed(actor->world_x) ||
-            actor->screen_y != Signed(actor->world_y - 1) || actor->base == 0xb0 ||
+        if (actor->screen_x != Signed(actor->world_x + producing.offset_x) ||
+            actor->screen_y != Signed(actor->world_y - 1 + producing.offset_y) || actor->base == 0xb0 ||
             ((gfx & 0xfff8) == 0xa8 && !actor->travel_proxy) || actor->flags > 3 ||
             actor->descriptor < 0x0e9800 || actor->descriptor + 8 > 0x0ed800 ||
             R16(0x0e10) != producing.mask) {
@@ -763,8 +789,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         actor->screen_x = Signed(R16(0x0e16)); actor->screen_y = Signed(R16(0x0e18));
         unsigned gfx = actor->base + actor->flags * 2 + actor->phase;
         actor->descriptor = 0x0e9800 + gfx * 8;
-        if (actor->screen_x != Signed(actor->world_x - producing.camera_x) ||
-            actor->screen_y != Signed(actor->world_y - producing.camera_y) ||
+        if (actor->screen_x != Signed(actor->world_x + producing.offset_x - producing.camera_x) ||
+            actor->screen_y != Signed(actor->world_y + producing.offset_y - producing.camera_y) ||
             actor->flags > 3 || actor->base == 0xb0 ||
             actor->descriptor < 0x0e9800 || actor->descriptor + 8 > 0x0ed800 ||
             R16(0x0e10) != producing.mask) {
@@ -1098,13 +1124,13 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
         if (!actor->present || actor->travel_proxy) continue;
         for (unsigned part = 0; part < 4; ++part) {
             int x = (actor->party ? Period512(actor->screen_x, 128) - dx :
-                     local ? LocalDistance(actor->world_x - cx,128,(unsigned)displayed.resource[24]*256)+128 :
-                     wrap ? WorldDistance(actor->world_x - cx, 128) + 128 :
-                            Signed(actor->world_x - cx)) + ((part & 1) * 8);
+                     local ? LocalDistance(actor->world_x + displayed.offset_x - cx,128,(unsigned)displayed.resource[24]*256)+128 :
+                     wrap ? WorldDistance(actor->world_x + displayed.offset_x - cx, 128) + 128 :
+                            Signed(actor->world_x + displayed.offset_x - cx)) + ((part & 1) * 8);
             int y = (actor->party ? Period512(actor->screen_y, 112) - dy :
-                     local ? LocalDistance(actor->world_y - cy,112,(unsigned)displayed.resource[25]*256)+111 :
-                     wrap ? WorldDistance(actor->world_y - cy, 112) + 111 :
-                            Signed(actor->world_y - cy) - 1) + ((part >> 1) * 8);
+                     local ? LocalDistance(actor->world_y + displayed.offset_y - cy,112,(unsigned)displayed.resource[25]*256)+111 :
+                     wrap ? WorldDistance(actor->world_y + displayed.offset_y - cy, 112) + 111 :
+                            Signed(actor->world_y + displayed.offset_y - cy) - 1) + ((part >> 1) * 8);
             if ((int)line - 1 < y || (int)line - 1 >= y + 8 || x >= 328 || x + 8 <= -72 ||
                 (x >= 0 && x + 8 <= 256)) continue;
             unsigned bits_index = index * 4 + part;

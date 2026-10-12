@@ -1,3 +1,25 @@
+# Current continuation — native0.4.5 / unchanged Companion0.3.6 (2026-10-12)
+
+Read docs/FOUNDATION-SPRITE-OFFSETS-WIDESCREEN-2026-10-12.md (under github-repo at root).
+Installed native f31a0cac; immutable compiled_unqualified
+receipt 43d2a857; GUI f1bc6792 unchanged. Source-derived0471/0473
+ordinary party/NPC/effect margins use producer-owned signed offset fields through
+full544 DMA/display epochs. Ordinary adds once; captured party/effects already
+contain offsets. Animated live successors do not invalidate authentic predecessors.
+Nonzero B0/A0/A8/travel, ambiguous anchors/layouts retain fallback. Original center,
+collision/activation/pace/camera and declared ABI stay;13patches/62native/24GUI.
+Focused29synthetic cases, staged original producers and keyboard/virtualpad pass;
+300frame D3D11/audio59.95FPS steady deltas0. Persistent staged offsets cross
+original tile streaming guard atframes9/10; safe fallback retained, no relaxed gate.
+Owner/playtesters verifycampaign. Fullnative/AOT remains open. Goal ACTIVE.
+Current Temp paths: local/evidence/continuation045-20261012/plan.json.
+Next faithful instruction family: actual042 B63F TSB fallback; bounded private
+TSB/TRB proposal in Temp045/native-tsb-proposal, not installed or promoted.
+Storage5GB steady, largeoutputsTemp; never retry known policyblockedcleanup.
+Historical blocks retain their own artifact scopes.
+
+---
+
 # Current continuation - native0.4.4 / unchanged Companion0.3.6 (2026-10-12)
 
 Read docs/FOUNDATION-VARIABLE-EFFECT-WIDESCREEN-2026-10-12.md first (under github-repo at root).
