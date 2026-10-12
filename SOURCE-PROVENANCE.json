@@ -1,6 +1,6 @@
 {
-  "snapshot_date": "2026-10-11",
-  "native_version": "0.3.7",
+  "snapshot_date": "2026-10-12",
+  "native_version": "0.3.8",
   "companion_version": "0.3.5",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
@@ -26,5 +26,18 @@
   "faithful_hook_boundary_patch_sha256": "410d54a4e1e782dbabf2a11f8d4211035621ae77a8ed68138523dde32588024c",
   "reviewed_roots_patch_sha256": "80bde334f29c7c29cba8ebb9b4f743f4d082abd23f2a808bf9f2c85817652521",
   "reviewed_analysis_roots_sha256": "fbaff77af92e7a4bef9f12fea6c6a8dccb3a18c8249cb9c62e0553461b984521",
-  "converged_exit_patch_sha256": "7788775dad2fcaced635b3c9805358471dbd4943815ea762a7bba8f4bfdc27a4"
+  "converged_exit_patch_sha256": "7788775dad2fcaced635b3c9805358471dbd4943815ea762a7bba8f4bfdc27a4",
+  "runtime_accumulator_patch_sha256": "aee2cf5169754cf5a9d7c652387e47055643ad7adc0c6e5b2df2eb8bf5fea216",
+  "runtime_accumulator_source_review": {
+    "patch_sha256": "aee2cf5169754cf5a9d7c652387e47055643ad7adc0c6e5b2df2eb8bf5fea216",
+    "emitter_sha256": "1d667783bd9deae9ac52507aeaf13dae4ba59abd6ec7e5590d6c4c9c9b74dd8b",
+    "offline_unit_report_sha256": "1c2dea4f5c973ce732adebdafe5331fd09d5411088aadfab2674e06b316bc267",
+    "predecessor_crlf_sha256": "9848f8cdcc1c546b3830924551b8cba2aef43be8d77a934122ca4035b4a775a3",
+    "predecessor_lf_sha256": "8b395ddd799dc556a4955fb1d0c427509325e93e20447410906b126992183622",
+    "patch_output_crlf_sha256": "b70f61231eec6ea4fad829a06c5fd766c716d96d79842a08fb19974834bf322d",
+    "runtime_file": "recompiler/v2/emit_function.py",
+    "scope": "Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies; memory RMW/INC/DEC remain original. Original buses, clocks, callback boundaries and serialized ABI remain unchanged.",
+    "normalization": "Exact source-bound CRLF-to-LF only; no instruction/source-line changes.",
+    "qualification": "Reviewed offline instruction/source proof only; actual public compilation and exact-artifact gameplay qualification are separate."
+  }
 }

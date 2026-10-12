@@ -6,15 +6,17 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
+**Latest WIP: native0.3.8 / Companion0.3.5.** Verified bridge-to-Bonzley journal advice and broader faithful native instruction execution are described in the [latest continuation](docs/FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md). Complete native/AOT execution and full campaign testing remain unfinished.
+
 **Discord:** chrono.trigger
 
 > [!IMPORTANT]
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.3.7 / Companion 0.3.5.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.3.8 / Companion 0.3.5.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
-The [latest update](docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md) adds Morgan/WIN-KEY
+The [preceding update](docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md) adds Morgan/WIN-KEY
 journal guidance, fixes four verified world-wrap scenery flashes, and broadens
 automatic native generation through a generic analyzer repair. The launcher,
 map, reward/travel modifiers and editable encounter rate remain available.
@@ -78,7 +80,7 @@ cd secret-of-the-stars-companion
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc"
 ```
 
-The helper fetches the pinned runtime, applies nine separately checked patches, and uses the standard analyzer/emitter with authored reviewed entry metadata and proved instruction prefixes. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
+The helper fetches the pinned runtime, applies eleven separately checked patches, and uses the standard analyzer/emitter with authored reviewed entry metadata and proved instruction prefixes. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
 
 Build the self-contained launcher with `python tools/build_public_companion.py`, then open `Start Secret of the Stars Companion.cmd` or the generated Companion EXE. Its Setup page validates your ROM and builds/adopts a fresh native profile without private gameplay fixtures. See [BUILDING.md](BUILDING.md). Historical native preview scripts and fixture checkers remain development adapters.
 

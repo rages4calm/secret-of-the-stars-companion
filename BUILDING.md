@@ -43,7 +43,7 @@ The helper checks the ROM identity before generating anything. It creates a
 fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
-The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current ten-patch key is `7931b53c4968-0907e3e59c6770f1`. All ten full ordered hashes remain in the marker and receipt. Keep caches needed by active builds; remove obsolete rebuildable payloads under the project's required-only storage policy.
+The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current eleven-patch key is `7931b53c4968-6b12d1b942e11e5a`. All eleven full ordered hashes remain in the marker and receipt. Keep caches needed by active builds; remove obsolete rebuildable payloads under the project's required-only storage policy.
 
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
@@ -55,10 +55,28 @@ The script checks those pins and applies `patches/runtime-foundation.patch`,
 `patches/runtime-paired-lifecycle.patch`, `patches/runtime-proven-prefix.patch`,
 `patches/runtime-faithful-hook-boundary.patch` and the metadata-only
 `patches/runtime-reviewed-roots.patch`, then the separate generic
-`patches/runtime-converged-exits.patch`.
+`patches/runtime-converged-exits.patch`, followed by the exact single-file
+`patches/runtime-accumulator.patch`.
 Each patch has an independently recorded hash in the cache key and marker; the
 combined resulting source hashes are checked before reusing a checkout. Unexpected
 revisions or edits stop the build without deleting or resetting that checkout.
+
+The eleventh patch admits only decoded, exact one-byte accumulator `ASL`, `LSR`,
+`ROL` and `ROR` instructions with known M/X flags through the existing faithful
+emitter. Memory read/modify/write forms and `INC`/`DEC` remain on the original
+path. Existing original buses, instruction clocks, masks, unknown-mode/call
+yields and registered pre-opcode callbacks retain their contracts. This extends
+generic default generation; it is not a whole-game AOT or performance claim.
+
+The helper binds the complete ten-patch predecessor and complete post-apply
+emitter before accepting an exact source-bound CRLF-to-LF conversion in the new
+eleven-patch cache. The final emitter must match its full recorded SHA-256;
+mixed, unknown or changed source bytes are refused. The cache marker and real
+compilation receipt record the predecessor, patch output, conversion and final
+source identities. Earlier ten-patch caches are not rewritten. The source
+provenance carries hash-only reviewed offline instruction evidence, with no
+private fixture or report-file dependency in public Setup. Source review does
+not qualify a newly compiled executable.
 
 Normal generation uses the pinned analyzer/emitter with the checked
 CRC32/SHA-256, `recomp/symbols.toml`, all three bank configurations and
@@ -121,15 +139,18 @@ Default Setup needs no local captures. The authored reviewed metadata lists
 provenance. It supplies analysis seeds, not instruction bytes or forced native
 dispositions. Existing data masks, forced-original entries, unknown modes/calls
 and registered callbacks remain authoritative. With the existing roots, the
-current clean-USA analysis yields 196 roots and 245 contexts: 151 full bodies,
-93 proved prefixes and one interpreted context. These are generation counts.
+reviewed-root continuation reported 196 roots and 245 contexts: 151 full
+bodies, 93 proved prefixes and one interpreted context under its nine-patch
+generator. Those are historical generation counts. Read each new compilation
+receipt for its actual eleven-patch dispositions; they are not campaign execution
+coverage.
 
 For generation diagnostics, `--no-reviewed-roots` omits the authored additional
 seeds and `--no-proven-prefixes` disables prefix emission. Neither option is
 needed for normal Setup. `--emit-proven-prefixes` remains accepted explicitly.
 The optional `--profile-*` inputs retain their separate exact original
 five-patch receipt/program/analyzer/runtime checks; they are not a default or
-a public dependency. Captured-source identity and target nine-patch generator
+a public dependency. Captured-source identity and target eleven-patch generator
 identity remain separate. ROM-derived output stays ignored and local.
 [Reviewed metadata, reproducibility and limits](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md).
 
@@ -289,12 +310,12 @@ Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
 than replacing an existing action. Explicit custom bindings are retained.
 Original View disables both map and objective marker for that launch.
 
-The public builder applies the pinned seventeen-file base runtime patch and the
+The historical nine-patch builder applied the pinned seventeen-file base runtime patch and the
 separately audited three-file host navigation/input patch, plus the two-file
 faithful-instruction API supplement, host-only modal/audio repair and generic
 automatic-faithful patch, paired lifecycle, explicit proved-prefix support and
 original registered-hook boundaries. It preserves previous runtime caches,
-records all nine patch hashes, and produces a real
+recorded all nine patch hashes, and produced a real
 `compiled_unqualified` receipt. The host-only changes retain the declared guest
 execution-state ABI; matching metadata is still required for changed-binary
 profile updates. There are 61 native authored inputs and 24 Companion inputs. The ninth patch
@@ -344,3 +365,19 @@ Apply. The control is unavailable on earlier native builds; use Setup to update
 the selected profile with genuine compatible receipts. Custom bindings, rewards,
 movement, checkpoint/SRAM formats and execution-state ABI are preserved.
 [Encounter settings, exact artifacts and qualification](docs/FOUNDATION-ENCOUNTER-RATE-2026-10-11.md).
+
+
+## Native 0.3.8 source continuation
+
+The authored native snapshot retains 61 inputs and changes only the version and
+journal C/H files relative to 0.3.7. The eleventh generic emitter patch is a
+separate runtime input; the preceding ten patch bytes and declared serialized
+guest/checkpoint ABI remain unchanged. Companion stays at 0.3.5.
+
+The retained private 0.3.8 build has its own immutable `compiled_unqualified`
+receipt and separate qualification evidence. A normal public source-first build
+requires a new genuine receipt, fresh exact-artifact execution/journal/rendering
+and clock/input/restore checks, launcher adoption/update/rollback and separate
+paced/modal playback checks before installation. Package integrity and
+publication are separate again. This source draft does not certify a public
+0.3.8 executable, installation, package or campaign.

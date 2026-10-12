@@ -181,6 +181,16 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             progress = item_groups == 3 ? "TICKET: BOTH PACKS" : current ? "TICKET: CURRENT PACK" :
                 item_groups ? "TICKET: OTHER PACK" : "TICKET: NOT HELD NOW";
         }
+    } else if (lead == 16) {
+        unsigned key_groups = JournalItemGroups(g_ram, 0x20000, 0x01);
+        objective[0] = "Follow the Bonzley lead.";
+        objective[1] = "Cross the Victory Bridge.";
+        route[0] = "Bridge lies south of Winds.";
+        route[1] = "Circus came from Bonzley.";
+        /* Current item summary is independent of the original chapter/event.
+         * A held/reacquired key never proves or erases permanent history. */
+        progress = key_groups == 3 ? "WIN-KEY: BOTH PACKS" : (key_groups & 1u) ? "WIN-KEY: CURRENT PACK" :
+            key_groups ? "WIN-KEY: OTHER PACK" : "WIN-KEY: NOT HELD NOW";
     } else if (lead == 14 || lead == 15) {
         unsigned key_groups = JournalItemGroups(g_ram, 0x20000, 0x01);
         unsigned current = key_groups & 1u; /* Exact admitted Aqutallion context. */
@@ -189,9 +199,9 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         objective[1] = current ? "Bridge lies south of Winds." :
             key_groups ? "WIN-KEY: in the other pack." : "WIN-KEY is not held now.";
         route[0] = lead == 14 && !key_groups ? "Morgan-House: hidden route." :
-            "Bridge lies south of Winds.";
+            current ? "Use WIN-KEY at the device." : "Bridge lies south of Winds.";
         route[1] = lead == 14 && !key_groups ? "Follow the right-hand wall." :
-            "The bridge leads to Bonzley.";
+            current ? "It controls Victory Bridge." : "The bridge leads to Bonzley.";
         progress = key_groups == 3 ? "WIN-KEY: BOTH PACKS" : current ? "WIN-KEY: CURRENT PACK" :
             key_groups ? "WIN-KEY: OTHER PACK" : "WIN-KEY: NOT HELD NOW";
     } else if (lead == 13) {

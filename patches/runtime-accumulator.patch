@@ -1,0 +1,39 @@
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -44,7 +44,7 @@
+ )
+ from snes65816 import (  # noqa: E402
+     ABS_X as _MODE_ABS_X, ABS_Y as _MODE_ABS_Y, IMM as _MODE_IMM,
+-    get_rom_mapping, ROM_MAP_SA1, rom_offset,
++    get_rom_mapping, ROM_MAP_SA1, rom_offset, ACC as _MODE_ACC,
+ )
+ from v2.ir import (  # noqa: E402
+     IROp, IRBlock, Value,
+@@ -442,6 +442,18 @@
+     if len(rts_deltas) != 1:
+         return None
+     return next(iter(rts_deltas))
++
++
++def _faithful_accumulator_shift(insn) -> bool:
++    """Admit only exact one-byte accumulator shifts; memory RMW stays original."""
++    expected = {0x0A: 'ASL', 0x4A: 'LSR', 0x2A: 'ROL', 0x6A: 'ROR'}
++    opcode = getattr(insn, 'opcode', None)
++    return (getattr(insn, 'mode', -1) == _MODE_ACC
++            and getattr(insn, 'length', None) == 1
++            and opcode in expected
++            and getattr(insn, 'mnem', None) == expected[opcode]
++            and getattr(insn, 'm_flag', None) in (0, 1)
++            and getattr(insn, 'x_flag', None) in (0, 1))
+ 
+ 
+ _FAITHFUL_PREFIX_CONTRACTS = {}
+@@ -2050,7 +2062,7 @@
+             'CLC','SEC','CLD','SED','CLI','SEI','CLV','REP','SEP','NOP','INX','INY','DEX','DEY','TAX','TAY','TXA','TYA','TXS','TSX','TCS','TSC','TCD','TDC','TXY','TYX','XBA',
+             'PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB','PLP','PEA','PER',
+             'JSR','JSL','RTS','RTL','JMP','JML','BRA','BRL','BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
+-        _unsupported = _di.mnem not in _supported or bool(skip_emit_idx) or bool(nlr_info)
++        _unsupported = (_di.mnem not in _supported and not _faithful_accumulator_shift(_di)) or bool(skip_emit_idx) or bool(nlr_info)
+         _prefix_refusal = ((bank << 16) | (key.pc & 0xFFFF)) in _prefix_stops
+         _unsupported = _unsupported or _prefix_refusal
+         # Pointer wrapping/page-cross and RMW ordering remain explicit unsupported gates.

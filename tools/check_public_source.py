@@ -115,6 +115,49 @@ def check_experiment_manifest(root, name, tracked):
     return errors
 
 
+ACCUMULATOR_SOURCE_REVIEW = {'patch_sha256': 'aee2cf5169754cf5a9d7c652387e47055643ad7adc0c6e5b2df2eb8bf5fea216', 'emitter_sha256': '1d667783bd9deae9ac52507aeaf13dae4ba59abd6ec7e5590d6c4c9c9b74dd8b', 'offline_unit_report_sha256': '1c2dea4f5c973ce732adebdafe5331fd09d5411088aadfab2674e06b316bc267', 'predecessor_crlf_sha256': '9848f8cdcc1c546b3830924551b8cba2aef43be8d77a934122ca4035b4a775a3', 'predecessor_lf_sha256': '8b395ddd799dc556a4955fb1d0c427509325e93e20447410906b126992183622', 'patch_output_crlf_sha256': 'b70f61231eec6ea4fad829a06c5fd766c716d96d79842a08fb19974834bf322d', 'runtime_file': 'recompiler/v2/emit_function.py', 'scope': 'Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies; memory RMW/INC/DEC remain original. Original buses, clocks, callback boundaries and serialized ABI remain unchanged.', 'normalization': 'Exact source-bound CRLF-to-LF only; no instruction/source-line changes.', 'qualification': 'Reviewed offline instruction/source proof only; actual public compilation and exact-artifact gameplay qualification are separate.'}
+
+
+def check_accumulator_source_audit(patch, provenance, helper):
+    """Bind authored patch/source metadata; no runtime or ROM execution."""
+    errors = []
+    expected = ACCUMULATOR_SOURCE_REVIEW
+    try:
+        if (sha(patch) != expected['patch_sha256']
+                or provenance.get('runtime_accumulator_patch_sha256') != expected['patch_sha256']
+                or provenance.get('runtime_accumulator_source_review') != expected):
+            errors.append('Accumulator patch/source review differs from the audited snapshot.')
+        content = patch.read_text(encoding='utf-8')
+        # An ordinary unified patch has no diff --git header. Both file headers
+        # must occur exactly once; exact digest binds every hunk and all bytes.
+        before = re.findall(r'^--- (.+)$', content, re.M)
+        after = re.findall(r'^\+\+\+ (.+)$', content, re.M)
+        git_headers = re.findall(r'^diff --git (.+)$', content, re.M)
+        target = expected['runtime_file']
+        if (before != ['a/' + target] or after != ['b/' + target]
+                or git_headers or len(re.findall(r'^@@ ', content, re.M)) != 3):
+            errors.append('Accumulator patch must retain its exact one-file/three-hunk scope.')
+        constants = {}
+        for node in ast.parse(helper).body:
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+                for name in node.targets:
+                    if isinstance(name, ast.Name):
+                        constants[name.id] = node.value.value
+        bindings = {
+            'ACCUMULATOR_PATCH_SHA256': 'patch_sha256',
+            'ACCUMULATOR_EMITTER_SHA256': 'emitter_sha256',
+            'ACCUMULATOR_UNIT_SHA256': 'offline_unit_report_sha256',
+            'ACCUMULATOR_PREDECESSOR_CRLF_SHA256': 'predecessor_crlf_sha256',
+            'ACCUMULATOR_PREDECESSOR_LF_SHA256': 'predecessor_lf_sha256',
+            'ACCUMULATOR_OUTPUT_CRLF_SHA256': 'patch_output_crlf_sha256',
+        }
+        if any(constants.get(name) != expected[field] for name, field in bindings.items()):
+            errors.append('Accumulator helper/source-review full hashes differ.')
+    except (OSError, UnicodeError, SyntaxError, TypeError, ValueError) as exc:
+        errors.append('Invalid accumulator source audit: ' + str(exc))
+    return errors
+
+
 def main():
     tracked = subprocess.check_output(
         ['git', 'ls-files', '-z'], cwd=ROOT
@@ -222,13 +265,16 @@ def main():
             ('runtime-proven-prefix.patch', 'prefix_patch_sha256', 'Proved instruction prefix'),
             ('runtime-faithful-hook-boundary.patch', 'faithful_hook_boundary_patch_sha256', 'Original callback boundary'),
             ('runtime-reviewed-roots.patch', 'reviewed_roots_patch_sha256', 'Reviewed analysis roots'),
-            ('runtime-converged-exits.patch', 'converged_exit_patch_sha256', 'Converged exit certification')):
+            ('runtime-converged-exits.patch', 'converged_exit_patch_sha256', 'Converged exit certification'),
+            ('runtime-accumulator.patch', 'runtime_accumulator_patch_sha256', 'Faithful accumulator admission')):
         extension = ROOT / 'patches' / patch_name
         if ('patches/' + patch_name not in tracked or not extension.is_file()
                 or sha(extension) != provenance.get(identity)):
             errors.append(label + ' patch differs from the audited snapshot.')
         elif sha(extension) not in helper:
             errors.append(label + ' audit hash is missing from the build helper.')
+    errors.extend(check_accumulator_source_audit(
+        ROOT / 'patches/runtime-accumulator.patch', provenance, helper))
     reviewed = ROOT / 'native/foundation/recomp/reviewed-roots.json'
     if ('native/foundation/recomp/reviewed-roots.json' not in tracked
             or sha(reviewed) != provenance.get('reviewed_analysis_roots_sha256')):

@@ -23,6 +23,12 @@ CONVERGED_EXIT_PATCH_SHA256='7788775dad2fcaced635b3c9805358471dbd4943815ea762a7b
 CONVERGED_EXIT_PATCH_NAMES=('recompiler-rs/src/bin/analyze.rs', 'tools/v2_analyze.py', 'tools/v2_emit.py', 'tools/sdk_generate.py', 'snesrecomp_cli.py')
 
 FOUNDATION_PATCH_SHA256='526f7d87b5cf736ce8b57da9db5f4435cce8d33ed1686a587a6a02ca66d73318'
+ACCUMULATOR_PATCH_SHA256='aee2cf5169754cf5a9d7c652387e47055643ad7adc0c6e5b2df2eb8bf5fea216'
+ACCUMULATOR_EMITTER_SHA256='1d667783bd9deae9ac52507aeaf13dae4ba59abd6ec7e5590d6c4c9c9b74dd8b'
+ACCUMULATOR_UNIT_SHA256='1c2dea4f5c973ce732adebdafe5331fd09d5411088aadfab2674e06b316bc267'
+ACCUMULATOR_PREDECESSOR_CRLF_SHA256='9848f8cdcc1c546b3830924551b8cba2aef43be8d77a934122ca4035b4a775a3'
+ACCUMULATOR_PREDECESSOR_LF_SHA256='8b395ddd799dc556a4955fb1d0c427509325e93e20447410906b126992183622'
+ACCUMULATOR_OUTPUT_CRLF_SHA256='b70f61231eec6ea4fad829a06c5fd766c716d96d79842a08fb19974834bf322d'
 
 def runtime_source_accounting(runtime,patch_names,new_names=()):
     tracked=set(command(['git','diff','--name-only'],runtime).splitlines())
@@ -32,10 +38,10 @@ def runtime_source_accounting(runtime,patch_names,new_names=()):
 
 def runtime_cache_identity(patch_hashes):
     hashes=list(patch_hashes)
-    if len(hashes)!=10 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
-        raise ValueError('Runtime cache requires exactly ten ordered full patch hashes')
+    if len(hashes)!=11 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
+        raise ValueError('Runtime cache requires exactly eleven ordered full patch hashes')
     combined=hashlib.sha256(('\n'.join(hashes)+'\n').encode('ascii')).hexdigest()
-    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-ten-full-patch-hashes',
+    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-eleven-full-patch-hashes',
       'ordered_patch_sha256':hashes,'combined_patch_sha256':combined,'directory_key':RUNTIME_PIN[:12]+'-'+combined[:16]}
 
 def check_cache_marker_identity(marker,identity):
@@ -72,6 +78,62 @@ def validate_converged_exit_patch(path):
 def check_converged_exit_marker(marker,digest):
     if marker.get('converged_exit_patch_sha256')!=digest:
         raise RuntimeError('Existing runtime converged exit patch identity missing/stale; preserve cache.')
+
+def validate_accumulator_patch(path):
+    # The frozen source-bound proposal is an ordinary unified one-file diff.
+    content=Path(path).read_text(encoding='utf-8')
+    before=re.findall(r'^--- a/(\S+)$',content,re.M)
+    after=re.findall(r'^\+\+\+ b/(\S+)$',content,re.M)
+    git_names=re.findall(r'^diff --git a/(\S+) b/',content,re.M)
+    names=['recompiler/v2/emit_function.py']
+    if sha(Path(path))!=ACCUMULATOR_PATCH_SHA256 or before!=names or after!=names or git_names not in ([],names):
+        raise RuntimeError('Accumulator admission patch identity/exact one-file scope changed; preserve build.')
+    return names
+
+def check_accumulator_marker(marker,digest):
+    if marker.get('runtime_accumulator_patch_sha256')!=digest or marker.get('runtime_accumulator_emitter_sha256')!=ACCUMULATOR_EMITTER_SHA256:
+        raise RuntimeError('Existing accumulator marker missing/stale; preserve cache.')
+    lineage=marker.get('runtime_accumulator_source_lineage',{})
+    if (not isinstance(lineage,dict) or lineage.get('predecessor_sha256') not in (ACCUMULATOR_PREDECESSOR_CRLF_SHA256,ACCUMULATOR_PREDECESSOR_LF_SHA256)
+            or lineage.get('normalized_predecessor_sha256')!=ACCUMULATOR_PREDECESSOR_LF_SHA256
+            or lineage.get('patch_output_sha256') not in (ACCUMULATOR_OUTPUT_CRLF_SHA256,ACCUMULATOR_EMITTER_SHA256)
+            or lineage.get('final_emitter_sha256')!=ACCUMULATOR_EMITTER_SHA256
+            or lineage.get('normalization_performed') is not (lineage.get('patch_output_sha256')==ACCUMULATOR_OUTPUT_CRLF_SHA256)
+            or lineage.get('patch_output_line_endings')!=('CRLF' if lineage.get('patch_output_sha256')==ACCUMULATOR_OUTPUT_CRLF_SHA256 else 'LF')
+            or lineage.get('final_line_endings')!='LF'
+            or lineage.get('line_ending_contract')!='Exact source-bound CRLF-to-LF only; no instruction/source-line changes.'):
+        raise RuntimeError('Existing accumulator source-lineage marker missing/stale; preserve cache.')
+
+def accumulator_predecessor(runtime):
+    path=runtime/'recompiler/v2/emit_function.py';reject_links(path)
+    raw=path.read_bytes();before=hashlib.sha256(raw).hexdigest()
+    normalized=hashlib.sha256(raw.replace(b'\r\n',b'\n')).hexdigest()
+    if before not in (ACCUMULATOR_PREDECESSOR_CRLF_SHA256,ACCUMULATOR_PREDECESSOR_LF_SHA256) or normalized!=ACCUMULATOR_PREDECESSOR_LF_SHA256:
+        raise RuntimeError('Accumulator predecessor differs from frozen ten-patch source; preserve cache.')
+    return {'predecessor_sha256':before,'normalized_predecessor_sha256':normalized}
+
+def finalize_accumulator_source(runtime,lineage):
+    path=runtime/'recompiler/v2/emit_function.py';reject_links(path)
+    if (not isinstance(lineage,dict) or lineage.get('predecessor_sha256') not in (ACCUMULATOR_PREDECESSOR_CRLF_SHA256,ACCUMULATOR_PREDECESSOR_LF_SHA256)
+            or lineage.get('normalized_predecessor_sha256')!=ACCUMULATOR_PREDECESSOR_LF_SHA256):
+        raise RuntimeError('Accumulator source predecessor proof missing/stale; no normalization performed.')
+    raw=path.read_bytes();patch_output=hashlib.sha256(raw).hexdigest()
+    normalized=raw.replace(b'\r\n',b'\n')
+    if patch_output not in (ACCUMULATOR_OUTPUT_CRLF_SHA256,ACCUMULATOR_EMITTER_SHA256) or hashlib.sha256(normalized).hexdigest()!=ACCUMULATOR_EMITTER_SHA256:
+        raise RuntimeError('Accumulator patch output differs from frozen source; no normalization performed.')
+    # Git on Windows restores CRLF. Normalize only the exact independently proved
+    # candidate so the actual source receipt binds the field's frozen LF bytes.
+    if raw!=normalized:path.write_bytes(normalized)
+    validate_accumulator_runtime(runtime)
+    return {**lineage,'patch_output_sha256':patch_output,'final_emitter_sha256':sha(path),
+      'normalization_performed':raw!=normalized,'patch_output_line_endings':'CRLF' if raw!=normalized else 'LF','final_line_endings':'LF',
+      'line_ending_contract':'Exact source-bound CRLF-to-LF only; no instruction/source-line changes.'}
+
+def validate_accumulator_runtime(runtime):
+    if sha(runtime/'recompiler/v2/emit_function.py')!=ACCUMULATOR_EMITTER_SHA256:
+        raise RuntimeError('Patched accumulator emitter differs from exact proved source; preserve cache.')
+
+
 
 def reviewed_roots_preflight(runtime,project,identity,enabled=True):
     # Isolate target SDK imports from optional original-five-patch profile audit.
@@ -390,7 +452,7 @@ def main():
     p.add_argument('--no-converged-exits',dest='certify_converged_exits',action='store_false',help='Diagnostic: retain original exit-fact quarantine without final re-certification')
     p.add_argument('--no-reviewed-roots',dest='reviewed_roots',action='store_false',help='Diagnostic: omit reviewed authored analysis seeds; retain baseline CFG roots')
     p.add_argument('--emit-proven-prefixes',action='store_true',help='Enable the distinct proved aot_prefix disposition via pinned v2_emit --faithful-prefixes; unknown calls continue in original code')
-    p.add_argument('--runtime-cache-dir',type=Path,help='Optional isolated runtime cache directory; same pinned ten-patch key and validation')
+    p.add_argument('--runtime-cache-dir',type=Path,help='Reuse an explicit pinned runtime cache; eleven full ordered patch hashes choose a new key, old keys are preserved')
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
@@ -464,12 +526,15 @@ def main():
     converged_patch=out/'runtime-converged-exits.patch'
     shutil.copy2(ROOT/'patches/runtime-converged-exits.patch',converged_patch)
     converged_names=validate_converged_exit_patch(converged_patch)
+    accumulator_patch=out/'runtime-accumulator.patch'
+    shutil.copy2(ROOT/'patches/runtime-accumulator.patch',accumulator_patch)
+    accumulator_names=validate_accumulator_patch(accumulator_patch)
     new_patch_names={'recompiler/v2/faithful_prefix.py','recompiler/v2/reviewed_roots.py'}
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
     cache_root=args.runtime_cache_dir.absolute() if args.runtime_cache_dir else ROOT/'local/upstream'
     reject_links(cache_root)
-    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch)])
+    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch),sha(accumulator_patch)])
     runtime=cache_root/cache_identity['directory_key']
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     reject_links(runtime);reject_links(marker)
@@ -481,13 +546,15 @@ def main():
         command(['git','submodule','update','--init','--recursive'],runtime)
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:
         raise RuntimeError('Existing runtime is at another revision; it has been preserved.')
-    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names))
+    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names)|set(accumulator_names))
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
         check_cache_marker_identity(receipt,cache_identity)
         check_faithful_hook_boundary_marker(receipt,sha(hook_boundary_patch))
         check_reviewed_roots_marker(receipt,sha(reviewed_patch))
         check_converged_exit_marker(receipt,sha(converged_patch))
+        check_accumulator_marker(receipt,sha(accumulator_patch))
+        accumulator_lineage=receipt['runtime_accumulator_source_lineage']
         if (receipt.get('runtime_pin')!=RUNTIME_PIN or receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
                 or receipt.get('faithful_instruction_patch_sha256')!=sha(faithful_patch)
                 or receipt.get('host_modal_audio_patch_sha256')!=sha(audio_patch)
@@ -512,6 +579,10 @@ def main():
         command(['git','apply','--check',hook_boundary_patch],runtime);command(['git','apply',hook_boundary_patch],runtime)
         command(['git','apply','--check',reviewed_patch],runtime);command(['git','apply',reviewed_patch],runtime)
         command(['git','apply','--check',converged_patch],runtime);command(['git','apply',converged_patch],runtime)
+        accumulator_lineage=accumulator_predecessor(runtime)
+        command(['git','apply','--check',accumulator_patch],runtime);command(['git','apply',accumulator_patch],runtime)
+        accumulator_lineage=finalize_accumulator_source(runtime,accumulator_lineage)
+        validate_accumulator_runtime(runtime)
         runtime_source_accounting(runtime,patch_names,new_patch_names)
         write_runtime_marker(marker,{'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
           'runtime_cache_identity':cache_identity,
@@ -523,8 +594,12 @@ def main():
           'faithful_hook_boundary_patch_sha256':sha(hook_boundary_patch),
           'reviewed_roots_patch_sha256':sha(reviewed_patch),
           'converged_exit_patch_sha256':sha(converged_patch),
+          'runtime_accumulator_patch_sha256':sha(accumulator_patch),
+          'runtime_accumulator_emitter_sha256':ACCUMULATOR_EMITTER_SHA256,
+          'runtime_accumulator_source_lineage':accumulator_lineage,
           'new_patched_sources':sorted(new_patch_names),
           'patched_sources':{n:sha(runtime/n) for n in patch_names}})
+    validate_accumulator_runtime(runtime)
     target_sources={n:sha(runtime/n)for n in patch_names};target_marker_digest=sha(marker)
     pins=dict(line.split('=',1) for line in (source/'framework_pins.txt').read_text().splitlines() if '=' in line)
     for key,name in [('rbengine','retcomm-rbengine'),('recomp-net','recomp-net')]:
@@ -631,6 +706,9 @@ def main():
         raise RuntimeError('Checkpoint contract changed; preserve this build and explicitly update its compatibility declaration before adoption.')
     schema_version=int(schema.group(1))
     result={'status':'compiled_unqualified','public_build':True,'executable_sha256':sha(binary),
+      'runtime_accumulator_patch_sha256':sha(accumulator_patch),'runtime_accumulator_emitter_sha256':ACCUMULATOR_EMITTER_SHA256,'runtime_accumulator_source_review':{'offline_unit_report_sha256':ACCUMULATOR_UNIT_SHA256,'scope':'Pinned reviewed offline instruction/source proof; public Setup does not consume private fixtures or infer actual-artifact gameplay qualification.'},
+      'runtime_accumulator_source_lineage':accumulator_lineage,
+      'runtime_accumulator_patch_scope':'Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies. MemoryRMW/INC/DEC/refusals and original buses/timing/ABI remain.',
       'version':(project/'VERSION').read_text().strip(),'rom_sha256':expected,'rom_copied':False,
       'authored_inputs':actual,'matches_authored_snapshot':actual==manifest,
       'runtime_pin':RUNTIME_PIN,'runtime_patch_sha256':sha(patch),

@@ -1,3 +1,28 @@
+# Current continuation — native0.3.8 / unchanged Companion0.3.5 (2026-10-12)
+
+Read docs/FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md first. Exact native4ef65a36 /
+immutable public receipt8caf1451; GUIeb6876c3 unchanged. Compilation receipts
+remain compiled_unqualified, with separate current-artifact execution/delivery
+qualification. Current chapter8 Bonzley/bridge advice is original-producer backed,
+VM-idle guarded and mutable-pack scoped; no durablehistory or new objectivepin.
+Actual135 town loader/NPC and next map pin remain proposed, source-only.
+Eleven-patch runtime key7931b53c4968-6b12d1b942e11e5a admits accumulator-only
+ASL/LSR/ROL/ROR through existing faithful transactions. Unknown calls and memory
+RMW stay original. Exact24744 boundaries; named target112native/113original,
+six native/four original shift sites across the cross-frameAC42 call. Generation
+counts do not establish full AOT/campaign. Preserve original center, timing,
+activation/collision, ABI, packet identities and default-off guarded width.
+Fresh public automatic585/24, journal967/36 (rendering348 is a subset), GUI85
+adoption/51UI/52update-rollback/fourlaunch routes,14paced/9silent+5paced modal
+routes qualify independently. Source-only58 unchanged predicates never transfer
+older binary qualification. Privateb3f299/ee297 and failed raw diagnostics remain
+separate; genuine036 unknown-callee coverage is unreached, not fabricated.
+Keep owned ROM/generated code/checkpoints local and prior compile receipts exact.
+Next broader native/campaign/party/effect and actual Bonzley/next-objective proofs.
+Historical continuation blocks below retain their artifact scopes.
+
+---
+
 # Current continuation - native0.3.7 / Companion0.3.5 (2026-10-12)
 
 Read docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md first. Native artifact

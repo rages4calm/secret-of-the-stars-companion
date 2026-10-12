@@ -9,7 +9,16 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
-The [native0.3.7 / unchanged Companion0.3.5 update](docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md)
+The [native0.3.8 / unchanged Companion0.3.5 update](docs/FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md)
+adds current advice after original key-use and the Victory Bridge event, plus
+accumulator-only faithful native admission. The named battle witness moves5→112
+native instructions with exact original boundaries;113 remain original after a
+cross-frame call. Fresh public game, journal, input, restoration, playback and
+launcher update/rollback are separately checked. Next are actual Bonzley town
+loader/NPC/next-objective pin, later verified advice and broader native/campaign
+party/effect coverage. No permanent history or campaign-wide native percentage is inferred.
+
+The preceding [native0.3.7 / unchanged Companion0.3.5 update](docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md)
 adds original-event Morgan/WIN-KEY directions, fixes four selected Kustera world
 wrap-margin flashes, and certifies stable generic analyzer exit facts. Fresh
 game, pixel, journal, source-regeneration and launcher controls qualify separately.

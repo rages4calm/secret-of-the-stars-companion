@@ -86,8 +86,25 @@ static inline unsigned FoundationJournalBridgeRoute(unsigned stage, unsigned fla
     return flags == 0x80 ? 14 : flags == 0xa0 ? 15 : 0;
 }
 
+/* Original0128 FA7F advances to current chapter8 before item01 removal.
+ * Original0151 then settles, and the still-loaded0719 selects289329:
+ * "THE BRIDGE MOVED". Original077C names Bonzley and south of Winds.
+ * This is the narrow observed current route, never durable completion.
+ * Do not derive the route from keyabsence. Wait for idle original field
+ * dialogue/event state; a scene reload may retire the shrine NPC. */
+static inline unsigned FoundationJournalAfterBridgeRoute(const uint8_t *ram, size_t size) {
+    if (!ram || size < 0x53b3 || ram[0x5372] != 8 || ram[0x5360] ||
+        ram[0x5361] || ram[0x5365] != 0x10 || ram[0x4b6] || ram[0x20] != 1 ||
+        ram[0x434] || ram[0x435] || ram[0x532] ||
+        ram[0x1410] || ram[0x1411] || ram[0x1415] || ram[0x1416] || ram[0x1417])
+        return 0;
+    return 16;
+}
+
 static inline unsigned FoundationJournalCurrentLead(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3) return 0;
+    unsigned after_bridge = FoundationJournalAfterBridgeRoute(ram, size);
+    if (after_bridge) return after_bridge;
     unsigned bridge = FoundationJournalBridgeRoute(ram[0x5372], ram[0x5360],
         ram[0x5361], ram[0x5365], ram[0x4b6], ram[0x20]);
     if (bridge) return bridge;
@@ -219,6 +236,8 @@ static inline unsigned FoundationJournalDestination(unsigned stage, unsigned fla
  * circus pin, nor leave a Decatas marker after the current ticket offer. */
 static inline unsigned FoundationJournalDestinationState(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3) return 0xffff;
+    /* No original Bonzley destination/entrance pin is qualified yet. */
+    if (FoundationJournalAfterBridgeRoute(ram, size)) return 0xffff;
     /* Original bridge dialogue names a region, not a verified map entrance. */
     if (FoundationJournalBridgeRoute(ram[0x5372], ram[0x5360],
         ram[0x5361], ram[0x5365], ram[0x4b6], ram[0x20])) return 0xffff;

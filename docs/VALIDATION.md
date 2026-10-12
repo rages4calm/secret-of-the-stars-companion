@@ -1,3 +1,31 @@
+# Current validation — native0.3.8 / unchanged Companion0.3.5
+
+The [bridge/accumulator continuation](FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md)
+binds fresh public native4ef65a36 and immutable compilation receipt8caf1451.
+Automatic585/24 and journal967/36 pass;348 rendering gates are a subset of
+those journal checks, not additional executions. All24744 completed boundaries
+match in the named battle witness:112native/113original, six native/four
+original accumulator shifts after the cross-frame call. Other unsupported
+forms remain original. Full native/AOT, natural campaign and broader contexts
+remain unfinished. Original producer staging and current-item summaries never
+establish permanent quest history or guessed pins.
+
+Fresh launcher85adoption/51UI/52update-rollback/fourcheckpoint/PlayResume routes
+pass on this public binary. Fourteen separate paced GPU/SDL routes stay near60FPS
+with zero recurring measured underflows/missing/audible drops. Nine silent modal
+routes preserve guest state; five paced modal routes qualify cancellation and
+actual partial-loader browser restore. Physical-controller, audio listening,
+universal-load and full APU beam-observer parity remain outside these claims.
+
+Private038b3f299/ee297 qualification is not relabeled as public execution.
+Its raw overstrong coverage, copied test binding and160MiB storage failures
+remain intact; the public batches use corrected sourced expectations and pass.
+Source-only58 unchanged authored predicates have explicit receipt identities.
+Package/current installed verification and canonical remote publication are
+separate final delivery gates. Earlier blocks below are historical scopes.
+
+---
+
 # Current validation — native0.3.7 / unchanged Companion0.3.5
 
 The [Morgan/world-wrap continuation](FOUNDATION-MORGAN-WRAP-2026-10-12.md)
