@@ -1,0 +1,184 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2341,7 +2341,7 @@
+                 original_return_observed=True
+             src.append(f"    {ln}")
+     if native_region_collector is not None or native_call_prefix_collector is not None:
+-        from .native_regions import collect, collect_stack_control, collect_indirect_y, collect_stack_direct
++        from .native_regions import collect, collect_stack_control, collect_indirect_y, collect_stack_direct, collect_stack_indirect_y, collect_long_jump
+         for region_key, region_pairs in block_per_insn_ir.items():
+             if len(region_pairs) != 1:
+                 continue
+@@ -2372,7 +2372,19 @@
+                 continue
+             if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
+                 continue
+-            from snes65816 import INDIR_Y, STK
++            from snes65816 import INDIR_Y, STK, STK_IY, LONG
++            if region_insn.mnem=='JMP' and region_insn.mode==LONG:
++                region=collect_long_jump(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),native_instruction_lines.get(region_key),
++                    data_regions=data_regions or (),exclude_ranges=exclude_ranges or (),
++                    forced=native_call_prefix_forced)
++                if region is not None:native_region_collector.append(region)
++                continue
++            if region_insn.mode==STK_IY:
++                region=collect_stack_indirect_y(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),native_instruction_lines.get(region_key))
++                if region is not None:native_region_collector.append(region)
++                continue
+             if region_insn.mode==STK:
+                 region=collect_stack_direct(rom,region_key,region_insn,region_ops,
+                     _block_cycle_const(region_pairs),native_instruction_lines.get(region_key))
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -120,17 +120,18 @@
+ 
+ STACK_DIRECT_OPCODES={'ORA':0x03,'AND':0x23,'EOR':0x43,'ADC':0x63,'STA':0x83,'LDA':0xa3,'CMP':0xc3,'SBC':0xe3}
+ 
+-def collect_stack_direct(rom,key,insn,ops,cycles,faithful_lines):
++def collect_stack_direct(rom,key,insn,ops,cycles,faithful_lines,*,indirect_y=False):
+     """Exact source/lowering and faithful cached stack-address body."""
+     from dataclasses import fields,is_dataclass
+     from enum import Enum
+     from itertools import count
+-    from snes65816 import STK,decode_insn
++    from snes65816 import STK,STK_IY,decode_insn
+     from snes_cycles import instr_cpu_cycles
+     from .lowering import lower
+     from .ir import Value
+     if key.m not in (0,1) or key.x not in (0,1) or insn.data_region_exec or getattr(insn,'const_z_fold_unconditional',False):return None
+-    if insn.mnem not in STACK_DIRECT_OPCODES or insn.opcode!=STACK_DIRECT_OPCODES[insn.mnem] or insn.mode!=STK or insn.length!=2:return None
++    expected_opcode=STACK_DIRECT_OPCODES.get(insn.mnem)
++    if expected_opcode is None or insn.opcode!=expected_opcode+(0x10 if indirect_y else 0) or insn.mode!=(STK_IY if indirect_y else STK) or insn.length!=2:return None
+     pc=insn.addr&0xffffff
+     if pc&65535<0x8000 or pc&65535>0xfffd or pc>>16 in (0x7e,0x7f) or key.pc&65535!=pc&65535:return None
+     offset=rom_offset(pc>>16,pc&65535)
+@@ -175,15 +176,56 @@
+     if compact(faithful_lines)!=compact(transformed):return None
+     code='\n'.join(faithful_lines)
+     # Exactly one readonly stack-address reference; no stack selection/push/pop.
+-    address=f'uint32 _ea = (uint16)(cpu->S + {insn.operand:#06x});'
++    address=(f'uint16 _ea_p = (uint16)(cpu->S + {insn.operand:#06x});' if indirect_y else f'uint32 _ea = (uint16)(cpu->S + {insn.operand:#06x});')
+     if code.count(address)!=1 or code.count('cpu->S')!=1:return None
++    if indirect_y:
++        # Original adrIsy: one bank-zero wrapping pointer word, then DB+Y
++        # with full24 data carry; no (dp),Y page-cross charge applies.
++        if code.count('uint16 _ea_lo = cpu_aot_read16(cpu, 0x00, _ea_p);')!=1:return None
++        if code.count('uint32 _ea = (((uint32)cpu->DB << 16) + _ea_lo + cpu->Y) & 0xffffffu;')!=1:return None
++        if 'cpu_aot_extra(' in code:return None
+     if re.search(r'cpu->S\s*(?:[+*/&|^-]?=|\+\+|--)',code):return None
+     label=f'_region_done_{pc&0x7fffff:06x}_{key.m}{key.x}'
+     code=code.replace('cpu_aot_commit(cpu);','')
+     code=re.sub(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',lambda m:f'*next_pc=((uint32)cpu->PB<<16)|0x{m[1]}u; goto {label};',code)
+     names={};code=re.sub(r'_(?:v\d+|tc\d+_\d+|t\d+)\b',lambda m:names.setdefault(m[0],f'_region_v{len(names)}'),code)
+     code+=f'\n{label}: ;'
+-    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':2,'cycles':cycles,'bytes':rom[offset:offset+2].hex(),'next_pc':(pc+2)&65535,'body':code,'mnemonic':insn.mnem,'contract':'native-e0-source-cached-stack-direct-v1'}
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':2,'cycles':cycles,'bytes':rom[offset:offset+2].hex(),'next_pc':(pc+2)&65535,'body':code,'mnemonic':insn.mnem,'contract':('native-e0-source-cached-stack-indirect-y-v1' if indirect_y else 'native-e0-source-cached-stack-direct-v1')}
++
++def collect_stack_indirect_y(rom,key,insn,ops,cycles,faithful_lines):
++    return collect_stack_direct(rom,key,insn,ops,cycles,faithful_lines,indirect_y=True)
++
++
++def collect_long_jump(rom,key,insn,ops,cycles,faithful_lines,*,data_regions=(),exclude_ranges=(),forced=()):
++    """Only original architectural JML target/PB, no host tail invocation."""
++    from snes65816 import LONG,decode_insn
++    from snes_cycles import instr_cpu_cycles
++    from .ir import Goto
++    from .lowering import lower
++    if key.m not in(0,1)or key.x not in(0,1)or insn.data_region_exec:return None
++    if getattr(insn,'const_z_fold_unconditional',False)or getattr(insn,'dispatch_entries',None):return None
++    if (insn.mnem,insn.mode,insn.opcode,insn.length)!=('JMP',LONG,0x5c,4):return None
++    pc=insn.addr&0xffffff
++    if key.pc&65535!=pc&65535 or pc&65535<0x8000 or pc&65535>0xfffc or pc>>16 in(0x7e,0x7f):return None
++    for n in range(4):
++        at=pc+n
++        if at&0x7fffff in forced or any(at>>16 in(b,b^128)and lo<=at&65535<hi for b,lo,hi in data_regions)or any(lo<=at&65535<hi for lo,hi in exclude_ranges):return None
++    off=rom_offset(pc>>16,pc&65535)
++    if off<0 or off+4>len(rom):return None
++    decoded=decode_insn(rom,off,pc&65535,pc>>16,key.m,key.x)
++    if decoded is None or(decoded.opcode,decoded.mnem,decoded.mode,decoded.operand,decoded.length)!=(insn.opcode,insn.mnem,insn.mode,insn.operand,insn.length):return None
++    if(getattr(insn,'m_flag',None),getattr(insn,'x_flag',None))!=(key.m,key.x):return None
++    decoded.m_flag,decoded.x_flag=key.m,key.x
++    if len(ops)!=1 or ops!=lower(decoded,value_factory=lambda:None)or not isinstance(ops[0],Goto):return None
++    if cycles!=instr_cpu_cycles(decoded.opcode,m=key.m,x=key.x,e=0)or faithful_lines is None:return None
++    if any(t in '\n'.join(faithful_lines)for t in('cpu_aot_prefix','precise-mode unsupported:')):return None
++    target=decoded.operand&0xffffff
++    if target&65535<0x8000 or target>>16 in(0x7e,0x7f)or target&0x7fffff in forced:return None
++    # Instruction conversion grants no target entry or mode authority.
++    # Original interp816 opcode5C fetches low/high/bank then sets PB/PC only.
++    body='{ uint32 _jump_target=cpu_aot_get_direct_jump_target(cpu,(((uint32)cpu->PB<<16)|0x%04xu)); cpu->PB=(uint8)(_jump_target>>16); *next_pc=_jump_target; }'%(pc&65535)
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':4,'cycles':cycles,'bytes':rom[off:off+4].hex(),'next_pc':target,'body':body,'mnemonic':insn.mnem,'contract':'source-long-jump-architectural-prefix-v1'}
++
+ 
+ def collect(rom,key,insn,ops,cycles,faithful_lines=None):
+     # These rows are scheduler-owned instruction bodies, never callable entries.
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 22
++CACHE_FORMAT_VERSION = 23
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1351,11 +1351,13 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':9, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':10, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'direct_call_prefix':bool(enable_native_call_prefix),
+                                      'direct_call_contract':'source-direct-call-architectural-prefix-v1',
++                                     'long_jump_contract':'source-long-jump-architectural-prefix-v1',
++                                     'stack_indirect_y_contract':'native-e0-source-cached-stack-indirect-y-v1',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+         write_if_changed(
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -847,6 +847,7 @@
+ typedef struct { uint32 source_pc24,target_pc24; uint8 length,bytes[4]; } CpuAotDirectCallOperands;
+ /* Read-only cached original fetches; invalid transaction use aborts. */
+ void cpu_aot_get_direct_call_operands(CpuState*,uint32,unsigned,CpuAotDirectCallOperands*);
++uint32 cpu_aot_get_direct_jump_target(CpuState *cpu,uint32 pc24);
+ 
+ bool cpu_aot_begin_scheduler_region(CpuState*, uint32, unsigned, unsigned, const uint8*, bool (*)(CpuState*, uint32, uint8, uint32*));
+ RecompReturn interp_tier_dispatch_faithful(CpuState*,uint32,uint32,uint16,uint8,bool,uint32);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -628,7 +628,7 @@
+     hooked |= s_pre_opcode_hooks[i].pc24 == key;
+   /* Direct calls consume actual fetched operands. Verify their source mapping
+    * before any fetch even on the unhooked route; refusal has no bus effects. */
+-  if (expected[0] == 0x20u || expected[0] == 0x22u) {
++  if (expected[0] == 0x20u || expected[0] == 0x22u || expected[0] == 0x5cu) {
+     if (!g_snes || !g_snes->cart) return false;
+     for (unsigned byte = 0; byte < length; ++byte) {
+       const uint8_t *rom = cart_getRomPtr(g_snes->cart, cpu->PB, (uint16_t)(pc + byte));
+@@ -709,6 +709,16 @@
+   memcpy(out->bytes,s_aot_fetched,sizeof out->bytes);
+   out->target_pc24=((uint32)(length==4u?out->bytes[3]:(uint8)(pc24>>16))<<16)|
+       ((uint32)out->bytes[2]<<8)|out->bytes[1];
++}
++
++uint32 cpu_aot_get_direct_jump_target(CpuState *cpu,uint32 pc24) {
++  aot_require(cpu);
++  /* Readonly cached original opcode operands; no fetch, clocks or authority. */
++  if(s_aot_pc!=pc24 || s_aot_length!=4u || s_aot_fetched[0]!=0x5cu ||
++     (((uint32)cpu->PB<<16)|(pc24&0xffffu))!=pc24) {
++    fputs("Invalid cached direct jump operands\n",stderr);abort();
++  }
++  return ((uint32)s_aot_fetched[3]<<16)|((uint32)s_aot_fetched[2]<<8)|s_aot_fetched[1];
+ }
+ 
+ uint8 cpu_aot_read8(CpuState *cpu,uint8 b,uint16 a){aot_require(cpu);return bridge_bus_read(cpu,((uint32)b<<16)|a);}

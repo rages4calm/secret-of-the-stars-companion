@@ -54,7 +54,7 @@ fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
 The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`.
-The current 28-patch key is `7931b53c4968-3b28789fe84824aa`. All 28 full ordered
+The current35-patch key is `7931b53c4968-11180fa6103e7271`. All35 full ordered
 hashes remain in the marker and receipt. Fresh builds use the public helper and
 verified runtime/SDL dependencies; changed existing caches are preserved, never
 reset to make a build pass. Keep required active caches and remove closed
@@ -63,7 +63,7 @@ rebuildable outputs under the required-only storage policy.
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
 [`native/foundation/framework_pins.txt`](native/foundation/framework_pins.txt).
-The helper checks both submodule pins and applies all 28 individually hashed
+The helper checks both submodule pins and applies all35 individually hashed
 runtime patches in order. The public `patches/` bindings record exact prior and
 final source hashes; each new stage validates its predecessor before applying,
 then validates final sources and source accounting. Unexpected edits or cache
@@ -191,7 +191,7 @@ recomputes current advice. Item possession, chapter suggestions and written
 walkthrough pages are not permanent completion history.
 See [guide controls and feature checks](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md)
 and [content sources](docs/JOURNAL-GUIDE-SOURCES.md).
-See [current release scope](docs/FOUNDATION-NATIVE-TRAVEL-CONTINUATIONS-2026-10-12.md) and the retained
+See [current release scope](docs/FOUNDATION-GROUPED-NATIVE-2026-10-12.md) and the retained
 [integrated actor scope](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md).
 
 The engine's default input and hotkeys may differ from an already configured
@@ -264,8 +264,8 @@ visible; adoption does not turn a build into a gameplay-qualified release.
 In **Controls**, edit the single player's keyboard and controller game buttons.
 **Hotkeys** supports keyboard names/modifier chords, controller buttons/chords,
 explicit `None`, and all twenty save/load checkpoint slots. Enable hold/toggle
-fast-forward there. **Enhancements** exposes independent XP/gold rates (100â€“1000%)
-and movement boost (100â€“300%). Companion 0.3.5 also exposes
+fast-forward there. **Enhancements** exposes independent XP/gold rates (100Ã¢â‚¬â€œ1000%)
+and movement boost (100Ã¢â‚¬â€œ300%). Companion 0.3.5 also exposes
 **Random encounter rate (%)** from 0 to 100 for native 0.3.6 or later. Default 100
 keeps the original ordinary check; 0 disables qualified random battles, while
 scripted battles retain their separate path. Reduced values scale integer
@@ -324,158 +324,31 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Current source and artifact scope (native 0.5.1 / Companion 0.3.6)
+## Current source and artifact scope (native0.5.2 / Companion0.3.6)
 
-The current snapshot has 63 native and 24 unchanged Companion authored inputs.
-Its 28 ordered patches use cache19 / normal instruction metadata8 / selected-task
-metadata2 / redirect metadata1. Default generation records 9,076 normal mode
-rows, 121 selected-task rows and 3 source-redirect rows in 25 outputs. Fifteen
-callable bank C units retain the earlier callable source bodies. These are
-source/generation counts, not whole-game execution or campaign certification.
+The current snapshot has63 native and24 unchanged Companion authored inputs.
+Its35 ordered patches use cache26 / normal instruction metadata12 / task
+metadata5 / redirect metadata1. Default generation records9274 normal mode
+rows,228 task rows and3 redirect rows in25 outputs. These counts describe
+source generation; complete native/AOT execution remains unfinished.
 
 Fresh executable SHA-256:
-`079885fda683aaf449c4336a726ae96ebeaa827e033f82cfbdf332b410c88aaf`.
+`fb7f4e4c3771014ece407cc6c7511dffdf2e9dac7b9333f5da884a961ef0cc82`.
 Immutable compilation receipt SHA-256:
-`3579936ea1d7b26af66057f27fe7769749e0faea93e5b391e18341cb7000c2e5`.
+`4187d5214c79f4b33ff44b7ecaf9633b173d163e56eb49a21f6d9aad897729d0`.
 The receipt remains `compiled_unqualified`. Its declared execution-state ABI is
 `de6eb89eb74024bc3e57df857a6a14fe6dd4d7d73dedf888fcba425eb5678321`.
-Exact artifact execution/render/input checks: three finite runs match all24,744 completed original state/clock/bus/PPU/save-load boundaries; enabled24,706native/38original. Two six-frame staged original-loader effect runs pass61checks with144 independently expected margin pixels at each positive frame. Keyboard/indexed SDL virtual-pad paths pass21checks; root inspected contacts.
-Exact profile/update checks: one isolated050-to051 update through hash-bound unchanged Companion036 production Core methods preserves settings/copied saves, verifies target receipt/executable and retains gameplay-unqualified readiness. This host-method check is separate from the actual installedGUI60-frame title-first launch, which also passes. Both native paths and36new metadata fields match; owner settings/saves/selectors are unchanged.
-One stationary 300-frame D3D11/VSync/audio route passed at 60.030 FPS, with zero
-steady underflow/missing/audible-drop deltas and 75,051 authenticated margin pixels.
-Startup drops are recorded separately; this does not certify every scene or PC.
 
-Historical sections below retain their dated patch and artifact identities.
+Separate exact-artifact checks match12,834 completed original/native states,
+clocks and saved output bytes. Five operation routes cover actual wider effect
+pixels, keyboard/indexed virtual-controller journal controls and300-frame
+D3D11/audio playback. The finite pace is60.027FPS with zero steady underruns,
+missing frames and audible drops. Staged original-loader assets are explicit;
+this does not certify natural acquisition, all17 new X0 prefixes, physical
+controllers or the campaign. Owner/play testers verify campaign directions.
+See [grouped scope](docs/FOUNDATION-GROUPED-NATIVE-2026-10-12.md).
 
-## Historical navigation and display scope (native 0.4.0 / Companion 0.3.6)
-
-Enhancements exposes **Current-area map** and **Show current objective on map**.
-Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
-**Back + left-stick click**; occupied implicit shortcuts remain unbound rather
-than replacing an existing action. Explicit custom bindings are retained.
-Original View disables both map and objective marker for that launch.
-
-The historical nine-patch builder applied the pinned seventeen-file base runtime patch and the
-separately audited three-file host navigation/input patch, plus the two-file
-faithful-instruction API supplement, host-only modal/audio repair and generic
-automatic-faithful patch, paired lifecycle, explicit proved-prefix support and
-original registered-hook boundaries. It preserves previous runtime caches,
-recorded all nine patch hashes, and produced a real
-`compiled_unqualified` receipt. The host-only changes retain the declared guest
-execution-state ABI; matching metadata is still required for changed-binary
-profile updates. There are 61 native authored inputs and 24 Companion inputs. The ninth patch
-adds reviewed-root validation/forwarding only; the preceding eight patches and
-serialized execution-state layout retain their exact identities.
-The matching legend and source-proven cache-key fixes preserve completed terrain
-during checked same-area movement. Work remains capped at 1,024 samples per
-host frame, with the existing 120-frame graphics refresh and restore reset.
-[Exact artifact qualification and remaining limits](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md).
-
-Companion Display offers Auto or exact 1280Ã—720, 1600Ã—900, 1920Ã—1080,
-2560Ã—1440 and 3840Ã—2160 window sizes; existing custom sizes remain editable.
-Pixel shape offers Original CRT shape, Square pixels and Square frame. Auto
-uses Window scale, while fullscreen follows the display. Neither setting adds
-scenery: select Widescreen separately for supported scenes. Apply validates
-changed values, and Revert restores the loaded profile.
-
-The preceding installed 0.3.3/0.3.4 pair passes exact-artifact qualification
-and 18 copied-installed controls. The fresh native 0.3.4 public build has its
-own strict execution/rendering, launcher-adoption and thirteen finite normal
-playback checks, followed by a clean nine-route modal repeat. Two initial
-modal audio failures remain retained; their cause is unproven. Installation and 18 copied
-Play/Resume/visible-GUI controls pass; package/publication integrity is checked separately. The host modal/audio patch waits for genuine guest
-DSP prefill before resuming the device and consumes a keyboard rewind request
-once, preserving original guest timing and checkpoint ABI. Compilation alone
-does not satisfy gameplay, installation or ROM-free package qualification.
-Package extraction/relocation checks are recorded separately in the release
-document; a package contains the launcher, authored source and notices, with
-no ROM, saves, native game executable or ROM-derived generated code.
-
-Native 0.3.1 corrects the original Y,X entrance format used by town/objective pins
-and adds current Bun/architect clues. See [the exact continuation](docs/FOUNDATION-MAP-TOWN-2026-10-11.md).
-For development captures, coordinate staging must be followed by original loaders
-and an independent background check; parity against another corrupt fixture is insufficient.
-
-Native0.3.5 changes only the journal/version among61 authored inputs. Runtime
-patches, generated original-game outputs and checkpoint ABI retain034 identity.
-[Circus/priest source qualification](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md)
-records fresh overlay/map/launcher/playback checks and the corrected original
-entrance-produced scene inputs. Do not reuse the old Golan/room227 development
-checkpoints for positive scenery evidence.
-
-Native 0.3.6 adds guarded ordinary random encounter control in the QoL module;
-Companion 0.3.5 adds its setting and current/older-build tests. The default remains
-100%, including profiles without `RandomEncounterPercent`. Close the game before
-Apply. The control is unavailable on earlier native builds; use Setup to update
-the selected profile with genuine compatible receipts. Custom bindings, rewards,
-movement, checkpoint/SRAM formats and execution-state ABI are preserved.
-[Encounter settings, exact artifacts and qualification](docs/FOUNDATION-ENCOUNTER-RATE-2026-10-11.md).
-
-
-## Native 0.3.8 source continuation
-
-The authored native snapshot retains 61 inputs and changes only the version and
-journal C/H files relative to 0.3.7. The eleventh generic emitter patch is a
-separate runtime input; the preceding ten patch bytes and declared serialized
-guest/checkpoint ABI remain unchanged. Companion stays at 0.3.5.
-
-The retained private 0.3.8 build has its own immutable `compiled_unqualified`
-receipt and separate qualification evidence. A normal public source-first build
-requires a new genuine receipt, fresh exact-artifact execution/journal/rendering
-and clock/input/restore checks, launcher adoption/update/rollback and separate
-paced/modal playback checks before installation. Package integrity and
-publication are separate again. This source draft does not certify a public
-0.3.8 executable, installation, package or campaign.
-
-## Native 0.4.0 / Companion 0.3.6 story guide
-
-The native authored manifest now binds 62 inputs, including
-`src/foundation_guide_data.h`; Companion retains 24 authored inputs. Runtime
-pinning and the eleven ordered patches remain independent build dependencies.
-Fresh native and GUI compilation receipts remain `compiled_unqualified`.
-The [story-guide continuation](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) records
-separate focused actual page-rendering and input checks.
-
-Journal defaults on in the fresh profile. J / left-stick click opens or closes
-by default. Select changes Current / Guide, Left / Right changes page, Up / Down
-changes section, and Game B closes. Navigation uses the existing configured
-logical game actions rather than hardcoded keyboard/controller face buttons.
-The panel consumes browsing controls and waits for held controls to be released
-before passing them back to gameplay. It is an overlay while the game continues
-running, not a pause screen. Restore resets browsing and recomputes current advice.
-
-Native 0.4.0 declares a changed execution-state ABI for its title input-filter
-integration. Normal source-profile update strictly refuses 0.3.9 to 0.4.0 on the
-declaration mismatch; use fresh source adoption and preserve the prior profile.
-This is not evidence that serialization itself is incompatible: selected legacy
-checkpoint resumes worked in separate focused checks. Do not bypass the update
-contract or turn that finite result into universal checkpoint compatibility.
-
-The full written guide is manually browsable and covers the ending. Suggested
-starting sections use original current chapter 0-24; they are coarse advice,
-not automatic detection of every quest event. The owner and play testers verify
-campaign directions. Fine automatic advice and map pins retain their existing
-bounded predicates. No permanent history, new completion rule or guessed map
-marker is introduced. [Source mapping](docs/JOURNAL-GUIDE-SOURCES.md).
-
-Native 0.4.1 adds restricted original-return to certified native suffix admission.
-Normal Setup enables certification; `--no-native-continuations` is a generation
-diagnostic, and `SNESRECOMP_DISABLE_NATIVE_CONTINUATIONS=1` disables the separate
-table on the same artifact. The all-original diagnostic sets this too. Output
-cache format is 6; program manifest remains 3. Read the
-[continuation contract](docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md).
-The frame/session reset hook changes the declared execution ABI; strict copied
-0.4.0-to0.4.1 profile update refuses, while fresh adoption is available.
-
-
-## Native memory instructions (0.4.2)
-
-The thirteenth patch admits the exact supported E0 memory INC/DEC, ASL/LSR and
-ROL/ROR forms plus accumulator INC/DEC. `patches/runtime-memory-rmw.json` binds
-its five exact predecessors and final sources. The builder checks the twelfth
-source set before applying this delta, then checks the final union for compilation
-and reuse. The source cache contains thirteen ordered full patch identities.
-Generated cache format 6, program manifest 3 and the declared execution ABI for
-0.4.1 and 0.4.2 remain unchanged. Full native/AOT and campaign verification are
-separate.
-[Current instruction and rendering scope](docs/FOUNDATION-MEMORY-RMW-2026-10-12.md).
+Earlier051 and private080 receipts retain their own scopes; current checks do
+not rewrite or transfer their qualification. Preserve declared ABI/profile update
+rules. Keep only required donors, receipts and inputs, place bounded large build
+outputs in Temp, and maintain the5GB steady workspace cap.

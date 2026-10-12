@@ -1,0 +1,1621 @@
+diff --git a/recompiler/v2/codegen.py b/recompiler/v2/codegen.py
+--- a/recompiler/v2/codegen.py
++++ b/recompiler/v2/codegen.py
+@@ -309,7 +309,7 @@
+ 
+ def variant_dispatch_case_lines(addr_24: int, base_name: str,
+                                 indent: str = "    ", pre_call=None,
+-                                lle_fallback=None):
++                                lle_fallback=None, source_call_frame=None):
+     """Emit the case/default body for a runtime (m, x) dispatch switch.
+ 
+     A case is emitted for all four (M, X) indices. Surviving variants call
+@@ -356,7 +356,11 @@
+ 
+     def emit(label: str, name: str, comment: str = ""):
+         pre = (" ".join(pre_call) + " ") if pre_call else ""
+-        lines.append(f"{indent}{label}: {pre}_r = {name}(cpu); break;{comment}")
++        if source_call_frame is not None:
++            pre += f"cpu_source_call_paired_enter(cpu,0x{addr_24:06x}u,{source_call_frame}u,(uintptr_t)&{name}); "
++            post = f" cpu_source_call_paired_exit(cpu,0x{addr_24:06x}u,{source_call_frame}u,(uintptr_t)&{name},(int)_r);"
++        else: post = ""
++        lines.append(f"{indent}{label}: {pre}_r = {name}(cpu);{post} break;{comment}")
+ 
+     def emit_lle(label: str, m: int, x: int):
+         if not lle_fallback:
+@@ -2356,6 +2360,7 @@
+         pbr = "cpu->PB" if site is not None else "0xff"
+         return [
+             "  /* JSL return frame -> cpu->S (Option-1) */",
++            *([f"  cpu_source_call_native_push(cpu,0x{site:06x}u,3u);"] if site is not None else []),
+             f"  cpu_write8(cpu, 0x00, cpu->S, {pbr}); cpu->S = (uint16)(cpu->S - 1);",
+             f"  cpu_write8(cpu, 0x00, cpu->S, 0x{(ret16 >> 8) & 0xFF:02x}); cpu->S = (uint16)(cpu->S - 1);",
+             f"  cpu_write8(cpu, 0x00, cpu->S, 0x{ret16 & 0xFF:02x}); cpu->S = (uint16)(cpu->S - 1);",
+@@ -2364,6 +2369,7 @@
+     ret16 = ((site + 2) & 0xFFFF) if site is not None else 0xFFFF
+     return [
+         "  /* JSR return frame -> cpu->S (Option-1) */",
++        *([f"  cpu_source_call_native_push(cpu,0x{site:06x}u,2u);"] if site is not None else []),
+         f"  cpu_write8(cpu, 0x00, cpu->S, 0x{(ret16 >> 8) & 0xFF:02x}); cpu->S = (uint16)(cpu->S - 1);",
+         f"  cpu_write8(cpu, 0x00, cpu->S, 0x{ret16 & 0xFF:02x}); cpu->S = (uint16)(cpu->S - 1);",
+         "  cpu->host_return_valid = 2;  /* paired host caller, JSR frame */",
+@@ -2546,7 +2552,7 @@
+         "  switch (((cpu->m_flag & 1) << 1) | (cpu->x_flag & 1)) {",
+     ]
+     lines += variant_dispatch_case_lines(
+-        addr, base_name,
++        addr, base_name, source_call_frame=2,
+         lle_fallback=(
+             f"interp_tier_run_call_frame(cpu, {_transfer_target_expr(addr, op.long)}, "
+             f"{call_trace_pc}, 2, NULL)"))
+@@ -2561,6 +2567,7 @@
+         "    cpu_trace_mark_nlr_exit(BD_EXIT_KIND_SKIP_PROPAGATION);",
+         "    return (RecompReturn)((int)_r - 1);",
+         "  }",
++        f"  cpu_source_call_generated_parent_retained(cpu,{call_trace_pc},0x{addr:06x}u);",
+         "}",
+     ])
+     return lines
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2168,6 +2168,7 @@
+     # Trace ring: function entry (carries name hash) — first entry per call.
+     fn_entry_pc = (bank << 16) | (start & 0xFFFF)
+     src.append(f'  cpu_trace_func_entry(cpu, 0x{fn_entry_pc:06X}, "{func_name}");')
++    src.append(f'  cpu_source_call_fp_entry(cpu,0x{fn_entry_pc:06x}u,{entry_m}u,{entry_x}u,(uintptr_t)&{func_name});')
+     # A profile-promoted AOT call tree can stay native across enough guest
+     # calls to cross an event-driven host's frame deadline. Yield before
+     # entering the next architectural callee so the owning interpreter can
+@@ -2316,6 +2317,7 @@
+             src.append(f'    if (!cpu_aot_begin(cpu, {block_pc24}u, {_insn.length}u, {_cyc_const}u)) {{')
+             src.append(f'      RecompStackPop(); return interp_tier_dispatch_faithful(cpu, {_transfer_target_expr(block_pc24, False)}, 0x{block_pc24:06x}u, _entry_s, _hrv, false, _host_return_pc24); }}')
+         task_observed=False
++        original_return_observed=False
+         for ln in block_lines[key]:
+             # Inject a stack-auditor pop before any return so the shadow
+             # stack stays balanced. An LLE yield unwind is NOT a return: the
+@@ -2333,6 +2335,10 @@
+                 observer=f'interp_bridge_source_task_committed(cpu,0x{_insn.addr:06x}u,{actual});'
+                 ln=ln.replace('cpu_aot_commit(cpu)','(cpu_aot_commit(cpu), '+observer[:-1]+')',1)
+                 task_observed=True
++            if not original_return_observed and _insn.mnem in ('RTS','RTL') and 'cpu_aot_commit(cpu)' in ln and ('/*' not in ln or ln.index('cpu_aot_commit(cpu)')<ln.index('/*')):
++                observer=f'cpu_source_call_return_observed(cpu,0x{_insn.addr:06x}u,0x{rom[rom_offset(_insn.addr>>16,_insn.addr&65535)]:02x}u,_ret_s,(uint8)_rpcl,(uint8)_rpch,_rpb,_rpc24)'
++                ln=ln.replace('cpu_aot_commit(cpu)',f'(cpu_aot_commit(cpu), {observer})',1)
++                original_return_observed=True
+             src.append(f"    {ln}")
+     if native_region_collector is not None or native_call_prefix_collector is not None:
+         from .native_regions import collect, collect_stack_control, collect_indirect_y, collect_stack_direct
+diff --git a/recompiler/v2/native_call_prefix.py b/recompiler/v2/native_call_prefix.py
+--- a/recompiler/v2/native_call_prefix.py
++++ b/recompiler/v2/native_call_prefix.py
+@@ -42,7 +42,7 @@
+     # Host return tags and every host invocation/envelope are intentionally cut.
+     architectural=[line for line in prefix if 'cpu_aot_write8('in line]
+     if len(architectural)!=(3 if call.long else 2):return None
+-    body='{ CpuAotDirectCallOperands _call_operands;\ncpu_aot_get_direct_call_operands(cpu,(((uint32)cpu->PB<<16)|0x%04xu),%uu,&_call_operands);\nuint32 _call_target=_call_operands.target_pc24;\n/* Future readonly fetched-call observer is unarmed; architectural call continues. */\n'%(pc&65535,insn.length)+'\n'.join(architectural)+'\n'
++    body='{ CpuAotDirectCallOperands _call_operands;\ncpu_aot_get_direct_call_operands(cpu,(((uint32)cpu->PB<<16)|0x%04xu),%uu,&_call_operands);\nuint32 _call_target=_call_operands.target_pc24;\ncpu_source_call_native_push(cpu,0x%06xu,%uu);\n'%(pc&65535,insn.length,pc,3 if call.long else 2)+'\n'.join(architectural)+'\n'
+     if call.long:body+='cpu->PB=(uint8)(_call_target>>16);\n'
+     body+='*next_pc=_call_target; }'
+     return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[off:off+insn.length].hex(),'next_pc':call.target,'body':body,'mnemonic':insn.mnem,'contract':'source-direct-call-architectural-prefix-v1','original_scheduler_call':True,'frame_bytes':3 if call.long else 2,'runtime_adapter':'cached original fetched operands; architectural scheduler admission only; no closed-call authority'}
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -252,7 +252,7 @@
+                   'uint32 _rpc24 = ((uint32)_rpb << 16) | _rpc;','cpu_aot_commit(cpu);']
+         compact=lambda value:re.sub(r'\s+','',value)
+         if compact(clean)!=compact(''.join(exact)):return None
+-        body=body.rsplit('cpu_aot_commit(cpu);',1)[0]+'*next_pc=_rpc24; }'
++        body=body.rsplit('cpu_aot_commit(cpu);',1)[0]+f'*next_pc=_rpc24; cpu_source_call_return_stage(cpu,0x{pc:06x}u,0x{rom[rom_offset(pc>>16,pc&0xffff)]:02x}u,_ret_s,(uint8)_rpcl,(uint8)_rpch,_rpb,_rpc24); }}'
+         offset=rom_offset(pc>>16,pc&0xffff)
+         return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':(pc+insn.length)&0xffff,'body':body,'mnemonic':insn.mnem}
+     # No return, host invocation or unresolved transition; stack effects are explicit primitives.
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 21
++CACHE_FORMAT_VERSION = 22
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1331,7 +1331,7 @@
+ 
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+-        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':3,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
++        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':4,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+         from .source_redirect import emit_source as emit_redirect
+         write_if_changed(staging/'native_source_redirect_v2.c',emit_redirect(redirect_rows,redirect_recipe,module_prefix))
+         write_if_changed(staging/'native_source_redirect.json',json.dumps({'format_version':1,'kind':'source_bound_original_redirect','recipe':{k:v for k,v in redirect_recipe.items()if k!='spans'}if redirect_recipe else None,'rows':redirect_rows},indent=2,sort_keys=True)+'\n')
+diff --git a/recompiler/v2/task_original_calls.py b/recompiler/v2/task_original_calls.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/task_original_calls.py
+@@ -0,0 +1,113 @@
++"""Closed source-selected original-call recipes; no ordinary roots/admission."""
++import snes65816 as s
++
++def derive_original_calls(rom, sites, data, forced):
++ cache={};active=set();branch={'BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'};store={'STA','STX','STY','STZ'};rmw={'INC','DEC','ASL','LSR','ROL','ROR','TRB','TSB'}
++ mode_names={v:n for n,v in vars(s).items()if n.isupper()and isinstance(v,int)and v<30}
++ def fn(pc,m,x):
++  ident=(pc,m,x)
++  if ident in cache:return cache[ident]
++  if ident in active:raise ValueError('recursive call graph '+repr(ident))
++  active.add(ident); q=[ident];seen=set();rows=[];exits=set();calls=[];errors=[]
++  while q:
++   at,im,ix=q.pop()
++   if (at,im,ix)in seen:continue
++   seen.add((at,im,ix))
++   if len(seen)>1024:errors.append('row bound');break
++   off=s.rom_offset(at>>16,at&65535);i=s.decode_insn(rom,off,at&65535,at>>16,im,ix)
++   if not i:errors.append('decode '+hex(at));continue
++   raw=rom[off:off+i.length].hex();mode=mode_names.get(i.mode,str(i.mode));row={'pc24':at,'m':im,'x':ix,'mnemonic':i.mnem,'mode':mode,'operand':i.operand,'bytes':raw,'length':i.length};rows.append(row)
++   if any(((at+n)&0x7fffff)in forced or any((at>>16)in(b,b^128)and lo<=((at+n)&65535)<hi for b,lo,hi in data)for n in range(i.length)):
++    errors.append('masked '+hex(at));continue
++   if i.mnem in ('PLP','XCE','RTI','TCS','TXS','BRK','COP','WAI','STP','MVN','MVP'):
++    errors.append('unsupported state/control '+i.mnem+' '+hex(at));continue
++   nm,nx=im,ix
++   if i.mnem=='REP':nm=0 if i.operand&32 else im;nx=0 if i.operand&16 else ix
++   if i.mnem=='SEP':nm=1 if i.operand&32 else im;nx=1 if i.operand&16 else ix
++   fall=(at&0xff0000)|((at+i.length)&65535)
++   if i.mnem in ('RTS','RTL'):
++    exits.add((at,im,ix,i.mnem));continue
++   if i.mnem in ('JSR','JSL'):
++    if mode not in ('ABS','LONG'):errors.append('indirect call '+hex(at));continue
++    target=i.operand if i.mnem=='JSL'else(at&0xff0000)|i.operand
++    if target&65535<0x8000:errors.append('unknown original hook '+hex(target));continue
++    child=fn(target,im,ix);calls.append({'source':at,'m':im,'x':ix,'target':target,'frame':3 if i.mnem=='JSL'else 2,'fall':fall,'child':child['key']})
++    if child['errors']:errors.append('unclosed child '+child['key']);continue
++    for _,cm,cx,_ in child['exits']:q.append((fall,cm,cx))
++    continue
++   if i.mnem in ('JMP','JML'):
++    if mode not in ('ABS','LONG'):errors.append('indirect jump '+hex(at));continue
++    q.append((i.operand if i.mnem=='JML'else(at&0xff0000)|i.operand,nm,nx));continue
++   if i.mnem in branch:q.append(((at&0xff0000)|i.operand,nm,nx));q.append((fall,nm,nx));continue
++   if i.mnem in ('BRA','BRL'):q.append(((at&0xff0000)|i.operand,nm,nx));continue
++   if i.mnem in ('PHA','PHX','PHY','PHD','PHB','PHK','PHP','PEA','PEI','PER','PLA','PLX','PLY','PLD','PLB'):row['stack_effect']='requires independently balanced exact byte certificate'
++   if i.mnem in store or i.mnem in rmw and mode!='ACC':
++    row['write']={'kind':'store'if i.mnem in store else'rmw','width':1 if (ix if i.mnem in('STX','STY')else im)else 2,'mode':mode,'operand':i.operand,'address_proof':'pending actual-register/range disjointness'}
++   q.append((fall,nm,nx))
++  result={'key':f'{pc:06X}:M{m}X{x}','entry':[pc,m,x],'rows':sorted(rows,key=lambda r:(r['pc24'],r['m'],r['x'])),'exits':sorted(exits),'calls':calls,'errors':sorted(set(errors))};cache[ident]=result;active.remove(ident);return result
++ entries={(1,1)}; top=[]
++ for site,target in sites:
++  off=s.rom_offset(site>>16,site&65535)
++  if rom[off:off+4]!=bytes([0x22,target&255,(target>>8)&255,(target>>16)&255]):
++   raise ValueError('source-selected original JSL descriptor mismatch')
++  descriptor={'source':site,'target':target,'fall':site+4,'entry_modes':sorted(entries),'callees':[]}
++  following=set(entries) # optional caller branch can skip this call
++  for m,x in sorted(entries):
++   g=fn(target,m,x)
++   if g['errors']:raise ValueError('unclosed original-call source '+g['key']+repr(g['errors']))
++   descriptor['callees'].append(g['key'])
++   following.update((1,cx)for _,cm,cx,_ in g['exits'])
++  top.append(descriptor);entries=following
++ graphs=sorted(cache.values(),key=lambda g:g['entry'])
++ by_name={g['key']:g for g in graphs}
++ def depth(g):return 1+max([depth(by_name[c['child']])for c in g['calls']]+[0])
++ if max(depth(g)for g in graphs)>2:raise ValueError('unproved original-call guest depth')
++ if any('stack_effect'in row for g in graphs for row in g['rows']):
++  raise ValueError('original-call source requires an unproved non-call stack effect')
++ if any(row['mnemonic']in('TCD','PLD','PLB','XCE')for g in graphs for row in g['rows']):
++  raise ValueError('original-call stable D/DB/E prerequisite changed')
++ for g in graphs:
++  for row in g['rows']:
++   if 'write'in row and (row['mode']not in('DP','ABS','LONG_X')or (row['mode']=='DP'and row['operand']+row['write']['width']>0x42)or(row['mode']=='ABS'and row['operand']!=0x46b)or(row['mode']=='LONG_X'and row['operand']not in(0x7e2200,0x7e2202))):
++    raise ValueError('unproved original-call write class')
++ return {'calls':top,'graphs':graphs,'maximum_frames':2,'maximum_stack_bytes':5}
++
++
++def emit_original_calls(recipe):
++ family=recipe.get('original_calls')if recipe else None
++ code='#include "task_original_call_contract.h"\n'
++ graphs=family['graphs']if family else []
++ flat=[];contexts=[]
++ for graph in graphs:
++  contexts.append((*graph['entry'],len(flat),len(graph['rows'])))
++  for row in graph['rows']:
++   pc=row['pc24'];m=row['m'];x=row['x'];op=row['mnemonic'];operand=row['operand'];length=row['length']
++   nm,nx=m,x
++   if op=='REP':nm=0 if operand&32 else m;nx=0 if operand&16 else x
++   if op=='SEP':nm=1 if operand&32 else m;nx=1 if operand&16 else x
++   fall=(pc&0xff0000)|((pc+length)&65535);branch=(pc&0xff0000)|operand if op in('BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS','BRA','BRL','JMP')else operand if op=='JML'else 0
++   target=operand if op=='JSL'else(pc&0xff0000)|operand if op=='JSR'else 0
++   raw=list(bytes.fromhex(row['bytes']));raw+= [0]*(4-len(raw));flat.append((pc,fall,branch,target,m,x,nm,nx,length,*raw))
++ code+='const TaskOriginalInstruction g_task_original_rows[]={\n'
++ for row in flat:code+=' {'+','.join(str(n)+'u'for n in row[:9])+',{'+','.join(str(n)+'u'for n in row[9:])+'}},\n'
++ if not flat:code+=' {0},\n'
++ code+='};\nconst unsigned g_task_original_row_count='+str(len(flat))+'u;\n'
++ code+='const TaskOriginalGraph g_task_original_graphs[]={\n'
++ for entry,m,x,first,count in contexts:code+=' {'+','.join(str(n)+'u'for n in(entry,m,x,first,count))+'},\n'
++ if not contexts:code+=' {0},\n'
++ code+='};\nconst unsigned g_task_original_graph_count='+str(len(contexts))+'u;\n'
++ code+='int cpu_source_task_original_graph(uint32_t entry,uint8_t mx,unsigned *index){if(!index||mx>3u)return 0;switch(((uint64_t)entry<<2)|mx){\n'
++ for index,(entry,m,x,first,count) in enumerate(contexts):code+=f' case {entry*4+m*2+x}ull:*index={index}u;return 1;\n'
++ code+=' default:return 0;}\n}\n'
++ # Context rows are sorted by full PC/M/X. Only the current certified row is
++ # inspected at runtime; this is neither a positive ROM cache nor a graph scan.
++ code+='const TaskOriginalInstruction *cpu_source_task_original_row(unsigned graph,uint32_t pc,uint8_t mx){\n'
++ code+=' if(graph>=g_task_original_graph_count||mx>3u)return 0;\n'
++ code+=' const TaskOriginalGraph *g=&g_task_original_graphs[graph];unsigned lo=g->first,hi=lo+g->count;\n'
++ code+=' const uint64_t key=((uint64_t)pc<<2)|mx;\n'
++ code+=' while(lo<hi){unsigned mid=lo+(hi-lo)/2u;const TaskOriginalInstruction *r=&g_task_original_rows[mid];uint64_t rk=((uint64_t)r->pc<<2)|((unsigned)r->m*2u+r->x);if(rk<key)lo=mid+1u;else hi=mid;}\n'
++ code+=' if(lo>=g->first+g->count)return 0;const TaskOriginalInstruction *r=&g_task_original_rows[lo];return r->pc==pc&&r->m*2u+r->x==mx?r:0;\n}\n'
++ code+='int cpu_source_task_original_row_matches(const TaskOriginalInstruction *r,TaskResumePeek peek,void *ctx){unsigned char b;\n'
++ code+=' if(!r||!peek||!r->length||r->length>4u||r->pc>0xffffffu||(r->pc&0xffffu)+r->length>0x10000u)return 0;\n'
++ code+=' for(unsigned n=0;n<r->length;n++)if(!peek(ctx,r->pc+n,&b)||b!=r->bytes[n])return 0;return 1;\n}\n'
++ return code
+diff --git a/recompiler/v2/task_resume.py b/recompiler/v2/task_resume.py
+--- a/recompiler/v2/task_resume.py
++++ b/recompiler/v2/task_resume.py
+@@ -4,6 +4,7 @@
+ from .decoder import decode_function
+ from .emit_function import emit_function
+ from .native_regions import emit
++from .task_original_calls import derive_original_calls,emit_original_calls
+ 
+ def derive_named_case(rom,spec,callee,data,forced,module_prefix=None):
+  if spec!=(0x01e000,0x01e056,0x01e05a,1,0) or module_prefix or callee!=0x00ff03:
+@@ -126,11 +127,28 @@
+   new_rows,case,new_spans,new_graph=derive_named_case(rom,spec,callee,data,forced,module_prefix)
+   rows.extend(new_rows);cases.append(case);spans.extend(new_spans);graphs.append(new_graph)
+  unique={}
++ # The four call sites are derived from the already declared FF03 source
++ # caller, not observations or additional ordinary roots. Original callees
++ # remain original/paired; only independently decoded arrival steps are new.
++ if call0!=0x01d878:raise ValueError('unreviewed original-call selected source caller')
++ original_sites=[(call0-0x20,0x01d809),(call0-0x16,0x01d803),(call0-0x0c,0x01d806),(call0-8,0x01d80c)]
++ original_family=derive_original_calls(rom,original_sites,data,forced)
++ for landing,end,m,xs in [(0x01d85c,0xd878,1,(0,1)),(0x01d866,0xd878,1,(0,1)),(0x01d874,0xd878,0,(0,))]:
++  for x in xs:
++   local=[]
++   graph=decode_function(rom,1,landing&65535,m,x,end=end,max_insns=16,data_regions=data,stop_on_unknown_callee_exit=True)
++   emit_function(rom,1,landing&65535,m,x,end=end,func_name='OriginalCallArrivalDerivation',data_regions=data,
++    exclude_ranges=[(p&65535,(p&65535)+1)for p in forced if p>>16==1],native_region_collector=local,
++    source_task_resume_stops=graph.unknown_callee_exit_sites)
++   for row in local:
++    if row['mnemonic']not in('SEP','LDA','LSR','BCC'):raise ValueError('unreviewed original-call arrival instruction')
++    row['contract']='native-e0-source-selected-task-resume-v1';rows.append(row)
++   graphs.append({'landing':landing,'m':m,'x':x,'decoded_rows':len(graph.insns),'call_barriers':graph.unknown_callee_exit_sites,'authority':'actual_original_call_retained_parent'})
+  for row in rows:
+   k=(row['pc24'],row['m'],row['x'])
+   if k in unique and unique[k]!=row:raise ValueError('selected-task mode/body conflict')
+   unique[k]=row
+- return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'cases':cases,'spans':spans,'subcall':{'call':0x01d80f,'callee':0x01d87f,'return':0x01d8b0,'landing':0x01d812,'entry_m':1,'entry_x':[0,1],'exit_m':0,'exit_x':0,'same_owner':True,'rows':subcall_rows}},graphs
++ return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'cases':cases,'spans':spans,'original_calls':original_family,'subcall':{'call':0x01d80f,'callee':0x01d87f,'return':0x01d8b0,'landing':0x01d812,'entry_m':1,'entry_x':[0,1],'exit_m':0,'exit_x':0,'same_owner':True,'rows':subcall_rows}},graphs
+ 
+ def emit_source(rows,recipe,module_prefix=None):
+  code=emit(rows,module_prefix).replace('cpu_native_region_step','cpu_source_task_region_step')
+@@ -151,4 +169,4 @@
+   for row in recipe['subcall']['rows']:
+    code+=f"case {(row['pc24']<<2)|(row['m']*2+row['x'])}u: *len={row['length']}u;*fall={row['fall']}u;*branch={row['branch']}u;*op={row['opcode']}u;return 1;\n"
+   code+='default:return 0;} }\n'
+- return code
++ return code+emit_original_calls(recipe)
+diff --git a/runner/src/common_rtl.c b/runner/src/common_rtl.c
+--- a/runner/src/common_rtl.c
++++ b/runner/src/common_rtl.c
+@@ -1,3 +1,4 @@
++extern void interp_bridge_source_call_raw_mutation(void);
+ #ifdef _WIN32
+ #include <io.h>
+ #else
+@@ -992,6 +993,7 @@
+   }
+   RtlApuLock();
+   FileSli fs = { { &file_sli_func, &file_sli_peek }, f, false, false };
++  interp_bridge_source_call_raw_mutation(); /* failed partial loads also invalidate */
+   snes_saveload_set_version(hdr[1]);
+   snes_saveload(g_snes, &fs.base);
+   /* v5+: an optional game-specific chunk follows the guest blob. Only call
+@@ -1084,6 +1086,7 @@
+     { &memory_sli_func, &memory_sli_peek }, (uint8 *)data, size, sizeof hdr, false, false
+   };
+   RtlApuLock();
++  interp_bridge_source_call_raw_mutation(); /* BEFORE first loading mutation */
+   snes_saveload_set_version(hdr[1]);
+   snes_saveload(g_snes, &memory.base);
+   /* Match file load: only consume a game chunk when trailing bytes remain.
+diff --git a/runner/src/cpu_state.c b/runner/src/cpu_state.c
+--- a/runner/src/cpu_state.c
++++ b/runner/src/cpu_state.c
+@@ -423,6 +423,7 @@
+ }
+ 
+ uint8 cpu_read8(CpuState *cpu, uint8 bank, uint16 addr) {
++    interp_bridge_source_call_bus_transaction(cpu,bank,addr,1u);
+     if (g_snes && g_snes->cart)
+         cart_note_cpu_bus(g_snes->cart, bank, addr);
+     int off = cpu_wram_offset(bank, addr);
+@@ -457,6 +458,7 @@
+ }
+ 
+ uint16 cpu_read16(CpuState *cpu, uint8 bank, uint16 addr) {
++    interp_bridge_source_call_bus_transaction(cpu,bank,addr,2u);
+     if (g_snes && g_snes->cart)
+         cart_note_cpu_bus(g_snes->cart, bank, addr);
+     int off = cpu_wram_offset(bank, addr);
+@@ -547,6 +549,10 @@
+ }
+ 
+ void cpu_write8(CpuState *cpu, uint8 bank, uint16 addr, uint8 v) {
++    interp_bridge_source_call_bus_transaction(cpu,bank,addr,1u);
++    const int source_call_off = cpu_wram_offset(bank, addr);
++    const uint64_t source_call_transaction = source_call_off < 0 ? 0 :
++        interp_bridge_source_call_write_begin(cpu,(uint32_t)source_call_off,v);
+     if (g_snes && g_snes->cart)
+         cart_note_cpu_bus(g_snes->cart, bank, addr);
+     cpu->open_bus = v;
+@@ -559,6 +565,7 @@
+     if (off >= 0) {
+         uint8 old = cpu->ram[off];
+         cpu->ram[off] = v;
++        interp_bridge_source_call_wram_written(cpu->ram,(uint32_t)off,v,source_call_transaction);
+         /* Optional title hook for game-specific stage-window tracking. */
+         if (g_stage_window_store_hook) {
+             if (off >= 0x1E72 && off <= 0x1E79)
+@@ -625,6 +632,7 @@
+ }
+ 
+ void cpu_write16(CpuState *cpu, uint8 bank, uint16 addr, uint16 v) {
++    interp_bridge_source_call_bus_transaction(cpu,bank,addr,2u);
+     if (g_snes && g_snes->cart)
+         cart_note_cpu_bus(g_snes->cart, bank, addr);
+     cpu->open_bus = (uint8)v;
+@@ -650,7 +658,9 @@
+         uint16 old = (uint16)cpu->ram[off]
+                    | ((uint16)cpu->ram[off + 1] << 8);
+         cpu->ram[off]     = (uint8)(v & 0xFF);
++        interp_bridge_source_call_wram_written(cpu->ram,(uint32_t)off,(uint8)v,0);
+         cpu->ram[off + 1] = (uint8)(v >> 8);
++        interp_bridge_source_call_wram_written(cpu->ram,(uint32_t)off+1u,(uint8)(v>>8),0);
+         cpu->open_bus = (uint8)(v >> 8);
+         if (g_stage_window_store_hook) {
+             if ((off >= 0x1E72 && off <= 0x1E79) ||
+@@ -972,6 +982,9 @@
+ 
+ void cpu_select_program(const DispatchEntry *dispatch, unsigned count,
+                         const RamRoutineGuard *guards, unsigned guard_count) {
++    /* Actual selection cancels 029 even if a caller later restores identical
++     * tables. Endpoint pointer equality is not causal selection provenance. */
++    interp_bridge_source_call_raw_mutation();
+     s_program_dispatch = dispatch;
+     s_program_dispatch_count = count;
+     s_program_guards = guards;
+@@ -983,6 +996,12 @@
+ #define ACTIVE_DISPATCH_COUNT (s_program_dispatch ? s_program_dispatch_count : g_dispatch_table_count)
+ #define ACTIVE_GUARDS (s_program_dispatch ? s_program_guards : g_ram_routine_guards)
+ #define ACTIVE_GUARD_COUNT (s_program_dispatch ? s_program_guard_count : g_ram_routine_guard_count)
++
++int cpu_source_call_effective_dispatch_matches(const DispatchEntry *dispatch,
++        unsigned count,const RamRoutineGuard *guards,unsigned guard_count){
++    return ACTIVE_DISPATCH==dispatch&&ACTIVE_DISPATCH_COUNT==count&&
++           ACTIVE_GUARDS==guards&&ACTIVE_GUARD_COUNT==guard_count;
++}
+ 
+ static const RamRoutineGuard *_ram_guard_find(uint32 pc24) {
+     unsigned lo = 0, hi = ACTIVE_GUARD_COUNT;
+@@ -1305,8 +1324,10 @@
+      * return; restore the caller context, including NORMAL/SKIP results. */
+     const uint8 caller_return_context = cpu->host_return_valid;
+     cpu->host_return_valid = frame_size;
++    cpu_source_call_paired_enter(cpu,pc24,frame_size,(uintptr_t)fp);
+     const RecompReturn result = fp(cpu);
+     cpu->host_return_valid = caller_return_context;
++    cpu_source_call_paired_exit(cpu,pc24,frame_size,(uintptr_t)fp,(int)result);
+     return result;
+ }
+ 
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -414,6 +414,11 @@
+ 
+ uint8  cpu_read8 (CpuState *cpu, uint8 bank, uint16 addr);
+ uint16 cpu_read16(CpuState *cpu, uint8 bank, uint16 addr);
++/* Readonly physical-WRAM proof observations; original stores remain original.
++   Byte authorization is consumed before any writer-side callback. */
++uint64_t interp_bridge_source_call_write_begin(CpuState *,uint32_t,uint8_t);
++void interp_bridge_source_call_wram_written(const void *,uint32_t,uint8_t,uint64_t);
++void interp_bridge_source_call_raw_mutation(void);
+ void   cpu_write8 (CpuState *cpu, uint8 bank, uint16 addr, uint8  v);
+ void   cpu_write16(CpuState *cpu, uint8 bank, uint16 addr, uint16 v);
+ 
+@@ -566,6 +571,8 @@
+     uint32 len;
+     uint32 hash;
+ } RamRoutineGuard;
++int cpu_source_call_effective_dispatch_matches(const DispatchEntry *,unsigned,
++                                             const RamRoutineGuard *,unsigned);
+ 
+ /* Defined by the generated dispatch_v2.c — ALWAYS, for every game.
+  * program_emit.py emits this table unconditionally, using a single
+@@ -866,3 +873,16 @@
+ CpuAotRmwOperand cpu_aot_rmw_read(CpuState *, unsigned mode, uint16 *value);
+ void cpu_aot_rmw_write(CpuState *, const CpuAotRmwOperand *, uint16 value);
+ 
++
++/* Readonly actual architectural pop receipts; no guest transaction or ownership change. */
++void cpu_source_call_return_stage(CpuState *,uint32,unsigned,uint16,uint8,uint8,uint8,uint32);
++void cpu_source_call_return_observed(CpuState *,uint32,unsigned,uint16,uint8,uint8,uint8,uint32);
++
++void cpu_source_call_paired_enter(CpuState *,uint32,uint8,uintptr_t);
++void cpu_source_call_paired_exit(CpuState *,uint32,uint8,uintptr_t,int);
++
++void cpu_source_call_native_push(CpuState *,uint32,unsigned);
++void cpu_source_call_fp_entry(CpuState *,uint32,unsigned,unsigned,uintptr_t);
++void cpu_source_call_generated_parent_retained(CpuState *,uint32,uint32);
++
++void interp_bridge_source_call_bus_transaction(CpuState *,uint8,uint16,unsigned);
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -1,3 +1,4 @@
++extern void interp_bridge_source_call_raw_mutation(void);
+ /*
+  * host_main.c — the framework's desktop host. See host_main.h.
+  *
+@@ -764,8 +765,10 @@
+   for (int i = 0; i < g_script_force_poke_count; i++) {
+     ScriptForcePoke *p = &g_script_force_pokes[i];
+     if (p->bytes && p->count > 0 &&
+-        p->addr + (uint32)p->count <= 0x20000u)
++        p->addr + (uint32)p->count <= 0x20000u) {
++      interp_bridge_source_call_raw_mutation(); /* BEFORE first byte, including after-frame pokes */
+       memcpy(g_ram + p->addr, p->bytes, (size_t)p->count);
++    }
+   }
+ }
+ 
+@@ -1016,8 +1019,10 @@
+       }
+       if (e->mask & kScriptPoke) {
+         if (e->poke_bytes && e->poke_count > 0 &&
+-            e->poke_addr + (uint32)e->poke_count <= 0x20000u)
++            e->poke_addr + (uint32)e->poke_count <= 0x20000u) {
++          interp_bridge_source_call_raw_mutation(); /* raw mutation has no stack authorization */
+           memcpy(g_ram + e->poke_addr, e->poke_bytes, (size_t)e->poke_count);
++        }
+         return 0;
+       }
+       if (e->mask & kScriptForcePoke) {
+diff --git a/runner/src/snes/bridge_task_call.inc b/runner/src/snes/bridge_task_call.inc
+--- a/runner/src/snes/bridge_task_call.inc
++++ b/runner/src/snes/bridge_task_call.inc
+@@ -105,3 +105,85 @@
+  s_task_active=p->task;s_task_active.actual=v;s_task_active.actual_landing=v.pc;s_task_active.actual_p=v.p;
+  task_call_reset();
+ }
++
++/* Source-selected original-call transient writer coverage. */
++#include "../task_original_call_contract.h"
++#include "../task_original_call_contract.inc"
++static TaskOriginalCall s_task_original_call;
++static TaskOriginalEpoch s_task_original_dispatch_epoch;
++static TaskOriginalHookProof s_task_original_hook_proof;
++static uint64_t s_task_original_callback_checked_instance;
++static uint8 s_task_original_callback_bus;
++typedef struct {
++ CpuState *cpu;TaskOriginalEpoch epoch;uint64_t instance;
++ uint32 source,rpc;uint16 before_s;uint8 raw[3],opcode,valid;
++} TaskOriginalPopReceipt;
++static TaskOriginalPopReceipt s_task_original_pop;
++typedef struct {
++ TaskResumeState expected,before;
++ const TaskOriginalInstruction *row;
++ unsigned graph[2],prepared,inflight,call_graph;
++ uint32 source;uint8 opcode;
++} TaskOriginalExecution;
++static TaskOriginalExecution s_task_original_exec;
++typedef struct {uintptr_t fp;TaskOriginalEpoch epoch;uint64_t instance,commits,serial;
++ uint32 target;unsigned frame,depth;int returned,entered,popped;TaskResumeState actual_pop;} TaskOriginalInvocation;
++static TaskOriginalInvocation s_task_original_invocations[2];
++static unsigned s_task_original_invocation_count;
++static uint64_t s_task_original_invocation_serial;
++static bool s_task_original_invocation_exhausted;
++#define s_task_original_invocation s_task_original_invocations[s_task_original_invocation_count?s_task_original_invocation_count-1u:0u]
++__attribute__((weak)) int cpu_source_task_original_graph(uint32 pc,uint8 mx,unsigned *out){(void)pc;(void)mx;(void)out;return 0;}
++__attribute__((weak)) const TaskOriginalInstruction *cpu_source_task_original_row(unsigned graph,uint32 pc,uint8 mx){(void)graph;(void)pc;(void)mx;return NULL;}
++__attribute__((weak)) int cpu_source_task_original_row_matches(const TaskOriginalInstruction *r,TaskResumePeek peek,void *ctx){(void)r;(void)peek;(void)ctx;return 0;}
++
++static CpuState *s_task_original_interp_cpu;
++static const Interp816 *s_task_original_interp;
++static uint32 s_task_original_interp_source;
++
++static uintptr_t s_task_original_owner_dispatch;
++static uint64_t s_task_original_owner_dispatch_serial,s_task_original_owner_next_serial;
++static bool s_task_original_owner_dispatch_exhausted;
++/* Optional raw writers are not serialized with these transient proofs.
++ * Refuse before inspecting a proof rather than observe a background writer
++ * through an unsynchronized token. Existing optional-runtime behavior stays. */
++static int task_original_runtime_allowed(void){
++#if SNESRECOMP_TRACE || SNESRECOMP_ENABLE_LUA || defined(SNES_COSIM)
++ return 0;
++#else
++ return 1;
++#endif
++}
++static void task_original_runtime_reset(void){
++ task_original_reset(&s_task_original_call);
++ memset(&s_task_original_hook_proof,0,sizeof s_task_original_hook_proof);
++ s_task_original_callback_checked_instance=0;s_task_original_callback_bus=0;
++ memset(&s_task_original_pop,0,sizeof s_task_original_pop);
++ memset(&s_task_original_exec,0,sizeof s_task_original_exec);
++ memset(s_task_original_invocations,0,sizeof s_task_original_invocations);
++ s_task_original_invocation_count=0;
++ s_task_original_interp_cpu=NULL;s_task_original_interp=NULL;s_task_original_interp_source=0;
++}
++void interp_bridge_source_call_raw_mutation(void){
++ if(task_original_runtime_allowed())task_original_runtime_reset();
++}
++uint64_t interp_bridge_source_call_write_begin(CpuState *c,uint32_t at,uint8_t value){
++ if(!task_original_runtime_allowed())return 0;
++ TaskOriginalCall *p=&s_task_original_call;
++ if(!p->phase||!c||!task_original_protected(p,at))return 0;
++ uint64_t token=0;
++ if(c!=(CpuState *)p->epoch.cpu||!p->inflight||!p->write_count||
++    p->write_done>=p->write_count||at!=p->write_address[p->write_done]||
++    value!=p->write_value[p->write_done]||s_pre_opcode_callback_cpu){
++   task_original_reset(p);return 0;
++ }
++ task_original_write_begin(p,&s_task_original_dispatch_epoch,(uintptr_t)c->ram,at,value,&token);
++ return token;
++}
++void interp_bridge_source_call_wram_written(const void *ram,uint32_t at,uint8_t value,uint64_t token){
++ if(!task_original_runtime_allowed())return;
++ TaskOriginalCall *p=&s_task_original_call;if(!p->phase)return;
++ if(token)task_original_write_commit(p,(uintptr_t)ram,at,value,token);
++ else task_original_external_write(p,(uintptr_t)ram,at);
++}
++#include "bridge_task_original_runtime.inc"
+diff --git a/runner/src/snes/bridge_task_helpers.inc b/runner/src/snes/bridge_task_helpers.inc
+--- a/runner/src/snes/bridge_task_helpers.inc
++++ b/runner/src/snes/bridge_task_helpers.inc
+@@ -16,6 +16,7 @@
+ static TaskResumeState s_task_from;
+ static uint32 s_task_prepared_source,s_task_prepared_target;
+ void interp_bridge_source_task_reset(void) {
++ task_original_runtime_reset();
+  task_call_reset();
+  task_resume_reset(&s_task_proof);task_resume_reset(&s_task_active);
+  s_task_prepared=0;memset(&s_task_from,0,sizeof(s_task_from));
+diff --git a/runner/src/snes/bridge_task_original_runtime.inc b/runner/src/snes/bridge_task_original_runtime.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/snes/bridge_task_original_runtime.inc
+@@ -0,0 +1,420 @@
++static void task_original_arm_local(CpuState *,const Interp816 *,uint32);
++static void task_original_step_committed(CpuState *,uint32,const TaskResumeState *);
++/* 029 original scheduler provenance. Original callbacks, transactions,
++ * dispatch choice, clocks and publication decisions remain authoritative. */
++static void task_original_owner_dispatch_enter(uintptr_t actual_dispatch){
++ if(s_task_original_owner_next_serial==UINT64_MAX)
++  s_task_original_owner_dispatch_exhausted=true;
++ s_task_original_owner_dispatch=actual_dispatch;
++ s_task_original_owner_dispatch_serial=s_task_original_owner_dispatch_exhausted?
++  0:++s_task_original_owner_next_serial;
++}
++static TaskOriginalEpoch task_original_current_epoch(CpuState *c){
++ const SnesProgramModule *m=snes_program_module_active();if(!m)m=&g_program_module;
++ return (TaskOriginalEpoch){.cpu=(uintptr_t)c,.module=(uintptr_t)m,
++  .parent_owner=s_interp_owner_exit_valid?(uintptr_t)&s_interp_owner_exit_valid:0,
++  .ram=c?(uintptr_t)c->ram:0,.owner_epoch=s_task_owner_serial,
++  .dispatch=s_task_original_owner_dispatch_serial,.state=RtlStateGeneration(),
++  .frame=(uint64_t)snes_frame_counter,.hooks=s_pre_opcode_hook_generation,
++  .lifecycle=s_scheduler_hook_lifecycle,.parent_depth=(unsigned)s_interp_bridge_depth};
++}
++static int task_original_frame_match(CpuState *c){
++ const TaskResumeSnapshot *s=&s_task_original_call.selected;uint8 b,lo,hi;
++ if(!s->recipe||!c||c->ram!=(void *)s_task_original_call.epoch.ram)return 0;
++ for(unsigned n=0;n<11;n++)if(!task_peek(c,s->saved_s+1u+n,&b)||b!=s->bytes[n])return 0;
++ return task_peek(c,s->recipe->current_index,&lo)&&task_peek(c,s->recipe->current_index+1u,&hi)&&
++  (uint16)(lo|((uint16)hi<<8))==s->index&&
++  task_peek(c,s->recipe->status_base+s->index,&b)&&b==1&&
++  task_peek(c,s->recipe->saved_s_base+s->index,&lo)&&task_peek(c,s->recipe->saved_s_base+s->index+1u,&hi)&&
++  (uint16)(lo|((uint16)hi<<8))==s->saved_s;
++}
++static int task_original_environment(CpuState *c,const TaskResumeState *v){
++ const SnesProgramModule *m=(const SnesProgramModule *)v->module;
++ TaskOriginalEpoch epoch=task_original_current_epoch(c);
++ return task_original_runtime_allowed()&&!s_task_original_owner_dispatch_exhausted&&
++  s_task_original_owner_dispatch&&s_task_original_owner_dispatch_serial&&
++  s_interp_owner_is_scheduler&&s_lle_sched_depth>0&&m==&g_program_module&&
++  m->symbol_prefix&&!*m->symbol_prefix&&
++  cpu_source_call_effective_dispatch_matches(m->dispatch,m->dispatch_count,m->guards,m->guard_count)&&
++  task_original_epoch(&s_task_original_call,&epoch)&&task_original_frame_match(c)&&
++  !g_watchdog_tripped&&!s_pre_opcode_callback_cpu&&!s_native_instruction_cpu&&
++  !(g_snes&&g_snes->inIrq&&!(v->p&CPU_P_I))&&
++  !interp_bridge_lle_master_deadline_reached(c);
++}
++static void task_original_hook_before_local(CpuState *c,const Interp816 *in,uint32 source,uint64 instance){
++ task_original_arm_local(c,in,source);
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskResumeState v=task_local_view(c,in,source);TaskOriginalEpoch e=task_original_current_epoch(c);uint8 opcode;
++ if(!task_original_environment(c,&v)||!instance||!task_peek(c,source,&opcode)){
++  task_original_runtime_reset();return;
++ }
++ TaskOriginalHookCompletion receipt={.cpu=(uintptr_t)c,.dispatch=s_task_original_owner_dispatch,
++  .full_pc=source,.registry=e.hooks,.lifecycle=e.lifecycle,.state=e.state,.frame=e.frame,
++  .dispatch_serial=e.dispatch,.callback_instance=instance,.opcode=opcode};
++ task_original_hook_snapshot(&s_task_original_call,&s_task_original_hook_proof,&e,&v,&receipt,c->open_bus);
++}
++/* Validate callback-visible arrival BEFORE the original opcode prefetch. The
++ * later handoff binds the same instance; original fetch may change open_bus. */
++static void task_original_hook_chain_local(CpuState *c,const Interp816 *in,uint32 source,uint64 instance,int completed){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase||!s_task_original_hook_proof.phase)return;
++ TaskResumeState v=task_local_view(c,in,source);TaskOriginalHookProof *h=&s_task_original_hook_proof;
++ if(!completed||!instance||instance!=h->expected.callback_instance||
++    !task_original_environment(c,&v)||!task_original_registers(&v,&h->before)||
++    c->open_bus!=h->open_bus||s_native_instruction_committed||
++    memcmp(h->frame_bytes,s_task_original_call.selected.bytes,11)||
++    memcmp(h->guest_frame,s_task_original_call.frame,sizeof h->guest_frame)){
++  task_original_runtime_reset();return;
++ }
++ s_task_original_callback_checked_instance=instance;s_task_original_callback_bus=c->open_bus;
++}
++/* Inspect SAME original post-issued handoff and scope without consuming them.
++ * The pre-chain receipt never predicted the selected region dispatch. */
++static void task_original_hook_after_local(CpuState *c,const Interp816 *in,uint32 source,uint8 opcode){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase||!s_task_original_hook_proof.phase)return;
++ TaskResumeState v=task_local_view(c,in,source);TaskOriginalEpoch e=task_original_current_epoch(c);
++ const SchedulerHookHandoff *h=&s_scheduler_hook_handoff;
++ const SchedulerRegionScope *s=&s_scheduler_region_scope;
++ const int complete=h->cpu==c&&s->cpu==c&&h->pc24==(source&0x7fffffu)&&s->pc24==source&&
++  h->opcode==opcode&&s->opcode==opcode&&h->dispatch==s->dispatch&&h->dispatch&&
++  h->generation==s->generation&&h->generation==e.hooks&&
++  h->lifecycle==s->lifecycle&&h->lifecycle==e.lifecycle&&
++  h->state_generation==s->state_generation&&h->state_generation==e.state&&
++  (uint64)h->host_frame==e.frame&&h->host_frame==s->host_frame&&
++  h->callback_instance&&h->callback_instance==s->callback_instance&&
++  s->dispatch_epoch==s_scheduler_region_dispatch_epoch;
++ TaskOriginalHookCompletion receipt={.cpu=(uintptr_t)c,.dispatch=s_task_original_owner_dispatch,
++  .region_dispatch=(uintptr_t)s->dispatch,.full_pc=source,.registry=e.hooks,
++  .lifecycle=e.lifecycle,.state=e.state,.frame=e.frame,.dispatch_serial=e.dispatch,
++  .callback_instance=h->callback_instance,.opcode=opcode,.completed=(uint8)complete,
++  .nested=(uint8)(s_pre_opcode_callback_cpu!=NULL),
++  .transaction=(uint8)(s_native_instruction_cpu!=NULL||s_native_instruction_committed)};
++ if(s_task_original_callback_checked_instance!=h->callback_instance||!task_original_environment(c,&v)||
++    !task_original_hook_completed(&s_task_original_call,&s_task_original_hook_proof,&e,&v,&receipt,s_task_original_callback_bus))
++  task_original_runtime_reset();
++ s_task_original_callback_checked_instance=0;s_task_original_callback_bus=0;
++}
++
++/* Only actual source-owned pop data is captured. A staged generated row has
++ * not yet charged clocks; consumption happens after original commit. */
++static void task_original_pop_capture(CpuState *c,const TaskResumeState *v,
++ uint32 source,unsigned opcode,uint16 before_s,uint8 lo,uint8 hi,uint8 bank,uint32 rpc){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ if(s_task_original_pop.valid||!s_task_original_exec.prepared||!s_task_original_exec.inflight||
++    s_task_original_exec.source!=source||s_task_original_exec.opcode!=opcode||
++    s_task_original_exec.before.s!=before_s||!task_original_environment(c,v)||
++    s_task_original_call.phase!=TASK_ORIGINAL_RUNNING||
++    (opcode!=0x60u&&opcode!=0x6bu)||v->pc!=rpc){task_original_runtime_reset();return;}
++ s_task_original_pop=(TaskOriginalPopReceipt){.cpu=c,.epoch=task_original_current_epoch(c),
++  .instance=s_task_original_call.instance,.source=source,.rpc=rpc,.before_s=before_s,
++  .raw={lo,hi,bank},.opcode=(uint8)opcode,.valid=1};
++}
++static void task_original_pop_consume(CpuState *c,const TaskResumeState *v,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_pop.valid)return;
++ TaskOriginalPopReceipt pop=s_task_original_pop;s_task_original_pop=(TaskOriginalPopReceipt){0};
++ TaskOriginalEpoch e=task_original_current_epoch(c);
++ unsigned before_depth=s_task_original_call.depth;
++ if(pop.cpu!=c||pop.source!=source||pop.instance!=s_task_original_call.instance||
++    !task_original_environment(c,v)||!task_original_epoch(&s_task_original_call,&pop.epoch)||
++    v->pc!=pop.rpc||!task_original_pop_candidate(&s_task_original_call,&e,source,
++       pop.opcode,pop.before_s,pop.raw,v)){task_original_runtime_reset();return;}
++ if(s_task_original_invocation_count&&s_task_original_invocation.depth==before_depth){
++  if(!s_task_original_invocation.entered||s_task_original_invocation.popped){task_original_runtime_reset();return;}
++  s_task_original_invocation.popped=1;s_task_original_invocation.actual_pop=*v;
++ }
++}
++void cpu_source_call_return_stage(CpuState *c,uint32 source,unsigned opcode,
++ uint16 before_s,uint8 lo,uint8 hi,uint8 bank,uint32 rpc){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskResumeState v=task_cpu_view(c,rpc);
++ task_original_pop_capture(c,&v,source,opcode,before_s,lo,hi,bank,rpc);
++}
++void cpu_source_call_return_observed(CpuState *c,uint32 source,unsigned opcode,
++ uint16 before_s,uint8 lo,uint8 hi,uint8 bank,uint32 rpc){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskResumeState v=task_cpu_view(c,rpc);
++ task_original_pop_capture(c,&v,source,opcode,before_s,lo,hi,bank,rpc);
++ task_original_pop_consume(c,&v,source);
++ task_original_step_committed(c,source,&v);
++}
++static void task_original_return_committed_cpu(CpuState *c,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_pop.valid)return;
++ TaskResumeState v=task_cpu_view(c,s_task_original_pop.rpc);
++ task_original_pop_consume(c,&v,source);
++ task_original_step_committed(c,source,&v);
++}
++static void task_original_interp_scope(CpuState *c,const Interp816 *in,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ if(s_task_original_interp_cpu){task_original_runtime_reset();return;}
++ s_task_original_interp_cpu=c;s_task_original_interp=in;s_task_original_interp_source=source;
++}
++void interp_bridge_source_call_interp_pop(Interp816 *in,uint32 source,unsigned opcode,
++ uint16 before_s,uint16 word,uint8 bank){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ CpuState *c=s_task_original_interp_cpu;
++ if(!c||in!=s_task_original_interp||source!=s_task_original_interp_source){task_original_runtime_reset();return;}
++ uint32 rpc=((uint32)in->k<<16)|in->pc;TaskResumeState v=task_local_view(c,in,rpc);
++ task_original_pop_capture(c,&v,source,opcode,before_s,(uint8)word,(uint8)(word>>8),bank,rpc);
++}
++static void task_original_return_committed_local(CpuState *c,const Interp816 *in,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskResumeState v=task_local_view(c,in,((uint32)in->k<<16)|in->pc);
++ task_original_pop_consume(c,&v,source);
++}
++
++/* Genuine old selected publication is copied before old unsupported-step reset.
++ * It is never reconstructed from a PC, a source row or an observed arrival. */
++static void task_original_arm_local(CpuState *c,const Interp816 *in,uint32 source){
++ if(!task_original_runtime_allowed()||s_task_original_call.phase||!s_task_active.published||s_task_hook_generation!=s_pre_opcode_hook_generation||
++    (source!=0x01d858u&&source!=0x01d862u&&source!=0x01d86cu&&source!=0x01d870u))return;
++ TaskResumeState v=task_local_view(c,in,source);TaskOriginalEpoch e=task_original_current_epoch(c);
++ if(!s_interp_owner_is_scheduler||s_lle_sched_depth<=0||
++    !task_original_arm(&s_task_original_call,&s_task_active,&v,&e))return;
++ s_task_original_exec.expected=v;
++ if(!task_original_environment(c,&v))task_original_runtime_reset();
++}
++static int task_original_prepare(CpuState *c,const TaskResumeState *v,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return 0;
++ TaskOriginalExecution *x=&s_task_original_exec;TaskOriginalCall *p=&s_task_original_call;
++ if(p->phase!=TASK_ORIGINAL_RUNNING||x->prepared||x->inflight||
++    !task_original_environment(c,v)||!task_original_registers(v,&x->expected)||source!=v->pc){task_original_runtime_reset();return 0;}
++ unsigned mx=((v->p>>5)&1u)*2u+((v->p>>4)&1u);uint8 opcode;
++ x->row=NULL;
++ if(p->depth){
++  x->row=cpu_source_task_original_row(x->graph[p->depth-1u],source,(uint8)mx);
++  if(!x->row||!cpu_source_task_original_row_matches(x->row,task_peek,c)){
++   task_original_runtime_reset();return 0;
++  }
++  opcode=x->row->bytes[0];
++ }else{
++  uint8 bytes[4];for(unsigned n=0;n<4;n++)if(!task_peek(c,source+n,&bytes[n])){task_original_runtime_reset();return 0;}
++  uint32 target=(uint32)bytes[1]|((uint32)bytes[2]<<8)|((uint32)bytes[3]<<16);
++  if(bytes[0]!=0x22u||!task_original_edge(source,target,mx)){task_original_runtime_reset();return 0;}
++  opcode=bytes[0];
++ }
++ x->before=*v;x->source=source;x->opcode=opcode;x->prepared=1;return 1;
++}
++static void task_original_pre_local(CpuState *c,const Interp816 *in,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskResumeState v=task_local_view(c,in,source);task_original_prepare(c,&v,source);
++}
++static void task_original_pre_cpu(CpuState *c,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskResumeState v=task_cpu_view(c,source);TaskOriginalExecution *x=&s_task_original_exec;
++ /* A normal table already has a local pre-step; a callable envelope supplies
++  * its own exact next source. No recursive fetch may reuse either prepared row. */
++ if(x->inflight){task_original_runtime_reset();return;}
++ if(!x->prepared){
++  if(!s_task_original_invocation.fp||s_task_original_invocation.returned||
++     s_task_original_invocation.instance!=s_task_original_call.instance){task_original_runtime_reset();return;}
++  if(!task_original_prepare(c,&v,source))return;
++ }
++ if(source!=x->source||!task_original_registers(&v,&x->before)){task_original_runtime_reset();return;}
++ x->inflight=1;
++}
++void interp_bridge_source_call_interp_enter(Interp816 *in){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskOriginalExecution *x=&s_task_original_exec;
++ if(in!=s_task_original_interp||!s_task_original_interp_cpu||x->inflight||!x->prepared||
++    s_task_original_interp_source!=x->source){task_original_runtime_reset();return;}
++ x->inflight=1;
++}
++void interp_bridge_source_call_interp_fetched(Interp816 *in,uint32 source,uint32 target,unsigned frame){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskOriginalExecution *x=&s_task_original_exec;TaskOriginalCall *p=&s_task_original_call;
++ CpuState *c=s_task_original_interp_cpu;TaskOriginalEpoch e=task_original_current_epoch(c);
++ unsigned mx=((x->before.p>>5)&1u)*2u+((x->before.p>>4)&1u),graph;
++ uint32 fall=(source&0xff0000u)|(uint16)(source+(frame==3u?4u:3u));
++ unsigned modes=target==0x01d80cu?1u:target==0x01ddbdu?10u:target==0x01de2au?5u:target==0x01de82u?4u:12u;
++ if(!c||in!=s_task_original_interp||!x->prepared||!x->inflight||source!=x->source||
++    x->opcode!=(frame==3u?0x22u:0x20u)||!task_original_environment(c,&x->before)||
++    !cpu_source_task_original_graph(target,(uint8)mx,&graph)||
++    !task_original_push_prepare(p,&e,&x->before,source,target,fall,frame,modes,frame==3u?0x6bu:0x60u)){
++  task_original_runtime_reset();return;
++ }
++ x->call_graph=graph;s_task_original_dispatch_epoch=e;
++}
++static void task_original_step_committed(CpuState *c,uint32 source,const TaskResumeState *v){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskOriginalExecution *x=&s_task_original_exec;TaskOriginalCall *p=&s_task_original_call;
++ if(!x->prepared||!x->inflight||source!=x->source||!task_original_environment(c,v)){
++  task_original_runtime_reset();return;
++ }
++ TaskOriginalEpoch e=task_original_current_epoch(c);
++ if(x->opcode==0x20u||x->opcode==0x22u){
++  unsigned olddepth=p->depth;
++  if(!task_original_push_committed(p,&e,v)){task_original_runtime_reset();return;}
++  x->graph[olddepth]=x->call_graph;
++ }else if(x->opcode!=0x60u&&x->opcode!=0x6bu){
++  const TaskOriginalInstruction *r=x->row;
++  unsigned mx=((v->p>>5)&1u)*2u+((v->p>>4)&1u);
++  if(!r||(v->pc!=r->fall&&(!r->branch||v->pc!=r->branch)&&(!r->target||v->pc!=r->target))||
++     mx!=((unsigned)r->next_m*2u+r->next_x)||
++     v->s!=x->before.s||v->d!=p->selected.actual.d||v->db!=p->selected.actual.db||
++     ((v->p^p->selected.actual.p)&0x0cu)){task_original_runtime_reset();return;}
++ }
++ x->expected=*v;x->prepared=x->inflight=0;x->row=NULL;
++ if(s_task_original_invocation.fp){
++  if(s_task_original_invocation.commits==UINT64_MAX){task_original_runtime_reset();return;}
++  ++s_task_original_invocation.commits;
++ }
++}
++static void task_original_step_committed_local(CpuState *c,const Interp816 *in,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskResumeState v=task_local_view(c,in,((uint32)in->k<<16)|in->pc);
++ task_original_step_committed(c,source,&v);
++}
++
++static uint32 task_original_native_next(const TaskOriginalExecution *x,const CpuState *c){
++ /* Calls consume the actual fetched-and-written push receipt. The top call
++  * intentionally has no callee graph row until its original push commits. */
++ if(x->opcode==0x20u||x->opcode==0x22u){
++  const TaskOriginalCall *p=&s_task_original_call;
++  if(!x->prepared||!x->inflight||!p->inflight||p->depth>=2u||
++     p->write_live||p->write_done!=p->write_count)return 0;
++  const TaskOriginalGuestFrame *f=&p->frame[p->depth];
++  if(f->site!=x->source||f->frame!=(x->opcode==0x22u?3u:2u)||
++     p->write_count!=f->frame)return 0;
++  return f->target;
++ }
++ const TaskOriginalInstruction *r=x->row;if(!r)return 0;
++ int taken=0;switch(x->opcode){
++ case 0x10: taken=!c->_flag_N;break;case 0x30:taken=c->_flag_N;break;
++ case 0x50: taken=!c->_flag_V;break;case 0x70:taken=c->_flag_V;break;
++ case 0x90: taken=!c->_flag_C;break;case 0xb0:taken=c->_flag_C;break;
++ case 0xd0: taken=!c->_flag_Z;break;case 0xf0:taken=c->_flag_Z;break;
++ case 0x80:case 0x82:case 0x4c:case 0x5c:taken=1;break;
++ default:break;
++ }
++ if(taken&&r->branch)return r->branch;
++ return r->target?r->target:r->fall;
++}
++static void task_original_step_committed_cpu(CpuState *c,uint32 source){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskOriginalExecution *x=&s_task_original_exec;
++ /* A hardware pop is committed only with its actual full-PC receipt. */
++ if(x->opcode==0x60u||x->opcode==0x6bu)return;
++ uint32 next=task_original_native_next(x,c);if(!next){task_original_runtime_reset();return;}
++ TaskResumeState v=task_cpu_view(c,next);task_original_step_committed(c,source,&v);
++}
++
++static void task_original_native_attempt(void){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ if(s_task_original_exec.inflight&&(s_aot_instruction||s_native_instruction_cpu||s_interp_bus_timing_active))
++  task_original_runtime_reset();
++}
++
++/* This records the actually resolved original paired fp immediately before its
++ * actual invocation. NORMAL/lexical PC cannot create a pop or arrival receipt. */
++void cpu_source_call_paired_enter(CpuState *c,uint32 target,uint8 frame,uintptr_t fp){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskOriginalCall *p=&s_task_original_call;TaskResumeState v=task_cpu_view(c,target);
++ if(s_task_original_invocation_serial==UINT64_MAX)s_task_original_invocation_exhausted=true;
++ if(!fp||s_task_original_invocation_exhausted||s_task_original_invocation_count>=2u||
++    p->phase!=TASK_ORIGINAL_RUNNING||!p->depth||
++    target!=p->frame[p->depth-1u].target||frame!=p->frame[p->depth-1u].frame||
++    p->depth!=s_task_original_invocation_count+1u||
++    !task_original_registers(&v,&s_task_original_exec.expected)||!task_original_environment(c,&v)){
++  task_original_runtime_reset();return;
++ }
++ TaskOriginalInvocation *f=&s_task_original_invocations[s_task_original_invocation_count++];
++ *f=(TaskOriginalInvocation){.fp=fp,.epoch=task_original_current_epoch(c),
++  .instance=p->instance,.target=target,.frame=frame,.depth=p->depth,
++  .serial=++s_task_original_invocation_serial};
++}
++void cpu_source_call_paired_exit(CpuState *c,uint32 target,uint8 frame,uintptr_t fp,int result){
++ (void)result; /* Original caller classifies this; it is never positive evidence. */
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ if(s_task_original_invocation.fp!=fp||s_task_original_invocation.target!=target||
++    s_task_original_invocation.frame!=frame||s_task_original_invocation.returned||
++    s_task_original_invocation.instance!=s_task_original_call.instance||
++    !task_original_epoch(&s_task_original_call,&s_task_original_invocation.epoch)||
++    c!=(CpuState *)s_task_original_invocation.epoch.cpu){task_original_runtime_reset();return;}
++ s_task_original_invocation.returned=1;
++}
++/* Called only in the actual original SAME-owner LLE-consumption branch after
++ * original CPU/local/PC publication. A real preceding source commit is required. */
++static void task_original_internal_landing(CpuState *c,const Interp816 *in,uint32 landing){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskResumeState v=task_local_view(c,in,landing);
++ if(!s_task_original_invocation.fp||!s_task_original_invocation.returned||
++    !s_task_original_invocation.commits||!s_task_original_invocation.entered||
++    s_task_original_invocation.instance!=s_task_original_call.instance||
++    !task_original_environment(c,&v)||!task_original_registers(&v,&s_task_original_exec.expected)||
++    s_task_original_call.depth!=s_task_original_invocation.depth){task_original_runtime_reset();return;}
++ memset(s_task_original_invocations,0,sizeof s_task_original_invocations);
++ s_task_original_invocation_count=0;
++}
++/* Original watermark/nonlocal/paired classification already retained the same
++ * scheduler. Only an actual architectural pop candidate can publish here. */
++static void task_original_parent_retained_local(CpuState *c,const Interp816 *in,uint32 actual){
++ if(!task_original_runtime_allowed()||s_task_original_call.phase!=TASK_ORIGINAL_ARRIVED)return;
++ TaskResumeState v=task_local_view(c,in,actual);TaskOriginalEpoch e=task_original_current_epoch(c);
++ TaskResumeSnapshot keep;
++ if(!task_original_environment(c,&v)||
++    (s_task_original_invocation.fp&&(!s_task_original_invocation.returned||!s_task_original_invocation.entered||!s_task_original_invocation.popped))||
++    !task_original_parent_retained(&s_task_original_call,&e,&v,&keep)){
++  task_original_runtime_reset();return;
++ }
++ task_original_runtime_reset();s_task_active=keep;
++}
++
++void cpu_source_call_fp_entry(CpuState *c,uint32 source,unsigned m,unsigned x,uintptr_t fp){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskOriginalInvocation *f=&s_task_original_invocation;TaskResumeState v=task_cpu_view(c,source);
++ unsigned mx=((v.p>>5)&1u)*2u+((v.p>>4)&1u);
++ if(!s_task_original_invocation_count||f->fp!=fp||f->entered||f->returned||
++    f->target!=source||mx!=m*2u+x||m>1u||x>1u||
++    !task_original_environment(c,&v)||!task_original_epoch(&s_task_original_call,&f->epoch)||
++    !task_original_registers(&v,&s_task_original_exec.expected)){
++  task_original_runtime_reset();return;
++ }
++ f->entered=1;
++}
++void cpu_source_call_generated_parent_retained(CpuState *c,uint32 source,uint32 target){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskOriginalInvocation *f=&s_task_original_invocation;
++ TaskResumeState v=task_cpu_view(c,s_task_original_exec.expected.pc);
++ if(s_task_original_invocation_count<2u||!f->returned||!f->entered||!f->popped||
++    f->target!=target||f->depth!=s_task_original_call.depth+1u||
++    source!=s_task_original_call.frame[s_task_original_call.depth].site||
++    !task_original_epoch(&s_task_original_call,&f->epoch)||!task_original_environment(c,&v)||
++    !task_original_registers(&v,&f->actual_pop)||!task_original_registers(&v,&s_task_original_exec.expected)){
++  task_original_runtime_reset();return;
++ }
++ memset(f,0,sizeof *f);--s_task_original_invocation_count;
++}
++void cpu_source_call_native_push(CpuState *c,uint32 source,unsigned frame){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ TaskOriginalExecution *x=&s_task_original_exec;TaskOriginalCall *p=&s_task_original_call;
++ TaskResumeState v=task_cpu_view(c,source);TaskOriginalEpoch e=task_original_current_epoch(c);
++ unsigned length=frame==3u?4u:3u,mx=((v.p>>5)&1u)*2u+((v.p>>4)&1u),graph;
++ if((frame!=2u&&frame!=3u)||!x->prepared||!x->inflight||x->source!=source||
++    s_aot_instruction!=c||s_aot_pc!=source||s_aot_length!=length||
++    !task_original_registers(&v,&x->before)||!task_original_environment(c,&v)){
++  task_original_runtime_reset();return;
++ }
++ CpuAotDirectCallOperands operands;cpu_aot_get_direct_call_operands(c,source,length,&operands);
++ unsigned modes=operands.target_pc24==0x01d80cu?1u:operands.target_pc24==0x01ddbdu?10u:
++  operands.target_pc24==0x01de2au?5u:operands.target_pc24==0x01de82u?4u:12u;
++ uint32 fall=(source&0xff0000u)|(uint16)(source+length);
++ if(!cpu_source_task_original_graph(operands.target_pc24,(uint8)mx,&graph)||
++    !task_original_push_prepare(p,&e,&v,source,operands.target_pc24,fall,frame,modes,frame==3u?0x6bu:0x60u)){
++  task_original_runtime_reset();return;
++ }
++ x->call_graph=graph;s_task_original_dispatch_epoch=e;
++}
++
++/* Observe metadata before the same original transaction. No bus access or
++ * clock charge is introduced. Pure composed callbacks cannot perform a bus
++ * transaction; source-certified guest instructions cannot touch devices. */
++void interp_bridge_source_call_bus_transaction(CpuState *c,uint8 bank,uint16 addr,unsigned width){
++ if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
++ if(c!=(CpuState *)s_task_original_call.epoch.cpu||s_pre_opcode_callback_cpu){
++  task_original_runtime_reset();return;
++ }
++ if(bank<0x40u||(bank>=0x80u&&bank<0xc0u)){
++  for(unsigned n=0;n<width;n++){uint16 a=(uint16)(addr+n);
++   if(a>=0x2000u&&a<0x6000u){task_original_runtime_reset();return;}
++  }
++ }
++}
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -286,7 +286,14 @@
+     memset(s_oh_tot, 0, sizeof(s_oh_tot));
+ }
+ 
++/* Readonly bridge observers. Other interpreter users keep weak no-op hooks.
++ * No observer changes opcode/operand fetches, stack writes, flags or clocks. */
++__attribute__((weak)) void interp_bridge_source_call_interp_enter(Interp816 *c){(void)c;}
++__attribute__((weak)) void interp_bridge_source_call_interp_fetched(Interp816 *c,uint32_t source,uint32_t target,unsigned frame){(void)c;(void)source;(void)target;(void)frame;}
++__attribute__((weak)) void interp_bridge_source_call_interp_pop(Interp816 *c,uint32_t source,unsigned opcode,uint16_t before_s,uint16_t word,uint8_t bank){(void)c;(void)source;(void)opcode;(void)before_s;(void)word;(void)bank;}
++__attribute__((weak)) void interp_bridge_source_call_interp_exit(Interp816 *c,uint32_t source,uint8_t opcode){(void)c;(void)source;(void)opcode;}
+ int interp816_runOpcode(Interp816* cpu) {
++  interp_bridge_source_call_interp_enter(cpu);
+   cpu->cyclesUsed = 0;
+   s_interp816_opcodes_run++;
+   /* getenv() walks the whole environment block on MSVC (~us) - cache it so
+@@ -340,6 +347,7 @@
+    * interp816_opcode_hist_dump(). No behaviour change. */
+   OPCODE_HIST_BEGIN();
+   interp816_doOpcode(cpu, opcode);
++  interp_bridge_source_call_interp_exit(cpu, _pcb, opcode);
+   OPCODE_HIST_END(opcode);
+   s_interp816_insns++;
+   s_interp816_cycles += (uint64_t)cpu->cyclesUsed;
+@@ -1213,6 +1221,10 @@
+     }
+     case 0x20: { // jsr abs
+       uint16_t value = interp816_readOpcodeWord(cpu);
++      /* Permission is issued only AFTER the real operand fetch completed. */
++      interp_bridge_source_call_interp_fetched(cpu,
++          ((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-3u),
++          ((uint32_t)cpu->k<<16)|value,2u);
+       interp816_pushWord(cpu, cpu->pc - 1);
+       cpu->pc = value;
+       break;
+@@ -1226,6 +1238,9 @@
+     case 0x22: { // jsl abl
+       uint16_t value = interp816_readOpcodeWord(cpu);
+       uint8_t newK = interp816_readOpcode(cpu);
++      interp_bridge_source_call_interp_fetched(cpu,
++          ((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-4u),
++          ((uint32_t)newK<<16)|value,3u);
+       interp816_pushByte(cpu, cpu->k);
+       interp816_pushWord(cpu, cpu->pc - 1);
+       cpu->pc = value;
+@@ -1625,7 +1640,11 @@
+       break;
+     }
+     case 0x60: { // rts imp
+-      cpu->pc = interp816_pullWord(cpu) + 1;
++      uint16_t before_s=cpu->sp;
++      uint32_t source=((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-1u);
++      uint16_t word=interp816_pullWord(cpu);
++      cpu->pc = word + 1;
++      interp_bridge_source_call_interp_pop(cpu,source,0x60u,before_s,word,cpu->k);
+       break;
+     }
+     case 0x61: { // adc idx
+@@ -1697,8 +1716,12 @@
+       break;
+     }
+     case 0x6b: { // rtl imp
+-      cpu->pc = interp816_pullWord(cpu) + 1;
++      uint16_t before_s=cpu->sp;
++      uint32_t source=((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-1u);
++      uint16_t word=interp816_pullWord(cpu);
++      cpu->pc = word + 1;
+       cpu->k = interp816_pullByte(cpu);
++      interp_bridge_source_call_interp_pop(cpu,source,0x6bu,before_s,word,cpu->k);
+       break;
+     }
+     case 0x6c: { // jmp ind
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -436,7 +436,7 @@
+   uint8_t opcode;
+   bool observed_hooks;
+   int host_frame;
+-  uint64_t lifecycle, state_generation;
++  uint64_t lifecycle, state_generation, callback_instance;
+   bool (*dispatch)(CpuState *, uint32, uint8, uint32 *);
+ } SchedulerHookHandoff;
+ static CpuState *s_scheduler_hook_begin_cpu;
+@@ -448,12 +448,28 @@
+   CpuState *cpu;
+   uint32_t pc24;
+   uint8_t mx, opcode;
+-  uint64_t generation, lifecycle, state_generation, dispatch_epoch;
++  uint64_t generation, lifecycle, state_generation, dispatch_epoch, callback_instance;
+   int host_frame;
+   bool (*dispatch)(CpuState *, uint32, uint8, uint32 *);
+ } SchedulerRegionScope;
+ static SchedulerRegionScope s_scheduler_region_scope;
+ static uint64_t s_scheduler_region_dispatch_epoch;
++/* 029 causal composed-callback receipt. Its serial never resets or wraps.
++ * This is readonly provenance, not a second native admission authorization. */
++static uint64_t s_scheduler_callback_instance_serial;
++static bool s_scheduler_callback_instance_exhausted;
++static uint64_t scheduler_callback_instance_begin(void) {
++  if (s_scheduler_callback_instance_exhausted) return 0;
++  if (s_scheduler_callback_instance_serial == UINT64_MAX) {
++    s_scheduler_callback_instance_exhausted = true;
++    return 0;
++  }
++  return ++s_scheduler_callback_instance_serial;
++}
++static uint64_t scheduler_callback_instance_completed(uint64_t instance) {
++  return !s_scheduler_callback_instance_exhausted && instance &&
++    instance == s_scheduler_callback_instance_serial ? instance : 0;
++}
+ 
+ extern int snes_frame_counter;
+ static void scheduler_hook_epoch_advance(uint64_t *epoch) {
+@@ -649,7 +665,12 @@
+ static void task_call_reset(void);
+ static void task_call_pre_cpu(CpuState *,uint32);
+ static void task_call_committed_cpu(CpuState *,uint32);
++static void task_original_return_committed_cpu(CpuState *,uint32);
++static void task_original_pre_cpu(CpuState *,uint32);
++static void task_original_native_attempt(void);
++static void task_original_step_committed_cpu(CpuState *,uint32);
+ bool cpu_aot_begin(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles) {
++  task_original_native_attempt();
+   if(!cpu || cpu->emulation || s_aot_instruction || s_native_instruction_cpu || s_interp_bus_timing_active || !cycles || !length) return false;
+   /* Ordinary AOT entries always refuse registered hook PCs. A scheduler
+    * region wrapper authorizes only its own immediate, source-verified begin. */
+@@ -659,6 +680,7 @@
+         (s_scheduler_hook_begin_cpu != cpu || s_scheduler_hook_begin_pc != hook_pc))
+       return false;
+   task_call_pre_cpu(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
++  task_original_pre_cpu(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
+   s_aot_instruction=cpu;s_aot_cycles=cycles;s_aot_pc=((uint32)cpu->PB<<16)|(pc&0xffff);
+   s_aot_length=length;memset(s_aot_fetched,0,sizeof s_aot_fetched);
+   s_aot_rmw_read=false;s_aot_rmw_written=false;
+@@ -752,6 +774,7 @@
+   bridge_bus_write(cpu,operand->lo,(uint8)value);
+   s_aot_rmw_written=true;
+ }
++
+ void cpu_aot_commit(CpuState *cpu) {
+   if(!s_aot_instruction)return;
+   aot_require(cpu);
+@@ -763,6 +786,8 @@
+   s_interp_bus_timing_active=0;s_aot_instruction=NULL;g_interp_apu_driving=s_aot_apu_driving;
+   bridge_charge_instruction(cpu,cycles,bus,master,false);g_faithful_aot_steps++;cpu_mirrors_to_p(cpu);
+   task_call_committed_cpu(cpu,s_aot_pc);
++  task_original_return_committed_cpu(cpu,s_aot_pc);
++  task_original_step_committed_cpu(cpu,s_aot_pc);
+   private_instruction_trace(cpu,s_aot_pc,'g',cycles,bus,master);
+   static int init=0,lo=-1,hi=-1;extern int snes_frame_counter;
+   if(!init){const char *e=getenv("PRIVATE_FAITHFUL_TRACE");init=1;if(e)sscanf(e,"%d-%d",&lo,&hi);}
+@@ -952,6 +977,7 @@
+  * frame then injected NMI at a stale PC over a half-unwound stack and ran
+  * garbage into InvalidInterrupt_Crash ($80:8573). */
+ static int      s_interp_owner_is_scheduler = 0;
++static void task_original_runtime_reset(void);
+ #include "bridge_task_helpers.inc"
+ #include "bridge_task_call.inc"
+ #include "bridge_redirect_helpers.inc"
+@@ -2358,12 +2384,17 @@
+         const int scheduler_hook_entry_frame = snes_frame_counter;
+         bool scheduler_hooks_completed = false, scheduler_hooks_observed = false;
+         uint64_t scheduler_hooks_generation = 0;
++        uint64_t scheduler_callback_instance = 0;
+         if (s_pre_opcode_hook_count > 0) {
+             bool hook_matched = false;
+             const uint32_t key = pc_before & 0x7FFFFFu;
+             bool redirected = false;
+             for (int hi = 0; hi < s_pre_opcode_hook_count; hi++) {
+                 if (s_pre_opcode_hooks[hi].pc24 == key) {
++                    if (!hook_matched) {
++                        scheduler_callback_instance = scheduler_callback_instance_begin();
++                        task_original_hook_before_local(cpu,&in,pc_before,scheduler_callback_instance);
++                    }
+                     hook_matched = true;
+                     native_arrival_valid = 0;
+                     sync_interp_to_cpu(&in, cpu);
+@@ -2393,6 +2424,7 @@
+              * with the old pc_before would execute one opcode and classify
+              * another, and could miss a terminal RTS. */
+             if (redirected) {
++                task_original_runtime_reset();
+                 if (s_native_instruction_committed)
+                     bridge_progress_checkpoint(cpu, auto_quiescent,
+                         &progress_write_epoch, &progress_dynamic_epoch, &steps);
+@@ -2405,6 +2437,7 @@
+                 scheduler_hook_entry_state == RtlStateGeneration() && scheduler_hook_entry_frame == snes_frame_counter &&
+                 !s_pre_opcode_callback_cpu && (((uint32_t)in.k << 16) | in.pc) == pc_before;
+             scheduler_hooks_generation = s_pre_opcode_hook_generation;
++            task_original_hook_chain_local(cpu,&in,pc_before,scheduler_callback_instance,scheduler_hooks_completed);
+         }
+         /* Opt-in control-flow tripwire: game code normally executes from the
+          * LoROM $8000-$FFFF half of a bank.  If a return/jump crosses from ROM
+@@ -2968,6 +3001,8 @@
+         s_interp_bus_timing_active = 0; /* no instruction bus work has begun */
+         sync_interp_to_cpu(&in, cpu);
+         bool (*region_dispatch)(CpuState *,uint32,uint8,uint32 *)=cpu_native_region_step;
++        task_original_arm_local(cpu,&in,pc_before);
++        task_original_pre_local(cpu,&in,pc_before);
+         const int source_task_dispatch=task_pre_opcode(cpu,pc_before,coverage_mx);
+         if(source_task_dispatch)region_dispatch=cpu_source_task_region_step;
+         const int source_redirect_dispatch=!source_task_dispatch&&redirect_pre_opcode(cpu,pc_before,coverage_mx);
+@@ -2984,6 +3019,10 @@
+             s_scheduler_hook_handoff.state_generation = RtlStateGeneration();
+             s_scheduler_hook_handoff.host_frame = snes_frame_counter;
+             s_scheduler_hook_handoff.dispatch = region_dispatch;
++            /* Nested chains invalidate the outer readonly receipt. Original
++             * completion/admission semantics and token consumption stay intact. */
++            s_scheduler_hook_handoff.callback_instance =
++                scheduler_callback_instance_completed(scheduler_callback_instance);
+         }
+         if(source_redirect_dispatch){s_redirect_dispatch_cpu=cpu;s_redirect_dispatch_pc=pc_before;s_redirect_dispatch_mx=coverage_mx;}
+         scheduler_hook_epoch_advance(&s_scheduler_region_dispatch_epoch);
+@@ -2991,7 +3030,9 @@
+             .cpu=cpu, .pc24=pc_before, .mx=coverage_mx, .opcode=op,
+             .generation=s_pre_opcode_hook_generation, .lifecycle=s_scheduler_hook_lifecycle,
+             .state_generation=RtlStateGeneration(), .dispatch_epoch=s_scheduler_region_dispatch_epoch,
+-            .host_frame=snes_frame_counter, .dispatch=region_dispatch};
++            .host_frame=snes_frame_counter, .dispatch=region_dispatch,
++            .callback_instance=s_scheduler_hook_handoff.callback_instance};
++        task_original_hook_after_local(cpu,&in,pc_before,op);
+         const bool region_completed = !s_redirect.pending && lle_yield_bounce_enabled() &&
+             region_dispatch(cpu, pc_before,
+             coverage_mx, &region_next_pc);
+@@ -3010,7 +3051,9 @@
+             cpu->P = unpublished_p;
+             s_interp_bus_timing_active = 1;
+             task_call_pre_local(cpu,&in,pc_before);
++            task_original_interp_scope(cpu,&in,pc_before);
+             _cyc = interp816_runOpcode(&in);
++            s_task_original_interp_cpu=NULL;s_task_original_interp=NULL;s_task_original_interp_source=0;
+         }
+         if(source_redirect_dispatch)redirect_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed);
+         redirect_committed_local(cpu,pc_before,&in,((uint32)in.k<<16)|in.pc);
+@@ -3052,6 +3095,8 @@
+               private_instruction_trace(&observed,pc_before,'i',(unsigned)_cyc,s_interp_bus_cycles,s_interp_bus_master); }
+         } /* Generated body already committed original bus/clocks and g trace. */
+         task_call_committed_local(cpu,pc_before,&in,((uint32)in.k<<16)|in.pc);
++        task_original_return_committed_local(cpu,&in,pc_before);
++        if(!region_completed)task_original_step_committed_local(cpu,&in,pc_before);
+ 
+         /* Env-gated per-instruction cycle watch (SNESRECOMP_CYC_WATCH="lo-hi"
+          * hex pc24): log the LLE charge components for each interpreted
+@@ -3270,6 +3315,7 @@
+                             sync_cpu_to_interp(cpu, &in);
+                             in.k  = (uint8)((s_lle_unwind_pc24 >> 16) & 0xFF);
+                             in.pc = (uint16)(s_lle_unwind_pc24 & 0xFFFF);
++                            task_original_internal_landing(cpu,&in,s_lle_unwind_pc24);
+                             interp_edge_note(pc_before, s_lle_unwind_pc24,
+                                              INTERP_EDGE_EXTERNAL, op, in.sp);
+                             edge_expect = s_lle_unwind_pc24 & 0xFFFFFFu;
+@@ -3346,6 +3392,7 @@
+                 in.pc = (uint16)(ret & 0xFFFF);
+                 if (_air == RECOMP_RETURN_NORMAL)
+                     task_call_owner_resume_local(cpu,&in,((uint32)in.k<<16)|in.pc);
++        task_original_parent_retained_local(cpu,&in,((uint32)in.k<<16)|in.pc);
+                 /* Resume-task mode: a successful bounce is forward progress
+                  * (incl. a bounced yield that just slept a frame on its fiber);
+                  * the cap should only catch interp-side wedges, not bound the
+@@ -3391,6 +3438,7 @@
+             }
+         }
+         task_call_owner_resume_local(cpu,&in,((uint32)in.k<<16)|in.pc);
++        task_original_parent_retained_local(cpu,&in,((uint32)in.k<<16)|in.pc);
+         if (captured_return) {
+             completed_return.landing_pc = ((uint32)in.k << 16) | in.pc;
+             completed_return.after_return_s = in.sp;
+@@ -3561,11 +3609,14 @@
+     const int _saved_owner_exit_valid = s_interp_owner_exit_valid;
+     const int _saved_owner_is_scheduler = s_interp_owner_is_scheduler;
+     const uint64_t saved_task_owner_serial=s_task_owner_serial;
++    const uintptr_t saved_original_dispatch=s_task_original_owner_dispatch;
++    const uint64_t saved_original_dispatch_serial=s_task_original_owner_dispatch_serial;
+     s_task_owner_serial=++s_task_next_serial;
+     s_interp_owner_exit_s = s_exit;
+     s_interp_owner_exit_valid = 1;
+     s_interp_owner_is_scheduler = yield_pc != 0;
+     s_interp_bridge_depth++;
++    task_original_owner_dispatch_enter((uintptr_t)&interp_bridge_run_ex2);
+     task_owner_enter(cpu,entry_pc24,stop_on_rti);
+     redirect_owner_enter(cpu,entry_pc24,stop_on_rti);
+     /* Attribution scope (see interp_scope_name above). Saved/restored rather
+@@ -3590,6 +3641,8 @@
+     s_interp_owner_exit_s = _saved_owner_exit_s;
+     s_interp_owner_exit_valid = _saved_owner_exit_valid;
+     s_interp_owner_is_scheduler = _saved_owner_is_scheduler;
++    s_task_original_owner_dispatch=saved_original_dispatch;
++    s_task_original_owner_dispatch_serial=saved_original_dispatch_serial;
+     s_sched_yield_pc         = _saved_sched_yield_pc;
+     s_sched_yield_flag_addr  = _saved_sched_flag_addr;
+     s_sched_yield_flag_value = _saved_sched_flag_value;
+diff --git a/runner/src/snes/snes.c b/runner/src/snes/snes.c
+--- a/runner/src/snes/snes.c
++++ b/runner/src/snes/snes.c
+@@ -84,8 +84,11 @@
+   s_wram_write_log_hook = hook;
+ }
+ 
+-static void snes_note_direct_wram_write(uint32_t ram_off, uint8_t value,
++static void snes_note_direct_wram_write(const void *ram_identity,uint32_t ram_off, uint8_t value,
+                                         const char *via) {
++  /* Covers 2180 (including DMA), direct7E/F and low-bank mirrors once. */
++  extern void interp_bridge_source_call_wram_written(const void *,uint32_t,uint8_t,uint64_t);
++  interp_bridge_source_call_wram_written(ram_identity,ram_off,value,0);
+   if (s_wram_write_log_hook)
+     s_wram_write_log_hook(ram_off, value, via);
+ }
+@@ -124,6 +127,8 @@
+ uint32_t snes_saveload_get_version(void) { return s_saveload_version; }
+ 
+ void snes_saveload(Snes *snes, SaveLoadInfo *sli) {
++  extern void interp_bridge_source_call_raw_mutation(void);
++  interp_bridge_source_call_raw_mutation(); /* BEFORE any possible partial load/normalization */
+   cpu_saveload(snes->cpu, sli);
+   apu_saveload(snes->apu, sli);
+   /* Early RTLS v6/v7 used a 216-byte DMA range and a 40-byte SNES tail.
+@@ -221,6 +226,8 @@
+ }
+ 
+ void snes_reset(Snes* snes, bool hard) {
++  extern void interp_bridge_source_call_raw_mutation(void);
++  interp_bridge_source_call_raw_mutation(); /* reset never preserves a pending proof/permit */
+   cart_reset(snes->cart); // reset cart first, because resetting cpu will read from it (reset vector)
+   cpu_reset(snes->cpu);
+   apu_reset(snes->apu);
+@@ -353,7 +360,7 @@
+       uint32_t wa = snes->ramAdr & 0x1ffffu;
+       uint8_t old = snes->ram[wa];
+       snes->ram[wa] = val;
+-      snes_note_direct_wram_write(wa, val, "wmdata");
++      snes_note_direct_wram_write(snes->ram,wa, val, "wmdata");
+ #if SNESRECOMP_TRACE
+       snes_trace_direct_wram_write(wa, old, val);
+ #endif
+@@ -932,7 +939,7 @@
+     uint32_t addr = ((bank & 1) << 16) | adr;
+     uint8_t old = snes->ram[addr];
+     snes->ram[addr] = val; // ram
+-    snes_note_direct_wram_write(addr, val, "snes_write");
++    snes_note_direct_wram_write(snes->ram,addr, val, "snes_write");
+ #if SNESRECOMP_TRACE
+     snes_trace_direct_wram_write(addr, old, val);
+ #endif
+@@ -945,7 +952,7 @@
+     if(adr < 0x2000) {
+       uint8_t old = snes->ram[adr];
+       snes->ram[adr] = val; // ram mirror
+-      snes_note_direct_wram_write((uint32_t)adr, val, "snes_write_mirror");
++      snes_note_direct_wram_write(snes->ram,(uint32_t)adr, val, "snes_write_mirror");
+ #if SNESRECOMP_TRACE
+       snes_trace_direct_wram_write((uint32_t)adr, old, val);
+ #endif
+@@ -978,3 +985,4 @@
+   // write to cart
+   cart_write(snes->cart, bank, adr, val);
+ }
++
+diff --git a/runner/src/task_original_call_contract.h b/runner/src/task_original_call_contract.h
+new file mode 100644
+--- /dev/null
++++ b/runner/src/task_original_call_contract.h
+@@ -0,0 +1,78 @@
++#ifndef SOURCE_TASK_ORIGINAL_CALL_CONTRACT_H
++#define SOURCE_TASK_ORIGINAL_CALL_CONTRACT_H
++#include "task_resume_contract.h"
++/* Private transient original-call provenance. This never changes guest memory,
++   bus transactions, clocks, modes, host dispatch or return ownership. */
++typedef struct {
++ uintptr_t cpu,module,parent_owner,ram;
++ uint64_t owner_epoch,dispatch,state,frame,hooks,lifecycle;
++ unsigned parent_depth;
++} TaskOriginalEpoch;
++typedef struct {
++ uint32_t site,target,fall;
++ uint16_t entry_s;
++ uint8_t frame,modes,return_opcode;
++} TaskOriginalGuestFrame;
++typedef struct {
++ TaskResumeSnapshot selected;
++ TaskOriginalEpoch epoch;
++ TaskOriginalGuestFrame frame[2];
++ TaskResumeState arrival,push_before;
++ uint64_t instance,next_transaction,transaction;
++ uint32_t write_address[3];
++ uint8_t write_value[3],write_count,write_done,write_live;
++ unsigned depth,phase,inflight,return_pending;
++} TaskOriginalCall;
++enum { TASK_ORIGINAL_EMPTY=0,TASK_ORIGINAL_RUNNING=1,TASK_ORIGINAL_ARRIVED=2 };
++typedef struct {
++ uint32_t pc,fall,branch,target;
++ uint8_t m,x,next_m,next_x,length,bytes[4];
++} TaskOriginalInstruction;
++typedef struct {uint32_t entry;uint8_t m,x;unsigned first,count;} TaskOriginalGraph;
++extern const TaskOriginalInstruction g_task_original_rows[];
++extern const unsigned g_task_original_row_count;
++extern const TaskOriginalGraph g_task_original_graphs[];
++extern const unsigned g_task_original_graph_count;
++const TaskOriginalInstruction *cpu_source_task_original_row(unsigned,uint32_t,uint8_t);
++int cpu_source_task_original_graph(uint32_t,uint8_t,unsigned *);
++int cpu_source_task_original_row_matches(const TaskOriginalInstruction *,TaskResumePeek,void *);
++
++void task_original_reset(TaskOriginalCall *);
++int task_original_epoch(const TaskOriginalCall *,const TaskOriginalEpoch *);
++int task_original_arm(TaskOriginalCall *,const TaskResumeSnapshot *,
++ const TaskResumeState *,const TaskOriginalEpoch *);
++int task_original_push_prepare(TaskOriginalCall *,const TaskOriginalEpoch *,
++ const TaskResumeState *,uint32_t,uint32_t,uint32_t,unsigned,unsigned,unsigned);
++int task_original_write_begin(TaskOriginalCall *,const TaskOriginalEpoch *,
++ uintptr_t,uint32_t,uint8_t,uint64_t *);
++void task_original_write_commit(TaskOriginalCall *,uintptr_t,uint32_t,uint8_t,uint64_t);
++int task_original_push_committed(TaskOriginalCall *,const TaskOriginalEpoch *,
++ const TaskResumeState *);
++int task_original_pop_candidate(TaskOriginalCall *,const TaskOriginalEpoch *,
++ uint32_t,unsigned,uint16_t,const uint8_t *,const TaskResumeState *);
++int task_original_parent_retained(TaskOriginalCall *,const TaskOriginalEpoch *,
++ const TaskResumeState *,TaskResumeSnapshot *);
++void task_original_external_write(TaskOriginalCall *,uintptr_t,uint32_t);
++/* A readonly snapshot of EXISTING original050 completion provenance.
++   Inspecting this structure does not consume native admission authorization. */
++typedef struct {
++ uintptr_t cpu,dispatch,region_dispatch;
++ uint32_t full_pc;
++ uint64_t registry,lifecycle,state,frame,dispatch_serial,callback_instance;
++ uint8_t opcode,completed,nested,transaction;
++} TaskOriginalHookCompletion;
++typedef struct {
++ TaskOriginalEpoch epoch;
++ TaskResumeState before;
++ TaskOriginalHookCompletion expected;
++ uint8_t frame_bytes[11],open_bus;
++ unsigned depth,phase;
++ uint64_t serial,call_instance;
++ TaskOriginalGuestFrame guest_frame[2];
++} TaskOriginalHookProof;
++int task_original_hook_snapshot(TaskOriginalCall *,TaskOriginalHookProof *,
++ const TaskOriginalEpoch *,const TaskResumeState *,const TaskOriginalHookCompletion *,uint8_t);
++int task_original_hook_completed(TaskOriginalCall *,TaskOriginalHookProof *,
++ const TaskOriginalEpoch *,const TaskResumeState *,const TaskOriginalHookCompletion *,uint8_t);
++
++#endif
+diff --git a/runner/src/task_original_call_contract.inc b/runner/src/task_original_call_contract.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/task_original_call_contract.inc
+@@ -0,0 +1,163 @@
++#include <string.h>
++/* Monotone authorization serial is never restored/reset; exhaustion refuses. */
++static uint64_t s_task_original_transaction_serial,s_task_original_instance_serial;
++static int task_original_protected(const TaskOriginalCall *p,uint32_t a) {
++ return a==1u||a==2u||(a>=0x10u&&a<=0x3fu)||
++  (a>p->selected.saved_s&&a<=p->selected.saved_s+11u);
++}
++void task_original_reset(TaskOriginalCall *p){
++memset(p,0,sizeof(*p));}
++int task_original_epoch(const TaskOriginalCall *p,const TaskOriginalEpoch *e){
++ const TaskOriginalEpoch *a=&p->epoch;
++ return p->phase&&e&&a->cpu==e->cpu&&a->module==e->module&&
++ a->parent_owner==e->parent_owner&&a->ram==e->ram&&a->owner_epoch==e->owner_epoch&&
++ a->dispatch==e->dispatch&&a->state==e->state&&a->frame==e->frame&&
++ a->hooks==e->hooks&&a->lifecycle==e->lifecycle&&a->parent_depth==e->parent_depth;
++}
++static int task_original_registers(const TaskResumeState *a,const TaskResumeState *b){
++ return a->cpu==b->cpu&&a->module==b->module&&a->owner==b->owner&&
++ a->owner_epoch==b->owner_epoch&&a->generation==b->generation&&a->frame==b->frame&&
++ a->pc==b->pc&&a->s==b->s&&a->a==b->a&&a->x==b->x&&a->y==b->y&&a->d==b->d&&
++ a->p==b->p&&a->db==b->db&&a->e==b->e;
++}
++int task_original_arm(TaskOriginalCall *p,const TaskResumeSnapshot *s,
++ const TaskResumeState *v,const TaskOriginalEpoch *e){
++ if(p->phase||!s||!s->published||!s->recipe||!v||!e||!e->cpu||!e->ram||
++ !e->parent_owner||v->e||!task_original_registers(v,&s->actual)||
++ v->cpu!=e->cpu||v->module!=e->module||v->owner!=e->parent_owner||
++ s_task_original_instance_serial==UINT64_MAX||v->s!=s->saved_s+11u||s->saved_s<0x40u||v->s>0x1fffu||v->s<5u)return 0;
++ TaskOriginalCall candidate={0};candidate.selected=*s;
++ /* Conservative complete DP footprint: exact source writes use offsets00..41.
++    D and DB are source-stable; no pointer bus access or guessed D is needed. */
++ if(v->d>0x1fffu-0x41u)return 0;
++ for(uint32_t at=v->d;at<=v->d+0x41u;at++)if(task_original_protected(&candidate,at))return 0;
++ uint32_t absolute;
++ if(v->db==0x7fu)absolute=0x1046bu;
++ else if(v->db==0x7eu||v->db<0x40u||(v->db>=0x80u&&v->db<0xc0u))absolute=0x46bu;
++ else return 0;
++ if(task_original_protected(&candidate,absolute)||task_original_protected(&candidate,absolute+1u))return 0;
++ p->selected=*s;p->epoch=*e;p->instance=++s_task_original_instance_serial;p->phase=TASK_ORIGINAL_RUNNING;return 1;
++}
++/* Exact source-selected original edge membership, never an observed root. */
++static int task_original_edge(uint32_t site,uint32_t target,unsigned mx) {
++ if(site==0x1d858u)return target==0x1d809u&&mx==3u;
++ if(site==0x1d862u)return target==0x1d803u&&(mx==2u||mx==3u);
++ if(site==0x1d86cu)return target==0x1d806u&&(mx==2u||mx==3u);
++ if(site==0x1d870u)return target==0x1d80cu&&(mx==2u||mx==3u);
++ if(site==0x1dc9cu)return target==0x1ddbdu&&mx==3u;
++ if(site==0x1d955u)return target==0x1de2au&&mx==1u;
++ if(site==0x1d96eu)return target==0x1de82u&&mx==1u;
++ if(site==0x1db17u)return target==0x1de2au&&mx==3u;
++ if(site==0x1db1cu)return target==0x1de82u&&mx==3u;
++ return 0;
++}
++static int task_original_return_member(uint32_t target,uint32_t source,unsigned mx){
++ if(target==0x1d809u)return source==0x1ddbcu&&(mx==2u||mx==3u);
++ if(target==0x1d803u)return source==0x1d988u&&(mx==2u||mx==3u);
++ if(target==0x1d806u)return source==0x1db2cu&&(mx==2u||mx==3u);
++ if(target==0x1d80cu)return source==0x1de29u&&mx==0u;
++ if(target==0x1ddbdu)return(source==0x1ddedu&&mx==1u)||(source==0x1ddf7u&&mx==3u);
++ if(target==0x1de2au)return source==0x1de81u&&(mx==0u||mx==2u);
++ if(target==0x1de82u)return source==0x1ded2u&&mx==2u;
++ return 0;
++}
++int task_original_push_prepare(TaskOriginalCall *p,const TaskOriginalEpoch *e,
++ const TaskResumeState *v,uint32_t site,uint32_t target,uint32_t fall,
++ unsigned frame,unsigned modes,unsigned return_opcode){
++ if(!task_original_epoch(p,e)||p->phase!=TASK_ORIGINAL_RUNNING||p->inflight||
++ p->depth>=2u||!v||v->e||!task_original_edge(site,target,((v->p>>5)&1u)*2u+((v->p>>4)&1u))||v->pc!=site||v->s<frame||v->s>0x1fffu||
++ (frame!=2u&&frame!=3u)||!modes||modes>15u||
++ return_opcode!=(frame==3u?0x6bu:0x60u)||site>0xffffffu||target>0xffffffu||fall>0xffffffu||
++ (fall>>16)!=(site>>16)||((site&65535u)+(frame==3u?4u:3u))>65535u){
++ task_original_reset(p);return 0;}
++ if(p->depth==0u){if(frame!=3u||site>>16!=1u||v->s!=p->selected.saved_s+11u||!task_original_registers(v,&p->selected.actual)){task_original_reset(p);return 0;}}
++ else if(frame!=2u||v->s!=p->frame[p->depth-1u].entry_s-p->frame[p->depth-1u].frame){task_original_reset(p);return 0;}
++ TaskOriginalGuestFrame *f=&p->frame[p->depth];*f=(TaskOriginalGuestFrame){site,target,fall,v->s,(uint8_t)frame,(uint8_t)modes,(uint8_t)return_opcode};
++ uint16_t ret=(uint16_t)(fall-1u);unsigned n=0;
++ if(frame==3u){p->write_address[n]=v->s;p->write_value[n++]=(uint8_t)(site>>16);}
++ p->write_address[n]=v->s-n;p->write_value[n++]=(uint8_t)(ret>>8);
++ p->write_address[n]=v->s-n;p->write_value[n++]=(uint8_t)ret;
++ p->write_count=(uint8_t)n;p->write_done=0;p->inflight=1;p->push_before=*v;return 1;
++}
++/* Consume byte authorization BEFORE original writer callbacks. A nested begin
++   destroys the transaction; no enclosing return restores it. */
++int task_original_write_begin(TaskOriginalCall *p,const TaskOriginalEpoch *e,
++ uintptr_t ram,uint32_t address,uint8_t value,uint64_t *transaction){
++ if(!p->phase)return 0;
++ if(!task_original_epoch(p,e)||p->write_live||!p->inflight||ram!=p->epoch.ram||
++ p->write_done>=p->write_count||address!=p->write_address[p->write_done]||
++ value!=p->write_value[p->write_done]||s_task_original_transaction_serial==UINT64_MAX){task_original_reset(p);return 0;}
++ p->transaction=++s_task_original_transaction_serial;p->write_live=1;*transaction=p->transaction;return 1;
++}
++void task_original_write_commit(TaskOriginalCall *p,uintptr_t ram,uint32_t address,
++ uint8_t value,uint64_t transaction){
++ if(!p->phase)return;
++ if(!p->write_live||!transaction||transaction!=p->transaction||ram!=p->epoch.ram||
++ address!=p->write_address[p->write_done]||value!=p->write_value[p->write_done]){task_original_reset(p);return;}
++ p->write_live=0;p->transaction=0;p->write_done++;
++ if(address>p->selected.saved_s&&address<=p->selected.saved_s+11u)
++  p->selected.bytes[address-p->selected.saved_s-1u]=value;
++}
++void task_original_external_write(TaskOriginalCall *p,uintptr_t ram,uint32_t address){
++ if(p->phase&&ram==p->epoch.ram&&task_original_protected(p,address))task_original_reset(p);
++}
++int task_original_push_committed(TaskOriginalCall *p,const TaskOriginalEpoch *e,
++ const TaskResumeState *v){
++ TaskResumeState expected=p->push_before;
++ if(p->depth<2u){expected.pc=p->frame[p->depth].target;expected.s=(uint16_t)(p->frame[p->depth].entry_s-p->frame[p->depth].frame);}
++ if(!task_original_epoch(p,e)||!p->inflight||p->write_live||p->write_done!=p->write_count||
++ p->depth>=2u||!v||v->e||!task_original_registers(v,&expected)){task_original_reset(p);return 0;}
++ p->depth++;p->inflight=0;p->write_count=p->write_done=0;return 1;
++}
++int task_original_pop_candidate(TaskOriginalCall *p,const TaskOriginalEpoch *e,
++ uint32_t source,unsigned opcode,uint16_t before_s,const uint8_t *raw,
++ const TaskResumeState *v){
++ if(!task_original_epoch(p,e)||p->phase!=TASK_ORIGINAL_RUNNING||p->inflight||
++ !p->depth||!raw||!v||v->e||source>>16!=1u){task_original_reset(p);return 0;}
++ TaskOriginalGuestFrame *f=&p->frame[p->depth-1u];unsigned mx=((v->p>>5)&1u)*2u+((v->p>>4)&1u);
++ uint32_t actual=((uint32_t)(f->frame==3u?raw[2]:(uint8_t)(source>>16))<<16)|
++ (uint16_t)((uint16_t)(raw[0]|((uint16_t)raw[1]<<8))+1u);
++ if(!task_original_return_member(f->target,source,mx)||opcode!=f->return_opcode||before_s!=f->entry_s-f->frame||v->s!=f->entry_s||
++ actual!=f->fall||v->pc!=actual||v->d!=p->selected.actual.d||v->db!=p->selected.actual.db||
++ ((v->p^p->selected.actual.p)&0x0cu)||!(f->modes&(1u<<mx))){task_original_reset(p);return 0;}
++ p->depth--;if(!p->depth){p->arrival=*v;p->phase=TASK_ORIGINAL_ARRIVED;p->return_pending=1;}return 1;
++}
++int task_original_parent_retained(TaskOriginalCall *p,const TaskOriginalEpoch *e,
++ const TaskResumeState *v,TaskResumeSnapshot *out){
++ if(!task_original_epoch(p,e)||p->phase!=TASK_ORIGINAL_ARRIVED||!p->return_pending||
++ !v||!out||!task_original_registers(v,&p->arrival)){task_original_reset(p);return 0;}
++ *out=p->selected;out->actual=*v;out->actual_landing=v->pc;out->actual_p=v->p;
++ task_original_reset(p);return 1;
++}
++
++
++
++static uint64_t s_task_original_hook_serial;
++static uint64_t s_task_original_last_callback_instance;
++int task_original_hook_snapshot(TaskOriginalCall *p,TaskOriginalHookProof *h,
++ const TaskOriginalEpoch *e,const TaskResumeState *v,const TaskOriginalHookCompletion *c,uint8_t bus){
++ if(!p->phase)return 0;
++ if(!h||h->phase||!task_original_epoch(p,e)||p->inflight||p->write_live||
++ !v||!c||v->e||c->cpu!=v->cpu||!c->dispatch||c->callback_instance<=s_task_original_last_callback_instance||c->region_dispatch||c->full_pc!=v->pc||
++ c->registry!=e->hooks||c->lifecycle!=e->lifecycle||c->state!=e->state||c->frame!=e->frame||
++ c->dispatch_serial!=e->dispatch||c->nested||c->transaction||
++ s_task_original_hook_serial==UINT64_MAX){task_original_reset(p);if(h)memset(h,0,sizeof(*h));return 0;}
++ s_task_original_last_callback_instance=c->callback_instance;
++ h->epoch=*e;h->before=*v;h->expected=*c;h->open_bus=bus;h->depth=p->depth;
++ memcpy(h->frame_bytes,p->selected.bytes,11);h->phase=1;h->serial=++s_task_original_hook_serial;h->call_instance=p->instance;memcpy(h->guest_frame,p->frame,sizeof h->guest_frame);return 1;
++}
++int task_original_hook_completed(TaskOriginalCall *p,TaskOriginalHookProof *h,
++ const TaskOriginalEpoch *e,const TaskResumeState *v,const TaskOriginalHookCompletion *c,uint8_t bus){
++ TaskOriginalHookProof prior={0};if(h){prior=*h;memset(h,0,sizeof(*h));} /* consume observer snapshot once */
++ if(!p->phase)return 0;
++ if(!prior.phase||!prior.serial||prior.call_instance!=p->instance||memcmp(prior.guest_frame,p->frame,sizeof p->frame)||!task_original_epoch(p,e)||!v||!c||
++ !task_original_registers(v,&prior.before)||bus!=prior.open_bus||p->depth!=prior.depth||
++ memcmp(p->selected.bytes,prior.frame_bytes,11)||!c->completed||c->nested||c->transaction||
++ c->cpu!=prior.expected.cpu||c->dispatch!=prior.expected.dispatch||!c->region_dispatch||
++ c->callback_instance!=prior.expected.callback_instance||
++ c->full_pc!=prior.expected.full_pc||c->opcode!=prior.expected.opcode||
++ c->registry!=prior.expected.registry||c->lifecycle!=prior.expected.lifecycle||
++ c->state!=prior.expected.state||c->frame!=prior.expected.frame||
++ c->dispatch_serial!=prior.expected.dispatch_serial){task_original_reset(p);return 0;}
++ return 1;
++}

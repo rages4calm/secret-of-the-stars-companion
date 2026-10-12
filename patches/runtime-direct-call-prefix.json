@@ -1,0 +1,52 @@
+{
+  "patch_sha256": "772c7d58026c57a5b8c7efff3312ab54e3ccfa81bf2c8ddec7b842774d97c991",
+  "predecessor_patch_sha256": "b9212c9e0df961d1d99f344db9ad2eef7105a3b86ff2c48dced864c1836659be",
+  "predecessor_binding_sha256": "2b275779f15e85be21f1c881d04d5de0b6a1de7c41534b7cc575504ab9cd2a42",
+  "files": {
+    "recompiler/v2/native_call_prefix.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "9e7488609a26bff99600e21dbcc65d093d3ace1b1f4f43c26ea87fe08eef08dc",
+      "normalized_final_sha256": "9e7488609a26bff99600e21dbcc65d093d3ace1b1f4f43c26ea87fe08eef08dc"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "e9596105a9d631224410da63b82508372ca4ef7e7181c60aee9acfe9bdd82bfb",
+      "final_sha256": "42a3bb0ddf73a3e5db7757a6bd8919a8d36558a249f18dcc202c5083ee4db1a2",
+      "normalized_final_sha256": "42a3bb0ddf73a3e5db7757a6bd8919a8d36558a249f18dcc202c5083ee4db1a2"
+    },
+    "recompiler/v2/emit_bank.py": {
+      "predecessor_sha256": "68511ffd064c2546365d31c0c82a1567e5729f124c20c9ab6a0acbf160cc5585",
+      "final_sha256": "003fbdba518e04145fbcde95e05694173915e602ed85df853dc3feb5ff670fe0",
+      "normalized_final_sha256": "003fbdba518e04145fbcde95e05694173915e602ed85df853dc3feb5ff670fe0"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "2d422000428f4ddf72405c63403851414683d196605014d923677cea95453006",
+      "final_sha256": "f7799a49fd4d331d74ecf5ef2ed347eb4866229406c7a5614f821dd76f624f6a",
+      "normalized_final_sha256": "f7799a49fd4d331d74ecf5ef2ed347eb4866229406c7a5614f821dd76f624f6a"
+    },
+    "tools/v2_emit.py": {
+      "predecessor_sha256": "bf7b1d6b3fab9a223e58a5597902c813c4e0315be934ab33e9febe7ca8aea380",
+      "final_sha256": "fb7b1a3155618da2fa2f71a6a578fbbb61ae758b88339cde84bafb4d3f354866",
+      "normalized_final_sha256": "fb7b1a3155618da2fa2f71a6a578fbbb61ae758b88339cde84bafb4d3f354866"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "63eb7a5802a67a23a388381f7b3e88f652538f157b8f35a0fffa0a01d6b0652f",
+      "final_sha256": "411b6e034dd60cca43010cd999345c6fb45f6572404db4c5937e550337468224",
+      "normalized_final_sha256": "411b6e034dd60cca43010cd999345c6fb45f6572404db4c5937e550337468224"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "fcc2fcf84b60495dbb2b0108efe98f230e2c37a59c84e9cf15ff8905e274b232",
+      "final_sha256": "f045d10a22df9d2df8bc898da16d5032166e59744ed49c72aaa5286336d409c4",
+      "normalized_final_sha256": "f045d10a22df9d2df8bc898da16d5032166e59744ed49c72aaa5286336d409c4"
+    }
+  },
+  "scope": "Source-exact known-mode JSR(abs)/JSL(long) architectural byte pushes and cached original fetched target in the same registered scheduler dispatcher; original callee, paired, deadline and return ownership; no closed-call authority or additional roots.",
+  "cache_format": 21,
+  "normal_metadata": 9,
+  "task_metadata": 3,
+  "added_source_call_rows": 187,
+  "normal_rows": 9263,
+  "ordinary_roots_added": 0,
+  "callable_roots_added": 0,
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

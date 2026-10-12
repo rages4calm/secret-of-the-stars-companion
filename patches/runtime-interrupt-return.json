@@ -1,0 +1,34 @@
+{
+  "patch_sha256": "75926f688cc3dbd6dccc4ce3446976b0f6307f93c212533dae5bb25248d071a1",
+  "predecessor_patch_sha256": "b992641a8e331dab5f1c2edd7e5c7349163e150ba537179793cbd47c53a56683",
+  "predecessor_binding_sha256": "b3b92cdd08008832fff1caac30f586626e0dcc3e60534831ed6c3417dedac8bc",
+  "files": {
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "02cf21790a4327524359b3ca504381f4a60cb76277ab816aaa0d941a16dcdb4b",
+      "final_sha256": "525e81da03f558eea834b9f67aa8c8ceb466e9bd7796825075eb181c2889462a",
+      "normalized_final_sha256": "525e81da03f558eea834b9f67aa8c8ceb466e9bd7796825075eb181c2889462a"
+    },
+    "recompiler/v2/native_interrupt_return.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "041acb9087294e23e4f068a823f4eff8cfd849aabdb3bf0b71af0a53400eff88",
+      "normalized_final_sha256": "041acb9087294e23e4f068a823f4eff8cfd849aabdb3bf0b71af0a53400eff88"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "fe4ed2d530e308b814443c7bfa4419c7eeda2e01a6d0c3a0bd769fe7a081c265",
+      "final_sha256": "0d94ec40b4092e9a9f893a8d8c4b18f46716802a5aecf150766889a7f90d4c93",
+      "normalized_final_sha256": "0d94ec40b4092e9a9f893a8d8c4b18f46716802a5aecf150766889a7f90d4c93"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "0f0518b919603954cd89325a6e4cb5f9c5f12f9b3ded1bb860424bd1a7fc03b2",
+      "final_sha256": "b992018fabb4d84cd393ff6dde275872e1cef69d7d17040eeb99098404bb724a",
+      "normalized_final_sha256": "b992018fabb4d84cd393ff6dde275872e1cef69d7d17040eeb99098404bb724a"
+    }
+  },
+  "scope": "Original E0 architectural interrupt return with four ordered byte pops, immediate status/index restore and actual full PC/PB; existing interrupt scheduler stop classification preserved; no return authority, E1 or new roots.",
+  "cache_format": 26,
+  "normal_metadata": 12,
+  "task_metadata": 5,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

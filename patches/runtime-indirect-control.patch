@@ -1,0 +1,141 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2370,6 +2370,15 @@
+                 if region is not None:
+                     native_region_collector.append(region)
+                 continue
++            # Independent raw source/typed architectural indirect transfer.
++            # Callable mode14/15 host-dispatch refusal remains unchanged.
++            if region_insn.opcode in (0x6c,0x7c,0xdc,0xfc):
++                from .native_indirect_control import collect_indirect_control
++                region=collect_indirect_control(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                    exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                if region is not None:native_region_collector.append(region)
++                continue
+             if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
+                 continue
+             from snes65816 import INDIR_Y, STK, STK_IY, LONG
+diff --git a/recompiler/v2/native_indirect_control.py b/recompiler/v2/native_indirect_control.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/native_indirect_control.py
+@@ -0,0 +1,47 @@
++"""Original architectural indirect transfers, never host callee/dispatch roots."""
++from snes65816 import INDIR,INDIR_X,decode_insn,rom_offset
++from snes_cycles import instr_cpu_cycles
++from .ir import IndirectGoto,Call
++from .lowering import lower
++
++FORMS={0x6c:('JMP',INDIR),0x7c:('JMP',INDIR_X),0xdc:('JMP',INDIR),0xfc:('JSR',INDIR_X)}
++
++def collect_indirect_control(rom,key,insn,ops,cycles,*,data_regions=(),exclude_ranges=(),forced=()):
++    # A source CFG instruction boundary supplies modes; never an observed PC.
++    if key.m not in(0,1)or key.x not in(0,1)or insn.data_region_exec:return None
++    if getattr(insn,'const_z_fold_unconditional',False):return None
++    if insn.opcode not in FORMS or(insn.mnem,insn.mode)!=FORMS[insn.opcode]or insn.length!=3:return None
++    pc=insn.addr&0xffffff
++    if key.pc&65535!=pc&65535 or pc&65535<0x8000 or pc&65535>0xfffd or pc>>16 in(0x7e,0x7f):return None
++    if(getattr(insn,'m_flag',None),getattr(insn,'x_flag',None))!=(key.m,key.x):return None
++    for n in range(3):
++        at=pc+n
++        if at&0x7fffff in forced or any(at>>16 in(b,b^128)and lo<=at&65535<hi for b,lo,hi in data_regions)or any(lo<=at&65535<hi for lo,hi in exclude_ranges):return None
++    off=rom_offset(pc>>16,pc&65535)
++    if off<0 or off+3>len(rom):return None
++    decoded=decode_insn(rom,off,pc&65535,pc>>16,key.m,key.x)
++    if decoded is None or(decoded.opcode,decoded.mnem,decoded.mode,decoded.operand,decoded.length)!=(insn.opcode,insn.mnem,insn.mode,insn.operand,insn.length):return None
++    decoded.m_flag,decoded.x_flag=key.m,key.x
++    canonical=lower(decoded,value_factory=lambda:None)
++    if len(ops)!=1 or ops!=canonical:return None
++    if insn.opcode==0xfc:
++        call=ops[0]
++        if not isinstance(call,Call)or not call.indirect or call.long or call.terminal or call.noreturn or call.target is not None or call.source_pc24!=pc or(call.entry_m,call.entry_x)!=(key.m,key.x):return None
++    elif not isinstance(ops[0],IndirectGoto):return None
++    if cycles!=instr_cpu_cycles(insn.opcode,m=key.m,x=key.x,e=0):return None
++    # Original interp816: opcode operand fetch precedes pointer transactions;
++    # FC completes PB-relative pointer reads before the high/low byte pushes.
++    indexed=insn.opcode in(0x7c,0xfc)
++    bank='cpu->PB'if indexed else'0x00'
++    body='{ uint16 _indirect_operand=cpu_aot_get_indirect_control_operand(cpu,(((uint32)cpu->PB<<16)|0x%04xu),0x%02xu);\n'%(pc&65535,insn.opcode)
++    body+='uint16 _indirect_address=(uint16)(_indirect_operand'+(' + cpu->X'if indexed else'')+');\n'
++    body+='uint16 _indirect_target=cpu_aot_read16(cpu,'+bank+',_indirect_address);\n'
++    if insn.opcode==0xdc:
++        body+='uint8 _indirect_bank=cpu_aot_read8(cpu,0x00,(uint16)(_indirect_address+2u));\ncpu->PB=_indirect_bank;\n'
++    if insn.opcode==0xfc:
++        # This instruction has no host return tag/callee invocation/permit.
++        ret=(pc+2)&65535
++        body+='cpu_aot_write8(cpu,0x00,cpu->S,0x%02xu); cpu->S=(uint16)(cpu->S-1);\n'%(ret>>8)
++        body+='cpu_aot_write8(cpu,0x00,cpu->S,0x%02xu); cpu->S=(uint16)(cpu->S-1);\n'%(ret&255)
++    body+='*next_pc=((uint32)cpu->PB<<16)|_indirect_target; }'
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':3,'cycles':cycles,'bytes':rom[off:off+3].hex(),'next_pc':(pc+3)&65535,'body':body,'mnemonic':insn.mnem,'contract':'source-indirect-control-architectural-v1','original_scheduler_call':insn.opcode==0xfc,'frame_bytes':2 if insn.opcode==0xfc else 0,'dynamic_target':True}
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 23
++CACHE_FORMAT_VERSION = 24
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1351,12 +1351,13 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':10, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':11, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'direct_call_prefix':bool(enable_native_call_prefix),
+                                      'direct_call_contract':'source-direct-call-architectural-prefix-v1',
+                                      'long_jump_contract':'source-long-jump-architectural-prefix-v1',
++                                     'indirect_control_contract':'source-indirect-control-architectural-v1',
+                                      'stack_indirect_y_contract':'native-e0-source-cached-stack-indirect-y-v1',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -848,6 +848,7 @@
+ /* Read-only cached original fetches; invalid transaction use aborts. */
+ void cpu_aot_get_direct_call_operands(CpuState*,uint32,unsigned,CpuAotDirectCallOperands*);
+ uint32 cpu_aot_get_direct_jump_target(CpuState *cpu,uint32 pc24);
++uint16 cpu_aot_get_indirect_control_operand(CpuState *cpu,uint32 pc24,uint8 opcode);
+ 
+ bool cpu_aot_begin_scheduler_region(CpuState*, uint32, unsigned, unsigned, const uint8*, bool (*)(CpuState*, uint32, uint8, uint32*));
+ RecompReturn interp_tier_dispatch_faithful(CpuState*,uint32,uint32,uint16,uint8,bool,uint32);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -628,7 +628,8 @@
+     hooked |= s_pre_opcode_hooks[i].pc24 == key;
+   /* Direct calls consume actual fetched operands. Verify their source mapping
+    * before any fetch even on the unhooked route; refusal has no bus effects. */
+-  if (expected[0] == 0x20u || expected[0] == 0x22u || expected[0] == 0x5cu) {
++  if (expected[0] == 0x20u || expected[0] == 0x22u || expected[0] == 0x5cu ||
++      expected[0] == 0x6cu || expected[0] == 0x7cu || expected[0] == 0xdcu || expected[0] == 0xfcu) {
+     if (!g_snes || !g_snes->cart) return false;
+     for (unsigned byte = 0; byte < length; ++byte) {
+       const uint8_t *rom = cart_getRomPtr(g_snes->cart, cpu->PB, (uint16_t)(pc + byte));
+@@ -719,6 +720,18 @@
+     fputs("Invalid cached direct jump operands\n",stderr);abort();
+   }
+   return ((uint32)s_aot_fetched[3]<<16)|((uint32)s_aot_fetched[2]<<8)|s_aot_fetched[1];
++}
++
++uint16 cpu_aot_get_indirect_control_operand(CpuState *cpu,uint32 pc24,uint8 opcode) {
++  aot_require(cpu);
++  /* Pointer reads belong to the instruction body; this copies only the
++   * already fetched operand word without bus work, clocks or authority. */
++  if(s_aot_pc!=pc24 || s_aot_length!=3u || s_aot_fetched[0]!=opcode ||
++     (opcode!=0x6cu && opcode!=0x7cu && opcode!=0xdcu && opcode!=0xfcu) ||
++     (((uint32)cpu->PB<<16)|(pc24&0xffffu))!=pc24) {
++    fputs("Invalid cached indirect control operands\n",stderr);abort();
++  }
++  return ((uint16)s_aot_fetched[2]<<8)|s_aot_fetched[1];
+ }
+ 
+ uint8 cpu_aot_read8(CpuState *cpu,uint8 b,uint16 a){aot_require(cpu);return bridge_bus_read(cpu,((uint32)b<<16)|a);}

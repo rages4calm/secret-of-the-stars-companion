@@ -1,0 +1,38 @@
+{
+  "patch_sha256": "b9212c9e0df961d1d99f344db9ad2eef7105a3b86ff2c48dced864c1836659be",
+  "files": {
+    "recompiler/v2/cfg_loader.py": {
+      "predecessor_sha256": "e32496f758e61b48b552f45eb46000ba15baaaa5fddeee8cc0fc81ca49b0abd6",
+      "final_sha256": "becf5e517845e3a53d34842ef04dfefe88a485921a9494ae0ef5b173fb68d056",
+      "normalized_final_sha256": "becf5e517845e3a53d34842ef04dfefe88a485921a9494ae0ef5b173fb68d056"
+    },
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": "bf4b8af4c584f0b26e29c31548794d32cb5052714fd10b62ce8cbe687b426e54",
+      "final_sha256": "891b92e35838dcb348cef1ca43635053f15c26dc294d5e3a371bef99cc2b3e30",
+      "normalized_final_sha256": "891b92e35838dcb348cef1ca43635053f15c26dc294d5e3a371bef99cc2b3e30"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "3ad6d7f33c3042828fa5695e7e2a1b8fb194c362d9e9bf1b317a482709395e43",
+      "final_sha256": "2d422000428f4ddf72405c63403851414683d196605014d923677cea95453006",
+      "normalized_final_sha256": "2d422000428f4ddf72405c63403851414683d196605014d923677cea95453006"
+    },
+    "runner/src/task_resume_contract.h": {
+      "predecessor_sha256": "a95f325c96d648994aa10972a93a1319f0c9cd6d6dd1040d7b41d6883ac85348",
+      "final_sha256": "4005ff2c2bcf91868ba06c3ba65db47aae02e27d0c1311afe32319d8a710742a",
+      "normalized_final_sha256": "b18b8e10fe16a18ccbcd84785106852a5899fa1e599277840e417f45177f4c3d"
+    },
+    "runner/src/task_resume_contract.inc": {
+      "predecessor_sha256": "86e9e1a49a4b00ab80762d1e5759fe49e0b57e6a75923de56857cd91ceb9cc96",
+      "final_sha256": "7a80505f4a153037bb3dcad20f704103d81edc8cfa278bb163a7b6f84dda9c88",
+      "normalized_final_sha256": "57abdb69ea553870caebcc23a628951db559ffbb47fe621842ff7f4384fe4183"
+    }
+  },
+  "scope": "Explicit named source E056/E05A statusone selectedtask M1X0 case; bounded independent source/faithful rows, all unknown calls/stack/return/tail original, original snapshot/full24pop/owner/epoch/hooks/common scheduler scope preserved; no outer A904/A908/C406 authority.",
+  "named_directive": "source_task_case_v1 01E000 01E056 01E05A 1 0",
+  "cache_format": 20,
+  "task_metadata": 3,
+  "original_frame_bytes": 11,
+  "api_delta": "TaskResumeRecipe now immutable TaskResumeSourceCase pointer plus bounded1..8count; case mode predicate per original savedP",
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

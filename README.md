@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest development: native 0.5.1 / unchanged Companion 0.3.6.** More source-certified instructions and guarded original-call continuations execute inside the original scheduler. Selected active-travel actors and variable effects extend the wider original view; dormant host observers avoid unnecessary work. [Current scope](docs/FOUNDATION-NATIVE-TRAVEL-CONTINUATIONS-2026-10-12.md). Complete native/AOT execution remains unfinished.
+**Latest development: native 0.5.2 / unchanged Companion 0.3.6.** More source-certified instructions and guarded original-call continuations execute inside the original scheduler. Selected active-travel actors and variable effects extend the wider original view; dormant host observers avoid unnecessary work. [Current scope](docs/FOUNDATION-GROUPED-NATIVE-2026-10-12.md). Complete native/AOT execution remains unfinished.
 
 **Discord:** chrono.trigger
 
@@ -14,7 +14,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.5.1 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.5.2 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The journal has two views: **Current** offers 25 automatic chapter cards with finer current-state leads, and **Guide** lets you browse the full 42-page story walkthrough. Advice recomputes from your current checkpoint; it does not record permanent quest completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
 
@@ -77,7 +77,7 @@ cd secret-of-the-stars-companion
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc"
 ```
 
-The helper fetches the pinned runtime, applies 28 separately checked patches, and uses the standard analyzer/emitter with authored reviewed entry metadata and proved instruction prefixes. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
+The helper fetches the pinned runtime, applies 35 separately checked patches, and uses the standard analyzer/emitter with authored reviewed entry metadata and proved instruction prefixes. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
 
 Build the self-contained launcher with `python tools/build_public_companion.py`, then open `Start Secret of the Stars Companion.cmd` or the generated Companion EXE. Its Setup page validates your ROM and builds/adopts a fresh native profile without private gameplay fixtures. See [BUILDING.md](BUILDING.md). Historical native preview scripts and fixture checkers remain development adapters.
 
@@ -97,7 +97,7 @@ Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in
 
 ## Verification and remaining work
 
-The fresh **native 0.5.1 / unchanged Companion 0.3.6** build has a separate immutable `compiled_unqualified` receipt. Its exact executable passes one stationary 300-frame D3D11/audio route at 60.030 FPS with zero steady audio underflow, missing-frame and audible-drop deltas. Focused native, rendering and input results: three finite runs match all24,744 completed original state/clock/bus/PPU/save-load boundaries; enabled24,706native/38original. Two six-frame staged original-loader effect runs pass61checks with144 independently expected margin pixels at each positive frame. Keyboard/indexed SDL virtual-pad paths pass21checks; root inspected contacts. [Scope and fallback](docs/FOUNDATION-NATIVE-TRAVEL-CONTINUATIONS-2026-10-12.md). Campaign verification belongs to the owner and play testers.
+The fresh **native 0.5.2 / unchanged Companion 0.3.6** build has a separate immutable `compiled_unqualified` receipt. Its exact executable passes one stationary 300-frame D3D11/audio route at 60.030 FPS with zero steady audio underflow, missing-frame and audible-drop deltas. Focused native, rendering and input results: three finite runs match all24,744 completed original state/clock/bus/PPU/save-load boundaries; enabled24,706native/38original. Two six-frame staged original-loader effect runs pass61checks with144 independently expected margin pixels at each positive frame. Keyboard/indexed SDL virtual-pad paths pass21checks; root inspected contacts. [Scope and fallback](docs/FOUNDATION-GROUPED-NATIVE-2026-10-12.md). Campaign verification belongs to the owner and play testers.
 
 The full guide draws on credited written walkthroughs; automatic Current chapter reminders retain the finer source-backed opening-through-Sidon leads. The map keeps its independent automatic destinations and now supports explicit guide-town choices. Current possession is not permanent quest history, and browsing a later page does not mark anything complete. Owner and play testers verify the campaign and report corrections.
 

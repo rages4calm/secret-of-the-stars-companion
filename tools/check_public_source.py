@@ -222,6 +222,24 @@ def main():
             if full not in tracked or sha(ROOT / full) != digest:
                 errors.append('Authored snapshot mismatch: ' + full)
     provenance = json.loads((ROOT / 'SOURCE-PROVENANCE.json').read_text(encoding='utf-8'))
+    # Current generation formats are explicit authored declarations. Historical
+    # predecessor patch formats remain pinned inside their source bindings.
+    try:
+        import importlib.util
+        tree=ast.parse((ROOT/'tools/build_public_foundation.py').read_text(encoding='utf8'))
+        formats=next(ast.literal_eval(n.value)for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='RUNTIME_GENERATION_FORMATS'for t in n.targets))
+        if formats!={'cache':26,'normal':12,'task':5,'redirect':1}or formats!=provenance.get('current_runtime_generation_formats'):raise ValueError('Current runtime formats differ.')
+        spec=importlib.util.spec_from_file_location('public_runtime_bindings',ROOT/'tools/build_public_foundation.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        bindings=module.runtime_extension_bindings()
+        expected=('runtime-original-call-retention','runtime-long-jump-stack-indirect-y','runtime-indirect-control','runtime-task-original-prefix','runtime-interrupt-return')
+        if tuple(r['name']for r in module.RUNTIME_EXTENSION_SPECS)!=expected or len(bindings)!=5 or provenance.get('current_ordered_runtime_patch_count')!=35:raise ValueError('Current extension sequence differs.')
+        for name in ('runtime-selected-task-cases','runtime-direct-call-prefix',*expected):
+            binding=ROOT/'patches'/(name+'.json');patch=binding.with_suffix('.patch');v=json.loads(binding.read_bytes())
+            key=name.removeprefix('runtime-').replace('-','_')
+            if patch.relative_to(ROOT).as_posix()not in tracked or binding.relative_to(ROOT).as_posix()not in tracked or sha(patch)!=v['patch_sha256']or sha(patch)!=provenance[key+'_patch_sha256']or sha(binding)!=provenance[key+'_source_binding_sha256']:raise ValueError('Current patch identity differs: '+name)
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError,StopIteration) as exc:
+        errors.append('Current grouped runtime source binding differs: '+str(exc))
     if provenance['native_version'] != (ROOT / 'native/foundation/VERSION').read_text(encoding='utf-8').strip():
         errors.append('Native version differs from source provenance.')
     companion_version = ET.parse(ROOT / 'Companion/Companion.csproj').findtext('.//Version')
@@ -287,7 +305,7 @@ def main():
                 or sha(continuation_binding)!=provenance.get('native_continuation_source_binding_sha256')
                 or len(names)!=12 or set(names)!=set(binding['files'])
                 or 'validate_continuation_runtime' not in helper
-                or 'ordered-twenty-eight-full-patch-hashes' not in helper):
+                or 'sha256-newline-terminated-ordered-{len(hashes)}-full-patch-hashes' not in helper):
             errors.append('Native continuation patch/source binding differs from the current snapshot.')
     except (OSError,ValueError,KeyError,TypeError) as error:
         errors.append('Native continuation source binding unreadable: '+str(error))
@@ -378,8 +396,8 @@ def main():
                 or sha(stack_binding)!=provenance.get('native_stack_primitives_source_binding_sha256')
                 or len(names)!=2 or set(names)!=set(binding['files'])
                 or sha(stack_patch) not in helper or 'validate_stack_primitives_patch' not in helper
-                or "generated_metadata.get('format_version')!=19" not in helper
-                or "region_metadata.get('format_version')!=8" not in helper
+                or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']" not in helper
+                or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']" not in helper
                 or 'source_cfg_scheduler_instruction' not in helper):
             errors.append('Native stack primitive patch/source binding differs from current snapshot.')
     except (OSError,ValueError,KeyError,TypeError) as error:
@@ -396,8 +414,8 @@ def main():
                 or sha(return_binding)!=provenance.get('native_return_steps_source_binding_sha256')
                 or len(names)!=4 or set(names)!=set(binding['files'])
                 or sha(return_patch) not in helper or 'validate_return_steps_patch' not in helper
-                or "generated_metadata.get('format_version')!=19" not in helper
-                or "region_metadata.get('format_version')!=8" not in helper
+                or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']" not in helper
+                or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']" not in helper
                 or "region_metadata.get('result_contract')!='full_pc24_transient_original_scheduler'" not in helper):
             errors.append('Native return step patch/source binding differs from current snapshot.')
     except (OSError,ValueError,KeyError,TypeError) as error:
@@ -414,8 +432,8 @@ def main():
                 or sha(prefix_instruction_binding)!=provenance.get('native_prefix_instructions_source_binding_sha256')
                 or len(names)!=3 or set(names)!=set(binding['files'])
                 or sha(prefix_instruction_patch) not in helper or 'validate_prefix_instructions_patch' not in helper
-                or "generated_metadata.get('format_version')!=19" not in helper
-                or "region_metadata.get('format_version')!=8" not in helper
+                or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']" not in helper
+                or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']" not in helper
                 or "region_metadata.get('result_contract')!='full_pc24_transient_original_scheduler'" not in helper
                 or "region_metadata.get('instruction_source')!='source_faithful_and_typed_architectural_before_activation_plumbing'" not in helper):
             errors.append('Native prefix instruction patch/source binding differs from current snapshot.')
@@ -450,7 +468,7 @@ def main():
                 or sha(redirect_patch)!=binding['patch_sha256'] or sha(redirect_patch)!=provenance.get('source_redirect_patch_sha256')
                 or sha(redirect_binding)!=provenance.get('source_redirect_source_binding_sha256') or binding.get('scope')!=provenance.get('source_redirect_scope')
                 or len(names)!=8 or set(names)!=set(binding['files']) or sha(redirect_patch) not in helper or sha(redirect_binding) not in helper
-                or 'validate_source_redirect_recipe' not in helper or 'validate_source_redirect_outputs' not in helper or 'ordered-twenty-eight-full-patch-hashes' not in helper or 'Source-first25 generated output allowlist differs.' not in helper or "generated_metadata.get('format_version')!=19" not in helper or "region_metadata.get('format_version')!=8" not in helper or 'native-e0-source-original-redirect-v1' not in helper or 'Source redirect typed architectural row/ROM differs.' not in helper):
+                or 'validate_source_redirect_recipe' not in helper or 'validate_source_redirect_outputs' not in helper or 'sha256-newline-terminated-ordered-{len(hashes)}-full-patch-hashes' not in helper or 'Source-first25 generated output allowlist differs.' not in helper or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']" not in helper or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']" not in helper or 'native-e0-source-original-redirect-v1' not in helper or 'Source redirect typed architectural row/ROM differs.' not in helper):
             errors.append('Source redirect patch/source binding differs from current snapshot.')
         recipe='source_redirect_v1 01D111 00FF20 0084D9 0084FA 01D119 02 01D176'
         recipes=[]
@@ -474,8 +492,8 @@ def main():
                 or binding.get('scope')!=provenance.get('native_stack_controls_scope')
                 or len(names)!=3 or set(names)!=set(binding['files'])
                 or sha(stack_control_patch) not in helper or 'validate_stack_controls_patch' not in helper
-                or "generated_metadata.get('format_version')!=19" not in helper
-                or "region_metadata.get('format_version')!=8" not in helper
+                or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']" not in helper
+                or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']" not in helper
                 or "region_metadata.get('result_contract')!='full_pc24_transient_original_scheduler'" not in helper
                 or "region_metadata.get('stack_control_contract')!='native-e0-typed-architectural-stack-v1'" not in helper
                 or "region_metadata.get('instruction_source')!='source_faithful_and_typed_architectural_before_activation_plumbing'" not in helper):
@@ -485,27 +503,27 @@ def main():
     indirect_patch=ROOT/'patches/runtime-indirect-y.patch';indirect_binding=ROOT/'patches/runtime-indirect-y.json'
     try:
         binding=json.loads(indirect_binding.read_bytes());names=re.findall(r'^diff --git a/(\S+) b/',indirect_patch.read_text(encoding='utf-8'),re.M)
-        if ('patches/runtime-indirect-y.patch' not in tracked or 'patches/runtime-indirect-y.json' not in tracked or sha(indirect_patch)!=binding['patch_sha256'] or sha(indirect_patch)!=provenance.get('indirect_y_patch_sha256') or sha(indirect_binding)!=provenance.get('indirect_y_source_binding_sha256') or binding.get('scope')!=provenance.get('indirect_y_scope') or len(names)!=4 or set(names)!=set(binding['files']) or sha(indirect_patch) not in helper or sha(indirect_binding) not in helper or 'validate_indirect_y_patch' not in helper or 'validate_indirect_y_outputs' not in helper or 'ordered-twenty-eight-full-patch-hashes' not in helper or "generated_metadata.get('format_version')!=19" not in helper or "region_metadata.get('format_version')!=8" not in helper or 'native-e0-source-cached-indirect-y-v1' not in helper or 'cpu_aot_begin_scheduler_region' not in helper):errors.append('IndirectY patch/source binding differs from current snapshot.')
+        if ('patches/runtime-indirect-y.patch' not in tracked or 'patches/runtime-indirect-y.json' not in tracked or sha(indirect_patch)!=binding['patch_sha256'] or sha(indirect_patch)!=provenance.get('indirect_y_patch_sha256') or sha(indirect_binding)!=provenance.get('indirect_y_source_binding_sha256') or binding.get('scope')!=provenance.get('indirect_y_scope') or len(names)!=4 or set(names)!=set(binding['files']) or sha(indirect_patch) not in helper or sha(indirect_binding) not in helper or 'validate_indirect_y_patch' not in helper or 'validate_indirect_y_outputs' not in helper or 'sha256-newline-terminated-ordered-{len(hashes)}-full-patch-hashes' not in helper or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']" not in helper or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']" not in helper or 'native-e0-source-cached-indirect-y-v1' not in helper or 'cpu_aot_begin_scheduler_region' not in helper):errors.append('IndirectY patch/source binding differs from current snapshot.')
     except Exception as error:errors.append('IndirectY binding unreadable: '+str(error))
     callee_patch=ROOT/'patches/runtime-native-task-callee.patch';callee_binding=ROOT/'patches/runtime-native-task-callee.json'
     try:
         binding=json.loads(callee_binding.read_bytes());names=re.findall(r'^diff --git a/(\S+) b/',callee_patch.read_text(encoding='utf-8'),re.M)
-        if ('patches/runtime-native-task-callee.patch' not in tracked or 'patches/runtime-native-task-callee.json' not in tracked or sha(callee_patch)!=binding['patch_sha256'] or sha(callee_patch)!=provenance.get('task_callee_patch_sha256') or sha(callee_binding)!=provenance.get('task_callee_source_binding_sha256') or binding.get('scope')!=provenance.get('task_callee_scope') or len(names)!=5 or set(names)!=set(binding['files']) or sha(callee_patch) not in helper or sha(callee_binding) not in helper or 'validate_task_callee_patch' not in helper or 'task_callee_binding' not in helper or 'ordered-twenty-eight-full-patch-hashes' not in helper or "generated_metadata.get('format_version')!=19" not in helper or "region_metadata.get('format_version')!=8" not in helper or "'selected_task_resume_generation':{'metadata_format':2" not in helper or 'Task callee original subcall/return source differs.' not in helper):errors.append('Task callee patch/source binding differs from current snapshot.')
+        if ('patches/runtime-native-task-callee.patch' not in tracked or 'patches/runtime-native-task-callee.json' not in tracked or sha(callee_patch)!=binding['patch_sha256'] or sha(callee_patch)!=provenance.get('task_callee_patch_sha256') or sha(callee_binding)!=provenance.get('task_callee_source_binding_sha256') or binding.get('scope')!=provenance.get('task_callee_scope') or len(names)!=5 or set(names)!=set(binding['files']) or sha(callee_patch) not in helper or sha(callee_binding) not in helper or 'validate_task_callee_patch' not in helper or 'task_callee_binding' not in helper or 'sha256-newline-terminated-ordered-{len(hashes)}-full-patch-hashes' not in helper or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']" not in helper or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']" not in helper or "'selected_task_resume_generation':{'metadata_format':RUNTIME_GENERATION_FORMATS['task']" not in helper or 'Task callee original subcall/return source differs.' not in helper):errors.append('Task callee patch/source binding differs from current snapshot.')
     except Exception as exc:errors.append('Task callee patch/source binding failed: '+str(exc))
     stack_direct_patch=ROOT/'patches/runtime-stack-direct.patch';stack_direct_binding=ROOT/'patches/runtime-stack-direct.json'
     try:
         binding=json.loads(stack_direct_binding.read_bytes());names=re.findall(r'^diff --git a/(\S+) b/',stack_direct_patch.read_text(encoding='utf-8'),re.M)
-        if ('patches/runtime-stack-direct.patch'not in tracked or 'patches/runtime-stack-direct.json'not in tracked or sha(stack_direct_patch)!=binding['patch_sha256']or sha(stack_direct_patch)!=provenance.get('stack_direct_patch_sha256')or sha(stack_direct_binding)!=provenance.get('stack_direct_source_binding_sha256')or binding.get('scope')!=provenance.get('stack_direct_scope')or len(names)!=3 or set(names)!=set(binding['files'])or sha(stack_direct_patch)not in helper or sha(stack_direct_binding)not in helper or 'validate_stack_direct_patch'not in helper or 'validate_stack_direct_outputs'not in helper or 'ordered-twenty-eight-full-patch-hashes'not in helper or "generated_metadata.get('format_version')!=19"not in helper or "region_metadata.get('format_version')!=8"not in helper or 'native-e0-source-cached-stack-direct-v1'not in helper):errors.append('Stack direct patch/source binding differs from current snapshot.')
+        if ('patches/runtime-stack-direct.patch'not in tracked or 'patches/runtime-stack-direct.json'not in tracked or sha(stack_direct_patch)!=binding['patch_sha256']or sha(stack_direct_patch)!=provenance.get('stack_direct_patch_sha256')or sha(stack_direct_binding)!=provenance.get('stack_direct_source_binding_sha256')or binding.get('scope')!=provenance.get('stack_direct_scope')or len(names)!=3 or set(names)!=set(binding['files'])or sha(stack_direct_patch)not in helper or sha(stack_direct_binding)not in helper or 'validate_stack_direct_patch'not in helper or 'validate_stack_direct_outputs'not in helper or 'sha256-newline-terminated-ordered-{len(hashes)}-full-patch-hashes'not in helper or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']"not in helper or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']"not in helper or 'native-e0-source-cached-stack-direct-v1'not in helper):errors.append('Stack direct patch/source binding differs from current snapshot.')
     except Exception as exc:errors.append('Stack direct patch/source binding failed: '+str(exc))
     host_proof_idle_patch=ROOT/'patches/runtime-host-proof-idle.patch';host_proof_idle_binding=ROOT/'patches/runtime-host-proof-idle.json'
     try:
         binding=json.loads(host_proof_idle_binding.read_bytes());names=re.findall(r'^diff --git a/(\S+) b/',host_proof_idle_patch.read_text(encoding='utf-8'),re.M)
-        if ('patches/runtime-host-proof-idle.patch'not in tracked or 'patches/runtime-host-proof-idle.json'not in tracked or sha(host_proof_idle_patch)!=binding['patch_sha256']or sha(host_proof_idle_patch)!=provenance.get('host_proof_idle_patch_sha256')or sha(host_proof_idle_binding)!=provenance.get('host_proof_idle_source_binding_sha256')or binding.get('scope')!=provenance.get('host_proof_idle_scope')or len(names)!=2 or set(names)!=set(binding['files'])or sha(host_proof_idle_patch)not in helper or sha(host_proof_idle_binding)not in helper or 'validate_host_proof_idle_patch'not in helper or 'host_proof_idle_binding'not in helper or 'ordered-twenty-eight-full-patch-hashes'not in helper or "generated_metadata.get('format_version')!=19"not in helper or "region_metadata.get('format_version')!=8"not in helper):errors.append('Host proof idle patch/source binding differs from current snapshot.')
+        if ('patches/runtime-host-proof-idle.patch'not in tracked or 'patches/runtime-host-proof-idle.json'not in tracked or sha(host_proof_idle_patch)!=binding['patch_sha256']or sha(host_proof_idle_patch)!=provenance.get('host_proof_idle_patch_sha256')or sha(host_proof_idle_binding)!=provenance.get('host_proof_idle_source_binding_sha256')or binding.get('scope')!=provenance.get('host_proof_idle_scope')or len(names)!=2 or set(names)!=set(binding['files'])or sha(host_proof_idle_patch)not in helper or sha(host_proof_idle_binding)not in helper or 'validate_host_proof_idle_patch'not in helper or 'host_proof_idle_binding'not in helper or 'sha256-newline-terminated-ordered-{len(hashes)}-full-patch-hashes'not in helper or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']"not in helper or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']"not in helper):errors.append('Host proof idle patch/source binding differs from current snapshot.')
     except Exception as exc:errors.append('Host proof idle patch/source binding failed: '+str(exc))
     redirect_observer_idle_patch=ROOT/'patches/runtime-redirect-observer-idle.patch';redirect_observer_idle_binding=ROOT/'patches/runtime-redirect-observer-idle.json'
     try:
         binding=json.loads(redirect_observer_idle_binding.read_bytes());names=re.findall(r'^diff --git a/(\S+) b/',redirect_observer_idle_patch.read_text(encoding='utf-8'),re.M)
-        if ('patches/runtime-redirect-observer-idle.patch'not in tracked or 'patches/runtime-redirect-observer-idle.json'not in tracked or sha(redirect_observer_idle_patch)!=binding['patch_sha256']or sha(redirect_observer_idle_patch)!=provenance.get('redirect_observer_idle_patch_sha256')or sha(redirect_observer_idle_binding)!=provenance.get('redirect_observer_idle_source_binding_sha256')or binding.get('scope')!=provenance.get('redirect_observer_idle_scope')or len(names)!=2 or set(names)!=set(binding['files'])or sha(redirect_observer_idle_patch)not in helper or sha(redirect_observer_idle_binding)not in helper or 'validate_redirect_observer_idle_patch'not in helper or 'redirect_observer_idle_binding'not in helper or 'ordered-twenty-eight-full-patch-hashes'not in helper or "generated_metadata.get('format_version')!=19"not in helper or "region_metadata.get('format_version')!=8"not in helper):errors.append('Redirect observer idle patch/source binding differs from current snapshot.')
+        if ('patches/runtime-redirect-observer-idle.patch'not in tracked or 'patches/runtime-redirect-observer-idle.json'not in tracked or sha(redirect_observer_idle_patch)!=binding['patch_sha256']or sha(redirect_observer_idle_patch)!=provenance.get('redirect_observer_idle_patch_sha256')or sha(redirect_observer_idle_binding)!=provenance.get('redirect_observer_idle_source_binding_sha256')or binding.get('scope')!=provenance.get('redirect_observer_idle_scope')or len(names)!=2 or set(names)!=set(binding['files'])or sha(redirect_observer_idle_patch)not in helper or sha(redirect_observer_idle_binding)not in helper or 'validate_redirect_observer_idle_patch'not in helper or 'redirect_observer_idle_binding'not in helper or 'sha256-newline-terminated-ordered-{len(hashes)}-full-patch-hashes'not in helper or "generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache']"not in helper or "region_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal']"not in helper):errors.append('Redirect observer idle patch/source binding differs from current snapshot.')
     except Exception as exc:errors.append('Redirect observer idle patch/source binding failed: '+str(exc))
     reviewed = ROOT / 'native/foundation/recomp/reviewed-roots.json'
     if ('native/foundation/recomp/reviewed-roots.json' not in tracked

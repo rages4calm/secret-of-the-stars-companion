@@ -1,0 +1,39 @@
+{
+  "patch_sha256": "ec77e0a198c56713763920c1346aa80e7342d7c54d8c055633175781629afeb1",
+  "predecessor_patch_sha256": "f89a5e4b7fc3716f4a440353cc1392a3fcb4ee003fc671f033e3ed30fd09b985",
+  "predecessor_binding_sha256": "74fd49aad510fbc0f4d3a3e97b7bef768ad56c3913ab171d9c731a18f8c7236f",
+  "files": {
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "4d1e7fcea904e6c48137873ff335600064e51b2a7ec4b434bfd49c4c49980c76",
+      "final_sha256": "4d678e1baef47e68d0e8db122a7c52b7908e0a32885a77b68748117b64b7231d",
+      "normalized_final_sha256": "4d678e1baef47e68d0e8db122a7c52b7908e0a32885a77b68748117b64b7231d"
+    },
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "d7dc1fad195254c9e4477c0378fc00205d61c454334d711490cf859fa4a31b61",
+      "final_sha256": "aaff68576c5ab16294510c1c5a262d592ab6da6743b57316b62a8d6e432a89ca",
+      "normalized_final_sha256": "aaff68576c5ab16294510c1c5a262d592ab6da6743b57316b62a8d6e432a89ca"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "2779e661158a722dade40df67883d8dd852ad229ea23cad19beb412fa5357526",
+      "final_sha256": "a94ac9107d4302480544ebf921269d01bd792de32e71d059db39a50840a952a7",
+      "normalized_final_sha256": "a94ac9107d4302480544ebf921269d01bd792de32e71d059db39a50840a952a7"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "a9c719580ebaa01f458d383512a89789d0f733abd54888db76125e7d75e71afd",
+      "final_sha256": "c8b7bc9e132b83e3e2e56b9b6a42d24f8ad7141c4e4301b16291ec6e379e092b",
+      "normalized_final_sha256": "c8b7bc9e132b83e3e2e56b9b6a42d24f8ad7141c4e4301b16291ec6e379e092b"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "b5979f45857400eaa8127b00c545e5f62b21bed100b02cb87f768d690c1ab478",
+      "final_sha256": "1f5345cfdabd7e90040351dc118ea1ffc2e9fa9518baf076632ff40fe1c6fee0",
+      "normalized_final_sha256": "1f5345cfdabd7e90040351dc118ea1ffc2e9fa9518baf076632ff40fe1c6fee0"
+    }
+  },
+  "scope": "Original architectural long-JMP and stack-relative indirect-Y data addressing, sequentially composed after retained original-call provenance; current source adds two long-JMP mode rows; no new roots.",
+  "cache_format": 23,
+  "normal_metadata": 10,
+  "task_metadata": 4,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

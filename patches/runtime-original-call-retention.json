@@ -1,0 +1,109 @@
+{
+  "patch_sha256": "f89a5e4b7fc3716f4a440353cc1392a3fcb4ee003fc671f033e3ed30fd09b985",
+  "predecessor_patch_sha256": "772c7d58026c57a5b8c7efff3312ab54e3ccfa81bf2c8ddec7b842774d97c991",
+  "predecessor_binding_sha256": "c00d3caa8195abe1ac362133a92452089c8d72bf0642320bf314a5456636b56e",
+  "files": {
+    "recompiler/v2/codegen.py": {
+      "predecessor_sha256": "808a83ac6db1dbac912de8d30ca8ef10028e8b65978c153cbc8391a5e22cbbf0",
+      "final_sha256": "785fed35ee4c0b9eb67c3252cf5e7674da992ea5639f95a574eeddfaa68cc51e",
+      "normalized_final_sha256": "785fed35ee4c0b9eb67c3252cf5e7674da992ea5639f95a574eeddfaa68cc51e"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "42a3bb0ddf73a3e5db7757a6bd8919a8d36558a249f18dcc202c5083ee4db1a2",
+      "final_sha256": "4d1e7fcea904e6c48137873ff335600064e51b2a7ec4b434bfd49c4c49980c76",
+      "normalized_final_sha256": "4d1e7fcea904e6c48137873ff335600064e51b2a7ec4b434bfd49c4c49980c76"
+    },
+    "recompiler/v2/native_call_prefix.py": {
+      "predecessor_sha256": "9e7488609a26bff99600e21dbcc65d093d3ace1b1f4f43c26ea87fe08eef08dc",
+      "final_sha256": "0d6995d057f9780fc51d876dc8a0ebd45a172dc26a0053369f3a2ebea9aba77e",
+      "normalized_final_sha256": "0d6995d057f9780fc51d876dc8a0ebd45a172dc26a0053369f3a2ebea9aba77e"
+    },
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "b2dcb0b24b013f2543e91e2a6d11475a474b71d4012cc42214e5ba2294b42268",
+      "final_sha256": "d7dc1fad195254c9e4477c0378fc00205d61c454334d711490cf859fa4a31b61",
+      "normalized_final_sha256": "d7dc1fad195254c9e4477c0378fc00205d61c454334d711490cf859fa4a31b61"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "f7799a49fd4d331d74ecf5ef2ed347eb4866229406c7a5614f821dd76f624f6a",
+      "final_sha256": "2779e661158a722dade40df67883d8dd852ad229ea23cad19beb412fa5357526",
+      "normalized_final_sha256": "2779e661158a722dade40df67883d8dd852ad229ea23cad19beb412fa5357526"
+    },
+    "recompiler/v2/task_original_calls.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "b4a1219befcbb75d883a4286c58c907c76abc050fc6ee9c91d3b6616cad6396f",
+      "normalized_final_sha256": "b4a1219befcbb75d883a4286c58c907c76abc050fc6ee9c91d3b6616cad6396f"
+    },
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": "891b92e35838dcb348cef1ca43635053f15c26dc294d5e3a371bef99cc2b3e30",
+      "final_sha256": "07e5996369b4705e3dff34456730b953245d840f9cb1a99b850710b535a5c554",
+      "normalized_final_sha256": "07e5996369b4705e3dff34456730b953245d840f9cb1a99b850710b535a5c554"
+    },
+    "runner/src/common_rtl.c": {
+      "predecessor_sha256": "e2146f5de96ff2a236de50f275525e10a7ad038f06448c9c06c38e9d3179ddb1",
+      "final_sha256": "c5a41ffe13dbda21098050e9ab840bf769ce7b8130c4bd062581c98a898ef038",
+      "normalized_final_sha256": "c5a41ffe13dbda21098050e9ab840bf769ce7b8130c4bd062581c98a898ef038"
+    },
+    "runner/src/cpu_state.c": {
+      "predecessor_sha256": "0a4b53ca254dd66aa81d0d232fc7ad3d29fb2a8739be16820a83c4129c4de7f7",
+      "final_sha256": "69d32e2ac9af6dc83bbd81d3bf6acd075ce187b586ed1a103d828ac18fa8d4d1",
+      "normalized_final_sha256": "69d32e2ac9af6dc83bbd81d3bf6acd075ce187b586ed1a103d828ac18fa8d4d1"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "f045d10a22df9d2df8bc898da16d5032166e59744ed49c72aaa5286336d409c4",
+      "final_sha256": "a9c719580ebaa01f458d383512a89789d0f733abd54888db76125e7d75e71afd",
+      "normalized_final_sha256": "a9c719580ebaa01f458d383512a89789d0f733abd54888db76125e7d75e71afd"
+    },
+    "runner/src/desktop/host_main.c": {
+      "predecessor_sha256": "06adadb980c4eccb4393a3f2abdd258503b1647f66b795bb7bd7a32d517a52f4",
+      "final_sha256": "dbb220e68e5a2b72d054e30886811bd0965a729dd7334ffdfb5037a65bd35596",
+      "normalized_final_sha256": "dbb220e68e5a2b72d054e30886811bd0965a729dd7334ffdfb5037a65bd35596"
+    },
+    "runner/src/snes/bridge_task_call.inc": {
+      "predecessor_sha256": "f470728c8b39ff9767f01da473de9c9f173d473635c466bd9b324c59ca93fe74",
+      "final_sha256": "23248f7c92e1d025f3c2121732d8a9d9657d4848efa053d747d12b3b4e520b41",
+      "normalized_final_sha256": "23248f7c92e1d025f3c2121732d8a9d9657d4848efa053d747d12b3b4e520b41"
+    },
+    "runner/src/snes/bridge_task_helpers.inc": {
+      "predecessor_sha256": "86569e088973f03df80407ee37f687f6bc1b74d094b2054d20c2203561c46583",
+      "final_sha256": "fc8a7938fc70bf6140daae58624a30e5476e9929d940d0e5dd59e82df12d9626",
+      "normalized_final_sha256": "fc8a7938fc70bf6140daae58624a30e5476e9929d940d0e5dd59e82df12d9626"
+    },
+    "runner/src/snes/bridge_task_original_runtime.inc": {
+      "predecessor_sha256": null,
+      "final_sha256": "fc2c3cd95cbda3ef4a6c9b7052378ada8c0e10445c35c79ac44a6afb8d311ed6",
+      "normalized_final_sha256": "fc2c3cd95cbda3ef4a6c9b7052378ada8c0e10445c35c79ac44a6afb8d311ed6"
+    },
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "658acf8afdac221e02b4eb7672512403c2a5c15f0d27c4822f2411d4451ab665",
+      "final_sha256": "72b9fe3a232ef2630b6b4a8a76b0857f782710461d461ccf578d1bfaae3dba90",
+      "normalized_final_sha256": "72b9fe3a232ef2630b6b4a8a76b0857f782710461d461ccf578d1bfaae3dba90"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "411b6e034dd60cca43010cd999345c6fb45f6572404db4c5937e550337468224",
+      "final_sha256": "b5979f45857400eaa8127b00c545e5f62b21bed100b02cb87f768d690c1ab478",
+      "normalized_final_sha256": "b5979f45857400eaa8127b00c545e5f62b21bed100b02cb87f768d690c1ab478"
+    },
+    "runner/src/snes/snes.c": {
+      "predecessor_sha256": "08dc7f6ab2d38a027bed9251ec1de5f03f9f23866eb2f2f0167b309e6da33245",
+      "final_sha256": "38911cfb0328c5c5203b5c9b80093276552dc1f8d313ad40a6eb2ad88fc514c4",
+      "normalized_final_sha256": "38911cfb0328c5c5203b5c9b80093276552dc1f8d313ad40a6eb2ad88fc514c4"
+    },
+    "runner/src/task_original_call_contract.h": {
+      "predecessor_sha256": null,
+      "final_sha256": "6509eb2fd752de81ddb90daa3c3a7f36d1d2b1279b02cf107e1696fdef784b54",
+      "normalized_final_sha256": "6509eb2fd752de81ddb90daa3c3a7f36d1d2b1279b02cf107e1696fdef784b54"
+    },
+    "runner/src/task_original_call_contract.inc": {
+      "predecessor_sha256": null,
+      "final_sha256": "77e1d2424764e16de977b041c1cd51ccd4b9d1a6bc1dacc0447e9e0e6f676057",
+      "normalized_final_sha256": "77e1d2424764e16de977b041c1cd51ccd4b9d1a6bc1dacc0447e9e0e6f676057"
+    }
+  },
+  "scope": "Source-owned original scheduler call retention with actual source fetch, ordered writes/pop/return and original same-owner publication; additive integration of selected-case and direct-call predecessors; no new roots.",
+  "cache_format": 22,
+  "normal_metadata": 9,
+  "task_metadata": 4,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

@@ -1,0 +1,168 @@
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 24
++CACHE_FORMAT_VERSION = 25
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1329,9 +1329,6 @@
+             if stale.name not in planned:
+                 stale.unlink()
+ 
+-        from .task_resume import emit_source as emit_task_resume
+-        write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+-        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':4,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+         from .source_redirect import emit_source as emit_redirect
+         write_if_changed(staging/'native_source_redirect_v2.c',emit_redirect(redirect_rows,redirect_recipe,module_prefix))
+         write_if_changed(staging/'native_source_redirect.json',json.dumps({'format_version':1,'kind':'source_bound_original_redirect','recipe':{k:v for k,v in redirect_recipe.items()if k!='spans'}if redirect_recipe else None,'rows':redirect_rows},indent=2,sort_keys=True)+'\n')
+@@ -1348,6 +1345,11 @@
+                 raise ValueError('Conflicting native region mode/body '+repr((unique_regions[rk],region)))
+             unique_regions[rk] = region
+         regions = [unique_regions[k] for k in sorted(unique_regions)]
++        from .task_resume import append_original_prefixes
++        task_rows,task_recipe=append_original_prefixes(rom,parsed,task_rows,task_recipe,regions)
++        from .task_resume import emit_source as emit_task_resume
++        write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
++        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':5,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+diff --git a/recompiler/v2/task_resume.py b/recompiler/v2/task_resume.py
+--- a/recompiler/v2/task_resume.py
++++ b/recompiler/v2/task_resume.py
+@@ -150,10 +150,50 @@
+   unique[k]=row
+  return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'cases':cases,'spans':spans,'original_calls':original_family,'subcall':{'call':0x01d80f,'callee':0x01d87f,'return':0x01d8b0,'landing':0x01d812,'entry_m':1,'entry_x':[0,1],'exit_m':0,'exit_x':0,'same_owner':True,'rows':subcall_rows}},graphs
+ 
++def append_original_prefixes(rom,parsed,rows,recipe,normal_rows):
++ # Independently source-decoded callee context membership, not ordinary roots.
++ if not recipe or not recipe.get('original_calls'):return rows,recipe
++ data=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++ cfg={c.bank:c for _b,_p,c in parsed}
++ forced={p&0x7fffff for _b,_p,c in parsed for p in c.force_lle}
++ family=recipe['original_calls'];graphs=family['graphs']
++ exits={tuple(g['entry']):{(m,x)for _,m,x,_ in g['exits']}for g in graphs}
++ ordinary={(r['pc24'],r['m'],r['x'])for r in normal_rows}
++ existing={(r['pc24'],r['m'],r['x'])for r in rows};unique={};members={}
++ for index,g in enumerate(graphs):
++  if g['errors']:raise ValueError('unclosed contextual callee graph')
++  pc,m,x=g['entry'];local=[]
++  emit_function(rom,pc>>16,pc&65535,m,x,func_name='OriginalOwnedPrefixDerivation',data_regions=data,
++   exclude_ranges=cfg[pc>>16].exclude_ranges,callee_exit_mx_modes=exits,native_region_collector=local)
++  source={(r['pc24'],r['m'],r['x']):r for r in g['rows']}
++  for row in local:
++   key=(row['pc24'],row['m'],row['x']);i=source.get(key)
++   if i is None or key in ordinary or key in existing:continue
++   if i['mnemonic']in ('JSR','JSL','RTS','RTL'):continue
++   if any(((i['pc24']+n)&0x7fffff)in forced or any((i['pc24']>>16)in(b,b^128)and lo<=((i['pc24']+n)&65535)<hi for b,lo,hi in data)for n in range(i['length'])):continue
++   if any(row[k]!=i[k]for k in ('pc24','m','x','length','bytes','mnemonic')):raise ValueError('contextual source/body identity mismatch')
++   if key in unique and unique[key]!=row:raise ValueError('context dependent original prefix body')
++   unique[key]=row;members.setdefault(key,[]).append(index)
++ added=[]
++ for key in sorted(unique):
++  row=dict(unique[key]);row['contract']='native-e0-original-owned-callee-prefix-v1';row['original_contexts']=members[key];added.append(row)
++ recipe=dict(recipe);recipe['original_prefix_keys']=[{'pc24':r['pc24'],'m':r['m'],'x':r['x'],'contexts':r['original_contexts']}for r in added]
++ return sorted(rows+added,key=lambda r:(r['pc24'],r['m'],r['x'])),recipe
++
+ def emit_source(rows,recipe,module_prefix=None):
+  code=emit(rows,module_prefix).replace('cpu_native_region_step','cpu_source_task_region_step')
+  code=code.replace('extern SnesProgramModule g_program_module;','extern SnesProgramModule g_program_module;\n#include "task_resume_contract.h"\nextern bool cpu_source_task_resume_active(CpuState *,uint32,uint8);')
+- code=code.replace('  switch (((pc24&0x7fffffu)<<2)|mx) {','  if(!cpu_source_task_resume_active(cpu,pc24,mx)) return false;\n  switch (((pc24&0x7fffffu)<<2)|mx) {')
++ # Each case preserves its own authority namespace. Contextual rows cannot
++ # borrow selected-resume publication, nor authorize unrelated task rows.
++ for row in rows:
++  case=(row['pc24']<<2)|(row['m']<<1)|row['x']
++  marker=f'    case {case}u: {{'
++  if 'original_contexts'in row:
++   members=' || '.join(f'context=={n}u'for n in row['original_contexts'])
++   guard='unsigned context; if(!cpu_source_task_original_context(cpu,pc24,mx,&context) || !('+members+')) return false;'
++  else:guard='if(!cpu_source_task_resume_active(cpu,pc24,mx)) return false;'
++  if code.count(marker)!=1:raise ValueError('contextual prefix case layout changed')
++  code=code.replace(marker,marker+'\n      '+guard,1)
+  if recipe:
+   r=recipe;cases=r['cases']
+   code+='\nstatic const TaskResumeSourceCase s_native_task_cases[]={'+','.join('{'+f"{c['callsite']}u,{c['landing']}u,{c['p_mask']}u,{c['p_value']}u"+'}'for c in cases)+'};\n'
+@@ -169,4 +209,10 @@
+   for row in recipe['subcall']['rows']:
+    code+=f"case {(row['pc24']<<2)|(row['m']*2+row['x'])}u: *len={row['length']}u;*fall={row['fall']}u;*branch={row['branch']}u;*op={row['opcode']}u;return 1;\n"
+   code+='default:return 0;} }\n'
++ code+='\nbool cpu_source_task_original_prefix_member(uint32 pc,uint8 mx,unsigned context){if(mx>3u)return false;switch((pc<<2)|mx){\n'
++ for row in rows:
++  if 'original_contexts'in row:
++   members=' || '.join(f'context=={n}u'for n in row['original_contexts'])
++   code+=f"case {(row['pc24']<<2)|(row['m']*2+row['x'])}u:return {members};\n"
++ code+='default:return false;} }\n'
+  return code+emit_original_calls(recipe)
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -886,5 +886,8 @@
+ void cpu_source_call_native_push(CpuState *,uint32,unsigned);
+ void cpu_source_call_fp_entry(CpuState *,uint32,unsigned,unsigned,uintptr_t);
+ void cpu_source_call_generated_parent_retained(CpuState *,uint32,uint32);
++/* Readonly owned-context query; admission still consumes the original scheduler scope. */
++bool cpu_source_task_original_context(CpuState *,uint32,uint8,unsigned *);
++bool cpu_source_task_original_prefix_member(uint32,uint8,unsigned);
+ 
+ void interp_bridge_source_call_bus_transaction(CpuState *,uint8,uint16,unsigned);
+diff --git a/runner/src/snes/bridge_task_call.inc b/runner/src/snes/bridge_task_call.inc
+--- a/runner/src/snes/bridge_task_call.inc
++++ b/runner/src/snes/bridge_task_call.inc
+@@ -133,6 +133,8 @@
+ static uint64_t s_task_original_invocation_serial;
+ static bool s_task_original_invocation_exhausted;
+ #define s_task_original_invocation s_task_original_invocations[s_task_original_invocation_count?s_task_original_invocation_count-1u:0u]
++/* Absent generated contextual table retains original normal dispatch. */
++__attribute__((weak)) bool cpu_source_task_original_prefix_member(uint32 pc,uint8 mx,unsigned context){(void)pc;(void)mx;(void)context;return false;}
+ __attribute__((weak)) int cpu_source_task_original_graph(uint32 pc,uint8 mx,unsigned *out){(void)pc;(void)mx;(void)out;return 0;}
+ __attribute__((weak)) const TaskOriginalInstruction *cpu_source_task_original_row(unsigned graph,uint32 pc,uint8 mx){(void)graph;(void)pc;(void)mx;return NULL;}
+ __attribute__((weak)) int cpu_source_task_original_row_matches(const TaskOriginalInstruction *r,TaskResumePeek peek,void *ctx){(void)r;(void)peek;(void)ctx;return 0;}
+diff --git a/runner/src/snes/bridge_task_original_runtime.inc b/runner/src/snes/bridge_task_original_runtime.inc
+--- a/runner/src/snes/bridge_task_original_runtime.inc
++++ b/runner/src/snes/bridge_task_original_runtime.inc
+@@ -193,6 +193,22 @@
+  }
+  x->before=*v;x->source=source;x->opcode=opcode;x->prepared=1;return 1;
+ }
++/* Readonly source/epoch query. The generated case separately consumes common24
++ * scheduler scope before fetch; this cannot manufacture an owner or entry. */
++bool cpu_source_task_original_context(CpuState *c,uint32 source,uint8 mx,unsigned *context){
++ if(!context||mx>3u||!task_original_runtime_allowed()||!s_task_original_call.phase)return false;
++ TaskOriginalCall *p=&s_task_original_call;TaskOriginalExecution *x=&s_task_original_exec;
++ TaskResumeState v=task_cpu_view(c,source);
++ if(p->phase!=TASK_ORIGINAL_RUNNING||!p->depth||p->depth>2u||p->inflight||p->return_pending||
++    !x->prepared||x->inflight||x->source!=source||!x->row||s_task_original_pop.valid||
++    !task_original_environment(c,&v)||!task_original_registers(&v,&x->before)||
++    mx!=(((v.p>>5)&1u)*2u+((v.p>>4)&1u)))return false;
++ unsigned graph=x->graph[p->depth-1u];
++ const TaskOriginalInstruction *row=cpu_source_task_original_row(graph,source,mx);
++ if(!row||row!=x->row||row->bytes[0]==0x20u||row->bytes[0]==0x22u||row->bytes[0]==0x60u||row->bytes[0]==0x6bu||
++    !cpu_source_task_original_row_matches(row,task_peek,c))return false;
++ *context=graph;return true;
++}
+ static void task_original_pre_local(CpuState *c,const Interp816 *in,uint32 source){
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  TaskResumeState v=task_local_view(c,in,source);task_original_prepare(c,&v,source);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -3027,8 +3027,12 @@
+         task_original_arm_local(cpu,&in,pc_before);
+         task_original_pre_local(cpu,&in,pc_before);
+         const int source_task_dispatch=task_pre_opcode(cpu,pc_before,coverage_mx);
+-        if(source_task_dispatch)region_dispatch=cpu_source_task_region_step;
+-        const int source_redirect_dispatch=!source_task_dispatch&&redirect_pre_opcode(cpu,pc_before,coverage_mx);
++        unsigned source_original_context;
++        const int source_original_dispatch=!source_task_dispatch&&
++            cpu_source_task_original_context(cpu,pc_before,coverage_mx,&source_original_context)&&
++            cpu_source_task_original_prefix_member(pc_before,coverage_mx,source_original_context);
++        if(source_task_dispatch||source_original_dispatch)region_dispatch=cpu_source_task_region_step;
++        const int source_redirect_dispatch=!source_task_dispatch&&!source_original_dispatch&&redirect_pre_opcode(cpu,pc_before,coverage_mx);
+         if(source_redirect_dispatch)region_dispatch=cpu_source_redirect_region_step;
+         const SchedulerHookHandoff previous_handoff = s_scheduler_hook_handoff;
+         s_scheduler_hook_handoff = (SchedulerHookHandoff){0};

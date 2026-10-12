@@ -1,0 +1,185 @@
+--- a/recompiler/v2/cfg_loader.py
++++ b/recompiler/v2/cfg_loader.py
+@@ -81,6 +81,7 @@
+ class BankCfg:
+     bank: int
+     source_task_resumes: list = field(default_factory=list)
++    source_task_cases: list = field(default_factory=list)
+     source_redirects: list = field(default_factory=list)
+     includes: List[str] = field(default_factory=list)
+     entries: List[BankEntry] = field(default_factory=list)
+@@ -282,6 +283,11 @@
+                 if tokens!=['source_redirect_v1','01D111','00FF20','0084D9','0084FA','01D119','02','01D176']:raise ValueError('unreviewed source redirect recipe')
+                 cfg.source_redirects.append(tuple(int(t,16)for t in tokens[1:]))
+                 continue
++            if head == 'source_task_case_v1':
++                if tokens != ['source_task_case_v1','01E000','01E056','01E05A','1','0']:
++                    raise ValueError('unreviewed source-selected task case')
++                cfg.source_task_cases.append(tuple(_parse_hex(v) for v in tokens[1:]))
++                continue
+             if head == 'source_task_resume_v1':
+                 if len(tokens)!=8:raise ValueError('source_task_resume_v1 requires seven exact source PCs')
+                 recipe=tuple(_parse_hex(v) for v in tokens[1:])
+--- a/recompiler/v2/task_resume.py
++++ b/recompiler/v2/task_resume.py
+@@ -5,8 +5,54 @@
+ from .emit_function import emit_function
+ from .native_regions import emit
+ 
++def derive_named_case(rom,spec,callee,data,forced,module_prefix=None):
++ if spec!=(0x01e000,0x01e056,0x01e05a,1,0) or module_prefix or callee!=0x00ff03:
++  raise ValueError('unreviewed named selected-task case')
++ entry,call,landing,m,x=spec
++ raw=lambda p,n:rom[rom_offset(p>>16,p&65535):rom_offset(p>>16,p&65535)+n]
++ # Independent source path from existing reviewed E000, not a new root.
++ pre=decode_function(rom,1,entry&65535,0,0,end=landing&65535,max_insns=64,data_regions=data,stop_on_unknown_callee_exit=True)
++ expected=[('JMP',0xe024),('REP',0x30),('PHD',0),('LDA',0x1400),('TCD',0),('LDA',0x45f),('STA',0x54),('LDA',0x461),('STA',0x56),('LDA',0x463),('STA',0x58),('LDA',0x44f),('STA',0x10),('ASL',0),('TAX',0),('LDA',0x0cc800),('STA',0x15),('SEP',0x20),('LDA',0x0c),('STA',0x17),('LDA',0x80),('STA',0x542),('SEP',0x20),('LDA',1),('JSL',callee)]
++ ordered=sorted(pre.insns.items(),key=lambda pair:pair[0].pc)
++ if [(d.insn.mnem,d.insn.operand)for k,d in ordered]!=expected or pre.unresolved_indirects:
++  raise ValueError('named suspension source path changed')
++ if [(k.pc,k.m,k.x)for k,d in ordered if d.insn.mnem=='JSL']!=[(call,m,x)]:
++  raise ValueError('named suspension source mode changed')
++ if raw(call-4,8)!=b'\xe2\x20\xa9\x01\x22'+callee.to_bytes(3,'little') or raw(0x01e003,3)!=b'\x4c\x84\xe1' or raw(0x01e070,4)!=b'\x22\x1b\xe0\x01' or raw(0x01e171,3)!=b'\x4c\x2a\x8c':
++  raise ValueError('named suspension source call/bound changed')
++ # The original next entry is E184; an external E171 tail remains original.
++ graph=decode_function(rom,1,landing&65535,m,x,end=0xe184,max_insns=256,data_regions=data,stop_on_unknown_callee_exit=True)
++ internal=[(k,d)for k,d in graph.insns.items()if landing<=k.pc<0x01e171]
++ all_source=ordered+internal
++ spans=[]
++ for key,di in all_source:
++  insn=di.insn
++  for n in range(insn.length):
++   pc=(insn.addr&0xff0000)|((insn.addr+n)&65535)
++   if pc&0x7fffff in forced or any((pc>>16)in(bank,bank^128)and lo<=pc&65535<hi for bank,lo,hi in data):
++    raise ValueError('named selected-task source overlaps mask')
++  spans.append((insn.addr,raw(insn.addr,insn.length)))
++ for source_pc,length in ((0x01e003,3),(0x01e171,3)):
++  for pc in range(source_pc,source_pc+length):
++   if pc&0x7fffff in forced or any((pc>>16)in(bank,bank^128)and lo<=pc&65535<hi for bank,lo,hi in data):raise ValueError('named selected-task bound overlaps mask')
++  spans.append((source_pc,raw(source_pc,length)))
++ local=[]
++ emit_function(rom,1,landing&65535,m,x,end=0xe184,func_name='NamedTaskSourceDerivation',data_regions=data,
++  exclude_ranges=[(p&65535,(p&65535)+1)for p in forced if p>>16==1],native_region_collector=local,
++  source_task_resume_stops=graph.unknown_callee_exit_sites)
++ allowed={(k.pc,k.m,k.x):d.insn for k,d in internal};rows=[]
++ for row in local:
++  key=(row['pc24'],row['m'],row['x'])
++  if key not in allowed or row['mnemonic']in('JSR','JSL','RTS','RTL','TCS','TXS','PLP','PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD'):continue
++  insn=allowed[key]
++  if row['bytes']!=raw(insn.addr,insn.length).hex():raise ValueError('named selected-task row source mismatch')
++  row['contract']='native-e0-source-selected-task-resume-v1';rows.append(row)
++ return rows,{'callsite':call,'landing':landing,'p_mask':0x30,'p_value':0x20},spans,{'landing':landing,'m':m,'x':x,'decoded_rows':len(internal),'call_barriers':[v for v in graph.unknown_callee_exit_sites if landing<=v[0]<0x01e171],'original_tail_barrier':0x01e171,'external_rows_not_admitted':len(graph.insns)-len(internal)}
++
+ def derive(rom,parsed,module_prefix=None):
+  specs=[s for _b,_p,c in parsed for s in getattr(c,'source_task_resumes',())]
++ named=[s for _b,_p,c in parsed for s in getattr(c,'source_task_cases',())]
++ if len(named)>1 or named and not specs:raise ValueError('named selected-task recipe count/base refusal')
+  if len(specs)>1:raise ValueError('one selected-task recipe per module')
+  if specs and module_prefix:raise ValueError('selected-task recipe requires default module ownership')
+  if not specs:return [],None,[]
+@@ -75,19 +121,25 @@
+     if any(((row['pc24']&0xff0000)|((row['pc24']+j)&65535))&0x7fffff in forced for j in range(row['length'])):continue
+     row['contract']='native-e0-source-selected-task-resume-v1';rows.append(row)
+    graphs.append({'landing':landing,'m':1,'x':x,'decoded_rows':len(graph.insns),'call_barriers':graph.unknown_callee_exit_sites})
++ cases=[{'callsite':c,'landing':c+4,'p_mask':0x20,'p_value':0x20}for c in (call0,call1)]
++ for spec in named:
++  new_rows,case,new_spans,new_graph=derive_named_case(rom,spec,callee,data,forced,module_prefix)
++  rows.extend(new_rows);cases.append(case);spans.extend(new_spans);graphs.append(new_graph)
+  unique={}
+  for row in rows:
+   k=(row['pc24'],row['m'],row['x'])
+   if k in unique and unique[k]!=row:raise ValueError('selected-task mode/body conflict')
+   unique[k]=row
+- return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'spans':spans,'subcall':{'call':0x01d80f,'callee':0x01d87f,'return':0x01d8b0,'landing':0x01d812,'entry_m':1,'entry_x':[0,1],'exit_m':0,'exit_x':0,'same_owner':True,'rows':subcall_rows}},graphs
++ return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'cases':cases,'spans':spans,'subcall':{'call':0x01d80f,'callee':0x01d87f,'return':0x01d8b0,'landing':0x01d812,'entry_m':1,'entry_x':[0,1],'exit_m':0,'exit_x':0,'same_owner':True,'rows':subcall_rows}},graphs
+ 
+ def emit_source(rows,recipe,module_prefix=None):
+  code=emit(rows,module_prefix).replace('cpu_native_region_step','cpu_source_task_region_step')
+  code=code.replace('extern SnesProgramModule g_program_module;','extern SnesProgramModule g_program_module;\n#include "task_resume_contract.h"\nextern bool cpu_source_task_resume_active(CpuState *,uint32,uint8);')
+  code=code.replace('  switch (((pc24&0x7fffffu)<<2)|mx) {','  if(!cpu_source_task_resume_active(cpu,pc24,mx)) return false;\n  switch (((pc24&0x7fffffu)<<2)|mx) {')
+  if recipe:
+-  r=recipe;calls=r['calls'];code+='\nconst TaskResumeRecipe g_native_task_resume_recipe={'+f"{r['select']}u,{r['return']}u,{r['callee']}u,1u,16u,18u,12u,4u,1u,11u,{{{calls[0]}u,{calls[1]}u}},{{{calls[0]+4}u,{calls[1]+4}u}}"+'};\n'
++  r=recipe;cases=r['cases']
++  code+='\nstatic const TaskResumeSourceCase s_native_task_cases[]={'+','.join('{'+f"{c['callsite']}u,{c['landing']}u,{c['p_mask']}u,{c['p_value']}u"+'}'for c in cases)+'};\n'
++  code+='const TaskResumeRecipe g_native_task_resume_recipe={'+f"{r['select']}u,{r['return']}u,{r['callee']}u,1u,16u,18u,12u,4u,1u,11u,s_native_task_cases,{len(cases)}u"+'};\n'
+   code+='int cpu_source_task_recipe_matches(int (*peek)(void *,uint32,unsigned char *),void *ctx) {\n unsigned char b;\n'
+   for pc,raw in r['spans']:
+    for n,value in enumerate(raw):code+=f' if(!peek(ctx,{pc+n}u,&b)||b!={value}u)return 0;\n'
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 19
++CACHE_FORMAT_VERSION = 20
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1326,7 +1326,7 @@
+ 
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+-        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':2,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
++        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':3,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+         from .source_redirect import emit_source as emit_redirect
+         write_if_changed(staging/'native_source_redirect_v2.c',emit_redirect(redirect_rows,redirect_recipe,module_prefix))
+         write_if_changed(staging/'native_source_redirect.json',json.dumps({'format_version':1,'kind':'source_bound_original_redirect','recipe':{k:v for k,v in redirect_recipe.items()if k!='spans'}if redirect_recipe else None,'rows':redirect_rows},indent=2,sort_keys=True)+'\n')
+--- a/runner/src/task_resume_contract.h
++++ b/runner/src/task_resume_contract.h
+@@ -5,10 +5,16 @@
+ 
+ /* Transient proof state only. Original guest WRAM is the suspended task. */
+ typedef struct {
++ uint32_t callsite,landing;
++ uint8_t p_mask,p_value;
++} TaskResumeSourceCase;
++
++typedef struct {
+  uint32_t select_pc, return_pc, callee_pc;
+  uint16_t current_index, status_base, saved_s_base;
+  uint8_t count, stride, status, frame_bytes;
+- uint32_t callsite[2], landing[2];
++ const TaskResumeSourceCase *cases;
++ uint8_t case_count;
+ } TaskResumeRecipe;
+ typedef struct {
+  uintptr_t cpu, module, owner;
+--- a/runner/src/task_resume_contract.inc
++++ b/runner/src/task_resume_contract.inc
+@@ -16,7 +16,7 @@
+  if(!s)return 0;task_resume_reset(s);
+  if(!r||!v||!peek||v->e||!v->cpu||!v->module||!v->owner||
+     source_pc!=r->select_pc||v->pc!=r->select_pc+1||r->count!=12||r->stride!=4||r->status!=1||
+-    r->frame_bytes!=11||v->s>0x1ff4)return 0;
++    r->frame_bytes!=11||!r->cases||!r->case_count||r->case_count>8||v->s>0x1ff4)return 0;
+  uint16_t index,saved;uint8_t status,delay;
+  if(!peekword(peek,ctx,r->current_index,&index)||index!=v->x||
+     index%r->stride||index>=r->count*r->stride||
+@@ -25,15 +25,21 @@
+     !peekword(peek,ctx,r->saved_s_base+index,&saved)||saved!=v->s||saved!=v->a)return 0;
+  uint8_t frame[11];
+  for(unsigned n=0;n<11;n++)if(!peek(ctx,saved+1+n,&frame[n]))return 0;
+- /* Both source suspension callsites immediately SEP20 before JSL FF03.
+-    Saved X is symbolic and becomes the exact runtime variant selector. */
++ /* Each named source case owns its saved-P mode predicate.
++    Existing two cases keep symbolic X; E056 requires exact M1X0. */
+  if(!(frame[7]&0x20))return 0;
+  uint32_t landing=((uint32_t)frame[10]<<16)|(uint16_t)(word(frame+8)+1);
+  int found=0;
+- for(unsigned n=0;n<2;n++)if(landing==r->landing[n]) {
+-   uint8_t call[4];for(unsigned j=0;j<4;j++)if(!peek(ctx,r->callsite[n]+j,&call[j]))return 0;
++ for(unsigned n=0;n<r->case_count;n++) {
++   const TaskResumeSourceCase *c=&r->cases[n];
++   if(c->p_mask!=0x20&&c->p_mask!=0x30)return 0;
++   if(c->p_value!=0x20||c->landing!=c->callsite+4)return 0;
++   for(unsigned j=0;j<n;j++)if(r->cases[j].landing==c->landing)return 0;
++   if(landing!=c->landing)continue;
++   if((frame[7]&c->p_mask)!=c->p_value)return 0;
++   uint8_t call[4];for(unsigned j=0;j<4;j++)if(!peek(ctx,c->callsite+j,&call[j]))return 0;
+    uint32_t target=call[1]|((uint32_t)call[2]<<8)|((uint32_t)call[3]<<16);
+-   found=call[0]==0x22&&target==r->callee_pc&&r->landing[n]==r->callsite[n]+4;
++   found=call[0]==0x22&&target==r->callee_pc;
+  }
+  if(!found)return 0;
+  s->epoch=*v;s->recipe=r;s->index=index;s->saved_s=saved;
