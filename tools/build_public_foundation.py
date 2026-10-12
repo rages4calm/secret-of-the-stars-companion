@@ -29,6 +29,37 @@ ACCUMULATOR_UNIT_SHA256='1c2dea4f5c973ce732adebdafe5331fd09d5411088aadfab2674e06
 ACCUMULATOR_PREDECESSOR_CRLF_SHA256='9848f8cdcc1c546b3830924551b8cba2aef43be8d77a934122ca4035b4a775a3'
 ACCUMULATOR_PREDECESSOR_LF_SHA256='8b395ddd799dc556a4955fb1d0c427509325e93e20447410906b126992183622'
 ACCUMULATOR_OUTPUT_CRLF_SHA256='b70f61231eec6ea4fad829a06c5fd766c716d96d79842a08fb19974834bf322d'
+CONTINUATION_BINDING=ROOT/'patches/runtime-native-continuations.json'
+NATIVE_CONTINUATION_PATCH_SHA256='0644e52f0c41520fb582270f38f06871f6bc9a002bf12765b4063561546c42db'
+
+def continuation_binding():
+    value=json.loads(CONTINUATION_BINDING.read_bytes())
+    if value.get('patch_sha256')!=NATIVE_CONTINUATION_PATCH_SHA256 or not isinstance(value.get('files'),dict) or len(value['files'])!=12:
+        raise RuntimeError('Native continuation twelve-file source binding missing/stale.')
+    return value
+
+def validate_continuation_patch(path):
+    binding=continuation_binding()
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=12 or set(names)!=set(binding['files']):
+        raise RuntimeError('Native continuation patch identity/scope changed; preserve build.')
+    return names
+
+def validate_continuation_runtime(runtime,normalize=False):
+    for name,record in continuation_binding()['files'].items():
+        path=runtime/name;reject_links(path);raw=path.read_bytes()
+        if hashlib.sha256(raw.replace(b'\r\n',b'\n')).hexdigest()!=record['normalized_final_sha256']:
+            raise RuntimeError('Native continuation source differs: '+name)
+        if normalize and sha(path)!=record['final_sha256']:
+            # Git may restore platform line endings. Restore only the exact
+            # source-bound representation; content must already match above.
+            normalized=raw.replace(b'\r\n',b'\n')
+            options=(normalized,normalized.replace(b'\n',b'\r\n'))
+            exact=next((item for item in options if hashlib.sha256(item).hexdigest()==record['final_sha256']),None)
+            if exact is None:raise RuntimeError('Unrecognized source line-ending contract: '+name)
+            path.write_bytes(exact)
+        if sha(path)!=record['final_sha256']:
+            raise RuntimeError('Native continuation exact source identity differs: '+name)
 
 def runtime_source_accounting(runtime,patch_names,new_names=()):
     tracked=set(command(['git','diff','--name-only'],runtime).splitlines())
@@ -38,10 +69,10 @@ def runtime_source_accounting(runtime,patch_names,new_names=()):
 
 def runtime_cache_identity(patch_hashes):
     hashes=list(patch_hashes)
-    if len(hashes)!=11 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
-        raise ValueError('Runtime cache requires exactly eleven ordered full patch hashes')
+    if len(hashes)!=12 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
+        raise ValueError('Runtime cache requires exactly twelve ordered full patch hashes')
     combined=hashlib.sha256(('\n'.join(hashes)+'\n').encode('ascii')).hexdigest()
-    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-eleven-full-patch-hashes',
+    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-twelve-full-patch-hashes',
       'ordered_patch_sha256':hashes,'combined_patch_sha256':combined,'directory_key':RUNTIME_PIN[:12]+'-'+combined[:16]}
 
 def check_cache_marker_identity(marker,identity):
@@ -194,7 +225,7 @@ def source_runtime_preflight(runtime,preflight):
     preflight['protected'][str(marker)]=sha(marker);preflight['source_runtime']=runtime
     return runtime
 
-def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=True,reviewed=True,certify=True):
+def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=True,reviewed=True,certify=True,continuations=True):
     if prefixes:
         emit=[sys.executable,runtime/'tools/v2_emit.py','--rom',rom,'--cfg-dir',project/'recomp',
           '--out-dir',project/'src/gen','--analysis-backend','native','--cfg-roots','--no-host-root-scan','--faithful-prefixes']
@@ -206,6 +237,7 @@ def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=True,r
         sync=None
     if reviewed:emit+=['--reviewed-root-manifest',project/REVIEWED_ROOTS_INPUT]
     if certify:emit+=['--certify-converged-exits']
+    if continuations:emit+=['--certify-native-continuations']
     for profile in profiles:emit+=['--profile-manifest',profile]
     return [emit,sync]if sync else[emit]
 
@@ -447,12 +479,13 @@ def main():
     p.add_argument('--profile-program-manifest',type=Path,help='Exact original generated program manifest belonging to these captures')
     p.add_argument('--profile-analyzer',type=Path,help='Exact existing original native analyzer; actual generator digest must match captured build, no cache path guessing')
     p.add_argument('--profile-runtime-dir',type=Path,help='Explicit unchanged original five-patch capture runtime, separately validated from target runtime')
-    p.set_defaults(emit_proven_prefixes=True,reviewed_roots=True,certify_converged_exits=True)
+    p.set_defaults(emit_proven_prefixes=True,reviewed_roots=True,certify_converged_exits=True,native_continuations=True)
+    p.add_argument('--no-native-continuations',dest='native_continuations',action='store_false',help='Diagnostic: omit isolated native continuation certificates')
     p.add_argument('--no-proven-prefixes',dest='emit_proven_prefixes',action='store_false',help='Diagnostic: disable faithful prefix analysis')
     p.add_argument('--no-converged-exits',dest='certify_converged_exits',action='store_false',help='Diagnostic: retain original exit-fact quarantine without final re-certification')
     p.add_argument('--no-reviewed-roots',dest='reviewed_roots',action='store_false',help='Diagnostic: omit reviewed authored analysis seeds; retain baseline CFG roots')
     p.add_argument('--emit-proven-prefixes',action='store_true',help='Enable the distinct proved aot_prefix disposition via pinned v2_emit --faithful-prefixes; unknown calls continue in original code')
-    p.add_argument('--runtime-cache-dir',type=Path,help='Reuse an explicit pinned runtime cache; eleven full ordered patch hashes choose a new key, old keys are preserved')
+    p.add_argument('--runtime-cache-dir',type=Path,help='Reuse an explicit pinned runtime cache; twelve full ordered patch hashes choose a new key, old keys are preserved')
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
@@ -530,12 +563,15 @@ def main():
     accumulator_patch=out/'runtime-accumulator.patch'
     shutil.copy2(ROOT/'patches/runtime-accumulator.patch',accumulator_patch)
     accumulator_names=validate_accumulator_patch(accumulator_patch)
+    continuation_patch=out/'runtime-native-continuations.patch'
+    shutil.copy2(ROOT/'patches/runtime-native-continuations.patch',continuation_patch)
+    continuation_names=validate_continuation_patch(continuation_patch)
     new_patch_names={'recompiler/v2/faithful_prefix.py','recompiler/v2/reviewed_roots.py'}
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
     cache_root=args.runtime_cache_dir.absolute() if args.runtime_cache_dir else ROOT/'local/upstream'
     reject_links(cache_root)
-    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch),sha(accumulator_patch)])
+    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch),sha(accumulator_patch),sha(continuation_patch)])
     runtime=cache_root/cache_identity['directory_key']
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     reject_links(runtime);reject_links(marker)
@@ -547,7 +583,7 @@ def main():
         command(['git','submodule','update','--init','--recursive'],runtime)
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:
         raise RuntimeError('Existing runtime is at another revision; it has been preserved.')
-    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names)|set(accumulator_names))
+    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names)|set(accumulator_names)|set(continuation_names))
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
         check_cache_marker_identity(receipt,cache_identity)
@@ -555,6 +591,8 @@ def main():
         check_reviewed_roots_marker(receipt,sha(reviewed_patch))
         check_converged_exit_marker(receipt,sha(converged_patch))
         check_accumulator_marker(receipt,sha(accumulator_patch))
+        if receipt.get('native_continuation_patch_sha256')!=sha(continuation_patch):
+            raise RuntimeError('Native continuation marker missing/stale; preserve cache.')
         accumulator_lineage=receipt['runtime_accumulator_source_lineage']
         if (receipt.get('runtime_pin')!=RUNTIME_PIN or receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
                 or receipt.get('faithful_instruction_patch_sha256')!=sha(faithful_patch)
@@ -584,6 +622,11 @@ def main():
         command(['git','apply','--check',accumulator_patch],runtime);command(['git','apply',accumulator_patch],runtime)
         accumulator_lineage=finalize_accumulator_source(runtime,accumulator_lineage)
         validate_accumulator_runtime(runtime)
+        for name,record in continuation_binding()['files'].items():
+            if sha(runtime/name)!=record['predecessor_sha256']:
+                raise RuntimeError('Native continuation predecessor differs: '+name)
+        command(['git','apply','--check',continuation_patch],runtime);command(['git','apply',continuation_patch],runtime)
+        validate_continuation_runtime(runtime,normalize=True)
         runtime_source_accounting(runtime,patch_names,new_patch_names)
         write_runtime_marker(marker,{'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
           'runtime_cache_identity':cache_identity,
@@ -598,9 +641,10 @@ def main():
           'runtime_accumulator_patch_sha256':sha(accumulator_patch),
           'runtime_accumulator_emitter_sha256':ACCUMULATOR_EMITTER_SHA256,
           'runtime_accumulator_source_lineage':accumulator_lineage,
+          'native_continuation_patch_sha256':sha(continuation_patch),
           'new_patched_sources':sorted(new_patch_names),
           'patched_sources':{n:sha(runtime/n) for n in patch_names}})
-    validate_accumulator_runtime(runtime)
+    validate_continuation_runtime(runtime)
     target_sources={n:sha(runtime/n)for n in patch_names};target_marker_digest=sha(marker)
     pins=dict(line.split('=',1) for line in (source/'framework_pins.txt').read_text().splitlines() if '=' in line)
     for key,name in [('rbengine','retcomm-rbengine'),('recomp-net','recomp-net')]:
@@ -614,7 +658,7 @@ def main():
         with(out/'profile-ingest.json').open('x',encoding='utf-8')as report_file:report_file.write(json.dumps(profile_report,indent=2)+'\n')
     (project/'mods/preloaded/packages').mkdir(parents=True)
     print('Generating private local code from the verified ROM.',flush=True)
-    generates=generation_commands(runtime,project,rom,identity,profile_snapshots,args.emit_proven_prefixes,args.reviewed_roots,args.certify_converged_exits)
+    generates=generation_commands(runtime,project,rom,identity,profile_snapshots,args.emit_proven_prefixes,args.reviewed_roots,args.certify_converged_exits,args.native_continuations)
     generation_env={k:v for k,v in os.environ.items()if not k.startswith('SNESRECOMP_')}
     generation_env['PYTHONDONTWRITEBYTECODE']='1'
     if profile_inputs is not None:generation_env['SNESRECOMP_NATIVE_ANALYZER']=str(profile_inputs['analyzer'])
@@ -627,7 +671,7 @@ def main():
     automatic_manifest=json.loads(automatic_manifest_path.read_text(encoding='utf-8'))
     generated_cache=project/'src/gen/.snesrecomp-cache.json'
     reject_links(generated_cache);generated_metadata=json.loads(generated_cache.read_bytes())
-    if generated_metadata.get('format_version')!=5 or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
+    if generated_metadata.get('format_version')!=6 or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
         raise RuntimeError('Target generated cache/module identity mismatch; preserve build.')
     for name,digest in generated_metadata.get('outputs',{}).items():
         if Path(name).is_absolute()or'..'in Path(name).parts:raise RuntimeError('Target generated output escapes build; preserve build.')
@@ -707,6 +751,9 @@ def main():
         raise RuntimeError('Checkpoint contract changed; preserve this build and explicitly update its compatibility declaration before adoption.')
     schema_version=int(schema.group(1))
     result={'status':'compiled_unqualified','public_build':True,'executable_sha256':sha(binary),
+      'native_continuation_patch_sha256':sha(continuation_patch),
+      'native_continuation_source_binding_sha256':sha(CONTINUATION_BINDING),
+      'native_continuation_scope':continuation_binding()['scope'],
       'runtime_accumulator_patch_sha256':sha(accumulator_patch),'runtime_accumulator_emitter_sha256':ACCUMULATOR_EMITTER_SHA256,'runtime_accumulator_source_review':{'offline_unit_report_sha256':ACCUMULATOR_UNIT_SHA256,'scope':'Pinned reviewed offline instruction/source proof; public Setup does not consume private fixtures or infer actual-artifact gameplay qualification.'},
       'runtime_accumulator_source_lineage':accumulator_lineage,
       'runtime_accumulator_patch_scope':'Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies. MemoryRMW/INC/DEC/refusals and original buses/timing/ABI remain.',
@@ -730,6 +777,10 @@ def main():
       'prefix_patch_scope':'Distinct aot_prefix disposition with exact unknown-call stop and original hard masks; never guesses callee exit modes or full-function eligibility. Generator option is explicit and recorded separately.',
       'automatic_faithful_patch_scope':'Upstream decoded instruction/IR emission with original bus transfers and internal clocks, per-instruction scheduler commits, cached effective addresses, native flag/return semantics and faithful unsupported continuation. No serialized guest fields or checkpoint/SRAM layout changes.',
       'automatic_generation':{'mode':'upstream-faithful-instruction','cfg_roots':True,'host_root_scan':False,
+          'native_continuations':args.native_continuations,
+          'native_continuation_certificates':len(automatic_manifest.get('native_continuations',[])),
+          'native_continuation_generator_option':'--certify-native-continuations',
+          'native_continuation_diagnostic_optout':'--no-native-continuations',
           'faithful_prefixes':args.emit_proven_prefixes,'prefix_wrapper_option':'--emit-proven-prefixes','prefix_generator_option':'--faithful-prefixes',
           'certify_converged_exits':args.certify_converged_exits,'converged_exit_generator_option':'--certify-converged-exits','converged_exit_diagnostic_optout':'--no-converged-exits',
           'generation_commands':[list(map(str,cmd))for cmd in generates],
@@ -745,6 +796,7 @@ def main():
               'actual_dispatch_rows':dispatch_rows,'dispatch_source_sha256':sha(dispatch_path),'target_policy':'Union of every actual manifest entry and strictly parsed generated DispatchEntry row, including original interrupt entries and aliases.',
               'enabled_by_default':False,'environment':{
                   'SNESRECOMP_LLE_INTERP_TARGET_FILE':'<absolute path to this generated target file>',
+                  'SNESRECOMP_DISABLE_NATIVE_CONTINUATIONS':'1',
                   'SNESRECOMP_FOUNDATION_GENERATED_CLEAR':'0','SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR':'0'},
               'limits':'Diagnostic configuration only; actual compiled-call/instruction evidence must verify original-byte admission. Does not change normal profile settings.'}},
       'host_navigation_patch_scope':'Appended map hotkey, parser/defaults and host dispatch only; existing command ids and serialized guest execution unchanged.',

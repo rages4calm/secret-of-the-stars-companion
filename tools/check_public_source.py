@@ -275,6 +275,22 @@ def main():
             errors.append(label + ' audit hash is missing from the build helper.')
     errors.extend(check_accumulator_source_audit(
         ROOT / 'patches/runtime-accumulator.patch', provenance, helper))
+    continuation=ROOT/'patches/runtime-native-continuations.patch'
+    continuation_binding=ROOT/'patches/runtime-native-continuations.json'
+    try:
+        binding=json.loads(continuation_binding.read_bytes())
+        names=re.findall(r'^diff --git a/(\S+) b/',continuation.read_text(encoding='utf-8'),re.M)
+        if ('patches/runtime-native-continuations.patch' not in tracked
+                or 'patches/runtime-native-continuations.json' not in tracked
+                or sha(continuation)!=binding['patch_sha256']
+                or sha(continuation)!=provenance.get('native_continuation_patch_sha256')
+                or sha(continuation_binding)!=provenance.get('native_continuation_source_binding_sha256')
+                or len(names)!=12 or set(names)!=set(binding['files'])
+                or 'validate_continuation_runtime' not in helper
+                or 'ordered-twelve-full-patch-hashes' not in helper):
+            errors.append('Native continuation patch/source binding differs from the current snapshot.')
+    except (OSError,ValueError,KeyError,TypeError) as error:
+        errors.append('Native continuation source binding unreadable: '+str(error))
     reviewed = ROOT / 'native/foundation/recomp/reviewed-roots.json'
     if ('native/foundation/recomp/reviewed-roots.json' not in tracked
             or sha(reviewed) != provenance.get('reviewed_analysis_roots_sha256')):

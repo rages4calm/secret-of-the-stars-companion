@@ -1,0 +1,1974 @@
+diff --git a/recompiler-rs/src/bin/analyze.rs b/recompiler-rs/src/bin/analyze.rs
+--- a/recompiler-rs/src/bin/analyze.rs
++++ b/recompiler-rs/src/bin/analyze.rs
+@@ -20,7 +20,7 @@
+ use snesrecomp_analyzer::decoder::{
+     analyze_function_exit_mx, analyze_function_exit_mx_modes_with_sets, classify_dispatch_helper,
+     decode_function, detect_inline_arg_bytes, function_exit_mx_equation,
+-    function_return_stack_delta_states, DecodeCache, DecodeEnv, FunctionDecodeGraph,
++    function_return_stack_delta_states, DecodeCache, DecodeEnv, DecodeKey, FunctionDecodeGraph,
+     IndirectDispatchSite,
+ };
+ use snesrecomp_analyzer::insn::Mode;
+@@ -99,6 +99,38 @@
+             // compatibility checker excludes them from semantic comparison.
+             "reasons": self.reasons,
+             "digest": "native",
++        })
++    }
++}
++
++/// Separate from callable roots: admission requires a just-completed original
++/// return and a separately authenticated remaining caller frame.
++#[derive(Debug, Clone)]
++struct NativeContinuation {
++    entry: VariantKey,
++    owner: VariantKey,
++    callsite_pc24: u32,
++    callee: VariantKey,
++    remaining_frame: u8,
++    call_frame: u8,
++    return_pcs: Vec<u32>,
++    suffix: NodeSummary,
++    suffix_sha256: String,
++    rom_sha256: String,
++}
++
++impl NativeContinuation {
++    fn json(&self) -> Value {
++        json!({
++            "entry_pc24": self.entry.pc24, "owner_pc24": self.owner.pc24,
++            "m": self.entry.m, "x": self.entry.x, "e": 0,
++            "owner_m": self.owner.m, "owner_x": self.owner.x,
++            "callee_m": self.callee.m, "callee_x": self.callee.x,
++            "remaining_frame": self.remaining_frame, "call_frame": self.call_frame,
++            "callsite_pc24": self.callsite_pc24, "callee_pc24": self.callee.pc24,
++            "return_pcs": self.return_pcs, "suffix": self.suffix.json(),
++            "suffix_sha256": self.suffix_sha256, "rom_sha256": self.rom_sha256,
++            "contract": "native-e0-balanced-original-return-v1",
+         })
+     }
+ }
+@@ -1246,12 +1278,583 @@
+     Some((pair, certificate))
+ }
+ 
++// SHA-256 keeps the analyzer certificate bound to the exact input image without
++// relying on a shell hashing utility or adding a platform-specific dependency.
++fn sha256_hex(data: &[u8]) -> String {
++    const K: [u32; 64] = [
++        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
++        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
++        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
++        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
++        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
++        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
++        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
++        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
++        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
++        0xc67178f2,
++    ];
++    let mut state = [
++        0x6a09e667u32,
++        0xbb67ae85,
++        0x3c6ef372,
++        0xa54ff53a,
++        0x510e527f,
++        0x9b05688c,
++        0x1f83d9ab,
++        0x5be0cd19,
++    ];
++    let mut padded = data.to_vec();
++    padded.push(0x80);
++    while padded.len() % 64 != 56 {
++        padded.push(0);
++    }
++    padded.extend_from_slice(&((data.len() as u64) * 8).to_be_bytes());
++    for chunk in padded.chunks_exact(64) {
++        let mut w = [0u32; 64];
++        for (i, bytes) in chunk.chunks_exact(4).enumerate() {
++            w[i] = u32::from_be_bytes(bytes.try_into().unwrap());
++        }
++        for i in 16..64 {
++            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
++            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
++            w[i] = w[i - 16]
++                .wrapping_add(s0)
++                .wrapping_add(w[i - 7])
++                .wrapping_add(s1);
++        }
++        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = state;
++        for i in 0..64 {
++            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
++            let ch = (e & f) ^ (!e & g);
++            let t1 = h
++                .wrapping_add(s1)
++                .wrapping_add(ch)
++                .wrapping_add(K[i])
++                .wrapping_add(w[i]);
++            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
++            let maj = (a & b) ^ (a & c) ^ (b & c);
++            let t2 = s0.wrapping_add(maj);
++            h = g;
++            g = f;
++            f = e;
++            e = d.wrapping_add(t1);
++            d = c;
++            c = b;
++            b = a;
++            a = t1.wrapping_add(t2);
++        }
++        for (old, add) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
++            *old = old.wrapping_add(add);
++        }
++    }
++    state.iter().map(|part| format!("{part:08x}")).collect()
++}
++
++fn continuation_decode(
++    key: VariantKey,
++    owner: VariantKey,
++    inputs: &Inputs,
++    rom: &[u8],
++    max_insns: usize,
++    exact: &HashMap<(u32, u8, u8), (u8, u8)>,
++    sets: &HashMap<(u32, u8, u8), Vec<(u8, u8)>>,
++    helpers: &HashMap<u32, String>,
++    inline_args: &HashMap<u32, i32>,
++) -> Option<FunctionDecodeGraph> {
++    let mapping = detect_rom_mapping(rom);
++    if !target_is_code(key, inputs, rom, mapping) {
++        return None;
++    }
++    let bank = key.pc24 >> 16;
++    let mirror = mirror_bank(mapping, bank);
++    let cfg = inputs
++        .cfg_index
++        .get(&bank)
++        .or_else(|| mirror.and_then(|m| inputs.cfg_index.get(&m)))
++        .map(|&i| &inputs.cfgs[i]);
++    let entry = inputs
++        .entries
++        .get(&owner.pc24)
++        .or_else(|| mirror_pc24(mapping, owner.pc24).and_then(|p| inputs.entries.get(&p)));
++    if entry.is_some_and(|e| e.entry_s_offset != 0) {
++        return None;
++    }
++    let mut siblings = inputs
++        .sibling_entries
++        .get(&bank)
++        .or_else(|| mirror.and_then(|m| inputs.sibling_entries.get(&m)))
++        .cloned()
++        .unwrap_or_default();
++    // The suffix does not become a new sibling of its owner or any other
++    // suffix. The original declared ownership boundaries remain authoritative.
++    siblings.remove(&(key.pc24 & 0xffff));
++    let env = DecodeEnv {
++        rom_mapping: mapping,
++        rom_image_size: Some(inputs.rom_image_size),
++        max_insns: Some(max_insns),
++        dispatch_helpers: Some(helpers),
++        indirect_dispatch: Some(&inputs.indirect_dispatch),
++        hle_dispatch: Some(&inputs.hle_dispatch),
++        authority_bytes: Some(&inputs.authority_bytes),
++        authority_data: Some(&inputs.authority_data),
++        data_regions: Some(&inputs.data_regions),
++        callee_exit_mx: Some(exact),
++        callee_exit_mx_modes: Some(sets),
++        sibling_entry_pcs: Some(&siblings),
++        hle_entry_pcs: inputs
++            .hle_entries
++            .get(&bank)
++            .or_else(|| mirror.and_then(|m| inputs.hle_entries.get(&m))),
++        callee_inline_skip: Some(inline_args),
++        inline_dispatch_loop_pcs: cfg.map(|c| &c.inline_dispatch_loops),
++        terminal_jsr_sites: Some(&inputs.terminal_jsr_sites),
++        global_inline_skip: Some(inline_args),
++        stop_on_unknown_callee_exit: true,
++        reloc_regions: Some(&inputs.reloc_regions),
++        ..Default::default()
++    };
++    catch_unwind(AssertUnwindSafe(|| {
++        decode_function(
++            rom,
++            bank,
++            key.pc24 & 0xffff,
++            key.m,
++            key.x,
++            entry.and_then(|e| e.end),
++            &env,
++        )
++    }))
++    .ok()
++}
++
++fn continuation_graph_safe(graph: &FunctionDecodeGraph, inputs: &Inputs, rom: &[u8]) -> bool {
++    let mapping = detect_rom_mapping(rom);
++    if graph.is_empty()
++        || graph.authority_conflict
++        || graph.unstable_exit_fact
++        || !graph.data_region_exec_pcs.is_empty()
++        || !graph.unknown_callee_exit_sites.is_empty()
++        || !graph.unresolved_indirects.is_empty()
++        || !graph.suppressed_indirect_calls.is_empty()
++        || !graph.dispatch_targets_suppressed.is_empty()
++        || has_truncated_call_continuation(graph)
++    {
++        return false;
++    }
++    graph.insns().iter().all(|di| {
++        let ins = &di.insn;
++        !matches!(
++            ins.mnem,
++            "BRK" | "COP" | "RTI" | "XCE" | "TCS" | "TXS" | "STP" | "WAI"
++        ) && !(ins.mnem == "PLP" && di.key.p_stack.is_empty())
++            && ins.dispatch_entries.is_none()
++            && !ins.dispatch_runtime
++            && !ins.terminal_jsr
++            && ins.dispatch_consumed_stack_bytes == 0
++            && (0..u32::from(ins.length)).all(|n| {
++                let pc = (ins.addr & 0xff0000) | ((ins.addr + n) & 0xffff);
++                target_is_code(
++                    VariantKey::new(pc, di.key.m, di.key.x),
++                    inputs,
++                    rom,
++                    mapping,
++                ) && !inputs
++                    .authority_data
++                    .get(&(pc >> 16))
++                    .is_some_and(|mask| mask[(pc & 0xffff) as usize])
++            })
++            && (matches!(ins.mnem, "RTS" | "RTL")
++                || !di.successors.is_empty()
++                || graph
++                    .boundary_exits
++                    .iter()
++                    .any(|(site, _)| *site == ins.addr))
++            && di.successors.iter().all(|s| {
++                graph.contains(s)
++                    || graph
++                        .boundary_exits
++                        .iter()
++                        .any(|(site, t)| *site == ins.addr && t == s)
++            })
++    })
++}
++
++/// Exact local stack heights at every instruction. Direct calls are net zero
++/// only after their callees have independently proved a balanced return.
++fn continuation_stack_states(
++    graph: &FunctionDecodeGraph,
++) -> Option<HashMap<DecodeKey, BTreeSet<i32>>> {
++    let entry = graph.entry.as_ref()?.clone();
++    let mut states = HashMap::from([(entry.clone(), BTreeSet::from([0]))]);
++    let mut pending = vec![entry];
++    while let Some(key) = pending.pop() {
++        let di = graph.get(&key)?;
++        let ins = &di.insn;
++        let delta = match ins.mnem {
++            "PEA" | "PEI" | "PER" | "PHD" => 2,
++            "PHP" | "PHB" | "PHK" => 1,
++            "PHA" => {
++                if ins.m_flag == 1 {
++                    1
++                } else {
++                    2
++                }
++            }
++            "PHX" | "PHY" => {
++                if ins.x_flag == 1 {
++                    1
++                } else {
++                    2
++                }
++            }
++            "PLD" => -2,
++            "PLP" | "PLB" => -1,
++            "PLA" => {
++                if ins.m_flag == 1 {
++                    -1
++                } else {
++                    -2
++                }
++            }
++            "PLX" | "PLY" => {
++                if ins.x_flag == 1 {
++                    -1
++                } else {
++                    -2
++                }
++            }
++            "TCS" | "TXS" => return None,
++            _ => 0,
++        };
++        let next: BTreeSet<_> = states.get(&key)?.iter().map(|v| v + delta).collect();
++        if next.iter().any(|v| !(0..=64).contains(v)) {
++            return None;
++        }
++        for successor in &di.successors {
++            if !graph.contains(successor) {
++                continue;
++            }
++            let old = states.entry(successor.clone()).or_default();
++            let before = old.len();
++            old.extend(&next);
++            if before != old.len() {
++                pending.push(successor.clone());
++            }
++        }
++    }
++    Some(states)
++}
++
++#[derive(Clone)]
++struct BalancedFrame {
++    bytes: u8,
++    returns: BTreeSet<u32>,
++}
++
++struct ContinuationProof<'a> {
++    inputs: &'a Inputs,
++    rom: &'a [u8],
++    max_insns: usize,
++    nodes: &'a BTreeMap<VariantKey, NodeSummary>,
++    exact: &'a HashMap<(u32, u8, u8), (u8, u8)>,
++    sets: &'a HashMap<(u32, u8, u8), Vec<(u8, u8)>>,
++    helpers: &'a HashMap<u32, String>,
++    inline_args: &'a HashMap<u32, i32>,
++    graphs: HashMap<VariantKey, FunctionDecodeGraph>,
++    proven: HashMap<VariantKey, BalancedFrame>,
++    refused: HashSet<VariantKey>,
++    active: HashSet<VariantKey>,
++}
++
++impl ContinuationProof<'_> {
++    fn graph(&mut self, key: VariantKey) -> Option<FunctionDecodeGraph> {
++        if let Some(graph) = self.graphs.get(&key) {
++            return Some(graph.clone());
++        }
++        let node = self.nodes.get(&key)?;
++        if node.disposition != "aot_eligible"
++            || !node.reasons.is_empty()
++            || !self.exact.contains_key(&(key.pc24, key.m, key.x))
++        {
++            return None;
++        }
++        let graph = continuation_decode(
++            key,
++            key,
++            self.inputs,
++            self.rom,
++            self.max_insns,
++            self.exact,
++            self.sets,
++            self.helpers,
++            self.inline_args,
++        )?;
++        if !continuation_graph_safe(&graph, self.inputs, self.rom) {
++            return None;
++        }
++        self.graphs.insert(key, graph.clone());
++        Some(graph)
++    }
++
++    fn frame(&mut self, key: VariantKey) -> Option<BalancedFrame> {
++        if let Some(proof) = self.proven.get(&key) {
++            return Some(proof.clone());
++        }
++        if self.refused.contains(&key) || self.active.len() >= 256 || !self.active.insert(key) {
++            return None;
++        }
++        let result = self.frame_inner(key);
++        self.active.remove(&key);
++        if let Some(proof) = &result {
++            self.proven.insert(key, proof.clone());
++        } else {
++            self.refused.insert(key);
++        }
++        result
++    }
++
++    fn frame_inner(&mut self, key: VariantKey) -> Option<BalancedFrame> {
++        let graph = self.graph(key)?;
++        let summary = self.nodes.get(&key)?.clone();
++        self.balance_graph(&graph, &summary)
++    }
++
++    fn balance_graph(
++        &mut self,
++        graph: &FunctionDecodeGraph,
++        summary: &NodeSummary,
++    ) -> Option<BalancedFrame> {
++        let states = continuation_stack_states(graph)?;
++        let mut widths = BTreeSet::new();
++        let mut returns = BTreeSet::new();
++        for di in graph.insns() {
++            if matches!(di.insn.mnem, "RTS" | "RTL") {
++                if states.get(&di.key)? != &BTreeSet::from([0]) || !di.key.p_stack.is_empty() {
++                    return None;
++                }
++                widths.insert(if di.insn.mnem == "RTS" { 2 } else { 3 });
++                returns.insert(di.insn.addr);
++            }
++        }
++        for edge in &summary.demands {
++            if edge.resolution != "aot_exact" {
++                return None;
++            }
++            let target = edge.target?;
++            let proof = self.frame(target)?;
++            match edge.kind {
++                "direct_call" => {
++                    let call = graph.insns().iter().find(|di| {
++                        di.insn.addr == edge.site_pc24
++                            && di.key.m == target.m
++                            && di.key.x == target.x
++                    })?;
++                    let expected = if call.insn.mnem == "JSR" {
++                        2
++                    } else if call.insn.mnem == "JSL" {
++                        3
++                    } else {
++                        return None;
++                    };
++                    if proof.bytes != expected
++                        || self.inline_args.get(&target.pc24).is_some_and(|n| *n != 0)
++                    {
++                        return None;
++                    }
++                }
++                "direct_tail_call" => {
++                    let tail = graph
++                        .insns()
++                        .iter()
++                        .find(|di| di.insn.addr == edge.site_pc24)?;
++                    if states.get(&tail.key)? != &BTreeSet::from([0])
++                        || !tail.key.p_stack.is_empty()
++                    {
++                        return None;
++                    }
++                    widths.insert(proof.bytes);
++                    returns.extend(proof.returns);
++                }
++                _ => return None,
++            }
++        }
++        if widths.len() != 1 || returns.is_empty() {
++            return None;
++        }
++        Some(BalancedFrame {
++            bytes: *widths.first()?,
++            returns,
++        })
++    }
++}
++
++fn continuation_suffix_digest(graph: &FunctionDecodeGraph, rom: &[u8], inputs: &Inputs) -> String {
++    let mapping = detect_rom_mapping(rom);
++    let mut rows: Vec<_> = graph
++        .insns()
++        .iter()
++        .map(|di| {
++            let ins = &di.insn;
++            let bytes: String = (0..u32::from(ins.length))
++                .map(|n| {
++                    let pc = (ins.addr & 0xff0000) | ((ins.addr + n) & 0xffff);
++                    let off =
++                        addr_to_rom_offset(mapping, pc >> 16, pc & 0xffff, &inputs.reloc_regions);
++                    format!("{:02x}", rom[off])
++                })
++                .collect();
++            (di.key.pc, di.key.m, di.key.x, bytes)
++        })
++        .collect();
++    rows.sort();
++    sha256_hex(&serde_json::to_vec(&rows).unwrap())
++}
++
++fn certify_native_continuations(
++    inputs: &Inputs,
++    rom: &[u8],
++    max_insns: usize,
++    nodes: &BTreeMap<VariantKey, NodeSummary>,
++    exact: &HashMap<(u32, u8, u8), (u8, u8)>,
++    sets: &HashMap<(u32, u8, u8), Vec<(u8, u8)>>,
++    helpers: &HashMap<u32, String>,
++    inline_args: &HashMap<u32, i32>,
++) -> Vec<NativeContinuation> {
++    let mut proof = ContinuationProof {
++        inputs,
++        rom,
++        max_insns,
++        nodes,
++        exact,
++        sets,
++        helpers,
++        inline_args,
++        graphs: HashMap::new(),
++        proven: HashMap::new(),
++        refused: HashSet::new(),
++        active: HashSet::new(),
++    };
++    let rom_sha256 = sha256_hex(rom);
++    let mut candidates = BTreeMap::<VariantKey, Vec<NativeContinuation>>::new();
++    for (&owner, node) in nodes {
++        let Some(owner_frame) = proof.frame(owner) else {
++            continue;
++        };
++        let Some(owner_graph) = proof.graph(owner) else {
++            continue;
++        };
++        let Some(states) = continuation_stack_states(&owner_graph) else {
++            continue;
++        };
++        for edge in &node.demands {
++            if edge.kind != "direct_call" || edge.resolution != "aot_exact" {
++                continue;
++            }
++            let Some(callee) = edge.target else { continue };
++            let Some(callee_frame) = proof.frame(callee) else {
++                continue;
++            };
++            for call in owner_graph.insns().iter().filter(|di| {
++                di.insn.addr == edge.site_pc24 && di.key.m == callee.m && di.key.x == callee.x
++            }) {
++                // Only exact direct fallthroughs with the remaining owner frame
++                // already at the top of stack can use the first admission class.
++                if !call.key.p_stack.is_empty()
++                    || states.get(&call.key) != Some(&BTreeSet::from([0]))
++                    || call.successors.len() != 1
++                {
++                    continue;
++                }
++                let successor = &call.successors[0];
++                let Some(&(m, x)) = exact.get(&(callee.pc24, callee.m, callee.x)) else {
++                    continue;
++                };
++                let landing = (call.insn.addr & 0xff0000)
++                    | ((call.insn.addr + u32::from(call.insn.length)) & 0xffff);
++                if successor.pc != landing
++                    || (successor.m, successor.x) != (m, x)
++                    || !successor.p_stack.is_empty()
++                {
++                    continue;
++                }
++                let entry = VariantKey::new(landing, m, x);
++                if inputs.entries.contains_key(&entry.pc24) || nodes.contains_key(&entry) {
++                    continue;
++                }
++                let Some(suffix_graph) = continuation_decode(
++                    entry,
++                    owner,
++                    inputs,
++                    rom,
++                    max_insns,
++                    exact,
++                    sets,
++                    helpers,
++                    inline_args,
++                ) else {
++                    continue;
++                };
++                if !continuation_graph_safe(&suffix_graph, inputs, rom) {
++                    continue;
++                }
++                let suffix = summarize(
++                    entry,
++                    &suffix_graph,
++                    inputs,
++                    rom,
++                    detect_rom_mapping(rom),
++                    &HashSet::new(),
++                    false,
++                );
++                if suffix.disposition != "aot_eligible" || !suffix.reasons.is_empty() {
++                    continue;
++                }
++                let Some(suffix_frame) = proof.balance_graph(&suffix_graph, &suffix) else {
++                    continue;
++                };
++                if suffix_frame.bytes != owner_frame.bytes {
++                    continue;
++                }
++                candidates
++                    .entry(entry)
++                    .or_default()
++                    .push(NativeContinuation {
++                        entry,
++                        owner,
++                        callsite_pc24: call.insn.addr,
++                        callee,
++                        remaining_frame: owner_frame.bytes,
++                        call_frame: callee_frame.bytes,
++                        return_pcs: callee_frame.returns.iter().copied().collect(),
++                        suffix,
++                        suffix_sha256: continuation_suffix_digest(&suffix_graph, rom, inputs),
++                        rom_sha256: rom_sha256.clone(),
++                    });
++            }
++        }
++    }
++    // Runtime lookup is exact pc/m/x. Conflicting owner/callsite contracts at
++    // one landing are refused, rather than depending on iteration order.
++    candidates
++        .into_values()
++        .filter_map(|rows| {
++            let first = rows.first()?;
++            if rows.iter().all(|r| r.json() == first.json()) {
++                Some(first.clone())
++            } else {
++                None
++            }
++        })
++        .collect()
++}
++
+ fn analyze(
+     inputs: &Inputs,
+     rom: &[u8],
+     max_insns: usize,
+     max_nodes: usize,
+     certify_converged_exits: bool,
++    certify_continuations: bool,
+ ) -> Result<
+     (
+         BTreeMap<VariantKey, NodeSummary>,
+@@ -1259,6 +1862,7 @@
+         HashMap<(u32, u8, u8), Vec<(u8, u8)>>,
+         HashMap<u32, String>,
+         HashMap<u32, i32>,
++        Vec<NativeContinuation>,
+     ),
+     String,
+ > {
+@@ -1884,7 +2488,28 @@
+                     );
+                 }
+             }
+-            return Ok((nodes, active_exact, active_sets, helpers, inline_args));
++            let continuations = if certify_continuations {
++                certify_native_continuations(
++                    inputs,
++                    rom,
++                    max_insns,
++                    &nodes,
++                    &active_exact,
++                    &active_sets,
++                    &helpers,
++                    &inline_args,
++                )
++            } else {
++                Vec::new()
++            };
++            return Ok((
++                nodes,
++                active_exact,
++                active_sets,
++                helpers,
++                inline_args,
++                continuations,
++            ));
+         }
+     }
+     Err("program analysis failed to converge within 128 rounds".to_string())
+@@ -1897,6 +2522,7 @@
+     sets: &HashMap<(u32, u8, u8), Vec<(u8, u8)>>,
+     helpers: &HashMap<u32, String>,
+     inline_args: &HashMap<u32, i32>,
++    continuations: &[NativeContinuation],
+ ) -> Value {
+     let mut node_map = Map::new();
+     for (key, node) in nodes {
+@@ -1931,6 +2557,7 @@
+         "exit_modes": exit_map,
+         "exit_mode_sets": set_map,
+         "nodes": node_map,
++        "native_continuations": continuations.iter().map(NativeContinuation::json).collect::<Vec<_>>(),
+         "native_analysis": {
+             "dispatch_helpers": helpers.iter().map(
+                 |(pc24, kind)| (format!("{pc24:06X}"), kind.clone()),
+@@ -2009,15 +2636,24 @@
+     inputs
+         .roots
+         .retain(|key| !inputs.force_lle.contains(&key.pc24));
+-    let (nodes, exact, sets, helpers, inline_args) = analyze(
++    let (nodes, exact, sets, helpers, inline_args, continuations) = analyze(
+         &inputs,
+         &rom,
+         max_insns,
+         max_nodes,
+         has_arg(&args, "--certify-converged-exits"),
++        has_arg(&args, "--certify-native-continuations"),
+     )
+     .expect("native analysis");
+-    let manifest = manifest_json(&inputs, &nodes, &exact, &sets, &helpers, &inline_args);
++    let manifest = manifest_json(
++        &inputs,
++        &nodes,
++        &exact,
++        &sets,
++        &helpers,
++        &inline_args,
++        &continuations,
++    );
+     let text = serde_json::to_string_pretty(&manifest).expect("serialize manifest") + "\n";
+     fs::write(&manifest_path, text).expect("write manifest");
+     let edge_count: usize = nodes.values().map(|node| node.demands.len()).sum();
+@@ -2046,6 +2682,167 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++
++    fn continuation_fixture(
++        name: &str,
++        owner: &[u8],
++        callee: &[u8],
++        extra_cfg: &str,
++        max_insns: usize,
++    ) -> Vec<NativeContinuation> {
++        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
++            .join("proof-config")
++            .join(name);
++        fs::create_dir_all(&dir).unwrap();
++        fs::write(
++            dir.join("bank00.cfg"),
++            format!("bank = 00\nfunc Owner 8000 end:8020 entry_mx:1,1\n{extra_cfg}"),
++        )
++        .unwrap();
++        let mut rom = vec![0xffu8; 0x10000];
++        rom[..owner.len()].copy_from_slice(owner);
++        rom[0x8000..0x8000 + callee.len()].copy_from_slice(callee);
++        let mut inputs = load_inputs(&dir, &mut rom, false).unwrap();
++        inputs.roots.clear();
++        inputs.roots.insert(VariantKey::new(0x008000, 1, 1));
++        analyze(&inputs, &rom, max_insns, 1000, false, true)
++            .unwrap()
++            .5
++    }
++
++    #[test]
++    fn continuation_sha256_known_vectors() {
++        assert_eq!(
++            sha256_hex(b""),
++            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++        );
++        assert_eq!(
++            sha256_hex(b"abc"),
++            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
++        );
++        assert_eq!(
++            sha256_hex(&vec![b'a'; 1000000]),
++            "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
++        );
++    }
++
++    #[test]
++    fn continuation_certifies_distinct_inner_and_remaining_frames() {
++        let rows = continuation_fixture(
++            "continuation-balanced",
++            &[0x22, 0x00, 0x80, 0x01, 0x0a, 0x0a, 0x60],
++            &[0xe6, 0x10, 0x6b],
++            "",
++            4096,
++        );
++        assert_eq!(rows.len(), 1);
++        let row = &rows[0];
++        assert_eq!(
++            (
++                row.entry.pc24,
++                row.owner.pc24,
++                row.callsite_pc24,
++                row.callee.pc24
++            ),
++            (0x008004, 0x008000, 0x008000, 0x018000)
++        );
++        assert_eq!(
++            (
++                row.entry.m,
++                row.entry.x,
++                row.remaining_frame,
++                row.call_frame
++            ),
++            (1, 1, 2, 3)
++        );
++        assert_eq!(row.return_pcs, vec![0x018002]);
++        assert_eq!(row.suffix.instruction_count, 3);
++    }
++
++    #[test]
++    fn continuation_preserves_balanced_mode_change() {
++        let rows = continuation_fixture(
++            "continuation-mode",
++            &[0x22, 0x00, 0x80, 0x01, 0xa9, 0x34, 0x12, 0x60],
++            &[0xc2, 0x20, 0x6b],
++            "",
++            4096,
++        );
++        assert_eq!(rows.len(), 1);
++        assert_eq!((rows[0].entry.m, rows[0].entry.x), (0, 1));
++        assert_eq!(rows[0].suffix.instruction_count, 2);
++    }
++
++    #[test]
++    fn continuation_refuses_mixed_unbalanced_masked_unknown_and_truncated() {
++        let ordinary = [0x22, 0x00, 0x80, 0x01, 0x0a, 0x60];
++        let rtl = [0x6b];
++        for (name, owner, callee, cfg, budget) in [
++            (
++                "cont-mixed",
++                &[0x22, 0x00, 0x80, 0x01, 0xd0, 0x01, 0x60, 0x6b][..],
++                &rtl[..],
++                "",
++                4096,
++            ),
++            (
++                "cont-livepush",
++                &[0x48, 0x22, 0x00, 0x80, 0x01, 0x68, 0x60][..],
++                &rtl[..],
++                "",
++                4096,
++            ),
++            (
++                "cont-unbalanced",
++                &[0x22, 0x00, 0x80, 0x01, 0x48, 0x60][..],
++                &rtl[..],
++                "",
++                4096,
++            ),
++            (
++                "cont-txs",
++                &[0x22, 0x00, 0x80, 0x01, 0x9a, 0x60][..],
++                &rtl[..],
++                "",
++                4096,
++            ),
++            (
++                "cont-mask",
++                &ordinary[..],
++                &rtl[..],
++                "data_region 00 8004 8006\n",
++                4096,
++            ),
++            (
++                "cont-force",
++                &ordinary[..],
++                &rtl[..],
++                "force_lle 018000\n",
++                4096,
++            ),
++            (
++                "cont-unknown",
++                &ordinary[..],
++                &[0x6c, 0x34, 0x12][..],
++                "",
++                4096,
++            ),
++            ("cont-truncate", &ordinary[..], &rtl[..], "", 1),
++            ("cont-xce", &ordinary[..], &[0xfb, 0x6b][..], "", 4096),
++            (
++                "cont-unknownplp",
++                &ordinary[..],
++                &[0x28, 0x6b][..],
++                "",
++                4096,
++            ),
++        ] {
++            assert!(
++                continuation_fixture(name, owner, callee, cfg, budget).is_empty(),
++                "{name}"
++            );
++        }
++    }
+ 
+     #[test]
+     fn nonterminal_call_leaf_is_not_aot_safe() {
+@@ -2449,10 +3246,12 @@
+             VariantKey::new(0x009000, 1, 1),
+             VariantKey::new(0x009100, 1, 1),
+         ]);
+-        let (original, old_exact, _, _, _) = analyze(&inputs, &rom, 4096, 100, false).unwrap();
++        let (original, old_exact, _, _, _, _) =
++            analyze(&inputs, &rom, 4096, 100, false, false).unwrap();
+         assert_eq!(original[&key].reasons, ["unstable_exit_fact"]);
+         assert!(!old_exact.contains_key(&(key.pc24, key.m, key.x)));
+-        let (recovered, new_exact, _, _, _) = analyze(&inputs, &rom, 4096, 100, true).unwrap();
++        let (recovered, new_exact, _, _, _, _) =
++            analyze(&inputs, &rom, 4096, 100, true, false).unwrap();
+         assert_eq!(recovered[&key].disposition, "aot_eligible");
+         assert_eq!(new_exact[&(key.pc24, key.m, key.x)], (1, 0));
+         for other in [
+diff --git a/recompiler/v2/program_analysis.py b/recompiler/v2/program_analysis.py
+--- a/recompiler/v2/program_analysis.py
++++ b/recompiler/v2/program_analysis.py
+@@ -104,6 +104,9 @@
+     exit_mode_sets: Mapping[VariantKey, frozenset] = field(
+         default_factory=dict)
+     format_version: int = 3
++    # Separate original-return landing certificates. Older manifests retain
++    # an empty table; semantic admission is checked by the emitter/runtime.
++    native_continuations: list = field(default_factory=list)
+ 
+     def to_dict(self) -> dict:
+         def key_dict(key: VariantKey) -> dict:
+@@ -132,6 +135,7 @@
+ 
+         return {
+             "format_version": self.format_version,
++            "native_continuations": [dict(row) for row in self.native_continuations],
+             "roots": [key_dict(k) for k in sorted(self.roots)],
+             "exit_modes": {
+                 key.manifest_key: {"m": pair[0] & 1, "x": pair[1] & 1}
+@@ -210,6 +214,10 @@
+                 (int(item["m"]), int(item["x"])) for item in mode_set)
+             for text_key, mode_set in value.get("exit_mode_sets", {}).items()
+         }
++        continuations = value.get("native_continuations", [])
++        if not isinstance(continuations, list) or any(
++                not isinstance(row, Mapping) for row in continuations):
++            raise ValueError("invalid native_continuations manifest table")
+         return cls(
+             roots=tuple(sorted(parse_key(item)
+                                for item in value.get("roots", ()))),
+@@ -217,4 +225,5 @@
+             exit_modes=exit_modes,
+             exit_mode_sets=exit_mode_sets,
+             format_version=version,
++            native_continuations=[dict(row) for row in continuations],
+         )
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 5
++CACHE_FORMAT_VERSION = 6
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -65,6 +65,8 @@
+     "g_dispatch_table_count",
+     "g_ram_routine_guards",
+     "g_ram_routine_guard_count",
++    "g_native_continuations",
++    "g_native_continuation_count",
+     "g_program_module",
+     "snes_program_module_register_generated",
+ )
+@@ -613,11 +615,277 @@
+     return [seen[pc] for pc in sorted(seen)]
+ 
+ 
++def _native_continuation_rows(manifest):
++    """Validate the separate wire contract before exposing any C entry."""
++    rows = []
++    seen = set()
++    for raw in getattr(manifest, "native_continuations", ()):
++        row = dict(raw)
++        required = ("entry_pc24", "owner_pc24", "callsite_pc24", "callee_pc24",
++                    "m", "x", "e", "owner_m", "owner_x", "callee_m", "callee_x",
++                    "remaining_frame", "call_frame")
++        if any(type(row.get(k)) is not int for k in required):
++            raise ValueError("native continuation has missing/noninteger metadata")
++        if (row.get("contract") != "native-e0-balanced-original-return-v1"
++                or row["e"] != 0
++                or any(row[k] not in (0, 1) for k in
++                       ("m", "x", "owner_m", "owner_x", "callee_m", "callee_x"))
++                or row["remaining_frame"] not in (2, 3)
++                or row["call_frame"] not in (2, 3)
++                or any(not 0 <= row[k] <= 0xFFFFFF for k in
++                       ("entry_pc24", "owner_pc24", "callsite_pc24", "callee_pc24"))):
++            raise ValueError("native continuation has invalid mode/frame/address contract")
++        key = VariantKey(row["entry_pc24"], row["m"], row["x"])
++        if key in seen or key in manifest.nodes:
++            raise ValueError("native continuation duplicates a callable or continuation entry")
++        seen.add(key)
++        suffix = row.get("suffix", {})
++        if (suffix.get("key") != {"pc24": key.pc24, "m": key.m, "x": key.x}
++                or suffix.get("disposition") != "aot_eligible"
++                or suffix.get("reasons") != []
++                or type(suffix.get("instruction_count")) is not int
++                or suffix["instruction_count"] <= 0):
++            raise ValueError("native continuation suffix is not an exact complete variant")
++        for kind in ("owner", "callee"):
++            other = VariantKey(row[kind + "_pc24"], row[kind + "_m"], row[kind + "_x"])
++            node = manifest.nodes.get(other)
++            if (node is None or node.disposition != NodeDisposition.AOT_ELIGIBLE
++                    or node.reasons or other not in manifest.exit_modes):
++                raise ValueError("native continuation depends on an unproven owner/callee")
++        callee = VariantKey(row["callee_pc24"], row["callee_m"], row["callee_x"])
++        if tuple(manifest.exit_modes[callee]) != (key.m, key.x):
++            raise ValueError("native continuation mode disagrees with exact callee exit")
++        return_pcs = row.get("return_pcs")
++        if (not isinstance(return_pcs, list) or not return_pcs
++                or any(type(pc) is not int or not 0 <= pc <= 0xFFFFFF for pc in return_pcs)
++                or return_pcs != sorted(set(return_pcs))):
++            raise ValueError("native continuation has no exact sorted original returns")
++        if any(not re.fullmatch(r"[0-9a-f]{64}", str(row.get(k, "")))
++               for k in ("rom_sha256", "suffix_sha256")):
++            raise ValueError("native continuation has no exact ROM/body binding")
++        rows.append(row)
++    return sorted(rows, key=lambda row: (row["entry_pc24"], row["m"], row["x"]))
++
++
++def _native_continuation_name(row):
++    pc = row["entry_pc24"]
++    return f"native_cont_{pc >> 16:02X}_{pc & 0xFFFF:04X}"
++
++
++def _validate_native_continuation_graphs(manifest, rows, parsed, rom,
++                                         helpers, inline_args):
++    """Re-decode original-byte CFGs; certificates never authorize guessed code.
++
++    Normal owner emission retains its original sibling boundaries. Each suffix
++    uses those same declarations, independently of every other suffix entry.
++    """
++    if not rows:
++        return
++    from snes65816 import lorom_offset, is_rom_address, INDIR_X
++    from .decoder import decode_function, set_instruction_authority
++    set_instruction_authority(parsed)
++    (_names, _canonical, exact_templates, templates, cfgs) = _cfg_name_maps(parsed)
++    exact = {(k.pc24, k.m, k.x): v for k, v in manifest.exit_modes.items()}
++    sets = {(k.pc24, k.m, k.x): v for k, v in manifest.exit_mode_sets.items()}
++    rom_digest = hashlib.sha256(rom).hexdigest()
++    masks = []
++    force_lle = set()
++    for bank, _path, cfg in parsed:
++        for lo, hi in (*getattr(cfg, "exclude_ranges", ()),
++                       *getattr(cfg, "authority_data", ())):
++            masks.append((bank, lo & 0xFFFF, hi))
++            mirror = _lorom_mirror_pc24((bank << 16) | 0x8000)
++            if mirror is not None:
++                masks.append((mirror >> 16, lo & 0xFFFF, hi))
++        for bank2, lo, hi in getattr(cfg, "data_regions", ()):
++            masks.append((bank2, lo, hi))
++            mirror = _lorom_mirror_pc24((bank2 << 16) | 0x8000)
++            if mirror is not None:
++                masks.append((mirror >> 16, lo, hi))
++        for pc in getattr(cfg, "force_lle", ()):
++            force_lle.add(pc)
++            mirror = _lorom_mirror_pc24(pc)
++            if mirror is not None:
++                force_lle.add(mirror)
++
++    def require(condition, reason):
++        if not condition:
++            raise ValueError("native continuation refused: " + reason)
++
++    def bytes_at(pc, count):
++        result = bytearray()
++        for n in range(count):
++            addr = (pc & 0xFF0000) | ((pc + n) & 0xFFFF)
++            require(is_rom_address(addr >> 16, addr & 0xFFFF), "non-ROM byte")
++            off = lorom_offset(addr >> 16, addr & 0xFFFF)
++            require(0 <= off < len(rom), "missing ROM byte")
++            require(addr not in force_lle and not any(
++                bank == addr >> 16 and lo <= (addr & 0xFFFF) < hi
++                for bank, lo, hi in masks), "masked instruction byte")
++            result.append(rom[off])
++        return bytes(result)
++
++    graphs = {}
++    stack_states = {}
++
++    def decode(key, owner=None):
++        if key in graphs:
++            return graphs[key]
++        owner = owner or key
++        cfg = _cfg_for_bank(cfgs, key.pc24 >> 16)
++        template = exact_templates.get((owner.pc24, owner.m, owner.x), templates.get(owner.pc24))
++        if template is None:
++            mirror = _lorom_mirror_pc24(owner.pc24)
++            template = exact_templates.get((mirror, owner.m, owner.x), templates.get(mirror))
++        require(template is None or template.entry_s_offset == 0, "adjusted owner watermark")
++        graph = decode_function(
++            rom, key.pc24 >> 16, key.pc24 & 0xFFFF, key.m, key.x,
++            end=template.end if template else None,
++            dispatch_helpers=dict(helpers) or None,
++            indirect_dispatch={(key.pc24 & 0xFF0000) | (d["site_pc16"] & 0xFFFF): d
++                               for d in getattr(cfg, "indirect_dispatch", ())} or None,
++            indirect_call_tables=getattr(cfg, "indirect_call_tables", None),
++            hle_dispatch=getattr(cfg, "hle_dispatch", None),
++            data_regions=list(getattr(cfg, "data_regions", ())) or None,
++            callee_exit_mx=exact, callee_exit_mx_modes=sets,
++            sibling_entry_pcs={e.start & 0xFFFF for e in getattr(cfg, "entries", ())}
++                              - {key.pc24 & 0xFFFF},
++            inline_arg_map=dict(inline_args) or None,
++            terminal_jsr_sites={(key.pc24 & 0xFF0000) | (s & 0xFFFF)
++                                for s in getattr(cfg, "terminal_jsr", ())} or None,
++            stop_on_unknown_callee_exit=True,
++            hle_entry_pcs=set(getattr(cfg, "hle_func", {})) |
++                          set(getattr(cfg, "hle_spc_upload", ())))
++        require(bool(graph.insns) and not graph.authority_conflict
++                and not graph.data_region_exec_pcs and not graph.unknown_callee_exit_sites
++                and not graph.unresolved_indirects and not graph.suppressed_indirect_calls
++                and not graph.dispatch_targets_suppressed, "unresolved/conflicting graph")
++        for di in graph.insns.values():
++            ins = di.insn
++            bytes_at(ins.addr, ins.length)
++            require(ins.mnem not in ("BRK", "COP", "RTI", "XCE", "TCS", "TXS", "STP", "WAI")
++                    and not (ins.mnem == "PLP" and not di.key.p_stack)
++                    and not getattr(ins, "dispatch_entries", None)
++                    and not getattr(ins, "dispatch_runtime", False)
++                    and not getattr(ins, "dispatch_consumed_stack_bytes", 0)
++                    and not getattr(ins, "terminal_jsr", False), "untracked stack/control")
++            require(ins.mnem in ("RTS", "RTL") or di.successors
++                    or any(site == ins.addr for site, _ in graph.boundary_exits), "truncated graph")
++            require(all(s in graph.insns or (ins.addr, s) in graph.boundary_exits
++                        for s in di.successors), "unowned graph exit")
++        states = {graph.entry: {0}}
++        pending = [graph.entry]
++        while pending:
++            key2 = pending.pop()
++            di = graph.insns[key2]
++            ins = di.insn
++            delta = {"PEA": 2, "PEI": 2, "PER": 2, "PHD": 2,
++                     "PHP": 1, "PHB": 1, "PHK": 1, "PLD": -2,
++                     "PLP": -1, "PLB": -1}.get(ins.mnem, 0)
++            if ins.mnem in ("PHA", "PLA"):
++                delta = (1 if ins.m_flag else 2) * (1 if ins.mnem == "PHA" else -1)
++            elif ins.mnem in ("PHX", "PHY", "PLX", "PLY"):
++                delta = (1 if ins.x_flag else 2) * (1 if ins.mnem.startswith("PH") else -1)
++            new = {s + delta for s in states[key2]}
++            require(all(0 <= s <= 64 for s in new), "ambiguous/escaping stack")
++            for successor in di.successors:
++                if successor not in graph.insns:
++                    continue
++                old = states.get(successor, set())
++                if old | new != old:
++                    states[successor] = old | new
++                    pending.append(successor)
++        graphs[key] = graph
++        stack_states[key] = states
++        return graph
++
++    proven = {}
++    active = set()
++
++    def balanced(key, suffix=None):
++        if suffix is None and key in proven:
++            return proven[key]
++        require(key not in active and len(active) < 256, "recursive dependency")
++        active.add(key)
++        graph = decode(key)
++        states = stack_states[key]
++        node = manifest.nodes.get(key)
++        if suffix is None:
++            require(node is not None and node.disposition == NodeDisposition.AOT_ELIGIBLE
++                    and not node.reasons and key in manifest.exit_modes, "unproven dependency")
++        widths, returns = set(), set()
++        for di in graph.insns.values():
++            ins = di.insn
++            if ins.mnem in ("RTS", "RTL"):
++                require(states.get(di.key) == {0} and not di.key.p_stack, "unbalanced return")
++                widths.add(2 if ins.mnem == "RTS" else 3)
++                returns.add(ins.addr)
++            if ins.mnem == "JSL" or (ins.mnem == "JSR" and ins.mode != INDIR_X):
++                target = ins.operand if ins.mnem == "JSL" else (ins.addr & 0xFF0000) | (ins.operand & 0xFFFF)
++                child = VariantKey(target, di.key.m, di.key.x)
++                child_width, _ = balanced(child)
++                require(child_width == (3 if ins.mnem == "JSL" else 2)
++                        and not inline_args.get(target, 0), "unbalanced/inline callee")
++        tails = list(graph.boundary_exits)
++        for di in graph.insns.values():
++            if di.insn.mnem == "JMP" and di.insn.length == 4:
++                # A long direct tail demand can be represented by the decoder
++                # without an explicit boundary successor.
++                target = VariantKey(di.insn.operand, di.key.m, di.key.x)
++                if target != key and not any(site == di.insn.addr for site, _ in tails):
++                    tails.append((di.insn.addr, target))
++        for site, target in tails:
++            di = next(d for d in graph.insns.values() if d.insn.addr == site)
++            require(states.get(di.key) == {0} and not di.key.p_stack, "unbalanced tail")
++            target = VariantKey(target.pc if hasattr(target, "pc") else target.pc24, target.m, target.x)
++            width, sites = balanced(target)
++            widths.add(width)
++            returns.update(sites)
++        require(len(widths) == 1 and bool(returns), "mixed/missing return widths")
++        active.remove(key)
++        result = next(iter(widths)), sorted(returns)
++        if suffix is None:
++            proven[key] = result
++        return result
++
++    for row in rows:
++        require(row["rom_sha256"] == rom_digest, "ROM identity")
++        owner = VariantKey(row["owner_pc24"], row["owner_m"], row["owner_x"])
++        callee = VariantKey(row["callee_pc24"], row["callee_m"], row["callee_x"])
++        key = VariantKey(row["entry_pc24"], row["m"], row["x"])
++        require(balanced(owner)[0] == row["remaining_frame"], "remaining owner frame")
++        require(balanced(callee) == (row["call_frame"], row["return_pcs"]), "original callee returns")
++        owner_graph = decode(owner)
++        calls = [di for di in owner_graph.insns.values()
++                 if di.insn.addr == row["callsite_pc24"] and (di.key.m, di.key.x) == (callee.m, callee.x)]
++        require(bool(calls), "callsite outside owner")
++        for call in calls:
++            raw = bytes_at(call.insn.addr, 3 if row["call_frame"] == 2 else 4)
++            target = (int.from_bytes(raw[1:3], "little") |
++                      ((call.insn.addr >> 16 if row["call_frame"] == 2 else raw[3]) << 16))
++            require(raw[0] == (0x20 if row["call_frame"] == 2 else 0x22)
++                    and target == callee.pc24
++                    and (call.insn.addr & 0xFF0000) | ((call.insn.addr + len(raw)) & 0xFFFF) == key.pc24
++                    and not call.key.p_stack and stack_states[owner].get(call.key) == {0}
++                    and len(call.successors) == 1
++                    and (call.successors[0].pc, call.successors[0].m, call.successors[0].x)
++                        == (key.pc24, key.m, key.x), "direct balanced fallthrough")
++        graph = decode(key, owner)
++        require(balanced(key, suffix=row["suffix"])[0] == row["remaining_frame"], "remaining suffix frame")
++        records = sorted((di.key.pc, di.key.m, di.key.x, bytes_at(di.insn.addr, di.insn.length).hex())
++                         for di in graph.insns.values())
++        require(_stable_hash(records) == row["suffix_sha256"]
++                and len(records) == row["suffix"]["instruction_count"], "suffix body identity")
++
++
+ def emit_dispatch_table(manifest: ProgramManifest, emitted_variants: Mapping,
+                         name_for_pc: Mapping[int, str],
+                         inline_arg_map: Mapping[int, int],
+                         ram_routines=(),
+-                        module_prefix: str | None = None) -> str:
++                        module_prefix: str | None = None,
++                        native_continuations=None) -> str:
++    continuations = (_native_continuation_rows(manifest) if native_continuations is None
++                     else native_continuations)
+     known_pcs = sorted({key.pc24 for key in manifest.nodes} |
+                        {pc24 for pc24, modes in emitted_variants.items()
+                         if modes})
+@@ -638,6 +906,8 @@
+         base = base_name(pc24)
+         for m, x in sorted(emitted_variants.get(pc24, ())):
+             lines.append(f"RecompReturn {base}_M{m}X{x}(CpuState *cpu);")
++    for row in continuations:
++        lines.append(f"RecompReturn {_native_continuation_name(row)}_M{row['m']}X{row['x']}(CpuState *cpu);")
+     lines.extend(["", "const DispatchEntry g_dispatch_table[] = {"])
+     if not known_pcs:
+         lines.append("    { 0xFFFFFFu, { NULL, NULL, NULL, NULL }, 0 },")
+@@ -658,6 +928,21 @@
+         "    (unsigned)(sizeof(g_dispatch_table) / sizeof(g_dispatch_table[0]));",
+         "",
+     ])
++
++    for index, row in enumerate(continuations):
++        values = ", ".join(f"0x{pc:06X}u" for pc in row["return_pcs"])
++        lines.append(f"static const uint32 native_cont_returns_{index}[] = {{ {values} }};")
++    lines.append("const CpuNativeContinuationEntry g_native_continuations[] = {")
++    if not continuations:
++        lines.append("    { 0xFFFFFFu, 0u, 0u, 0u, 0u, 0u, 0u, 0u, NULL, 0u, NULL },")
++    for index, row in enumerate(continuations):
++        lines.append(
++            f"    {{ 0x{row['entry_pc24']:06X}u, 0x{row['owner_pc24']:06X}u, "
++            f"0x{row['callsite_pc24']:06X}u, 0x{row['callee_pc24']:06X}u, "
++            f"{row['m']}u, {row['x']}u, {row['remaining_frame']}u, {row['call_frame']}u, "
++            f"native_cont_returns_{index}, {len(row['return_pcs'])}u, "
++            f"{_native_continuation_name(row)}_M{row['m']}X{row['x']} }},")
++    lines.extend(["};", f"const unsigned g_native_continuation_count = {len(continuations)}u;", ""])
+ 
+     # RAM-routine guards: for a WRAM-resident AOT body ($7E/$7F), runtime
+     # dispatch is allowed ONLY when the live WRAM bytes still hash-match the
+@@ -727,6 +1012,8 @@
+         # same length) is otherwise invisible to this key.
+         "rom": rom_digest,
+         "nodes": nodes,
++        "native_continuations": [row for row in _native_continuation_rows(manifest)
++                                 if row["entry_pc24"] >> 16 == bank],
+         "exit_modes": [
+             (key.manifest_key, pair[0] & 1, pair[1] & 1)
+             for key, pair in sorted(manifest.exit_modes.items())
+@@ -781,9 +1068,13 @@
+     set_faithful_prefix_contracts(prefix_contracts(manifest, parsed))
+     entries_by_bank, emitted, name_for_pc, cfg_by_bank = build_emission_entries(
+         manifest, parsed, enable_hle=enable_hle)
++    continuations = _native_continuation_rows(manifest)
++    _validate_native_continuation_graphs(manifest, continuations, parsed, rom,
++                                         dispatch_helpers, inline_arg_map)
+     cfg_dirs = sorted({pathlib.Path(path).resolve().parent
+                        for _bank, path, _cfg in parsed})
+-    all_banks = sorted(set(cfg_by_bank) | set(entries_by_bank))
++    all_banks = sorted(set(cfg_by_bank) | set(entries_by_bank) |
++                       {row["entry_pc24"] >> 16 for row in continuations})
+     root_pcs = {key.pc24 for key in manifest.roots}
+     interrupt_pcs = _architectural_interrupt_pcs(rom)
+     host_alias_entries = {
+@@ -921,6 +1212,32 @@
+                 file_header=(bank_file_header(bank)
+                              if bank_file_header else None),
+             )
++            # Continuation suffixes have their own C activations, but are never
++            # added to the owner's sibling declarations or ordinary dispatch.
++            # Decode/emission sees the original cfg boundary set in each call.
++            for row in continuations:
++                if row["entry_pc24"] >> 16 != bank:
++                    continue
++                owner_pc = row["owner_pc24"] & 0xFFFF
++                owner_entry = next((entry for entry in getattr(cfg, "entries", ())
++                                    if entry.start & 0xFFFF == owner_pc), None)
++                suffix_entry = BankEntry(
++                    name=_native_continuation_name(row), start=row["entry_pc24"] & 0xFFFF,
++                    entry_m=row["m"], entry_x=row["x"],
++                    end=owner_entry.end if owner_entry else None)
++                source += "\n/* Certified original-return suffix; separate ownership. */\n"
++                source += emit_bank(
++                    rom, bank, [suffix_entry], dispatch_helpers=dict(dispatch_helpers) or None,
++                    indirect_call_tables=indirect_call_tables,
++                    indirect_dispatch=indirect_dispatch or None,
++                    terminal_jsr_sites=terminal_jsr_sites, noreturn_jsr_sites=noreturn_jsr_sites,
++                    data_regions=data_regions,
++                    exclude_ranges=getattr(cfg, "exclude_ranges", None),
++                    callee_exit_mx=dict(callee_exit_mx or {}),
++                    callee_exit_mx_modes=dict(callee_exit_mx_modes or {}),
++                    inline_arg_map=dict(inline_arg_map) or None,
++                    declared_entry_pcs={e.start & 0xFFFF for e in getattr(cfg, "entries", ())},
++                    file_header=(bank_file_header(bank) if bank_file_header else None))
+             new_bank_symbols[f"{bank:02X}"] = collect_bank_symbols(source)
+             symbol_pcs = {
+                 (entry.name or
+@@ -934,6 +1251,8 @@
+                 in host_alias_entries.items()
+                 if ((pc24 >> 16) & 0xFF) == bank
+             })
++            symbol_pcs.update({_native_continuation_name(row): row["entry_pc24"] & 0xFFFF
++                               for row in continuations if row["entry_pc24"] >> 16 == bank})
+             names, _changes = write_bank_translation_units(
+                 staging, bank, symbol_pcs, source,
+                 threshold_bytes=max(0, int(shard_threshold_bytes)),
+@@ -974,7 +1293,8 @@
+             staging / "dispatch_v2.c",
+             emit_dispatch_table(manifest, emitted, name_for_pc, inline_arg_map,
+                                 ram_routines=_collect_ram_routines(parsed),
+-                                module_prefix=module_prefix))
++                                module_prefix=module_prefix,
++                                native_continuations=continuations))
+         write_if_changed(
+             staging / "unresolved_stubs_v2.c",
+             "/* Manifest-driven generation: unresolved execution remains LLE. */\n")
+@@ -1032,6 +1352,7 @@
+                 "emitted_variants": emitted_count,
+                 "lle_variants": len(manifest.nodes) - emitted_count,
+                 "banks": len(all_banks),
++                "native_continuations": len(continuations),
+             },
+         }
+         write_if_changed(
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2187,7 +2187,8 @@
+             f'RecompStackPop(); return interp_tier_dispatch_balanced('
+             f'cpu, {_transfer_target_expr(fn_entry_pc, False)}, 0x{fn_entry_pc:06X}u, _entry_s, _hrv, false); }}')
+     src.append(f'  uint32 _host_return_pc24 = 0xFFFFFFFFu;')
+-    src.append(f'  if (_hrv == 2 || _hrv == 3) {{')
++    src.append(f'  if ((_hrv == 2 || _hrv == 3) &&')
++    src.append(f'      !cpu_take_continuation_snapshot(cpu, _entry_s, _hrv, &_host_return_pc24)) {{')
+     src.append(f'    uint16 _host_rpcl = cpu_read8(cpu, 0x00, (uint16)(_entry_s + 1u));')
+     src.append(f'    uint16 _host_rpch = cpu_read8(cpu, 0x00, (uint16)(_entry_s + 2u));')
+     src.append(f'    uint8 _host_rpb = (_hrv == 3) ? cpu_read8(cpu, 0x00, (uint16)(_entry_s + 3u)) : cpu->PB;')
+diff --git a/recompiler/v2/codegen.py b/recompiler/v2/codegen.py
+--- a/recompiler/v2/codegen.py
++++ b/recompiler/v2/codegen.py
+@@ -2545,6 +2545,13 @@
+     lines.extend([
+         "  uint32 _rpc = (uint32)((((_rpch << 8) | _rpcl) + 1) & 0xFFFFu);",
+         "  uint32 _rpc24 = ((uint32)_rpb << 16) | _rpc;",
++        # A continuation root publishes the ACTUAL completed hardware pop.
++        # The dispatcher owns its landing and must see it before host pop;
++        # ordinary/nested generated invocations keep their existing paths.
++        "  cpu_aot_commit(cpu);",
++        f"  if (cpu_publish_continuation_return(cpu, _entry_s, _ret_s, _rpc24, {frame_sz})) {{",
++        "    return RECOMP_RETURN_NORMAL; /* committed continuation root return */",
++        "  }",
+         # task #7 RTS-decision trace (debug builds only). Records the exact
+         # host-return-vs-dispatch-vs-miss classification at this RTS/RTL,
+         # PC-range-filtered + tripwire-frozen in the recorder. Placed after
+diff --git a/tools/v2_analyze.py b/tools/v2_analyze.py
+--- a/tools/v2_analyze.py
++++ b/tools/v2_analyze.py
+@@ -74,7 +74,8 @@
+ def build_manifest_native(*, rom_path, cfg_dir, all_cfg_roots=False,
+                           additional_roots=(), executable=None,
+                           max_insns=4096, max_nodes=100_000,
+-                          force_lle=(), certify_converged_exits=False):
++                          force_lle=(), certify_converged_exits=False,
++                          certify_native_continuations=False):
+     """Run the compiled analyzer and load its stable manifest contract."""
+     executable = ensure_native_analyzer(executable)
+     fd, temporary = tempfile.mkstemp(
+@@ -103,6 +104,8 @@
+         command.append("--all-cfg-roots")
+     if certify_converged_exits:
+         command.append("--certify-converged-exits")
++    if certify_native_continuations:
++        command.append("--certify-native-continuations")
+     root_values = [
+         f"{key.pc24:06X}:{key.m}:{key.x}"
+         for key in sorted(set(additional_roots))
+diff --git a/tools/v2_emit.py b/tools/v2_emit.py
+--- a/tools/v2_emit.py
++++ b/tools/v2_emit.py
+@@ -95,7 +95,8 @@
+                            module_id: str = "main",
+                            module_prefix: str | None = None,
+                            reviewed_root_sha256: str | None = None,
+-                           certify_converged_exits: bool = False) -> str:
++                           certify_converged_exits: bool = False,
++                           certify_native_continuations: bool = False) -> str:
+     value = {
+         "format": CACHE_FORMAT_VERSION,
+         "rom": hashlib.sha256(rom).hexdigest(),
+@@ -115,6 +116,8 @@
+     }
+     if certify_converged_exits:
+         value["certify_converged_exits"] = True
++    if certify_native_continuations:
++        value["certify_native_continuations"] = True
+     if reviewed_root_sha256 is not None:
+         value["reviewed_root_sha256"] = reviewed_root_sha256
+     encoded = json.dumps(
+@@ -214,6 +217,8 @@
+              "a funcs.h beside the cfg files; default: no prefix")
+     parser.add_argument("--certify-converged-exits", action="store_true",
+                         help="recheck unstable exit facts after global convergence; unresolved or conflicting dependencies remain original")
++    parser.add_argument("--certify-native-continuations", action="store_true",
++                        help="certify balanced exact-mode original-return landings for a separate native continuation table")
+     parser.add_argument("--no-host-root-scan", action="store_true")
+     parser.add_argument("--disassembly-entry-modes", action="store_true",
+                         help="probe all M/X modes at byte-authoritative declared entries; "
+@@ -382,6 +387,7 @@
+         module_id=args.module_id, module_prefix=args.module_prefix,
+         reviewed_root_sha256=reviewed.source_sha256 if reviewed else None,
+         certify_converged_exits=args.certify_converged_exits,
++        certify_native_continuations=args.certify_native_continuations,
+     )
+     cached = _verified_cached_stats(out_dir, analysis_input_digest)
+     if cached is not None and not args.no_link_closure_check:
+@@ -413,7 +419,8 @@
+             executable=native_path,
+             max_insns=args.max_insns,
+             max_nodes=args.max_nodes,
+-            certify_converged_exits=args.certify_converged_exits)
++            certify_converged_exits=args.certify_converged_exits,
++            certify_native_continuations=args.certify_native_continuations)
+     except (OSError, RuntimeError, ValueError) as exc:
+         parser.error(f"native analysis failed: {exc}")
+     if native_output:
+diff --git a/tools/sdk_generate.py b/tools/sdk_generate.py
+--- a/tools/sdk_generate.py
++++ b/tools/sdk_generate.py
+@@ -71,6 +71,7 @@
+     reviewed_root_manifest: Optional[pathlib.Path] = None,
+     faithful_prefixes: bool = False,
+     certify_converged_exits: bool = False,
++    certify_native_continuations: bool = False,
+     legacy_profile_rom_sha256: Optional[str] = None,
+     analysis_backend: str = "native",
+     expected_crc32: Optional[str] = None,
+@@ -130,6 +131,8 @@
+         emit_args.append("--faithful-prefixes")
+     if certify_converged_exits:
+         emit_args.append("--certify-converged-exits")
++    if certify_native_continuations:
++        emit_args.append("--certify-native-continuations")
+     if cfg_roots:
+         emit_args.append("--cfg-roots")
+     if no_host_root_scan:
+@@ -201,6 +204,7 @@
+         "analysis_backend": analysis_backend,
+         "faithful_prefixes": bool(faithful_prefixes),
+         "certify_converged_exits": bool(certify_converged_exits),
++        "certify_native_continuations": bool(certify_native_continuations),
+         "reviewed_roots": reviewed.metadata() if reviewed else None,
+     }
+     reporter.phase("done", pct=1.0, message="Generate complete")
+@@ -270,6 +274,7 @@
+                 if getattr(args, "reviewed_root_manifest", None) else None),
+             faithful_prefixes=bool(getattr(args, "faithful_prefixes", False)),
+             certify_converged_exits=bool(getattr(args, "certify_converged_exits", False)),
++            certify_native_continuations=bool(getattr(args, "certify_native_continuations", False)),
+             legacy_profile_rom_sha256=getattr(args, "legacy_profile_rom_sha256", None),
+             analysis_backend=args.analysis_backend,
+             expected_crc32=args.expected_crc32,
+@@ -348,6 +353,8 @@
+     )
+     generate_parser.add_argument("--reviewed-root-manifest", action=SingleReviewedManifest,
+                                  help="single cfg-dir-contained reviewed analysis-root metadata file")
++    generate_parser.add_argument("--certify-native-continuations", action="store_true",
++                                 help="Certify isolated native suffixes after exact original returns")
+     generate_parser.add_argument("--certify-converged-exits", action="store_true",
+                                  help="certify stable final exit facts without overriding unresolved dependencies")
+     generate_parser.add_argument("--faithful-prefixes", action="store_true",
+diff --git a/snesrecomp_cli.py b/snesrecomp_cli.py
+--- a/snesrecomp_cli.py
++++ b/snesrecomp_cli.py
+@@ -153,7 +153,8 @@
+              legacy_profile_rom_sha256: str | None = None,
+              reviewed_root_manifest: str | None = None,
+              faithful_prefixes: bool = False,
+-             certify_converged_exits: bool = False) -> None:
++             certify_converged_exits: bool = False,
++             certify_native_continuations: bool = False) -> None:
+     """Generate C from a ROM plus its bank configs. Raises on failure."""
+     resolved = resolve_analyzer(backend)
+     arguments = [
+@@ -182,6 +183,8 @@
+         arguments.append("--faithful-prefixes")
+     if certify_converged_exits:
+         arguments.append("--certify-converged-exits")
++    if certify_native_continuations:
++        arguments.append("--certify-native-continuations")
+     for manifest in profile_manifests or []:
+         arguments.extend(["--profile-manifest", manifest])
+     if legacy_profile_rom_sha256:
+diff --git a/runner/src/cpu_state.c b/runner/src/cpu_state.c
+--- a/runner/src/cpu_state.c
++++ b/runner/src/cpu_state.c
+@@ -33,6 +33,7 @@
+ #include "snes/snes.h"
+ #include "snes/cart.h"
+ #include "snes/cx4.h"
++#include "common_cpu_infra.h"
+ 
+ #ifndef SNESRECOMP_CPU_HW_DIAGNOSTICS
+ #define SNESRECOMP_CPU_HW_DIAGNOSTICS 0
+@@ -1309,6 +1310,220 @@
+     return result;
+ }
+ 
++/* Metadata probes must never call cpu_read8: no bus/latch/cart notification,
++ * guest clocks or devices are advanced by eligibility or prologue snapshots. */
++static int continuation_stack_bytes(CpuState *cpu, uint16 s, uint8 count,
++                                    uint8 *out) {
++    if (!cpu || !cpu->ram || count < 2 || count > 3 ||
++        s > 0x1fffu - count) return 0;
++    for (unsigned i = 0; i < count; ++i) out[i] = cpu->ram[s + 1u + i];
++    return 1;
++}
++static int continuation_rom_bytes(uint32 pc, unsigned count, uint8 *out) {
++    if (pc > 0xffffffu || !count || count > 4 ||
++        (pc & 0xffffu) < 0x8000u || (pc & 0xffffu) > 0x10000u - count ||
++        !g_snes || !g_snes->cart || !g_snes->cart->rom) return 0;
++    Cart *cart = g_snes->cart;
++    for (unsigned i = 0; i < count; ++i) {
++        const uint8 *p = cart_getRomPtr(cart, (uint8)(pc >> 16), (uint16)(pc + i));
++        const uintptr_t base = (uintptr_t)cart->rom, at = (uintptr_t)p;
++        if (!p || at < base || at - base >= cart->romSize) return 0;
++        out[i] = *p;
++    }
++    return 1;
++}
++static uint32 continuation_pop_pc(const uint8 *raw, uint8 count, uint8 bank) {
++    return ((uint32)(count == 3 ? raw[2] : bank) << 16) |
++        (uint16)((((uint16)raw[1] << 8) | raw[0]) + 1u);
++}
++static int continuation_direct_call(uint32 site, uint32 target, uint8 frame,
++                                     uint32 *fallthrough) {
++    uint8 b[4];
++    unsigned n = frame == 3 ? 4u : 3u;
++    if ((frame != 2 && frame != 3) || !continuation_rom_bytes(site, n, b) ||
++        b[0] != (frame == 3 ? 0x22 : 0x20)) return 0;
++    uint32 actual = ((uint32)(frame == 3 ? b[3] : (uint8)(site >> 16)) << 16) |
++        ((uint16)b[2] << 8) | b[1];
++    if (actual != target) return 0;
++    *fallthrough = (site & 0xff0000u) | (uint16)((site & 0xffffu) + n);
++    return 1;
++}
++int cpu_capture_native_return(CpuState *cpu, uint32 pc, uint16 before_s,
++                              uint8 opcode, NativeReturnArrival *out) {
++    if (!out || (opcode != 0x60 && opcode != 0x6b)) return 0;
++    memset(out, 0, sizeof(*out));
++    out->frame_bytes = opcode == 0x6b ? 3 : 2;
++    if (!continuation_stack_bytes(cpu, before_s, out->frame_bytes,
++                                   out->raw_return)) return 0;
++    out->opcode = opcode; out->original_return_pc = pc;
++    out->before_return_s = before_s;
++    return 1;
++}
++static int continuation_disabled(void) {
++    const char *e = getenv("SNESRECOMP_DISABLE_NATIVE_CONTINUATIONS");
++    return e && strcmp(e, "1") == 0;
++}
++int cpu_continuation_preflight(CpuState *cpu, const NativeReturnArrival *a,
++                               NativeContinuationFrame *out) {
++    if (!cpu || !a || !out || continuation_disabled() ||
++        !g_native_continuation_count || cpu->emulation ||
++        cpu_interrupt_context_active() || cpu->m_flag > 1 || cpu->x_flag > 1 ||
++        a->landing_pc > 0xffffffu || a->original_return_pc > 0xffffffu ||
++        a->landing_pc != (((uint32)cpu->PB << 16) | (uint16)a->landing_pc) ||
++        a->after_return_s != cpu->S || a->m != cpu->m_flag || a->x != cpu->x_flag ||
++        (a->opcode != 0x60 && a->opcode != 0x6b) ||
++        a->frame_bytes != (a->opcode == 0x6b ? 3 : 2) ||
++        a->before_return_s > 0x1fffu - a->frame_bytes ||
++        a->after_return_s != a->before_return_s + a->frame_bytes ||
++        continuation_pop_pc(a->raw_return, a->frame_bytes,
++                             (uint8)(a->original_return_pc >> 16)) != a->landing_pc)
++        return 0;
++    unsigned lo = 0, hi = g_native_continuation_count;
++    const unsigned key_mx = (cpu->m_flag << 1) | cpu->x_flag;
++    while (lo < hi) {
++        unsigned mid = lo + (hi - lo) / 2;
++        const CpuNativeContinuationEntry *e = &g_native_continuations[mid];
++        unsigned mx = (e->m << 1) | e->x;
++        if (e->pc24 < a->landing_pc || (e->pc24 == a->landing_pc && mx < key_mx))
++            lo = mid + 1;
++        else hi = mid;
++    }
++    if (lo == g_native_continuation_count) return 0;
++    const CpuNativeContinuationEntry *e = &g_native_continuations[lo];
++    /* Ambiguous certificates never use manifest iteration order as policy. */
++    if (lo + 1 < g_native_continuation_count &&
++        g_native_continuations[lo + 1].pc24 == e->pc24 &&
++        g_native_continuations[lo + 1].m == e->m &&
++        g_native_continuations[lo + 1].x == e->x) return 0;
++    if (e->pc24 != a->landing_pc || e->m != cpu->m_flag || e->x != cpu->x_flag ||
++        !e->fn || e->call_frame != a->frame_bytes ||
++        (e->remaining_frame != 2 && e->remaining_frame != 3) ||
++        !e->return_pcs || !e->return_count || e->return_count > 65536u) return 0;
++    int return_member = 0;
++    for (unsigned i = 0; i < e->return_count; ++i)
++        if (e->return_pcs[i] == a->original_return_pc) { return_member = 1; break; }
++    uint8 ret_op;
++    uint32 fallthrough;
++    if (!return_member || !continuation_rom_bytes(a->original_return_pc, 1, &ret_op) ||
++        ret_op != a->opcode ||
++        !continuation_direct_call(e->callsite_pc24, e->callee_pc24,
++                                  e->call_frame, &fallthrough) || fallthrough != e->pc24)
++        return 0;
++    uint8 raw[3] = {0};
++    if (!continuation_stack_bytes(cpu, cpu->S, e->remaining_frame, raw)) return 0;
++    const uint32 outer = continuation_pop_pc(raw, e->remaining_frame, cpu->PB);
++    const unsigned n = e->remaining_frame == 3 ? 4u : 3u;
++    if ((outer & 0xffffu) < 0x8000u + n) return 0;
++    const uint32 site = outer - n;
++    if (!continuation_direct_call(site, e->owner_pc24, e->remaining_frame,
++                                  &fallthrough) || fallthrough != outer) return 0;
++    memset(out, 0, sizeof(*out));
++    out->entry = e; out->entry_s = cpu->S; out->outer_return_pc = outer;
++    memcpy(out->raw_remaining, raw, sizeof raw);
++    return 1;
++}
++
++typedef struct NativeContinuationInvocation {
++    CpuState *cpu;
++    NativeContinuationFrame frame;
++    int root_depth, snapshot_pending, published;
++    int host_frame;
++    uint64_t generation;
++    uint32 actual_pc;
++    uint16 actual_s;
++} NativeContinuationInvocation;
++enum { kNativeContinuationSlots = 16 };
++static NativeContinuationInvocation s_native_continuations[kNativeContinuationSlots];
++static unsigned s_native_continuation_depth;
++extern int snes_frame_counter;
++
++void cpu_continuation_reset(void) {
++    memset(s_native_continuations, 0, sizeof s_native_continuations);
++    s_native_continuation_depth = 0;
++}
++static NativeContinuationInvocation *continuation_current(void) {
++    if (!s_native_continuation_depth) return NULL;
++    NativeContinuationInvocation *c = &s_native_continuations[s_native_continuation_depth - 1];
++    /* Static bounded slots cannot dangle when WatchdogCheck longjmps out of
++     * an invocation. No unfinished context survives a host frame/restore. */
++    if (g_watchdog_tripped || c->host_frame != snes_frame_counter ||
++        c->generation != RtlStateGeneration()) {
++        cpu_continuation_reset();
++        return NULL;
++    }
++    return c;
++}
++
++int cpu_take_continuation_snapshot(CpuState *cpu, uint16 entry_s, uint8 hrv,
++                                   uint32 *out) {
++    NativeContinuationInvocation *c = continuation_current();
++    if (!c || !out || c->cpu != cpu || !c->snapshot_pending ||
++        g_recomp_stack_top != c->root_depth || entry_s != c->frame.entry_s ||
++        cpu->S != entry_s || hrv != c->frame.entry->remaining_frame) return 0;
++    c->snapshot_pending = 0;
++    *out = c->frame.outer_return_pc;
++    return 1;
++}
++int cpu_publish_continuation_return(CpuState *cpu, uint16 entry_s, uint16 pre_s,
++                                    uint32 pc, uint8 frame) {
++    NativeContinuationInvocation *c = continuation_current();
++    if (!c || c->cpu != cpu || c->snapshot_pending || c->published ||
++        g_recomp_stack_top != c->root_depth || entry_s != c->frame.entry_s ||
++        (frame != 2 && frame != 3) || pc > 0xffffffu ||
++        cpu->S != (uint16)(pre_s + frame)) return 0;
++    c->published = 1; c->actual_pc = pc; c->actual_s = cpu->S;
++    return 1;
++}
++NativeContinuationResult cpu_dispatch_continuation(
++    CpuState *cpu, const NativeContinuationFrame *f) {
++    NativeContinuationResult out = {NATIVE_CONT_REFUSED, 0, 0, RECOMP_RETURN_NORMAL};
++    uint8 raw[3] = {0};
++    (void)continuation_current(); /* clear an abandoned watchdog/host epoch */
++    if (!cpu || !f || !f->entry || continuation_disabled()) return out;
++    int table_member = 0;
++    for (unsigned i = 0; i < g_native_continuation_count; ++i)
++        if (f->entry == &g_native_continuations[i]) { table_member = 1; break; }
++    if (!table_member || !f->entry->fn || g_recomp_stack_top < 0 ||
++        g_recomp_stack_top == 0x7fffffff || g_watchdog_tripped ||
++        s_native_continuation_depth == kNativeContinuationSlots ||
++        (((uint32)cpu->PB << 16) | (uint16)f->entry->pc24) != f->entry->pc24 ||
++        cpu->S != f->entry_s || cpu->m_flag != f->entry->m ||
++        cpu->x_flag != f->entry->x || cpu->emulation || cpu_interrupt_context_active() ||
++        !continuation_stack_bytes(cpu, cpu->S, f->entry->remaining_frame, raw) ||
++        memcmp(raw, f->raw_remaining, f->entry->remaining_frame)) return out;
++    const unsigned slot = s_native_continuation_depth++;
++    NativeContinuationInvocation *c = &s_native_continuations[slot];
++    memset(c, 0, sizeof(*c));
++    c->cpu = cpu; c->frame = *f;
++    c->root_depth = g_recomp_stack_top + 1; c->snapshot_pending = 1;
++    c->host_frame = snes_frame_counter; c->generation = RtlStateGeneration();
++    const uint8 old_hrv = cpu->host_return_valid;
++    cpu->host_return_valid = f->entry->remaining_frame;
++    out.recomp_result = f->entry->fn(cpu);
++    cpu->host_return_valid = old_hrv;
++    out.actual_s = cpu->S;
++    if (s_native_continuation_depth != slot + 1 ||
++        c->host_frame != snes_frame_counter || c->generation != RtlStateGeneration()) {
++        out.disposition = NATIVE_CONT_CONTAINED_FAILURE;
++        cpu_continuation_reset();
++        return out;
++    }
++    if (c->published) {
++        out.disposition = NATIVE_CONT_COMPLETED;
++        out.actual_pc = c->actual_pc;
++        if (c->actual_s != cpu->S) out.disposition = NATIVE_CONT_CONTAINED_FAILURE;
++    } else if (out.recomp_result != RECOMP_RETURN_NORMAL) {
++        out.disposition = NATIVE_CONT_ORIGINAL_UNWIND;
++    } else {
++        /* The body ran: missing actual destination can never be a refusal or
++         * permission to replay it. Preserve state and contain the failed run. */
++        out.disposition = NATIVE_CONT_CONTAINED_FAILURE;
++    }
++    memset(c, 0, sizeof(*c));
++    s_native_continuation_depth = slot;
++    return out;
++}
++
+ /* Read-only probe: would a dispatch to pc24 find an exact AOT body?
+  * Mirrors cpu_dispatch_pc_from's lookup + LoROM bank-mirror fallback so
+  * the interpreter bounce never leaves LLE for a NULL manifest variant. */
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -634,6 +634,55 @@
+  * re-dispatching on the popped return address (which over-pops when that address
+  * is a registered function entry). Returns the callee's value. */
+ RecompReturn cpu_dispatch_pc_paired(CpuState *cpu, uint32 pc24, uint8 frame_size);
++
++/* Generated, source-certified post-call suffixes; distinct from call dispatch.
++ * This metadata and all invocation context are host-only, never CpuState/save
++ * fields. return_pcs names original callee RTS/RTL instruction addresses. */
++typedef struct CpuNativeContinuationEntry {
++    uint32 pc24, owner_pc24, callsite_pc24, callee_pc24;
++    uint8 m, x, remaining_frame, call_frame;
++    const uint32 *return_pcs;
++    unsigned return_count;
++    RecompReturn (*fn)(CpuState *);
++} CpuNativeContinuationEntry;
++extern const CpuNativeContinuationEntry g_native_continuations[];
++extern const unsigned g_native_continuation_count;
++typedef struct NativeReturnArrival {
++    uint32 landing_pc, original_return_pc;
++    uint16 before_return_s, after_return_s;
++    uint8 opcode, raw_return[3], frame_bytes, m, x;
++} NativeReturnArrival;
++typedef struct NativeContinuationFrame {
++    const CpuNativeContinuationEntry *entry;
++    uint32 outer_return_pc;
++    uint16 entry_s;
++    uint8 raw_remaining[3];
++} NativeContinuationFrame;
++typedef enum NativeContinuationDisposition {
++    NATIVE_CONT_REFUSED, NATIVE_CONT_COMPLETED,
++    NATIVE_CONT_ORIGINAL_UNWIND, NATIVE_CONT_CONTAINED_FAILURE
++} NativeContinuationDisposition;
++typedef struct NativeContinuationResult {
++    NativeContinuationDisposition disposition;
++    uint32 actual_pc;
++    uint16 actual_s;
++    RecompReturn recomp_result;
++} NativeContinuationResult;
++int cpu_capture_native_return(CpuState *, uint32 pc24, uint16 before_s,
++                              uint8 opcode, NativeReturnArrival *);
++int cpu_continuation_preflight(CpuState *, const NativeReturnArrival *,
++                               NativeContinuationFrame *);
++NativeContinuationResult cpu_dispatch_continuation(
++    CpuState *, const NativeContinuationFrame *);
++/* 1 consumes a matching root snapshot; 0 leaves ordinary metadata handling.
++ * Publication is after guest commit, before the root RecompStackPop. A return
++ * value of 1 requires host-return, including rewritten actual destinations. */
++int cpu_take_continuation_snapshot(CpuState *, uint16 entry_s, uint8 hrv,
++                                   uint32 *expected_return_pc);
++int cpu_publish_continuation_return(CpuState *, uint16 entry_s, uint16 pre_s,
++                                    uint32 popped_pc, uint8 frame_size);
++/* Host boundary cleanup (frame/reset/restore/watchdog), never guest state. */
++void cpu_continuation_reset(void);
+ 
+ /* Read-only exact-AOT probe used by interpreter bounce and RTS rewriting.
+  * A known LLE-only row intentionally returns false. */
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -1745,6 +1745,8 @@
+ 
+     const long step_cap = interp_step_cap();
+     long steps = 0;
++    NativeReturnArrival pending_native_arrival = {0};
++    int pending_native_arrival_valid = 0;
+     uint64_t progress_write_epoch=g_interp_bridge_write_epoch;
+     uint64_t progress_dynamic_epoch=s_interp_dynamic_progress_epoch;
+     /* The pre-opcode poll-shape recognition below reads instruction bytes
+@@ -1766,6 +1768,11 @@
+     }
+     for (; steps < step_cap; steps++) {
+         const uint32_t pc_before = ((uint32_t)in.k << 16) | in.pc;
++        /* Only the immediately following loop boundary may use an arrival.
++         * Every early continue/yield/IRQ/deadline destroys it automatically. */
++        NativeReturnArrival native_arrival = pending_native_arrival;
++        int native_arrival_valid = pending_native_arrival_valid;
++        pending_native_arrival_valid = 0;
+ #ifdef SNESRECOMP_INTERP_PROFILE
+         g_interp_total_steps++;
+         interp_hist_init();
+@@ -2154,6 +2161,7 @@
+             bool redirected = false;
+             for (int hi = 0; hi < s_pre_opcode_hook_count; hi++) {
+                 if (s_pre_opcode_hooks[hi].pc24 == key) {
++                    native_arrival_valid = 0;
+                     sync_interp_to_cpu(&in, cpu);
+                     s_pre_opcode_redirect_valid = 0;
+                     s_native_instruction_committed = false;
+@@ -2450,6 +2458,103 @@
+                 }
+             }
+         }
++        /* Preserve every original pre-instruction scheduler/hook/stop gate.
++         * Native admission comes before the original opcode metadata read, so
++         * it adds neither an unpaced bus access nor an original instruction. */
++        if (native_arrival_valid && !stop_on_rti &&
++            !s_interp_bus_timing_active && !s_native_instruction_cpu &&
++            !s_aot_instruction &&
++            (!yield_pc || lle_yield_bounce_enabled()) &&
++            !lle_bounce_target_excluded(pc_before)) {
++            NativeContinuationFrame frame;
++            sync_interp_to_cpu(&in, cpu);
++            if (cpu_continuation_preflight(cpu, &native_arrival, &frame)) {
++                if (s_apu_pending_master >= bridge_bounce_flush_thresh())
++                    bridge_apu_flush(cpu);
++                const int old_apu = g_interp_apu_driving;
++                const int old_base = s_interp_bounce_recomp_base;
++                const int old_owner = s_interp_bounce_owner_depth;
++                g_interp_apu_driving = 0;
++                s_interp_bounce_recomp_base = g_recomp_stack_top;
++                s_interp_bounce_owner_depth = s_interp_bridge_depth;
++                s_lle_next_unwind_is_deadline = 0;
++                g_interp_wlog_pc24 = 0;
++                NativeContinuationResult cr = cpu_dispatch_continuation(cpu, &frame);
++                s_interp_bounce_owner_depth = old_owner;
++                s_interp_bounce_recomp_base = old_base;
++                g_interp_apu_driving = old_apu;
++                sync_cpu_to_interp(cpu, &in);
++                if (cr.disposition != NATIVE_CONT_REFUSED) {
++                    ++g_interp_bridge_bounces;
++                    /* A native admission is not an original opcode step. */
++#ifdef SNESRECOMP_INTERP_PROFILE
++                    --g_interp_total_steps;
++#endif
++                    --steps;
++                    if (cr.disposition == NATIVE_CONT_CONTAINED_FAILURE) {
++                        fputs("Native continuation missing actual return destination\n", stderr);
++                        bridge_apu_flush(cpu);
++                        cpu_continuation_reset();
++                        /* Legacy tier callers treat boolean bail as NORMAL.
++                         * A body already ran: never hand them a stale PC or
++                         * permission to abandon/replay its consumed frame. */
++                        abort();
++                    }
++                    if (cr.disposition == NATIVE_CONT_ORIGINAL_UNWIND) {
++                        /* Same active-owner/deadline protocol as a paired
++                         * call bounce. Never infer a resume PC from the site. */
++                        if (s_lle_unwind_active) {
++                            if (s_lle_unwind_is_deadline) {
++                                if (yield_pc) {
++                                    lle_resume_set(s_lle_unwind_pc24,
++                                        INTERP_RESUME_SITE_DEADLINE_UNWIND, in.sp);
++                                    s_lle_unwind_active = 0;
++                                    s_lle_unwind_owner_depth = 0;
++                                    s_lle_unwind_is_deadline = 0;
++                                }
++                                bridge_apu_flush(cpu);
++                                return 1;
++                            }
++                            if (s_lle_unwind_owner_depth == s_interp_bridge_depth) {
++                                resume_ring_note(INTERP_RESUME_SITE_YIELD_UNWIND,
++                                    INTERP_RESUME_KIND_UNWIND_CONSUME, pc_before,
++                                    s_lle_unwind_pc24, cpu->S);
++                                s_lle_unwind_active = 0;
++                                s_lle_unwind_owner_depth = 0;
++                                s_lle_unwind_is_deadline = 0;
++                                in.k = (uint8)(s_lle_unwind_pc24 >> 16);
++                                in.pc = (uint16)s_lle_unwind_pc24;
++                                edge_expect = s_lle_unwind_pc24 & 0xffffffu;
++                                continue;
++                            }
++                            return 1; /* nested owner preserves active unwind */
++                        }
++                        /* Nonlocal SKIP without an actual published PC belongs
++                         * to a compiled ancestor, never to a guessed suffix. */
++                        if (!yield_pc && s_interp_bridge_depth > 1)
++                            return (int)cr.recomp_result + 2;
++                        bridge_apu_flush(cpu);
++                        cpu_continuation_reset();
++                        fputs("Native continuation nonlocal exit has no original owner destination\n", stderr);
++                        abort();
++                    }
++                    in.k = (uint8)(cr.actual_pc >> 16);
++                    in.pc = (uint16)cr.actual_pc;
++                    edge_expect = cr.actual_pc;
++                    interp_edge_note(pc_before, cr.actual_pc,
++                        INTERP_EDGE_EXTERNAL, 0, in.sp);
++                    if (!yield_pc && (uint16)in.sp > s_enter) {
++                        if (out_return_pc) *out_return_pc = cr.actual_pc;
++                        bridge_apu_flush(cpu);
++                        return 1;
++                    }
++                    bridge_progress_checkpoint(cpu, auto_quiescent,
++                        &progress_write_epoch, &progress_dynamic_epoch, &steps);
++                    if (reset_cap_on_bounce) steps = -1;
++                    continue;
++                }
++            }
++        }
+         const uint8_t  op = bridge_bus_read(cpu, pc_before);
+ #ifdef SNESRECOMP_INTERP_PROFILE
+         if ((steps & 8191u) == 0) {
+@@ -2607,6 +2712,11 @@
+         const int is_call  = (op == 0x20 || op == 0x22 || op == 0xFC);
+         const int call_len = (op == 0x22) ? 4 : 3;
+         const int is_ret   = (op == 0x60 || op == 0x6B);
++
++        NativeReturnArrival completed_return;
++        const int captured_return = is_ret && !in.e && !stop_on_rti &&
++            g_native_continuation_count && cpu_capture_native_return(cpu,
++                pc_before, in.sp, op, &completed_return);
+ 
+         const uint8_t coverage_mx = (uint8_t)((in.mf << 1) | in.xf);
+         const uint8_t coverage_e = in.e;
+@@ -2997,6 +3107,14 @@
+                 return 1;
+             }
+         }
++        if (captured_return) {
++            completed_return.landing_pc = ((uint32)in.k << 16) | in.pc;
++            completed_return.after_return_s = in.sp;
++            completed_return.m = in.mf;
++            completed_return.x = in.xf;
++            pending_native_arrival = completed_return;
++            pending_native_arrival_valid = 1;
++        }
+     }
+ 
+     /* Step cap hit — contained bail. Sync so observable state is consistent;

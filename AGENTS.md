@@ -1,3 +1,31 @@
+# Current continuation - native0.4.1 / unchanged Companion0.3.6 (2026-10-12)
+
+Read docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md first (under github-repo
+when reading from the project root). Installed native d0615ea0 / immutable public
+compiled_unqualified receipt67187ff1; GUI f1bc6792 unchanged. The twelfth generic
+runtime patch0644e52f enables separately certified native suffixes after actual
+original returns. Current cache7931b53c4968-622935e6df63ce81; outputcache6 /
+programmanifest3. No ordinary-root or sibling promotion. Original clocks, buses,
+stack pops, masks, hook/IRQ/deadline ownership and serialized structures remain.
+Transient slots reset at host frame/session and restored/watchdog epochs.
+Actual225native/0original in changedABD0 activation versus disabled112/113;
+24744 completed boundaries exact.114checks/5finite runs; one separate800x448
+visible enhanced-wide guide capture and59.9809FPS pacedD3D11/audio route pass.
+Three oracle centers are originalbrightness0 fade, not visible battle-art proof.
+18certificates are generation only. Missing publication/unowned unwind stops
+execution; no stale replay. Fullnative/AOT and broader scene/effect coverage open.
+62nativeinputs; companion24unchanged. Per-game transient reset changes declared
+ABI de6eb89e: strict040-to041 copied-source update refuses; fresh adoption works.
+Finite restore/cold checks do not imply campaign certification. Owner/play testers
+verify campaign; implement/render grouped features without per-event replay gates.
+Both native paths/source mirrors exact, owner settings/saves/selectors unchanged.
+Large new outputs stayTemp; steadyproject5GBcap. Never retry old policy-blocked
+cleanup helpers/elevation/VerifyOnly. No broad archive or new campaign matrix.
+GoalACTIVE. Next broader scene/effect/native work and specific play-tester fixes.
+Historical blocks below retain their own artifact scopes.
+
+---
+
 # Current continuation — native0.3.9 / unchanged Companion0.3.5 (2026-10-12)
 
 Read docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md first. Native496e9607 / immutable

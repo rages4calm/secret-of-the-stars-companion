@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest development: native 0.4.0 / Companion 0.3.6.** The journal now includes a 42-page story guide in 14 sections, from the opening through the ending. [Story guide and controls](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) · [Walkthrough sources](docs/JOURNAL-GUIDE-SOURCES.md). Complete native/AOT execution remains unfinished.
+**Latest development: native 0.4.1 / Companion 0.3.6.** Generated native code can now resume after a supported original routine returns. The focused changed-path check converts 113 previously interpreted instructions while retaining identical state and clocks. [Native continuation scope](docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md). The journal includes the 42-page story guide through the ending: [controls](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) · [sources](docs/JOURNAL-GUIDE-SOURCES.md). Complete native/AOT execution remains unfinished.
 
 **Discord:** chrono.trigger
 
@@ -14,7 +14,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.4.0 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.4.1 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The journal has two views: **Current** offers advice for your checkpoint, and **Guide** lets you browse the full story walkthrough. Its suggested starting section follows the original current chapter; it does not automatically recognize every quest step or record completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
 
@@ -97,7 +97,7 @@ Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in
 
 ## Verification and remaining work
 
-The installed **native 0.4.0 / Companion 0.3.6** builds retain genuine **compiled_unqualified** compilation receipts. Separate installation checks preserve owner settings and saves; the focused Direct3D11 route runs near 60 FPS with zero steady audio-counter failures. Separate focused checks capture all 42 actual guide pages and exercise keyboard and indexed virtual-controller opening, navigation, bounds, closing and control release. These check the implemented feature, not natural campaign progression or a physical controller. [Exact feature scope](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md).
+The installed **native 0.4.1 / unchanged Companion 0.3.6** retains genuine **compiled_unqualified** compilation receipts. The changed native continuation path passes 114 checks across five finite runs, including 24,744 exact completed boundaries against same-artifact controls. A separate visible enhanced-wide guide capture and a 59.9809 FPS Direct3D11/audio route pass. Settings and saves are unchanged. [Current implementation scope](docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md). The preceding 0.4.0 checks captured all 42 guide pages and exercised keyboard/indexed virtual-controller navigation; those remain historical feature evidence, not a new physical-controller or campaign certification.
 
 The full guide draws on credited written walkthroughs; fine automatic advice remains the existing verified opening-through-Sidon work. The map keeps its independent verified destinations. Current possession is not permanent quest history, and browsing a later page does not mark anything complete. Owner and play testers verify the campaign and report corrections.
 

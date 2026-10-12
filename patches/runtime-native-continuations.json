@@ -1,0 +1,66 @@
+{
+  "patch_sha256": "0644e52f0c41520fb582270f38f06871f6bc9a002bf12765b4063561546c42db",
+  "files": {
+    "recompiler-rs/src/bin/analyze.rs": {
+      "predecessor_sha256": "8f71314a4b036d856be7e92bee846b2cf0e18a9f6a1f87f2bccd75a19b159283",
+      "final_sha256": "bf322632accf588c0bdf2ef8845adec489a82f343146ca848f38d35cd6c5d01f",
+      "normalized_final_sha256": "bf322632accf588c0bdf2ef8845adec489a82f343146ca848f38d35cd6c5d01f"
+    },
+    "recompiler/v2/program_analysis.py": {
+      "predecessor_sha256": "79d5f33800b5111c96076f877922a79316e9b23decb73bb9cb71a3e86b44833f",
+      "final_sha256": "74ddc2046b1c141c193baed0abe130d1702ec40de9f84debb650d7e8ce82b76e",
+      "normalized_final_sha256": "74ddc2046b1c141c193baed0abe130d1702ec40de9f84debb650d7e8ce82b76e"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "c8619ceedca3208b7b7dc44e3e00fdc951f16a96aa765e8c838b508fd23c1aa3",
+      "final_sha256": "b0e712730d1cf4095e7a23d0ad34a050991c9c1ff3c628bbcf85c2e19978b33f",
+      "normalized_final_sha256": "b0e712730d1cf4095e7a23d0ad34a050991c9c1ff3c628bbcf85c2e19978b33f"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "1d667783bd9deae9ac52507aeaf13dae4ba59abd6ec7e5590d6c4c9c9b74dd8b",
+      "final_sha256": "b9bb785eb85b0c72861f2eda26a1c57529ffae03477ff1e59c2554f70e6e2d0d",
+      "normalized_final_sha256": "b9bb785eb85b0c72861f2eda26a1c57529ffae03477ff1e59c2554f70e6e2d0d"
+    },
+    "recompiler/v2/codegen.py": {
+      "predecessor_sha256": "10fe3e7f2b3c7ba90e11737d4e59c559713dce700c74cf639a32fbce727624b7",
+      "final_sha256": "ac0b6d7b6ee0ba6e9782adbe44f9d121533c88ba22b983f880ac1651f44d13b5",
+      "normalized_final_sha256": "ac0b6d7b6ee0ba6e9782adbe44f9d121533c88ba22b983f880ac1651f44d13b5"
+    },
+    "tools/v2_analyze.py": {
+      "predecessor_sha256": "139acd0e1845cab630f8c68c3372da36b94118895ec52c7c36aebbed45c8d32e",
+      "final_sha256": "a6822404005b08641ba2f2ff217acf4e721c2409eb48401c8560b40a8123924f",
+      "normalized_final_sha256": "a6822404005b08641ba2f2ff217acf4e721c2409eb48401c8560b40a8123924f"
+    },
+    "tools/v2_emit.py": {
+      "predecessor_sha256": "793af9fd0885c1dc347692e45ff005b5a947c809bfeed6712ffb84e009500e38",
+      "final_sha256": "bf7b1d6b3fab9a223e58a5597902c813c4e0315be934ab33e9febe7ca8aea380",
+      "normalized_final_sha256": "bf7b1d6b3fab9a223e58a5597902c813c4e0315be934ab33e9febe7ca8aea380"
+    },
+    "tools/sdk_generate.py": {
+      "predecessor_sha256": "5d3daa8ad1e9079fac83893c6cffdb5fbdbea5d7ebe386b70a1dfadefb9ef5d8",
+      "final_sha256": "3e60ffd384703005b4ad2e9e3d263115ca8c361091bdb835c63d92954607e7b7",
+      "normalized_final_sha256": "3e60ffd384703005b4ad2e9e3d263115ca8c361091bdb835c63d92954607e7b7"
+    },
+    "snesrecomp_cli.py": {
+      "predecessor_sha256": "467abc946ecd6e043cf0bd9be2d538e160b448f33e8f4ab657a0283ad86365c0",
+      "final_sha256": "9ba8a35b1062d64970f9a194dd1bc70578e0f2a6ccf675afdd94874aba561b8b",
+      "normalized_final_sha256": "9ba8a35b1062d64970f9a194dd1bc70578e0f2a6ccf675afdd94874aba561b8b"
+    },
+    "runner/src/cpu_state.c": {
+      "predecessor_sha256": "c121db260ecfec3f4a26f9ef5bb09e5be77afb819c60a33109a0c0a9308802f6",
+      "final_sha256": "25dd3fc3c1646548b0958f3e69c2183c3614739705be9608ec9dcbf60d6151f3",
+      "normalized_final_sha256": "25dd3fc3c1646548b0958f3e69c2183c3614739705be9608ec9dcbf60d6151f3"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "35cb7770a34cc296438dae49557b4b2b047f6b9930203eaa3b8d89998f8e2015",
+      "final_sha256": "68e4b73cae2f639ae22e6d5fc3f7d0dc06e748e8c456ef1b672b48ddcc6bdb75",
+      "normalized_final_sha256": "68e4b73cae2f639ae22e6d5fc3f7d0dc06e748e8c456ef1b672b48ddcc6bdb75"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "cf9cf7f64049616d845acebf400bcb0152ed340910881c103970ff9da387a3b1",
+      "final_sha256": "837a4a54e31601cd202bdeb495c75bfda6d42651ebddb1f55f24cd48a89200ab",
+      "normalized_final_sha256": "837a4a54e31601cd202bdeb495c75bfda6d42651ebddb1f55f24cd48a89200ab"
+    }
+  },
+  "scope": "Generated suffixes admitted only immediately after an actual original RTS/RTL with exact source and stack contracts; no serialized CpuState fields or original clocks/buses are changed."
+}

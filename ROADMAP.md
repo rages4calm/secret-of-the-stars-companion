@@ -9,7 +9,7 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
-The [native 0.4.0 / Companion 0.3.6 continuation](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) adds a complete manually browsable 42-page story guide in 14 sections. Original current chapter 0-24 suggests a starting section, while existing fine automatic advice remains bounded through the Kaja/Bonzley/Sidon work. The [written sources](docs/JOURNAL-GUIDE-SOURCES.md) cover the ending using credited fallback guides for four unavailable RPGClassics pages. Owner and play testers verify campaign directions; implementation checks focus on actual rendering and input.
+The [native 0.4.1 continuation](docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md) resumes certified generated suffixes after exact original returns. The changed-path witness converts 113 previously interpreted instructions with unchanged guest state and clocks. Companion remains 0.3.6. The [0.4.0 story guide](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) contains 42 pages in 14 sections through the ending. Owner and play testers verify campaign directions; developer checks focus on implementation, rendering and reported failures.
 
 Full native/AOT execution, broader story/party/effect rendering and hardware coverage remain unfinished. Guide coverage does not establish automatic campaign event detection, permanent quest history or new objective pins. Current original execution and guarded renderer fallback remain authoritative.
 
@@ -86,7 +86,8 @@ entry/mode evidence. Preserve hard data exclusions, unknown-call returns,
 registered producer hooks, original instruction/bus timing and complete
 checkpoint equality. Qualify new supported contexts with original/native
 comparisons across both parties, town changes and story transitions. The
-current 151 full contexts and 93 prefixes describe generated coverage only;
+current generated contexts, prefixes and 18 continuation certificates describe
+generation only;
 full game execution and the remaining backend/refusal cases are still open.
 
 ## 6. Player testing and focused developer checks

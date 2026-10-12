@@ -20,7 +20,7 @@ static const FoundationGuidePage foundation_guide_pages[] = {
     }, 1 },
     { "The first StarCrest", {
         "After speaking to David,", "explore the mountain cave.",
-        "Stand on its central tile.", "Ray gains magic; David", 
+        "Stand on its central tile.", "Ray gains magic; David",
         "forms the Kustera party.", "SWAP changes active party.",
         "Keep both groups equipped.", ""
     }, 1 },

@@ -43,7 +43,7 @@ To choose a new native build folder explicitly:
 
 ```powershell
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc" `
-  --output-dir "local/source-builds/native040-fresh"
+  --output-dir "local/source-builds/native041-fresh"
 ```
 
 `--output-dir` must not already exist. The default remains a fresh timestamped
@@ -53,7 +53,7 @@ The helper checks the ROM identity before generating anything. It creates a
 fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
-The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current eleven-patch key is `7931b53c4968-6b12d1b942e11e5a`. All eleven full ordered hashes remain in the marker and receipt. Keep caches needed by active builds; remove obsolete rebuildable payloads under the project's required-only storage policy.
+The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current twelve-patch key is `7931b53c4968-622935e6df63ce81`. All twelve full ordered hashes remain in the marker and receipt. Keep caches needed by active builds; remove obsolete rebuildable payloads under the project's required-only storage policy.
 
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
@@ -66,7 +66,8 @@ The script checks those pins and applies `patches/runtime-foundation.patch`,
 `patches/runtime-faithful-hook-boundary.patch` and the metadata-only
 `patches/runtime-reviewed-roots.patch`, then the separate generic
 `patches/runtime-converged-exits.patch`, followed by the exact single-file
-`patches/runtime-accumulator.patch`.
+`patches/runtime-accumulator.patch`, then
+`patches/runtime-native-continuations.patch`.
 Each patch has an independently recorded hash in the cache key and marker; the
 combined resulting source hashes are checked before reusing a checkout. Unexpected
 revisions or edits stop the build without deleting or resetting that checkout.
@@ -80,7 +81,7 @@ generic default generation; it is not a whole-game AOT or performance claim.
 
 The helper binds the complete ten-patch predecessor and complete post-apply
 emitter before accepting an exact source-bound CRLF-to-LF conversion in the new
-eleven-patch cache. The final emitter must match its full recorded SHA-256;
+eleven-patch cache. The twelfth patch follows that frozen emitter, with separate exact predecessor/final hashes in patches/runtime-native-continuations.json. The resulting emitter must match its current full recorded SHA-256;
 mixed, unknown or changed source bytes are refused. The cache marker and real
 compilation receipt record the predecessor, patch output, conversion and final
 source identities. Earlier ten-patch caches are not rewritten. The source
@@ -267,8 +268,8 @@ visible; adoption does not turn a build into a gameplay-qualified release.
 In **Controls**, edit the single player's keyboard and controller game buttons.
 **Hotkeys** supports keyboard names/modifier chords, controller buttons/chords,
 explicit `None`, and all twenty save/load checkpoint slots. Enable hold/toggle
-fast-forward there. **Enhancements** exposes independent XP/gold rates (100–1000%)
-and movement boost (100–300%). Companion 0.3.5 also exposes
+fast-forward there. **Enhancements** exposes independent XP/gold rates (100â€“1000%)
+and movement boost (100â€“300%). Companion 0.3.5 also exposes
 **Random encounter rate (%)** from 0 to 100 for native 0.3.6 or later. Default 100
 keeps the original ordinary check; 0 disables qualified random battles, while
 scripted battles retain their separate path. Reduced values scale integer
@@ -351,8 +352,8 @@ during checked same-area movement. Work remains capped at 1,024 samples per
 host frame, with the existing 120-frame graphics refresh and restore reset.
 [Exact artifact qualification and remaining limits](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md).
 
-Companion Display offers Auto or exact 1280×720, 1600×900, 1920×1080,
-2560×1440 and 3840×2160 window sizes; existing custom sizes remain editable.
+Companion Display offers Auto or exact 1280Ã—720, 1600Ã—900, 1920Ã—1080,
+2560Ã—1440 and 3840Ã—2160 window sizes; existing custom sizes remain editable.
 Pixel shape offers Original CRT shape, Square pixels and Square frame. Auto
 uses Window scale, while fullscreen follows the display. Neither setting adds
 scenery: select Widescreen separately for supported scenes. Apply validates
@@ -437,3 +438,12 @@ not automatic detection of every quest event. The owner and play testers verify
 campaign directions. Fine automatic advice and map pins retain their existing
 bounded predicates. No permanent history, new completion rule or guessed map
 marker is introduced. [Source mapping](docs/JOURNAL-GUIDE-SOURCES.md).
+
+Native 0.4.1 adds restricted original-return to certified native suffix admission.
+Normal Setup enables certification; `--no-native-continuations` is a generation
+diagnostic, and `SNESRECOMP_DISABLE_NATIVE_CONTINUATIONS=1` disables the separate
+table on the same artifact. The all-original diagnostic sets this too. Output
+cache format is 6; program manifest remains 3. Read the
+[continuation contract](docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md).
+The frame/session reset hook changes the declared execution ABI; strict copied
+0.4.0-to0.4.1 profile update refuses, while fresh adoption is available.

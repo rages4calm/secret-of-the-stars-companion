@@ -1,6 +1,6 @@
 {
   "snapshot_date": "2026-10-12",
-  "native_version": "0.4.0",
+  "native_version": "0.4.1",
   "companion_version": "0.3.6",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
@@ -39,5 +39,8 @@
     "scope": "Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies; memory RMW/INC/DEC remain original. Original buses, clocks, callback boundaries and serialized ABI remain unchanged.",
     "normalization": "Exact source-bound CRLF-to-LF only; no instruction/source-line changes.",
     "qualification": "Reviewed offline instruction/source proof only; actual public compilation and exact-artifact gameplay qualification are separate."
-  }
+  },
+  "native_continuation_patch_sha256": "0644e52f0c41520fb582270f38f06871f6bc9a002bf12765b4063561546c42db",
+  "native_continuation_source_binding_sha256": "507a873ed77c7c747292404444262dfca9d913277f99c931f8bdc5dcd60617be",
+  "native_continuation_scope": "Generated suffixes admitted only immediately after an actual original RTS/RTL with exact source and stack contracts; no serialized CpuState fields or original clocks/buses are changed."
 }
