@@ -1,0 +1,21 @@
+{
+  "patch_sha256": "bd89ced03845337ff1a15889b74d33d2dfea0c92e08eaa0e61c08cdfd25b6d17",
+  "files": {
+    "recompiler/v2/codegen.py": {
+      "predecessor_sha256": "094092092c608c2511a5129aabe7af547716d7199d594090640108f78e5eab67",
+      "final_sha256": "808a83ac6db1dbac912de8d30ca8ef10028e8b65978c153cbc8391a5e22cbbf0",
+      "normalized_final_sha256": "808a83ac6db1dbac912de8d30ca8ef10028e8b65978c153cbc8391a5e22cbbf0"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "f260bcdd966e3c502fad7c435ae674e8f876dffff30baf36248f1c6696a20c69",
+      "final_sha256": "fd2320885e3718e64523ee4b53dfae7e8a07624113972cc8cdfc4f318bbe5087",
+      "normalized_final_sha256": "fd2320885e3718e64523ee4b53dfae7e8a07624113972cc8cdfc4f318bbe5087"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "7de8ec42fa99793b99e672ebc9f39223c9beaf632270855084808de9554c91a2",
+      "final_sha256": "bbf5fd7952a502400907a616b1fe2f713e40a290935d7ae9eb834c3e99217857",
+      "normalized_final_sha256": "bbf5fd7952a502400907a616b1fe2f713e40a290935d7ae9eb834c3e99217857"
+    }
+  },
+  "scope": "Exact native E0 known-mode TSB/TRB direct-page and absolute instructions; original cached operand/EA, pre-write Z flag, reversed word-write order and clock charges. Existing masks/callback/deadline/IRQ/continuation contracts and serialized state remain unchanged."
+}

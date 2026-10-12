@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest development: native 0.4.5 / Companion 0.3.6.** Original signed sprite offsets now join compatible ordinary actor/effect widescreen margins with packet-owned transforms. [Current rendering scope](docs/FOUNDATION-SPRITE-OFFSETS-WIDESCREEN-2026-10-12.md). Complete native/AOT execution remains unfinished.
+**Latest development: native 0.4.7 / Companion 0.3.6.** Automatic Current advice covers original chapters0–24 independently of Guide browsing; the full42-page Guide and finer leads remain. Faithful native TSB/TRB adds actual execution coverage. [Current scope](docs/FOUNDATION-CURRENT-JOURNAL-NATIVE-BITS-2026-10-12.md). Complete native/AOT execution remains unfinished.
 
 **Discord:** chrono.trigger
 
@@ -14,9 +14,9 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.4.5 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.4.7 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
-The journal has two views: **Current** offers advice for your checkpoint, and **Guide** lets you browse the full story walkthrough. Its suggested starting section follows the original current chapter; it does not automatically recognize every quest step or record completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
+The journal has two views: **Current** offers automatic chapter advice and finer current-state leads for your checkpoint, and **Guide** lets you browse the full story walkthrough. Its suggested starting section follows the original current chapter; it does not automatically recognize every quest step or record completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
 
 The aim is to give this overlooked RPG a polished PC edition that is easier to play and easier to understand: attractive original pixel art, a genuinely wider world view, reliable controls and audio, a useful quest journal, and a map showing your position, towns and verified destinations. The launcher follows the familiar Companion approach used in [EarthBound Companion](https://github.com/rages4calm/earthbound-companion) and [Zelda Companion](https://github.com/rages4calm/zelda-companion).
 

@@ -4,6 +4,7 @@
 #include "foundation_hotkeys.h"
 #include "foundation_map.h"
 #include "foundation_guide_data.h"
+#include "foundation_current_data.h"
 #include "common_rtl.h"
 #include "snes/snes.h"
 #include "snes_overlay_draw.h"
@@ -215,7 +216,7 @@ void FoundationJournalBeforeFrame(void) {
 void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
     frame_number = stats->frame;
     has_lead = FoundationJournalCurrentLead(g_ram, 0x20000) != 0 ||
-               FoundationJournalGuidePart(g_ram, 0x20000) != 0;
+               FoundationJournalChapterAdvice(g_ram, 0x20000) != NULL;
     if (trace) {
         fprintf(trace, "%u,%u,%u,%u,%d,%d,%d,%u,%u,%d,%zu,%u,%u\n", frame_number, g_ram[0x20],
                 g_ram[0x5372], g_ram[0x5360], enabled, visible, has_lead,
@@ -267,6 +268,8 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         for (unsigned slot = 0; slot < 32; ++slot)
             used[pack] += g_ram[0x5373 + pack * 32 + slot] != 0xff;
     const char *objective[2], *route[2], *progress;
+    char chapter_progress[32];
+    const FoundationCurrentAdvice *chapter_advice = FoundationJournalChapterAdvice(g_ram, 0x20000);
     unsigned town_route = FoundationJournalBadbadRoute(g_ram[0x5372], g_ram[0x5360],
         JournalItemGroups(g_ram, 0x20000, 0x6d), g_ram[0x4b6]);
     if (town_route) {
@@ -470,19 +473,20 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         route[0] = "David: somewhere in";
         route[1] = "the mountain.";
         progress = "David's current advice";
-    } else if (FoundationJournalGuidePart(g_ram, 0x20000)) {
-        const FoundationGuidePage *page = &foundation_guide_pages[GuideCurrentPage()];
-        objective[0] = page->title;
-        objective[1] = "Guide for this story section.";
-        route[0] = page->lines[0];
-        route[1] = page->lines[1];
-        progress = "Select GUIDE for every step.";
+    } else if (chapter_advice) {
+        objective[0] = chapter_advice->objective[0];
+        objective[1] = chapter_advice->objective[1];
+        route[0] = chapter_advice->route[0];
+        route[1] = chapter_advice->route[1];
+        snprintf(chapter_progress, sizeof(chapter_progress),
+                 "Chapter %u - route reminder", g_ram[0x5372]);
+        progress = chapter_progress;
     } else {
-        objective[0] = "No current lead recorded.";
-        objective[1] = "Talk to people for clues.";
-        route[0] = "No route recorded for";
-        route[1] = "the current chapter.";
-        progress = "Current party packs";
+        objective[0] = "Current advice unavailable.";
+        objective[1] = "Finish dialogue or events.";
+        route[0] = "Talk to people for clues.";
+        route[1] = "Select GUIDE for all steps.";
+        progress = "No chapter route selected.";
     }
     uint32_t *pixels = (uint32_t *)dst;
     int stride = (int)(pitch / 4), x = (w - 240) / 2, y = (h - 196) / 2;
@@ -495,7 +499,7 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
     for (int row = 22; row <= 122; row += 50)
         snes_ovl_fill_rect(pixels, stride, h, x + 8, y + row, 224, 1, 0xff293a57);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 28,
-                       lead ? "CURRENT OBJECTIVE" : "CURRENT STORY SECTION", gold, 1);
+                       lead ? "CURRENT OBJECTIVE" : "CURRENT CHAPTER ADVICE", gold, 1);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 42, objective[0], ink, 1);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 54, objective[1], ink, 1);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 78, "ROUTE AND ADVICE", gold, 1);

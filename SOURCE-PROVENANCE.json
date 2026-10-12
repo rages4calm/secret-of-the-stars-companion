@@ -1,6 +1,6 @@
 {
   "snapshot_date": "2026-10-12",
-  "native_version": "0.4.5",
+  "native_version": "0.4.7",
   "companion_version": "0.3.6",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
@@ -45,5 +45,8 @@
   "native_continuation_scope": "Generated suffixes admitted only immediately after an actual original RTS/RTL with exact source and stack contracts; no serialized CpuState fields or original clocks/buses are changed.",
   "memory_rmw_patch_sha256": "bc942791aabf6920b40bf942d874e0f1d4461eb04867acf3266a285412042b32",
   "memory_rmw_source_binding_sha256": "44cc9dfee04068c888ca23884b702b674f9988cc9382e7575722ec1e849c5b43",
-  "memory_rmw_scope": "Exact E0 known-mode memory INC/DEC/ASL/LSR/ROL/ROR DP/DPX/ABS/ABSX and accumulator INC/DEC; single original operand/EA, original transfer order and clock charges. Generic native JSL yields retain the actual callee program bank. No serialized guest fields or gameplay pace change."
+  "memory_rmw_scope": "Exact E0 known-mode memory INC/DEC/ASL/LSR/ROL/ROR DP/DPX/ABS/ABSX and accumulator INC/DEC; single original operand/EA, original transfer order and clock charges. Generic native JSL yields retain the actual callee program bank. No serialized guest fields or gameplay pace change.",
+  "memory_bits_patch_sha256": "bd89ced03845337ff1a15889b74d33d2dfea0c92e08eaa0e61c08cdfd25b6d17",
+  "memory_bits_source_binding_sha256": "1c363a73150cb9df603488a7a4df2f045a22bb07788aaa18ffb0bff84d255e87",
+  "memory_bits_scope": "Exact native E0 known-mode TSB/TRB direct-page and absolute instructions; original cached operand/EA, pre-write Z flag, reversed word-write order and clock charges. Existing masks/callback/deadline/IRQ/continuation contracts and serialized state remain unchanged."
 }

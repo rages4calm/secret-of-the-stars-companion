@@ -110,3 +110,19 @@ The cards use independently phrased short instructions; none intentionally
 quotes a source passage. No statistic table or detailed source maze solution
 is copied. A source reference is not live gameplay verification, and no missing
 RPGClassics ending page is represented as recovered.
+
+## Automatic Current chapter cards — 0.4.7
+
+The separate `foundation_current_data.h` now supplies25 independently phrased
+route reminders keyed by original chapter0..24. It does not reuse Guide browsing
+position. Original message selectors in the retained chapter-source assessment
+establish broad chapter scope; the walkthrough references above supply directions.
+Existing finer source-backed leads remain ahead of these cards. There are no
+new quest-completion records, inferred acquisitions, flag meanings or map pins.
+
+RPG Gamers and RetroMaggedon were reread for this continuation. GameFAQs8776
+failed reopening; its previously documented reading remains historical attribution.
+Later chapter cards are broad reminders; chapter24's fountain instruction is
+conditional on Bosen's request. Owner/play testers verify campaign directions.
+Focused staged checkpoints qualify visible operation, not natural acquisition.
+The complete42-page Guide remains byte-identical.

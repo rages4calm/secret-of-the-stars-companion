@@ -9,6 +9,8 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
+The [native 0.4.7 Current/native-bit update](docs/FOUNDATION-CURRENT-JOURNAL-NATIVE-BITS-2026-10-12.md) supplies dedicated automatic advice for all original chapters while preserving finer current-state leads and the full Guide. Exact TSB/TRB memory-bit execution expands faithful native coverage; full native/AOT remains open.
+
 The [native 0.4.5 sprite-offset update](docs/FOUNDATION-SPRITE-OFFSETS-WIDESCREEN-2026-10-12.md) adds packet-owned nonzero0471/0473 transforms for compatible ordinary actors/effects. Original terrain, packet, raster and center guards remain; large/travel offsets and ambiguous layouts retain fallback.
 
 The [native 0.4.4 effect rendering update](docs/FOUNDATION-VARIABLE-EFFECT-WIDESCREEN-2026-10-12.md) adds a bounded original variable-effect path in the widescreen margins. Original descriptors resolve the pieces; completed packet and displayed-resource checks own the added pixels. Unsupported anchors, offsets and layouts retain fallback.

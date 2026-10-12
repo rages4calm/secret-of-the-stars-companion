@@ -1,0 +1,82 @@
+diff --git a/recompiler/v2/codegen.py b/recompiler/v2/codegen.py
+--- a/recompiler/v2/codegen.py
++++ b/recompiler/v2/codegen.py
+@@ -982,6 +982,8 @@
+         'ROR': (0x66, 0x76, 0x6E, 0x7E),
+         'DEC': (0xC6, 0xD6, 0xCE, 0xDE),
+         'INC': (0xE6, 0xF6, 0xEE, 0xFE),
++        'TSB': (0x04, None, 0x0C, None),
++        'TRB': (0x14, None, 0x1C, None),
+     }
+     modes = (DP, DP_X, ABS, ABS_X)
+     mode = getattr(insn, 'mode', None)
+@@ -992,7 +994,8 @@
+             or getattr(insn, 'data_region_exec', False)):
+         return None
+     index = modes.index(mode)
+-    if (getattr(insn, 'opcode', None) != groups[mnem][index]
++    if (groups[mnem][index] is None
++            or getattr(insn, 'opcode', None) != groups[mnem][index]
+             or getattr(insn, 'length', None) != (2 if index < 2 else 3)
+             or type(getattr(insn, 'operand', None)) is not int
+             or not 0 <= insn.operand <= (0xFF if index < 2 else 0xFFFF)):
+@@ -1000,7 +1003,12 @@
+     seg = SegRef(kind=SegKind.DIRECT if index < 2 else SegKind.ABS_BANK,
+                  offset=insn.operand, index=Reg.X if index in (1, 3) else None)
+     width = 1 if insn.m_flag else 2
+-    if mnem in ('INC', 'DEC'):
++    if mnem in ('TSB', 'TRB'):
++        expected = BitSetMem if mnem == 'TSB' else BitClearMem
++        if (len(ops) != 1 or not isinstance(ops[0], expected)
++                or ops[0].seg != seg or ops[0].width != width):
++            return None
++    elif mnem in ('INC', 'DEC'):
+         if (len(ops) != 1 or not isinstance(ops[0], IncMem)
+                 or ops[0].seg != seg or ops[0].width != width
+                 or ops[0].delta != (1 if mnem == 'INC' else -1)):
+@@ -1034,7 +1042,14 @@
+     ctype = widths.ctype(width)
+     lines = ['{', '  uint16 _rmw_value;',
+              f'  CpuAotRmwOperand _rmw_operand = cpu_aot_rmw_read(cpu, {mode}, &_rmw_value);']
+-    if insn.mnem in ('INC', 'DEC'):
++    if insn.mnem in ('TSB', 'TRB'):
++        # The original core publishes Z before writes and leaves every other flag.
++        lines.append(f'  cpu->_flag_Z = ((({ctype})cpu->A & ({ctype})_rmw_value) == 0);')
++        operator = '|' if insn.mnem == 'TSB' else '& ~'
++        lines.append(f'  {ctype} _rmw_result = ({ctype})(_rmw_value {operator} cpu->A);')
++        carry = []
++        nz = []
++    elif insn.mnem in ('INC', 'DEC'):
+         delta = '+ 1u' if insn.mnem == 'INC' else '- 1u'
+         lines.append(f'  {ctype} _rmw_result = ({ctype})(_rmw_value {delta});')
+         carry = []
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2069,7 +2069,7 @@
+             'JSR','JSL','RTS','RTL','JMP','JML','BRA','BRL','BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
+         _rmw_contract = faithful_memory_rmw_contract(_di, pairs[0][1])
+         _acc_incdec = faithful_accumulator_incdec(_di, pairs[0][1])
+-        # New arithmetic never promotes code bytes already designated as data
++        # RMW arithmetic and bit operations never promote code bytes already designated as data
+         # or excluded from native ownership. Existing prefix masks remain hard.
+         _arithmetic_masked = False
+         if _rmw_contract or _acc_incdec:
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -588,9 +588,11 @@
+   if(!value || mode>CPU_AOT_RMW_ABSX || cpu->emulation || cpu->m_flag>1 ||
+      s_aot_rmw_read || s_aot_cycles!=base[mode] ||
+      s_aot_length!=(mode<=CPU_AOT_RMW_DPX ? 2u : 3u) ||
+-     (op&0x1f)!=form[mode] ||
+-     !(family==0x00 || family==0x20 || family==0x40 || family==0x60 ||
+-       family==0xc0 || family==0xe0)) {
++     !(((op&0x1f)==form[mode] &&
++        (family==0x00 || family==0x20 || family==0x40 || family==0x60 ||
++         family==0xc0 || family==0xe0)) ||
++       (mode==CPU_AOT_RMW_DP && (op==0x04 || op==0x14)) ||
++       (mode==CPU_AOT_RMW_ABS && (op==0x0c || op==0x1c)))) {
+     fputs("Invalid faithful RMW metadata/transaction\n",stderr);abort();
+   }
+   uint32 address;

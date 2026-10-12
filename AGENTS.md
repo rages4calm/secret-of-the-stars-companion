@@ -1,3 +1,18 @@
+# Current continuation — native0.4.7 / unchanged Companion0.3.6 (2026-10-12)
+
+Read github-repo/docs/FOUNDATION-CURRENT-JOURNAL-NATIVE-BITS-2026-10-12.md and local/evidence/continuation047-20261012.
+Native 94c976a6, immutable compiled_unqualified receipt 20ad2e53.
+Dedicated25chapter Current cards preserve finer leads/maps and full42page Guide.
+Idle original field/known party/chapter guards; immediate read-only recompute,
+no history/guessed flags/coordinates. Fourteenth native patch adds exact TSB/TRB
+DP/ABS;24744 finite boundaries exact, actualB63F native.63native/24GUI; ABI stays.
+Original sprite offsets/camera/packet/DMA/raster ownership and all QoL remain.
+Owner/playtesters verifycampaign; fullnative/AOT remains unfinished. Goal ACTIVE.
+Required Temp paths047plan; steady5GBcap, no old policyblockedcleanup retries.
+Historical blocks retain their artifact scopes.
+
+---
+
 # Current continuation — native0.4.5 / unchanged Companion0.3.6 (2026-10-12)
 
 Read docs/FOUNDATION-SPRITE-OFFSETS-WIDESCREEN-2026-10-12.md (under github-repo at root).
