@@ -2,15 +2,24 @@
 
 The target is a polished, editable Windows PC edition with attractive original
 pixels, true wider scenery/actors, reliable controls/audio and a useful journal.
-This is active foundation work, not a completed native recompilation. The [0.3.0 continuation](docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md) generates the original outer constructor and long-call/return sites alongside the earlier loading routine, retaining original instruction timing. Its original callees remain interpreted; full native/AOT generation remains a major unfinished task.
+The port recompiles original instructions through the pinned whole-program
+analyzer/emitter and retains original execution where it cannot yet prove a
+supported path. Reviewed entry metadata and proved prefixes now broaden that
+automatic generation through normal Setup. Complete native/AOT execution
+remains a major unfinished task; authored presentation and guidance features
+have their own bounded coverage.
 
-Native 0.3.3 / Companion 0.3.4 add verified Decatas ballot/election/ticket
-guidance and party-aware destinations. The [current continuation](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md)
-also extends faithful native generation from authentic local gameplay records,
-preserving original registered renderer callbacks and proving actual sprite art.
-Original room loaders and ordinary walking replace incoherent camera fixtures.
-Public default setup is separately built without private captures. Complete AOT,
-campaign/effect coverage and later verified quest guidance remain unfinished.
+The [native 0.3.4 source continuation](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md)
+makes the reviewed expanded generation reproducible with public source and an
+owned ROM, without private gameplay recordings. It retains the preceding
+[Decatas guidance and renderer-boundary repair](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md).
+Fresh execution, checkpoint, packet/art and launcher-adoption checks pass,
+with thirteen clean normal playback routes and a clean nine-route modal
+repeat. Initial modal audio failures remain retained with an unproven cause;
+installation and 18 copied launch/visible-GUI checks pass.
+Package/publication integrity is checked separately. Generation counts do not
+certify the campaign. Complete AOT, broader effects/party/story coverage and
+later verified quest guidance remain unfinished.
 
 ## 1. Public first-run setup and packaging
 
@@ -25,7 +34,9 @@ for selection-only rollback. A source-first package tool includes one
 self-contained GUI, authored source and notices; native game and original data
 stay excluded. Finish broader package/hardware checks and automatic GUI release
 updates. Configured profile roots currently retain absolute paths.
-Do not distribute the ROM or generated game code.
+Normal Setup now reproduces the reviewed expanded analysis using the authored
+entry metadata; it needs no private gameplay recordings. Do not distribute
+the ROM or generated game code.
 
 ## 2. Finish widescreen actors and difficult scenes
 
@@ -106,7 +117,17 @@ Keep enhanced original pixels and experimental widescreen moving toward a
 consistent whole-game presentation. A replacement HD world/sprite pack is
 deferred. Optional finer menu-frame art has only bounded coverage.
 
-## 5. Wider testing
+## 5. Continue automatic native execution
+
+Extend the standard analyzer and faithful backend from authentic original
+entry/mode evidence. Preserve hard data exclusions, unknown-call returns,
+registered producer hooks, original instruction/bus timing and complete
+checkpoint equality. Qualify new supported contexts with original/native
+comparisons across both parties, town changes and story transitions. The
+current 151 full contexts and 93 prefixes describe generated coverage only;
+full game execution and the remaining backend/refusal cases are still open.
+
+## 6. Wider testing
 
 Use small copied-save and reproducible routes for story transitions, combat,
 menus, controllers, listening checks, long sessions and hardware variation.

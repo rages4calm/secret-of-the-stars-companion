@@ -43,24 +43,29 @@ The helper checks the ROM identity before generating anything. It creates a
 fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
-The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current eight-patch key is `7931b53c4968-a8c90debfcb59a56`. All eight full ordered hashes remain in the marker and receipt. Previous caches are retained.
+The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current nine-patch key is `7931b53c4968-d2a52ce241c92ff8`. All nine full ordered hashes remain in the marker and receipt. Previous caches are retained.
 
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
 [`native/foundation/framework_pins.txt`](native/foundation/framework_pins.txt).
 The script checks those pins and applies `patches/runtime-foundation.patch`,
-`patches/runtime-navigation-map.patch`, `patches/runtime-faithful-clear.patch`
+`patches/runtime-navigation-map.patch`, `patches/runtime-faithful-clear.patch`,
 `patches/runtime-modal-audio.patch` and
 `patches/runtime-automatic-faithful.patch`, followed by the separate
-`patches/runtime-paired-lifecycle.patch`, `patches/runtime-proven-prefix.patch`
-and `patches/runtime-faithful-hook-boundary.patch`.
+`patches/runtime-paired-lifecycle.patch`, `patches/runtime-proven-prefix.patch`,
+`patches/runtime-faithful-hook-boundary.patch` and the metadata-only
+`patches/runtime-reviewed-roots.patch`.
 Each patch has an independently recorded hash in the cache key and marker; the
 combined resulting source hashes are checked before reusing a checkout. Unexpected
 revisions or edits stop the build without deleting or resetting that checkout.
 
-Generation invokes the pinned `snesrecomp_cli.py generate` with the checked
-CRC32/SHA-256, `recomp/symbols.toml` and all three reviewed bank configurations, with
-`--cfg-roots`. The automatic faithful patch retains upstream decoded instruction
+Normal generation uses the pinned analyzer/emitter with the checked
+CRC32/SHA-256, `recomp/symbols.toml`, all three bank configurations and
+`recomp/reviewed-roots.json`. Reviewed roots and proved prefixes default on.
+The supported SDK regeneration command forwards `--cfg-roots`,
+`--no-host-root-scan`, `--faithful-prefixes` and the single
+`--reviewed-root-manifest` input. The builder may invoke the same emitter directly;
+both interfaces reproduce the same graph, game bodies and dispatch tables. The automatic faithful patch retains upstream decoded instruction
 and IR generation while committing original bus transfers and internal clocks
 one instruction at a time. Unsupported modes return to the original interpreter.
 The three reviewed inline-data ranges remain hard-masked; their special return
@@ -105,15 +110,22 @@ oracle too, set `SNESRECOMP_LLE_INTERP_TARGET_FILE` to the receipt's generated
 comparisons must verify each diagnostic route. No profile setting enables this
 oracle by default. See [native generation, renderer boundaries and exact scope](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md).
 
-Default setup uses reviewed roots with no local captures or proved prefixes.
-`--emit-proven-prefixes` is an explicit developer option. The optional
-`--profile-*` inputs require the exact supported original five-patch capture
-receipt/program/analyzer/runtime identity; arbitrary new-runtime captures are
-refused. Captured-source identity and target eight-patch generation identity
-stay separate. Private captures and generated game code are not included in
-this repository or package. The recorded-profile qualification cannot be
-reproduced from private inputs that are not supplied; ordinary public default
-setup has its own bounded qualification.
+Default Setup needs no local captures. The authored reviewed metadata lists
+183 additional exact PC/M/X/native-E0 entry contexts and hash-only review
+provenance. It supplies analysis seeds, not instruction bytes or forced native
+dispositions. Existing data masks, forced-original entries, unknown modes/calls
+and registered callbacks remain authoritative. With the existing roots, the
+current clean-USA analysis yields 196 roots and 245 contexts: 151 full bodies,
+93 proved prefixes and one interpreted context. These are generation counts.
+
+For generation diagnostics, `--no-reviewed-roots` omits the authored additional
+seeds and `--no-proven-prefixes` disables prefix emission. Neither option is
+needed for normal Setup. `--emit-proven-prefixes` remains accepted explicitly.
+The optional `--profile-*` inputs retain their separate exact original
+five-patch receipt/program/analyzer/runtime checks; they are not a default or
+a public dependency. Captured-source identity and target nine-patch generator
+identity remain separate. ROM-derived output stays ignored and local.
+[Reviewed metadata, reproducibility and limits](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md).
 
 The resulting `source-build-receipt.json` says **compiled_unqualified** and
 records exact input/executable hashes. Compilation is separate from gameplay
@@ -257,7 +269,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.3.3 / Companion 0.3.4)
+## Navigation and display (native 0.3.4 source / Companion 0.3.4)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -270,10 +282,12 @@ separately audited three-file host navigation/input patch, plus the two-file
 faithful-instruction API supplement, host-only modal/audio repair and generic
 automatic-faithful patch, paired lifecycle, explicit proved-prefix support and
 original registered-hook boundaries. It preserves previous runtime caches,
-records all eight patch hashes, and produces a real
+records all nine patch hashes, and produces a real
 `compiled_unqualified` receipt. The host-only changes retain the declared guest
 execution-state ABI; matching metadata is still required for changed-binary
-profile updates. There are 60 native authored inputs and 24 Companion inputs.
+profile updates. There are 61 native authored inputs and 24 Companion inputs. The ninth patch
+adds reviewed-root validation/forwarding only; the preceding eight patches and
+serialized execution-state layout retain their exact identities.
 The matching legend and source-proven cache-key fixes preserve completed terrain
 during checked same-area movement. Work remains capped at 1,024 samples per
 host frame, with the existing 120-frame graphics refresh and restore reset.
@@ -286,8 +300,12 @@ uses Window scale, while fullscreen follows the display. Neither setting adds
 scenery: select Widescreen separately for supported scenes. Apply validates
 changed values, and Revert restores the loaded profile.
 
-The installed 0.3.3/0.3.4 pair passes exact-artifact qualification and 18
-copied-installed controls. The host modal/audio patch waits for genuine guest
+The preceding installed 0.3.3/0.3.4 pair passes exact-artifact qualification
+and 18 copied-installed controls. The fresh native 0.3.4 public build has its
+own strict execution/rendering, launcher-adoption and thirteen finite normal
+playback checks, followed by a clean nine-route modal repeat. Two initial
+modal audio failures remain retained; their cause is unproven. Installation and 18 copied
+Play/Resume/visible-GUI controls pass; package/publication integrity is checked separately. The host modal/audio patch waits for genuine guest
 DSP prefill before resuming the device and consumes a keyboard rewind request
 once, preserving original guest timing and checkpoint ABI. Compilation alone
 does not satisfy gameplay, installation or ROM-free package qualification.

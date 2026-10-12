@@ -1,4 +1,44 @@
-# Current installed continuation — native0.3.3 / Companion0.3.4 (2026-10-11)
+# Current installed continuation — native0.3.4 / unchanged Companion0.3.4 (2026-10-11)
+
+Read docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md first. Fresh ordinary public
+build956cef47 / immutable receipt2729858d has61 authored inputs and nine
+separately hash-bound patches at the same runtime pin. Normal Setup enables
+reviewed roots and proved prefixes without private profile/capture inputs.
+The strict metadata-only recomp/reviewed-roots.json has183 native-E0 PC/M/X
+seeds; it declares no instruction bodies, data, exit modes or forced native
+eligibility. All three data-region plus three authority-data directives and42
+forced-original entries remain unchanged;00ABD0:M1X1 remains LLE.
+
+Exact manifest245/151full/93prefix/1LLE and generated game bodies/dispatch match
+the qualified expanded033 build. These are generation counts, not campaign or
+per-mode execution qualification. Record distinct generator/module build
+digests; never relabel the prior build identity. Existing guarded clear and
+constructor islands remain available on normal player routes. Strict automatic
+comparisons disable both and derive original exclusions from the actual new
+manifest/dispatch target list. Preserve original registered hooks, unknown-call
+yields, stack/mode/bus/scheduler boundaries and complete checkpoint bytes.
+
+Fresh strict468/24, registered-hook controls, lab packet/art and unchanged GUI60
+adoption pass. Thirteen normal routes pass59.583–60.056FPS with zero steady
+audio failures. Initial modal playback passed seven of nine: Escape and
+keyboard-Escape failed steady audio gates. Focused candidate/predecessor controls
+pass three routes each; the full candidate nine-route repeat passes with zero
+steady audio deltas. Preserve the initial failures; stalls occurred after
+overlays closed and cause remains unproven. Installed034/unchangedGUI034 and
+18 copied Play/Resume/visible-GUI controls pass. Package/publication integrity has
+separate checks for034. Read
+local/evidence/faithful-reviewed-roots-20261011/gui-adoption34/{installation-report,installed-runtime-report}.json
+for exact hashes and reversible backup; do not infer full campaign coverage.
+Preserve real compiled_unqualified receipts; fresh
+compilation alone cannot qualify release/adoption routes. Do not ship ROM data,
+generated bodies, captures or checkpoints. Keep original data/preferences and
+other projects protected; use isolated copied EXEs with explicit fixtures.
+Full AOT/campaign, later party/effect/quest coverage and automatic GUI updates
+remain unfinished. Earlier sections retain historical artifact scope.
+
+---
+
+# Preceding installed continuation — native0.3.3 / Companion0.3.4 (2026-10-11)
 
 Read docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md first. Exact native7f0501e2 /
 immutable receipt3122447e and unchanged GUIb6328fc5/receiptf7a714c0 are installed.

@@ -220,13 +220,18 @@ def main():
     for patch_name, identity, label in (
             ('runtime-paired-lifecycle.patch', 'lifecycle_patch_sha256', 'Paired return lifecycle'),
             ('runtime-proven-prefix.patch', 'prefix_patch_sha256', 'Proved instruction prefix'),
-            ('runtime-faithful-hook-boundary.patch', 'faithful_hook_boundary_patch_sha256', 'Original callback boundary')):
+            ('runtime-faithful-hook-boundary.patch', 'faithful_hook_boundary_patch_sha256', 'Original callback boundary'),
+            ('runtime-reviewed-roots.patch', 'reviewed_roots_patch_sha256', 'Reviewed analysis roots')):
         extension = ROOT / 'patches' / patch_name
         if ('patches/' + patch_name not in tracked or not extension.is_file()
                 or sha(extension) != provenance.get(identity)):
             errors.append(label + ' patch differs from the audited snapshot.')
         elif sha(extension) not in helper:
             errors.append(label + ' audit hash is missing from the build helper.')
+    reviewed = ROOT / 'native/foundation/recomp/reviewed-roots.json'
+    if ('native/foundation/recomp/reviewed-roots.json' not in tracked
+            or sha(reviewed) != provenance.get('reviewed_analysis_roots_sha256')):
+        errors.append('Reviewed root configuration differs from the audited snapshot.')
     if provenance['runtime_commit'] not in pins or provenance['runtime_commit'] not in helper:
         errors.append('Runtime pin mismatch.')
     if 'PolyForm Noncommercial' not in (ROOT / 'LICENSE').read_text(encoding='utf-8'):

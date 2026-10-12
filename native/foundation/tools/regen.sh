@@ -15,6 +15,9 @@
 #   --no-verify   skip the ROM digest check (for a revision this project has
 #                 not been pinned to yet — expect the generated C to differ)
 #   --cfg-roots   seed analysis from every func declaration in recomp/*.cfg
+#   --no-reviewed-roots  diagnostic: omit authored reviewed analysis seeds
+#   --no-proven-prefixes diagnostic: disable faithful prefixes
+#   --emit-proven-prefixes enable the ordinary default explicitly
 #   -h|--help     this message
 set -euo pipefail
 
@@ -23,13 +26,18 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 VERIFY=1
-CFG_ROOTS=0
+CFG_ROOTS=1
+REVIEWED_ROOTS=1
+PROVEN_PREFIXES=1
 ROM=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --rom) ROM=$2; shift 2 ;;
     --no-verify) VERIFY=0; shift ;;
     --cfg-roots) CFG_ROOTS=1; shift ;;
+    --no-reviewed-roots) REVIEWED_ROOTS=0; shift ;;
+    --no-proven-prefixes) PROVEN_PREFIXES=0; shift ;;
+    --emit-proven-prefixes) PROVEN_PREFIXES=1; shift ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed -n '/^# /p' | sed 's/^# //'; exit 0 ;;
     *) echo "regen.sh: unknown flag: $1 (try --help)" >&2; exit 2 ;;
   esac
@@ -77,8 +85,10 @@ else
 fi
 
 GEN_ARGS=(--rom "$ROM" --cfg-dir recomp --out-dir src/gen
-          --funcs-h recomp/funcs.h --project-root "$ROOT")
+          --funcs-h recomp/funcs.h --project-root "$ROOT" --no-host-root-scan)
 if [ "$CFG_ROOTS" -eq 1 ]; then GEN_ARGS+=(--cfg-roots); fi
+if [ "$REVIEWED_ROOTS" -eq 1 ]; then GEN_ARGS+=(--reviewed-root-manifest "$ROOT/recomp/reviewed-roots.json"); fi
+if [ "$PROVEN_PREFIXES" -eq 1 ]; then GEN_ARGS+=(--faithful-prefixes); fi
 if [ "$VERIFY" -eq 1 ]; then GEN_ARGS+=("${VERIFY_ARGS[@]}"); fi
 
 echo "== Generating src/gen =="

@@ -1,6 +1,44 @@
-# Current validation — native 0.3.3 / Companion 0.3.4
+# Current validation — native 0.3.4 / Companion 0.3.4
 
-The [exact current continuation](FOUNDATION-DECATAS-NATIVE-2026-10-11.md) records native generation with original renderer callbacks, independent actual sprite art, coherent Decatas rooms/journal/map, launcher update/rollback, default public setup and separate normal/modal playback. Raw failed camera, hook and concurrent frame-rate evidence remains distinct from successful repairs. Compilation receipts remain `compiled_unqualified`; finite installation qualification is separate from complete native/AOT and campaign coverage. Historical reports below retain their exact artifact scope.
+The [reviewed-root continuation](FOUNDATION-REVIEWED-ROOTS-2026-10-11.md)
+records an ordinary public build with no private profiles. Its complete
+245-context manifest, generated game bodies and dispatch match the qualified
+expanded 0.3.3 generation; generator/module build identities are recorded
+separately. Supported SDK generation also reproduces all 19 emitted files
+exactly against direct emission.
+
+Fresh native `956cef47` / immutable receipt `2729858d` pass 468 strict controls
+across 24 copied original/native runs, registered-hook controls and actual
+original lab packet, composed-surface and independent sprite-art checks.
+Unchanged Companion `b6328fc5` / receipt `f7a714c0` passes 60 adoption controls
+against this new native receipt. These reports bind the fresh artifact; they do
+not borrow the preceding executable's qualification. Thirteen separate paced
+playback routes pass at 59.583–60.056 FPS with zero steady underflow,
+missing-frame and audible-drop counters. The initial modal attempt passed
+seven of nine routes: Escape recorded 15 underflows and 7,528 missing frames,
+and keyboard-Escape recorded four underflows and 1,948 missing frames. Stalls
+occurred after the overlays closed; the cause remains unproven. The unchanged
+candidate and preceding executable each passed three focused quiet controls,
+then the candidate passed a full nine-route quiet repeat. All steady underflow,
+missing-frame and audible-drop deltas were zero in those repeats. No product
+repair is claimed from those results.
+
+The initial `modal-paced/report.json` remains unchanged alongside
+`modal-diagnosis-v1/report.json` and `modal-paced-repeat-v1/report.json`, under
+`local/evidence/faithful-reviewed-roots-20261011/`. These retained attempts
+support finite artifact qualification, not a guarantee for other environments.
+Installation and 18 copied Play/Resume/visible-GUI controls pass on the
+installed native 0.3.4 / unchanged Companion 0.3.4 pair. Those reports are
+`gui-adoption34/installation-report.json` and
+`gui-adoption34/installed-runtime-report.json` under the same evidence root.
+Package/publication integrity is checked separately.
+
+The 151 full contexts, 93 proved prefixes and one interpreted context describe
+generation. They do not certify every mode body, the whole game, a natural
+campaign, physical controllers or listening quality. Compilation receipts
+remain `compiled_unqualified`. The [preceding 0.3.3 release](FOUNDATION-DECATAS-NATIVE-2026-10-11.md)
+retains its separate journal/map/playback/install evidence and failed raw
+fixtures. Historical reports below keep their exact artifact scope.
 
 ---
 
@@ -294,7 +332,7 @@ See [BUILDING.md](../BUILDING.md).
 
 The ROM-free checker checks exactly the Git-tracked file set, excludes private
 payload paths and binary types, checks recognizable credential formats,
-parses Python source, verifies 54 foundation and 24 Companion authored-file
+parses Python source, verifies 61 foundation and 24 Companion authored-file
 hashes, checks the pinned runtime/patch and verifies nine verbatim notice
 hashes. It also checks links in the public entry documents.
 

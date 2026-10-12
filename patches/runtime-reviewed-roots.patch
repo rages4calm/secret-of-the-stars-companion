@@ -1,0 +1,440 @@
+diff --git a/recompiler/v2/reviewed_roots.py b/recompiler/v2/reviewed_roots.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/reviewed_roots.py
+@@ -0,0 +1,203 @@
++"""Strict, metadata-only reviewed analysis roots; never an AOT disposition.
++
++The returned exact VariantKeys join normal additional_roots. Decoder, CFG
++authority, exit facts and faithful emission remain the analyzer's responsibility.
++No private evidence files are needed to use the hash-bound review metadata.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import stat
++
++from .program_analysis import VariantKey
++
++SCHEMA = "snesrecomp reviewed analysis roots v1"
++_HASH = re.compile(r"[0-9a-f]{64}\Z")
++_PC = re.compile(r"[0-9A-F]{6}\Z")
++_REVIEW = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}\Z")
++_REVIEW_KEYS = ("qualified_executable_sha256", "qualification_sha256",
++                "source_capture_identity_sha256")
++_MAX_BYTES = 1024 * 1024
++_MAX_ROOTS = 8192
++
++
++class SingleReviewedManifest(argparse.Action):
++    """A second reviewed manifest is an error, never last-argument-wins."""
++    def __call__(self, parser, namespace, values, option_string=None):
++        if getattr(namespace, self.dest, None) is not None:
++            parser.error("--reviewed-root-manifest may be supplied only once")
++        setattr(namespace, self.dest, values)
++
++
++@dataclass(frozen=True)
++class ReviewedRoots:
++    roots: tuple[VariantKey, ...]
++    path: Path
++    source_sha256: str
++    rom_sha256: str
++    mapper: str
++    module_id: str
++    reviewed_against: tuple[tuple[str, str], ...]
++
++    def metadata(self) -> dict:
++        """JSON-safe provenance; review hashes are identities, not file paths."""
++        return {"schema": SCHEMA, "path": str(self.path),
++                "source_sha256": self.source_sha256,
++                "rom_sha256": self.rom_sha256, "mapper": self.mapper,
++                "module_id": self.module_id,
++                "root_mode_contexts": len(self.roots),
++                "root_pcs": len({key.pc24 for key in self.roots}),
++                "reviewed_against": dict(self.reviewed_against),
++                "review_evidence_policy": "hash-bound metadata; no private file dependency",
++                "admission_policy": "analysis seeds only; analyzer may retain LLE"}
++
++
++def _keys(value, required, label):
++    if not isinstance(value, dict) or set(value) != set(required):
++        raise ValueError(f"reviewed roots: {label} has missing or unknown fields")
++
++
++def _pairs(pairs):
++    result = {}
++    for key, value in pairs:
++        if key in result:
++            raise ValueError(f"reviewed roots: repeated JSON key {key!r}")
++        result[key] = value
++    return result
++
++
++def _hash(value, label):
++    if not isinstance(value, str) or not _HASH.fullmatch(value) or value == "0" * 64:
++        raise ValueError(f"reviewed roots: invalid {label}")
++    return value
++
++
++def _no_links(path: Path):
++    # Walk lexical parents before resolve(), which would conceal a link.
++    for part in (path, *path.parents):
++        info = part.lstat()
++        if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
++            raise ValueError(f"reviewed roots: linked/reparse path is forbidden: {part}")
++
++
++def _read_manifest(manifest_path, cfg_dir):
++    cfg = Path(cfg_dir).expanduser()
++    path = Path(manifest_path).expanduser()
++    if ".." in cfg.parts or ".." in path.parts:
++        raise ValueError("reviewed roots: parent traversal is forbidden")
++    cfg = Path(os.path.abspath(cfg))
++    path = Path(os.path.abspath(path))
++    if any(":" in part for part in path.parts[1:]):
++        raise ValueError("reviewed roots: alternate stream path is forbidden")
++    _no_links(cfg)
++    _no_links(path)
++    if not cfg.is_dir() or not path.is_relative_to(cfg):
++        raise ValueError("reviewed roots: input must be inside cfg-dir")
++    if path.suffix != ".json" or not path.resolve().is_relative_to(cfg.resolve()):
++        raise ValueError("reviewed roots: expected cfg-dir-contained JSON file")
++    before = path.stat()
++    if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= _MAX_BYTES:
++        raise ValueError("reviewed roots: input is not a bounded regular file")
++    # Recheck opened identity and path to refuse replacement/link races.
++    fd = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0))
++    with os.fdopen(fd, "rb") as stream:
++        opened = os.fstat(stream.fileno())
++        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
++                opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns):
++            raise ValueError("reviewed roots: input changed before reading")
++        raw = stream.read(_MAX_BYTES + 1)
++        after = os.fstat(stream.fileno())
++    _no_links(path)
++    current = path.stat()
++    identity = lambda s: (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns)
++    if identity(opened) != identity(after) or identity(after) != identity(current) or len(raw) != opened.st_size:
++        raise ValueError("reviewed roots: input changed while reading")
++    value = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,
++                       parse_constant=lambda value: (_ for _ in ()).throw(
++                           ValueError("reviewed roots: nonfinite JSON number")))
++    return path, raw, value
++
++
++def _canonical(pc):
++    bank, offset = pc >> 16, pc & 0xffff
++    if 0x80 <= bank <= 0xbf and offset >= 0x8000:
++        return pc & 0x7fffff
++    return pc
++
++
++def _blocked(pc, parsed):
++    canonical = _canonical(pc)
++    for bank, _path, cfg in parsed:
++        if canonical in {_canonical(int(entry)) for entry in cfg.force_lle}:
++            return "force_lle"
++        ranges = [(bank, a, b) for a, b in cfg.authority_data]
++        ranges += [(bank, a, b) for a, b in cfg.exclude_ranges]
++        ranges += list(cfg.data_regions)
++        for region_bank, start, end in ranges:
++            region_pc = _canonical((region_bank << 16) | start)
++            if canonical >> 16 == region_pc >> 16 and start <= (canonical & 0xffff) < end:
++                return "CFG data/exclusion range"
++    return None
++
++
++def load_reviewed_roots(manifest_path, *, cfg_dir, parsed, expected_rom,
++                        expected_module, expected_mapper, rom_size) -> ReviewedRoots:
++    """Validate without running the analyzer or writing files.
++
++    ``parsed`` is the existing tools.v2_analyze._load_cfgs(cfg_dir) result.
++    This version deliberately supports canonical LoROM native-E0 seeds only.
++    Other mappers require a separately reviewed canonical-address contract.
++    """
++    path, raw, value = _read_manifest(manifest_path, cfg_dir)
++    _keys(value, ("schema", "rom_sha256", "mapper", "module_id", "reviewed_against", "roots"), "document")
++    if value["schema"] != SCHEMA:
++        raise ValueError("reviewed roots: unsupported schema")
++    rom_hash = _hash(value["rom_sha256"], "rom_sha256")
++    if rom_hash != expected_rom or value["module_id"] != expected_module:
++        raise ValueError("reviewed roots: ROM/module identity mismatch")
++    if value["mapper"] != "lorom" or expected_mapper != "lorom":
++        raise ValueError("reviewed roots: only the reviewed LoROM mapper contract is supported")
++    if type(rom_size) is not int or not 0 < rom_size <= 0x400000:
++        raise ValueError("reviewed roots: invalid LoROM image size")
++    review = value["reviewed_against"]
++    _keys(review, _REVIEW_KEYS, "reviewed_against")
++    review = tuple((key, _hash(review[key], key)) for key in _REVIEW_KEYS)
++    rows = value["roots"]
++    if not isinstance(rows, list) or not 0 < len(rows) <= _MAX_ROOTS:
++        raise ValueError("reviewed roots: expected bounded nonempty roots array")
++    roots, seen, reviews = [], set(), set()
++    for row in rows:
++        _keys(row, ("pc24", "m", "x", "emulation", "review_id"), "root")
++        text = row["pc24"]
++        if not isinstance(text, str) or not _PC.fullmatch(text):
++            raise ValueError("reviewed roots: pc24 must be uppercase six-digit hex")
++        pc = int(text, 16)
++        bank, offset = pc >> 16, pc & 0xffff
++        if (offset < 0x8000 or bank in (0x7e, 0x7f) or
++                not (bank < 0x40 or bank >= 0xc0) or _canonical(pc) != pc or
++                (bank & 0x7f) * 0x8000 + offset - 0x8000 >= rom_size):
++            raise ValueError(f"reviewed roots: {text} is not a canonical in-image LoROM entry")
++        if any(type(row[k]) is not int or row[k] not in (0, 1) for k in ("m", "x")):
++            raise ValueError("reviewed roots: M/X must be literal integer 0 or 1")
++        if type(row["emulation"]) is not int or row["emulation"] != 0:
++            raise ValueError("reviewed roots: only literal native emulation=0 is supported")
++        review_id = row["review_id"]
++        if not isinstance(review_id, str) or not _REVIEW.fullmatch(review_id) or review_id in reviews:
++            raise ValueError("reviewed roots: invalid or duplicate review_id")
++        key = VariantKey(pc, row["m"], row["x"])
++        if key in seen:
++            raise ValueError("reviewed roots: duplicate PC/M/X context")
++        reason = _blocked(pc, parsed)
++        if reason:
++            raise ValueError(f"reviewed roots: {text} is quarantined by {reason}")
++        seen.add(key)
++        reviews.add(review_id)
++        roots.append(key)
++    return ReviewedRoots(tuple(sorted(roots)), path, hashlib.sha256(raw).hexdigest(),
++                         rom_hash, value["mapper"], value["module_id"], review)
+diff --git a/tools/v2_emit.py b/tools/v2_emit.py
+--- a/tools/v2_emit.py
++++ b/tools/v2_emit.py
+@@ -20,9 +20,11 @@
+ from snes65816 import (  # noqa: E402
+     clear_reloc_regions,
+     load_rom,
++    detect_rom_mapping,
+     register_reloc_region,
+     set_rom_image_size,
+ )
++from v2.reviewed_roots import load_reviewed_roots, SingleReviewedManifest
+ from v2.link_closure import assert_closed  # noqa: E402
+ from v2.program_analysis import VariantKey  # noqa: E402
+ from v2.program_emit import (  # noqa: E402
+@@ -91,7 +93,8 @@
+                            max_nodes: int, shard_threshold_bytes: int,
+                            shard_pc_span: int,
+                            module_id: str = "main",
+-                           module_prefix: str | None = None) -> str:
++                           module_prefix: str | None = None,
++                           reviewed_root_sha256: str | None = None) -> str:
+     value = {
+         "format": CACHE_FORMAT_VERSION,
+         "rom": hashlib.sha256(rom).hexdigest(),
+@@ -109,6 +112,8 @@
+         "max_nodes": int(max_nodes),
+         "sharding": [int(shard_threshold_bytes), int(shard_pc_span)],
+     }
++    if reviewed_root_sha256 is not None:
++        value["reviewed_root_sha256"] = reviewed_root_sha256
+     encoded = json.dumps(
+         value, sort_keys=True, separators=(",", ":")).encode()
+     return hashlib.sha256(encoded).hexdigest()
+@@ -178,6 +183,8 @@
+         "--profile-manifest", action="append", default=[],
+         help="tier2 coverage manifest whose clean targets become optional "
+              "AOT roots (repeatable)")
++    parser.add_argument("--reviewed-root-manifest", action=SingleReviewedManifest,
++                        help="single cfg-dir-contained reviewed analysis-root metadata file")
+     parser.add_argument("--legacy-profile-rom-sha256", help="Explicitly associate legacy profiles with this ROM digest")
+     parser.add_argument(
+         "--historical-profile-manifest", action="append", default=[],
+@@ -237,6 +244,15 @@
+         parser.error("the Python analyzer was retired; the native analyzer "
+                      "is the only one (drop --analysis-backend python)")
+     try:
++        # Reject metadata before symbol synchronization can write any CFG.
++        if args.reviewed_root_manifest:
++            image = load_rom(args.rom)
++            load_reviewed_roots(
++                args.reviewed_root_manifest, cfg_dir=args.cfg_dir,
++                parsed=_load_cfgs(pathlib.Path(args.cfg_dir)),
++                expected_rom=hashlib.sha256(image).hexdigest(),
++                expected_module=args.module_id,
++                expected_mapper=detect_rom_mapping(image), rom_size=len(image))
+         symbols = sync_symbols(pathlib.Path(args.cfg_dir).resolve())
+         symbol_roots = tuple(VariantKey(s.pc24, s.entry_m, s.entry_x)
+                              for s in symbols if s.emit)
+@@ -264,6 +280,12 @@
+     rom_sha256_hex = hashlib.sha256(rom).hexdigest()
+     rom_image_size = len(rom)
+     parsed = _load_cfgs(cfg_dir)
++    reviewed = None
++    if args.reviewed_root_manifest:
++        reviewed = load_reviewed_roots(
++            args.reviewed_root_manifest, cfg_dir=args.cfg_dir, parsed=parsed,
++            expected_rom=rom_sha256_hex, expected_module=args.module_id,
++            expected_mapper=detect_rom_mapping(rom), rom_size=rom_image_size)
+     # cfg entry_mx_at/manual func overrides remain authoritative when a
+     # symbol requests an AOT root at an already configured entry.
+     entry_modes = {
+@@ -303,6 +325,10 @@
+             historical_paths=args.historical_profile_manifest)
+     except ValueError as exc:
+         parser.error(str(exc))
++    if reviewed and any(
++            (key.pc24 in profile_force_lle or (key.pc24 ^ 0x800000) in profile_force_lle)
++            for key in reviewed.roots):
++        parser.error("reviewed roots conflict with profile force_lle quarantine")
+     if profile_force_lle and parsed:
+         # Coverage and promotion are separate contracts. Keep every observed
+         # boundary in the exact LLE manifest, but only let the profile's
+@@ -310,6 +336,7 @@
+         parsed[0][2].force_lle.update(profile_force_lle)
+     additional_roots = tuple(sorted(
+         set(host_roots) | set(profile_roots) | set(ram_routine_roots) | set(symbol_roots)
++        | (set(reviewed.roots) if reviewed else set())
+         | (set(discover_authority_roots(parsed)) if args.disassembly_entry_modes else set())))
+ 
+     def generator_digest_for():
+@@ -348,6 +375,7 @@
+         shard_threshold_bytes=shard_threshold_bytes,
+         shard_pc_span=shard_pc_span,
+         module_id=args.module_id, module_prefix=args.module_prefix,
++        reviewed_root_sha256=reviewed.source_sha256 if reviewed else None,
+     )
+     cached = _verified_cached_stats(out_dir, analysis_input_digest)
+     if cached is not None and not args.no_link_closure_check:
+diff --git a/tools/sdk_generate.py b/tools/sdk_generate.py
+--- a/tools/sdk_generate.py
++++ b/tools/sdk_generate.py
+@@ -52,6 +52,12 @@
+     return path.resolve()
+ 
+ 
++def _lexical_under(root: Optional[pathlib.Path], value: str) -> pathlib.Path:
++    """Retain links/traversal for reviewed-input validation before resolve()."""
++    path = pathlib.Path(value).expanduser()
++    return root / path if root is not None and not path.is_absolute() else path
++
++
+ def generate(
+     *,
+     rom: pathlib.Path,
+@@ -62,6 +68,8 @@
+     no_host_root_scan: bool = False,
+     source_roots: Optional[Sequence[pathlib.Path]] = None,
+     profile_manifests: Optional[Sequence[pathlib.Path]] = None,
++    reviewed_root_manifest: Optional[pathlib.Path] = None,
++    faithful_prefixes: bool = False,
+     legacy_profile_rom_sha256: Optional[str] = None,
+     analysis_backend: str = "native",
+     expected_crc32: Optional[str] = None,
+@@ -73,6 +81,7 @@
+ 
+     reporter = progress or ProgressReporter()
+     rom = pathlib.Path(rom).resolve()
++    lexical_cfg_dir = pathlib.Path(cfg_dir)
+     cfg_dir = pathlib.Path(cfg_dir).resolve()
+     out_dir = pathlib.Path(out_dir).resolve()
+     if funcs_h is not None:
+@@ -98,6 +107,15 @@
+         verified=identity.get("verified", False),
+     )
+ 
++    reviewed = None
++    if reviewed_root_manifest is not None:
++        from snes65816 import load_rom, detect_rom_mapping
++        from v2.reviewed_roots import load_reviewed_roots
++        rom_bytes = load_rom(rom)
++        reviewed = load_reviewed_roots(
++            reviewed_root_manifest, cfg_dir=lexical_cfg_dir, parsed=v2_emit._load_cfgs(cfg_dir),
++            expected_rom=identity["sha256"], expected_module="main",
++            expected_mapper=detect_rom_mapping(rom_bytes), rom_size=len(rom_bytes))
+     out_dir.mkdir(parents=True, exist_ok=True)
+     emit_args = [
+         "--rom", str(rom),
+@@ -105,6 +123,10 @@
+         "--out-dir", str(out_dir),
+         "--analysis-backend", analysis_backend,
+     ]
++    if reviewed_root_manifest is not None:
++        emit_args.extend(["--reviewed-root-manifest", str(reviewed_root_manifest)])
++    if faithful_prefixes:
++        emit_args.append("--faithful-prefixes")
+     if cfg_roots:
+         emit_args.append("--cfg-roots")
+     if no_host_root_scan:
+@@ -174,6 +196,8 @@
+         "funcs_count": funcs_count,
+         "cfg_roots": bool(cfg_roots),
+         "analysis_backend": analysis_backend,
++        "faithful_prefixes": bool(faithful_prefixes),
++        "reviewed_roots": reviewed.metadata() if reviewed else None,
+     }
+     reporter.phase("done", pct=1.0, message="Generate complete")
+     reporter.result(**result)
+@@ -222,7 +246,7 @@
+     try:
+         generate(
+             rom=_resolve_under(project_root, args.rom),
+-            cfg_dir=_resolve_under(project_root, args.cfg_dir),
++            cfg_dir=_lexical_under(project_root, args.cfg_dir),
+             out_dir=_resolve_under(project_root, args.out_dir),
+             funcs_h=(
+                 _resolve_under(project_root, args.funcs_h)
+@@ -237,6 +261,10 @@
+                 _resolve_under(project_root, m)
+                 for m in getattr(args, "profile_manifest", []) or []
+             ],
++            reviewed_root_manifest=(
++                _lexical_under(project_root, args.reviewed_root_manifest)
++                if getattr(args, "reviewed_root_manifest", None) else None),
++            faithful_prefixes=bool(getattr(args, "faithful_prefixes", False)),
+             legacy_profile_rom_sha256=getattr(args, "legacy_profile_rom_sha256", None),
+             analysis_backend=args.analysis_backend,
+             expected_crc32=args.expected_crc32,
+@@ -266,6 +294,7 @@
+ 
+ 
+ def add_generate_parser(subparsers) -> None:
++    from tools.v2_emit import SingleReviewedManifest
+     generate_parser = subparsers.add_parser(
+         "generate",
+         help="regenerate C sources for an existing recomp project from a ROM",
+@@ -312,6 +341,10 @@
+         help="tier-2 coverage manifest to seed optional AOT roots from "
+              "(repeatable); clean call landings only, bails excluded",
+     )
++    generate_parser.add_argument("--reviewed-root-manifest", action=SingleReviewedManifest,
++                                 help="single cfg-dir-contained reviewed analysis-root metadata file")
++    generate_parser.add_argument("--faithful-prefixes", action="store_true",
++                                 help="emit proved instruction prefixes; unknown calls remain original")
+     generate_parser.add_argument(
+         "--legacy-profile-rom-sha256",
+         help="explicitly associate an unbound v1 profile with this ROM SHA-256",
+diff --git a/snesrecomp_cli.py b/snesrecomp_cli.py
+--- a/snesrecomp_cli.py
++++ b/snesrecomp_cli.py
+@@ -150,7 +150,9 @@
+              no_host_root_scan: bool = False,
+              source_roots: list[str] | None = None,
+              profile_manifests: list[str] | None = None,
+-             legacy_profile_rom_sha256: str | None = None) -> None:
++             legacy_profile_rom_sha256: str | None = None,
++             reviewed_root_manifest: str | None = None,
++             faithful_prefixes: bool = False) -> None:
+     """Generate C from a ROM plus its bank configs. Raises on failure."""
+     resolved = resolve_analyzer(backend)
+     arguments = [
+@@ -173,6 +175,10 @@
+     # all -- SuperMetroidRecomp's tools/regen.sh had to call v2_emit
+     # directly, and a template sync that pointed it here silently dropped
+     # its profile and changed the emitted C.
++    if reviewed_root_manifest is not None:
++        arguments.extend(["--reviewed-root-manifest", reviewed_root_manifest])
++    if faithful_prefixes:
++        arguments.append("--faithful-prefixes")
+     for manifest in profile_manifests or []:
+         arguments.extend(["--profile-manifest", manifest])
+     if legacy_profile_rom_sha256:

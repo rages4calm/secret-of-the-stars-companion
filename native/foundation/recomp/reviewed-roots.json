@@ -1,0 +1,1294 @@
+{
+  "schema": "snesrecomp reviewed analysis roots v1",
+  "rom_sha256": "7da4a3cfa5de4bb4722a6e2a42c26aae322b5e668f1645d8c870fb99e6080600",
+  "mapper": "lorom",
+  "module_id": "main",
+  "reviewed_against": {
+    "qualified_executable_sha256": "7f0501e2c4c81a8ceac435853488421bac5ab92102b5aadcf82e0c54c3a44147",
+    "qualification_sha256": "f226a8f65ce97aed3f19eb00ccd8ce98bd960684e3fa6e3c340c9676f986711f",
+    "source_capture_identity_sha256": "a0d34f4de256d7b31fe3637950c80e3cbb70f89621c806bd19d1d4c56d7ac012"
+  },
+  "roots": [
+    {
+      "pc24": "00853D",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-001"
+    },
+    {
+      "pc24": "00A403",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-002"
+    },
+    {
+      "pc24": "00A406",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-003"
+    },
+    {
+      "pc24": "00A409",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-004"
+    },
+    {
+      "pc24": "00A418",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-005"
+    },
+    {
+      "pc24": "00A797",
+      "m": 0,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-006"
+    },
+    {
+      "pc24": "00A9DF",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-007"
+    },
+    {
+      "pc24": "00ABD0",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-008"
+    },
+    {
+      "pc24": "00B6D9",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-009"
+    },
+    {
+      "pc24": "00B6EE",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-010"
+    },
+    {
+      "pc24": "00B6FF",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-011"
+    },
+    {
+      "pc24": "00BF00",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-012"
+    },
+    {
+      "pc24": "00BF40",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-013"
+    },
+    {
+      "pc24": "00BF40",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-014"
+    },
+    {
+      "pc24": "00BF80",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-015"
+    },
+    {
+      "pc24": "00FF03",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-016"
+    },
+    {
+      "pc24": "00FF0C",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-017"
+    },
+    {
+      "pc24": "00FF23",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-018"
+    },
+    {
+      "pc24": "00FF26",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-019"
+    },
+    {
+      "pc24": "00FF29",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-020"
+    },
+    {
+      "pc24": "00FF2C",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-021"
+    },
+    {
+      "pc24": "00FF2F",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-022"
+    },
+    {
+      "pc24": "00FF2F",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-023"
+    },
+    {
+      "pc24": "00FF32",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-024"
+    },
+    {
+      "pc24": "00FF32",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-025"
+    },
+    {
+      "pc24": "00FF38",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-026"
+    },
+    {
+      "pc24": "00FF38",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-027"
+    },
+    {
+      "pc24": "00FF3B",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-028"
+    },
+    {
+      "pc24": "00FF3E",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-029"
+    },
+    {
+      "pc24": "018003",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-030"
+    },
+    {
+      "pc24": "018006",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-031"
+    },
+    {
+      "pc24": "018009",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-032"
+    },
+    {
+      "pc24": "018403",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-033"
+    },
+    {
+      "pc24": "018403",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-034"
+    },
+    {
+      "pc24": "018C00",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-035"
+    },
+    {
+      "pc24": "018C09",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-036"
+    },
+    {
+      "pc24": "018C0C",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-037"
+    },
+    {
+      "pc24": "018C0F",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-038"
+    },
+    {
+      "pc24": "018C0F",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-039"
+    },
+    {
+      "pc24": "018C12",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-040"
+    },
+    {
+      "pc24": "018C12",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-041"
+    },
+    {
+      "pc24": "018C15",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-042"
+    },
+    {
+      "pc24": "018C18",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-043"
+    },
+    {
+      "pc24": "018C1B",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-044"
+    },
+    {
+      "pc24": "018C1E",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-045"
+    },
+    {
+      "pc24": "018C21",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-046"
+    },
+    {
+      "pc24": "018C24",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-047"
+    },
+    {
+      "pc24": "019206",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-048"
+    },
+    {
+      "pc24": "019451",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-049"
+    },
+    {
+      "pc24": "019615",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-050"
+    },
+    {
+      "pc24": "019992",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-051"
+    },
+    {
+      "pc24": "019C3E",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-052"
+    },
+    {
+      "pc24": "01B003",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-053"
+    },
+    {
+      "pc24": "01B006",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-054"
+    },
+    {
+      "pc24": "01B00F",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-055"
+    },
+    {
+      "pc24": "01B012",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-056"
+    },
+    {
+      "pc24": "01B2A2",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-057"
+    },
+    {
+      "pc24": "01B3A8",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-058"
+    },
+    {
+      "pc24": "01C003",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-059"
+    },
+    {
+      "pc24": "01C006",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-060"
+    },
+    {
+      "pc24": "01C064",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-061"
+    },
+    {
+      "pc24": "01C1C7",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-062"
+    },
+    {
+      "pc24": "01C1C7",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-063"
+    },
+    {
+      "pc24": "01C214",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-064"
+    },
+    {
+      "pc24": "01C406",
+      "m": 0,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-065"
+    },
+    {
+      "pc24": "01C406",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-066"
+    },
+    {
+      "pc24": "01C406",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-067"
+    },
+    {
+      "pc24": "01C406",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-068"
+    },
+    {
+      "pc24": "01C40F",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-069"
+    },
+    {
+      "pc24": "01C955",
+      "m": 0,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-070"
+    },
+    {
+      "pc24": "01C955",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-071"
+    },
+    {
+      "pc24": "01C960",
+      "m": 0,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-072"
+    },
+    {
+      "pc24": "01C960",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-073"
+    },
+    {
+      "pc24": "01CAA5",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-074"
+    },
+    {
+      "pc24": "01CB19",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-075"
+    },
+    {
+      "pc24": "01CB35",
+      "m": 0,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-076"
+    },
+    {
+      "pc24": "01CCDC",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-077"
+    },
+    {
+      "pc24": "01CD9D",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-078"
+    },
+    {
+      "pc24": "01CDF6",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-079"
+    },
+    {
+      "pc24": "01D230",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-080"
+    },
+    {
+      "pc24": "01D230",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-081"
+    },
+    {
+      "pc24": "01D803",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-082"
+    },
+    {
+      "pc24": "01D803",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-083"
+    },
+    {
+      "pc24": "01D806",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-084"
+    },
+    {
+      "pc24": "01D809",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-085"
+    },
+    {
+      "pc24": "01D80C",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-086"
+    },
+    {
+      "pc24": "01D87F",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-087"
+    },
+    {
+      "pc24": "01DE2A",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-088"
+    },
+    {
+      "pc24": "01DE2A",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-089"
+    },
+    {
+      "pc24": "01E000",
+      "m": 0,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-090"
+    },
+    {
+      "pc24": "01E000",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-091"
+    },
+    {
+      "pc24": "01E000",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-092"
+    },
+    {
+      "pc24": "01E003",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-093"
+    },
+    {
+      "pc24": "01E003",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-094"
+    },
+    {
+      "pc24": "01E006",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-095"
+    },
+    {
+      "pc24": "01E006",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-096"
+    },
+    {
+      "pc24": "01E009",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-097"
+    },
+    {
+      "pc24": "01E00C",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-098"
+    },
+    {
+      "pc24": "01E00F",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-099"
+    },
+    {
+      "pc24": "01E012",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-100"
+    },
+    {
+      "pc24": "01E015",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-101"
+    },
+    {
+      "pc24": "01E018",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-102"
+    },
+    {
+      "pc24": "01E01B",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-103"
+    },
+    {
+      "pc24": "01E01B",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-104"
+    },
+    {
+      "pc24": "01E01E",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-105"
+    },
+    {
+      "pc24": "01E01E",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-106"
+    },
+    {
+      "pc24": "01E021",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-107"
+    },
+    {
+      "pc24": "01E5BB",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-108"
+    },
+    {
+      "pc24": "01E68F",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-109"
+    },
+    {
+      "pc24": "01E6C8",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-110"
+    },
+    {
+      "pc24": "01E801",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-111"
+    },
+    {
+      "pc24": "01E80C",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-112"
+    },
+    {
+      "pc24": "01E815",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-113"
+    },
+    {
+      "pc24": "01F452",
+      "m": 0,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-114"
+    },
+    {
+      "pc24": "01F452",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-115"
+    },
+    {
+      "pc24": "01F4B5",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-116"
+    },
+    {
+      "pc24": "01F4CD",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-117"
+    },
+    {
+      "pc24": "01F689",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-118"
+    },
+    {
+      "pc24": "01F689",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-119"
+    },
+    {
+      "pc24": "01F6CB",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-120"
+    },
+    {
+      "pc24": "01F6DC",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-121"
+    },
+    {
+      "pc24": "01F6DC",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-122"
+    },
+    {
+      "pc24": "029100",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-123"
+    },
+    {
+      "pc24": "029103",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-124"
+    },
+    {
+      "pc24": "029103",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-125"
+    },
+    {
+      "pc24": "029106",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-126"
+    },
+    {
+      "pc24": "029109",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-127"
+    },
+    {
+      "pc24": "02910F",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-128"
+    },
+    {
+      "pc24": "029112",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-129"
+    },
+    {
+      "pc24": "029112",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-130"
+    },
+    {
+      "pc24": "0291AA",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-131"
+    },
+    {
+      "pc24": "029244",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-132"
+    },
+    {
+      "pc24": "029302",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-133"
+    },
+    {
+      "pc24": "029357",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-134"
+    },
+    {
+      "pc24": "029580",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-135"
+    },
+    {
+      "pc24": "02A07F",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-136"
+    },
+    {
+      "pc24": "02A07F",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-137"
+    },
+    {
+      "pc24": "02A08A",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-138"
+    },
+    {
+      "pc24": "02A08A",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-139"
+    },
+    {
+      "pc24": "02A0B4",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-140"
+    },
+    {
+      "pc24": "02A0EA",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-141"
+    },
+    {
+      "pc24": "02A116",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-142"
+    },
+    {
+      "pc24": "02A1C3",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-143"
+    },
+    {
+      "pc24": "02A1F5",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-144"
+    },
+    {
+      "pc24": "02A1F5",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-145"
+    },
+    {
+      "pc24": "02A234",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-146"
+    },
+    {
+      "pc24": "02A24C",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-147"
+    },
+    {
+      "pc24": "02A3D6",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-148"
+    },
+    {
+      "pc24": "02A432",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-149"
+    },
+    {
+      "pc24": "02A432",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-150"
+    },
+    {
+      "pc24": "02A474",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-151"
+    },
+    {
+      "pc24": "02A474",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-152"
+    },
+    {
+      "pc24": "02A4CA",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-153"
+    },
+    {
+      "pc24": "02A52E",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-154"
+    },
+    {
+      "pc24": "02A548",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-155"
+    },
+    {
+      "pc24": "02A548",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-156"
+    },
+    {
+      "pc24": "02A5AB",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-157"
+    },
+    {
+      "pc24": "02A5C9",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-158"
+    },
+    {
+      "pc24": "02A607",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-159"
+    },
+    {
+      "pc24": "02A616",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-160"
+    },
+    {
+      "pc24": "02A981",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-161"
+    },
+    {
+      "pc24": "02AAC2",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-162"
+    },
+    {
+      "pc24": "02ABCA",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-163"
+    },
+    {
+      "pc24": "02ABF6",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-164"
+    },
+    {
+      "pc24": "02AEDA",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-165"
+    },
+    {
+      "pc24": "02BA71",
+      "m": 0,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-166"
+    },
+    {
+      "pc24": "02C000",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-167"
+    },
+    {
+      "pc24": "02C003",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-168"
+    },
+    {
+      "pc24": "02C01E",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-169"
+    },
+    {
+      "pc24": "02C0DC",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-170"
+    },
+    {
+      "pc24": "02C527",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-171"
+    },
+    {
+      "pc24": "02C61F",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-172"
+    },
+    {
+      "pc24": "02C7A0",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-173"
+    },
+    {
+      "pc24": "02C816",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-174"
+    },
+    {
+      "pc24": "02C8AC",
+      "m": 0,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-175"
+    },
+    {
+      "pc24": "02C8AC",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-176"
+    },
+    {
+      "pc24": "02FB43",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-177"
+    },
+    {
+      "pc24": "02FB94",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-178"
+    },
+    {
+      "pc24": "02FBB7",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-179"
+    },
+    {
+      "pc24": "1C8006",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-180"
+    },
+    {
+      "pc24": "1C8009",
+      "m": 1,
+      "x": 0,
+      "emulation": 0,
+      "review_id": "SOTS-RR-181"
+    },
+    {
+      "pc24": "1C8009",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-182"
+    },
+    {
+      "pc24": "1C800C",
+      "m": 1,
+      "x": 1,
+      "emulation": 0,
+      "review_id": "SOTS-RR-183"
+    }
+  ]
+}

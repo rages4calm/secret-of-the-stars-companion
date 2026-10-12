@@ -12,7 +12,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.3.3 / Companion 0.3.4.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.3.4 / Companion 0.3.4.** A local Windows build runs opening gameplay, menus and combat, with focused automated checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The aim is to give this overlooked RPG a polished PC edition that is easier to play and easier to understand: attractive original pixel art, a genuinely wider world view, reliable controls and audio, a useful quest journal, and a map showing your position, towns and verified destinations. The launcher follows the familiar Companion approach used in [EarthBound Companion](https://github.com/rages4calm/earthbound-companion) and [Zelda Companion](https://github.com/rages4calm/zelda-companion).
 
@@ -38,7 +38,7 @@ These are actual captures of features added for this PC project. **[View all six
 
 The gameplay images use isolated development checkpoints. Widescreen is optional and uses the original view where a scene is not qualified; the journal is still being expanded. Upscaling preserves original artwork. See the gallery for exact capture scope and example launcher settings.
 
-The [0.3.3 continuation](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md) adds verified Decatas ballot/election/ticket guidance, party-aware map destinations and broader recorded native generation with original renderer callbacks preserved. Room checks now use original loading and normal walking to avoid corrupt staged cameras. The launcher remains 0.3.4.
+The installed [0.3.4 continuation](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md) makes the reviewed automatic-generation coverage available through normal Setup using only your owned ROM and public source. Private gameplay recordings are no longer needed to reproduce that generation. Original renderer callbacks and guarded fallback remain intact; the launcher stays 0.3.4. Playback and copied-install checks pass within the scope recorded below; initial audio failures remain retained. Package/publication integrity is checked separately. The [preceding 0.3.3 release](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md) retains its Decatas guidance and exact qualification scope.
 
 ## What works today
 
@@ -61,7 +61,7 @@ The [0.3.3 continuation](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md) adds veri
 
 ## Build from your own ROM
 
-[Download the WIP launcher/source package](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.3.3-wip), extract it and open **Start Secret of the Stars Companion.cmd**. Its Setup page validates your owned ROM and builds the native game locally. The package includes the launcher, authored source and notices; it does not include a playable game binary or original game data. Install the prerequisites in [BUILDING.md](BUILDING.md) first.
+[Download the WIP launcher/source package](https://github.com/rages4calm/secret-of-the-stars-companion/releases), extract it and open **Start Secret of the Stars Companion.cmd**. Its Setup page validates your owned ROM and builds the native game locally. The package includes the launcher, authored source and notices; it does not include a playable game binary or original game data. Install the prerequisites in [BUILDING.md](BUILDING.md) first.
 
 Developers can also build from this source snapshot:
 
@@ -71,7 +71,7 @@ cd secret-of-the-stars-companion
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc"
 ```
 
-The helper fetches the pinned runtime, applies this project's five separately checked runtime patches, generates code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
+The helper fetches the pinned runtime, applies nine separately checked patches, and uses the standard analyzer/emitter with authored reviewed entry metadata and proved instruction prefixes. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
 
 Build the self-contained launcher with `python tools/build_public_companion.py`, then open `Start Secret of the Stars Companion.cmd` or the generated Companion EXE. Its Setup page validates your ROM and builds/adopts a fresh native profile without private gameplay fixtures. See [BUILDING.md](BUILDING.md). Historical native preview scripts and fixture checkers remain development adapters.
 
@@ -86,6 +86,8 @@ Companion **0.3.1** added **Original pixels / Enhanced pixels / Experimental wid
 Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in Setup. Updates create a new isolated folder with checked copies of settings/saves; rollback selects the retained earlier folder and preserves newer progress separately. Different native builds require compatible save declarations and matching execution-state ABI. A ROM-free source-first ZIP can bundle the self-contained GUI, authored source and notices; native game compilation still needs the documented tools. [Packaging instructions](BUILDING.md#package-the-source-first-launcher) · [Update and package qualification](docs/FOUNDATION-PACKAGE-UPDATES-2026-10-09.md).
 
 ## Verification and remaining work
+
+**Installed native 0.3.4 / unchanged Companion 0.3.4** reproduces the qualified expanded generation without local capture inputs. Its fresh public build passes 468 strict original/native checks across 24 copied runs, registered-hook controls, original laboratory packet/art checks and launcher adoption. The analyzer emits 151 full contexts, 93 proved prefixes and one interpreted context; these are generation counts, not whole-game or campaign certification. Thirteen separate normal playback routes pass near 60 FPS with zero steady audio-counter failures. A full nine-route modal repeat also passes. Two initial modal audio failures remain retained with an unproven cause. Installation and 18 copied Play/Resume/visible-GUI checks pass. Package/publication integrity is checked separately. [Reviewed inputs and exact artifact](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md).
 
 **Native 0.3.0 / Companion 0.3.4** corrects Starcrest inventory detection, extends guarded actor margins to the settled laboratory, and generates another original loading routine. Original recruitment and SWAP between both parties, their current inventories, journal/map behavior, cold restore and rollback pass focused checks. Ten separate Direct3D playback routes and nine checkpoint/rewind routes pass with zero steady audio-counter failures. Bun's original recruitment and door exit are verified; his later construction trigger remains in progress. [Exact artifacts and tested limits](docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md).
 
