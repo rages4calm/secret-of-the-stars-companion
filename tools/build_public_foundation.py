@@ -421,8 +421,8 @@ def snapshot_authored(source,project):
     reject_links(source.absolute());reject_links(project.absolute())
     path=source/'authored-files.json';reject_links(path)
     manifest=json.loads(path.read_text());actual={}
-    if not isinstance(manifest,dict) or len(manifest)!=61 or REVIEWED_ROOTS_INPUT not in manifest:
-        raise ValueError('Expected61 authored inputs including reviewed-root metadata; preserve source')
+    if not isinstance(manifest,dict) or len(manifest)!=62 or REVIEWED_ROOTS_INPUT not in manifest or 'src/foundation_guide_data.h' not in manifest:
+        raise ValueError('Expected62 authored inputs including reviewed roots and story-guide data; preserve source')
     for name,expected in manifest.items():
         if not isinstance(name,str) or Path(name).is_absolute() or '..' in Path(name).parts:
             raise ValueError('Authored input escapes snapshot')
@@ -456,6 +456,7 @@ def main():
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
+    p.add_argument('--output-dir',type=Path,help='Optional new build directory; refuses an existing path. Default: local/source-builds/timestamp.')
     args=p.parse_args()
     reject_links(args.rom.absolute());reject_links(ROOT.absolute())
     rom=args.rom.resolve(strict=True);source=ROOT/'native/foundation'
@@ -472,7 +473,7 @@ def main():
     profile_report=profile_audit(profile_inputs,capture_runtime,source)
     for tool in ('git','cargo',args.cmake,args.cc,args.cxx,args.ninja):
         if not shutil.which(tool):raise RuntimeError('Required tool is unavailable: '+tool)
-    out=ROOT/'local/source-builds'/time.strftime('%Y%m%d-%H%M%S')
+    out=args.output_dir.absolute() if args.output_dir else ROOT/'local/source-builds'/time.strftime('%Y%m%d-%H%M%S')
     reject_links(out)
     out.mkdir(parents=True,exist_ok=False)
     patch=out/'runtime-foundation.patch'
@@ -766,7 +767,7 @@ def main():
           'instruction_bytes_sha256':clear_provenance['instruction_bytes_sha256'],'entry_pcs':[node['pc'] for node in clear_provenance['nodes']],
           'scope':'Complete guarded CB19-CB34 routine with original C45E call/CB34 RTS; existing scheduler frontend retained.',
           'default_variant':'whole-routine','legacy_variant':'three-instruction','legacy_entry_pcs':[node['pc'] for node in clear_provenance['legacy_nodes']]}},
-      'profile':profile.relative_to(ROOT).as_posix(),
+      'profile':profile.relative_to(ROOT).as_posix() if profile.is_relative_to(ROOT) else str(profile),
       'limits':'Fresh developer compilation only; gameplay qualification and owner installation remain separate.'}
     if profile_inputs is not None:
         generated_cache=project/'src/gen/.snesrecomp-cache.json'

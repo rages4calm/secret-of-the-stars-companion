@@ -6,7 +6,7 @@ Saved 2026-10-11, at the owner's request to set up a goal and loop. This is a pr
 
 Continue from the latest installed handoff. Select the next unfinished map, widescreen, verified journal, or native-port milestone; delegate independent work with explicit ownership. Make reversible source changes, test fresh copied builds against original guest/center, actual input, restore and paced-audio evidence, and record exact hashes and remaining coverage. Install/publish only qualified changes within the owner's existing authorization, preserving ROMs/saves/settings. Repeat while evidence supports progress; stop on completion, essential missing authority/input, or no measurable progress. Never resume archived CPU experiments or call unfinished campaign/AOT coverage complete.
 
-Each execution pass has a finite milestone worklist. The current continuation starts with the optional current-area map and its configurable keyboard/controller action, followed by the next original later-chapter journal clues and exact combined qualification. The overarching objective remains unfinished until the finished project criteria are actually achieved. The goal tool currently reports blocked; explicitly authorized human continuations still carry out bounded work without claiming a resume or completion.
+The overall goal is active. Continue implementation across substantial feature groups rather than stopping after individual quest-event proofs. The owner and play testers handle campaign verification; development checks cover compilation, rendering, configured input, crashes and changes that can affect those paths. Original source and walkthroughs support story guidance without requiring a separate gameplay replay for every event. Keep unplayed campaign coverage explicit, and preserve guards when a scene's rendering source is unknown. The overarching objective remains unfinished until the finished project criteria are actually achieved.
 
 Records follow the existing private `local/evidence/` convention; no private data is published. This loop does not create a timer, recurring job, or external-message authorization.
 
@@ -24,14 +24,28 @@ Finite milestone: generated faithful clear code, verified current Dynamite join/
 
 [Pass evidence and remaining limits](docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md). Full native/AOT and campaign remain unfinished; no CPU experiments are resumed. Owner development saves are disposable when useful, overriding older blanket preservation text for this game; ROMs, other projects and launcher preferences remain protected. No timer or external-message authorization is added. Overall goal remains active.
 
-## Current pass — native0.3.9, 2026-10-12
+## Completed pass — native0.3.9, 2026-10-12
 
 Finite milestone: original Bonzley/Kaja/Sidon Forest producers, three current
 request/hand-in advice cards, two verified world destinations, genuine public
 build and fresh bounded execution/delivery. [Exact scopes](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md).
 Original staged prerequisites are separate from natural acquisition/campaign.
 Full native/AOT and campaign remain unfinished; source-only generic continuation
-findings are next work, not installed capability. The actual goal tool remains
-blocked; this user-authorized pass does not mark it resumed or complete.
+findings are source-only, not installed capability. The goal was blocked at
+this release closure; that is historical. It is active in the current continuation.
 Current completed test duplicates were retained after automatic deletion refusal.
 The owner manual cleanup path is separate; no alternate deletion tool is used.
+
+## Current implementation — native0.4.0, 2026-10-12
+
+Implement the complete story guide and broader source-based chapter selection,
+with keyboard/controller browsing through the already configured game controls.
+Check panel rendering, navigation, closing, input isolation and build/startup.
+Campaign verification belongs to the owner and play testers under the latest
+explicit instruction. Source-based guidance is separate from played quest
+coverage, and browsing never writes game progress or completion history.
+The feature bundle is installed as native0.4.0 / Companion0.3.6. All42 guide
+pages render in the focused check, configured input and closing pass, and one
+paced Direct3D11/audio route runs near60FPS without steady counter failures.
+Compilation receipts remain compiled_unqualified; campaign verification stays
+with players. The overall project goal remains active and unfinished.

@@ -3,6 +3,7 @@
 #include "foundation_journal.h"
 #include "foundation_hotkeys.h"
 #include "foundation_map.h"
+#include "foundation_guide_data.h"
 #include "common_rtl.h"
 #include "snes/snes.h"
 #include "snes_overlay_draw.h"
@@ -16,15 +17,112 @@ extern Snes *g_snes;
 static int enabled, visible, has_lead, watch_installed, input_test;
 static unsigned frame_number;
 static int possession_enabled;
+static int guide_input_test;
 static SDL_Joystick *test_pad;
 static FILE *trace;
+static int guide_visible;
+static size_t guide_page;
+static uint16_t previous_buttons, blocked_buttons, filtered_buttons;
+static uint64_t input_generation;
+
+static size_t GuideCount(void) {
+    return sizeof(foundation_guide_pages) / sizeof(foundation_guide_pages[0]);
+}
+
+static size_t GuideFirstPage(unsigned part) {
+    for (size_t i = 0; i < GuideCount(); ++i)
+        if (foundation_guide_pages[i].part == part) return i;
+    return 0;
+}
+
+static size_t GuideCurrentPage(void) {
+    const char *title = NULL;
+    switch (g_ram[0x5372]) {
+    case 0: title = (g_ram[0x5360] & 2) ? "Jeep Volcano" :
+                    (g_ram[0x5360] & 0x40) ? "The first StarCrest" : "Find David"; break;
+    case 2: title = "Badbad and the Dog-Pill"; break;
+    case 3: title = "Rescue the lab children"; break;
+    case 5: title = "Free farmer Baz"; break;
+    case 6: if (g_ram[0x5360] & 0x80) title = "A ticket and a lion"; break;
+    case 7: title = "Lower Victory Bridge"; break;
+    case 8: title = "Kaja's missing mustache"; break;
+    case 9: case 10: title = "Bring Cody home"; break;
+    case 13: title = "Escape Lagoon's mirage"; break;
+    case 14: case 15: title = "Brasca's lava passages"; break;
+    case 24: title = "Jeep: Dram and Booth"; break;
+    }
+    if (title)
+        for (size_t i = 0; i < GuideCount(); ++i)
+            if (!strcmp(foundation_guide_pages[i].title, title)) return i;
+    return GuideFirstPage(FoundationJournalGuidePart(g_ram, 0x20000));
+}
+
+static void GuideSection(int direction) {
+    unsigned current = foundation_guide_pages[guide_page].part;
+    if (direction > 0) {
+        for (size_t i = guide_page + 1; i < GuideCount(); ++i)
+            if (foundation_guide_pages[i].part != current) { guide_page = i; return; }
+    } else {
+        size_t first = GuideFirstPage(current);
+        if (first) guide_page = GuideFirstPage(foundation_guide_pages[first - 1].part);
+    }
+}
+
+uint16_t FoundationJournalFilterInput(uint16_t buttons) {
+    /* Run-ahead must not repeatedly advance host pages or release masking. */
+    if (RtlSpeculativeFrame()) return filtered_buttons;
+    buttons &= 0x0fff;
+    uint64_t generation = RtlStateGeneration();
+    if (generation != input_generation) {
+        FoundationJournalHide();
+        if (enabled) blocked_buttons |= buttons;
+        previous_buttons = buttons;
+        input_generation = generation;
+    }
+    blocked_buttons &= buttons;
+    uint16_t edge = buttons & (uint16_t)~previous_buttons;
+    previous_buttons = buttons;
+    int toggle = FoundationHotkeysConsumeJournal();
+    if (enabled && toggle && (visible || g_ram[0x20] == 1)) {
+        visible = !visible;
+        guide_visible = 0;
+        blocked_buttons |= buttons;
+        edge = 0; /* A held opener/chord never selects or moves a page. */
+        if (visible) FoundationMapHide();
+        fprintf(stderr, "[foundation] frame %u journal %s\n", frame_number + 1,
+                visible ? "shown" : "hidden");
+    }
+    if (enabled && visible && g_ram[0x20] == 1) {
+        blocked_buttons |= buttons;
+        if (edge & 1u) { /* Configured SNES B: close, then wait for release. */
+            FoundationJournalHide();
+        } else if (edge & 4u) { /* Configured SNES Select: guide/current view. */
+            guide_visible = !guide_visible;
+            if (guide_visible) guide_page = GuideCurrentPage();
+        } else if (guide_visible) {
+            if ((edge & 0xc0u) == 0x40u && guide_page) --guide_page;
+            if ((edge & 0xc0u) == 0x80u && guide_page + 1 < GuideCount()) ++guide_page;
+            if ((edge & 0x30u) == 0x10u) GuideSection(-1);
+            if ((edge & 0x30u) == 0x20u) GuideSection(1);
+        }
+        filtered_buttons = 0;
+    } else {
+        filtered_buttons = buttons & (uint16_t)~blocked_buttons;
+    }
+    return filtered_buttons;
+}
 
 void FoundationJournalReset(void) {
     visible = has_lead = 0;
+    guide_visible = 0;
+    guide_page = 0;
+    previous_buttons = blocked_buttons = filtered_buttons = 0;
+    input_generation = RtlStateGeneration();
 }
 
 void FoundationJournalHide(void) {
     visible = 0;
+    guide_visible = 0;
 }
 
 void FoundationJournalInit(void) {
@@ -45,11 +143,12 @@ void FoundationJournalInit(void) {
     if (env) enabled = !strcmp(env, "1");
     env = getenv("SNESRECOMP_FOUNDATION_JOURNAL_INPUT_TEST");
     input_test = env && !strcmp(env, "keyboard") ? 1 : env && !strcmp(env, "pad") ? 2 : 0;
+    guide_input_test = getenv("SNESRECOMP_FOUNDATION_GUIDE_INPUT_TEST") != NULL;
     env = getenv("SNESRECOMP_FOUNDATION_JOURNAL_TRACE");
     if (env && *env) trace = fopen(env, "w");
     env = getenv("SNESRECOMP_FOUNDATION_JOURNAL_POSSESSION");
     if (env) possession_enabled = !strcmp(env, "1");
-    if (trace) fprintf(trace, "frame,mode,stage,flags,enabled,visible,has_lead,inventory_groups,lead_kind\n");
+    if (trace) fprintf(trace, "frame,mode,stage,flags,enabled,visible,has_lead,inventory_groups,lead_kind,guide_visible,guide_page,guide_part,filtered_buttons\n");
     fprintf(stderr, "[foundation] journal enabled=%d; configurable Journal hotkey\n", enabled);
     FoundationJournalReset();
 }
@@ -77,7 +176,7 @@ void FoundationJournalBeforeFrame(void) {
     }
     /* Finite opt-in fixtures inject real SDL input, never quest state. */
     if (input_test == 1 && (frame_number == 30 || frame_number == 60 ||
-                           frame_number == 90 || (frame_number > 30 && frame_number < 60))) {
+                           (!guide_input_test && frame_number == 90) || (frame_number > 30 && frame_number < 60))) {
         SDL_Event event = {0};
         event.type = frame_number == 60 ? SDL_KEYUP : SDL_KEYDOWN;
 #if SNESRECOMP_SDL3
@@ -90,7 +189,7 @@ void FoundationJournalBeforeFrame(void) {
         SDL_PushEvent(&event);
     }
     if (test_pad && (frame_number == 30 || frame_number == 60 ||
-                     frame_number == 90 || frame_number == 120)) {
+                     (!guide_input_test && (frame_number == 90 || frame_number == 120)))) {
         bool down = frame_number == 30 || frame_number == 90;
 #if SNESRECOMP_SDL3
         SDL_SetJoystickVirtualButton(test_pad, SDL_GAMEPAD_BUTTON_LEFT_STICK, down);
@@ -103,18 +202,14 @@ void FoundationJournalBeforeFrame(void) {
 
 void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
     frame_number = stats->frame;
-    has_lead = FoundationJournalCurrentLead(g_ram, 0x20000) != 0;
-    int toggle = FoundationHotkeysConsumeJournal();
-    if (enabled && g_ram[0x20] == 1 && toggle) {
-        visible = !visible;
-        if (visible) FoundationMapHide();
-        fprintf(stderr, "[foundation] frame %u journal %s\n", frame_number, visible ? "shown" : "hidden");
-    }
+    has_lead = FoundationJournalCurrentLead(g_ram, 0x20000) != 0 ||
+               FoundationJournalGuidePart(g_ram, 0x20000) != 0;
     if (trace) {
-        fprintf(trace, "%u,%u,%u,%u,%d,%d,%d,%u,%u\n", frame_number, g_ram[0x20],
+        fprintf(trace, "%u,%u,%u,%u,%d,%d,%d,%u,%u,%d,%zu,%u,%u\n", frame_number, g_ram[0x20],
                 g_ram[0x5372], g_ram[0x5360], enabled, visible, has_lead,
                 JournalPossessionGroups(g_ram, 0x20000),
-                FoundationJournalCurrentLead(g_ram, 0x20000));
+                FoundationJournalCurrentLead(g_ram, 0x20000), guide_visible, guide_page,
+                FoundationJournalGuidePart(g_ram, 0x20000), filtered_buttons);
         fflush(trace);
     }
 }
@@ -122,7 +217,30 @@ void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats) {
 /* Eight-pixel font, at most 28 characters per row inside the 240px panel.
  * All text is current original advice: no inferred destinations in later stages. */
 void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
-    if (!enabled || !visible || g_ram[0x20] != 1 || w < 256 || h < 212) return;
+    if (!enabled || !visible || !dst || g_ram[0x20] != 1 || w < 256 || h < 212 ||
+        pitch < (size_t)w * 4 || pitch % 4 || pitch / 4 > INT32_MAX) return;
+    if (guide_visible) {
+        const FoundationGuidePage *page = &foundation_guide_pages[guide_page];
+        uint32_t *pixels = (uint32_t *)dst;
+        int stride = (int)(pitch / 4), x = (w - 240) / 2, y = (h - 196) / 2;
+        snes_ovl_fill_rect(pixels, stride, h, x, y, 240, 196, 0xff080e1c);
+        snes_ovl_stroke_rect(pixels, stride, h, x, y, 240, 196, 0xff809bc8);
+        snes_ovl_stroke_rect(pixels, stride, h, x + 2, y + 2, 236, 192, 0xff293a57);
+        char heading[32], section[32];
+        snprintf(heading, sizeof(heading), "STORY GUIDE  %02zu/%02zu", guide_page + 1, GuideCount());
+        snprintf(section, sizeof(section), "SECTION %u - CHOOSE A STEP", page->part);
+        snes_ovl_draw_text(pixels, stride, h, x + 8, y + 8, heading, 0xffffdf78, 1);
+        snes_ovl_fill_rect(pixels, stride, h, x + 8, y + 22, 224, 1, 0xff293a57);
+        snes_ovl_draw_text(pixels, stride, h, x + 8, y + 28, page->title, 0xffffdf78, 1);
+        for (int i = 0; i < 8; ++i)
+            snes_ovl_draw_text(pixels, stride, h, x + 8, y + 44 + i * 12,
+                              page->lines[i], 0xfff0f3fa, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 8, y + 148, section, 0xffa7b9d8, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 8, y + 160, "CURRENT VIEW: SELECT", 0xffa7b9d8, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 8, y + 176, "L/R: PAGE  U/D: SECTION", 0xffffdf78, 1);
+        snes_ovl_draw_text(pixels, stride, h, x + 8, y + 186, "SELECT: CURRENT  B: CLOSE", 0xffffdf78, 1);
+        return;
+    }
     /* A restore can precede the next guest update. Always derive here too. */
     unsigned lead = FoundationJournalCurrentLead(g_ram, 0x20000);
     unsigned groups = possession_enabled ? JournalPossessionGroups(g_ram, 0x20000) : 0;
@@ -191,6 +309,13 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         route[1] = current ? "Talk to Kaja with this pack." : "Kaja names SIDON FOREST.";
         progress = moustache_groups == 3 ? "MOUSTACHE: BOTH PACKS" : current ? "MOUSTACHE: CURRENT PACK" :
             moustache_groups ? "MOUSTACHE: OTHER PACK" : "MOUSTACHE: NOT HELD NOW";
+    } else if (lead == 20) {
+        unsigned moustache_groups = JournalItemGroups(g_ram, 0x20000, 0x70);
+        objective[0] = "Check the party packs.";
+        objective[1] = moustache_groups ? "MOUSTACHE: in OTHER PACK." : "MOUSTACHE is not held now.";
+        route[0] = "Kaja needs the current pack.";
+        route[1] = "Select GUIDE for this route.";
+        progress = "Quest items need pack space.";
     } else if (lead == 19) {
         unsigned moustache_groups = JournalItemGroups(g_ram, 0x20000, 0x70);
         objective[0] = "Seek Garados in Bonzley.";
@@ -327,6 +452,13 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         route[0] = "David: somewhere in";
         route[1] = "the mountain.";
         progress = "David's current advice";
+    } else if (FoundationJournalGuidePart(g_ram, 0x20000)) {
+        const FoundationGuidePage *page = &foundation_guide_pages[GuideCurrentPage()];
+        objective[0] = page->title;
+        objective[1] = "Guide for this story section.";
+        route[0] = page->lines[0];
+        route[1] = page->lines[1];
+        progress = "Select GUIDE for every step.";
     } else {
         objective[0] = "No current lead recorded.";
         objective[1] = "Talk to people for clues.";
@@ -344,7 +476,8 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 8, "QUEST JOURNAL", gold, 1);
     for (int row = 22; row <= 122; row += 50)
         snes_ovl_fill_rect(pixels, stride, h, x + 8, y + row, 224, 1, 0xff293a57);
-    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 28, "CURRENT OBJECTIVE", gold, 1);
+    snes_ovl_draw_text(pixels, stride, h, x + 8, y + 28,
+                       lead ? "CURRENT OBJECTIVE" : "CURRENT STORY SECTION", gold, 1);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 42, objective[0], ink, 1);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 54, objective[1], ink, 1);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 78, "ROUTE AND ADVICE", gold, 1);
@@ -360,7 +493,7 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
                         groups ? "STARCREST: ONE PACK" : "STARCREST: NOT HELD NOW";
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 166, crest, muted, 1);
     snes_ovl_draw_text(pixels, stride, h, x + 8, y + 184,
-                       "GAME RUNNING", gold, 1);
+                       "SELECT: GUIDE  B: CLOSE", gold, 1);
 }
 
 void FoundationJournalShutdown(void) {

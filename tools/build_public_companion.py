@@ -16,6 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, help='New immutable output folder; default is local/public-companion/builds/<timestamp>')
     parser.add_argument('--no-select', action='store_true', help='Build a separate candidate without replacing the public launcher selection receipt')
+    parser.add_argument('--source-dir',type=Path,help='Optional new frozen-source/build folder; default: local/companion-build-sources/timestamp.')
     args = parser.parse_args()
     if sys.platform != 'win32':
         raise RuntimeError('Companion is a Windows WinForms application; build it on Windows with the .NET 8 SDK.')
@@ -27,7 +28,7 @@ def main():
         raise RuntimeError('Output folder already exists; it has been preserved. Choose a new output folder.')
     source = ROOT/'Companion'
     manifest = json.loads((source/'authored-files.json').read_text(encoding='utf-8'))
-    frozen = ROOT/'local/companion-build-sources'/stamp
+    frozen = args.source_dir.absolute() if args.source_dir else ROOT/'local/companion-build-sources'/stamp
     frozen.mkdir(parents=True, exist_ok=False)
     actual = {}
     for name in manifest:

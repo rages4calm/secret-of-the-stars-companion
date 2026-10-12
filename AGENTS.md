@@ -437,3 +437,12 @@ experimental receipts separate from normal profile adoption. A navigation map
 is a proposed future feature; use owned game data and explicit spoiler rules.
 
 Owner steering October10: stop CPU/metatile/dispatch experiments; retain evidence only. Continue widescreen, journal, broader gameplay and Companion work. Do not restart CPU research as the next priority.
+# Current execution policy - 2026-10-12
+
+The owner and play testers handle campaign verification. Implement broad feature
+coverage and use focused build, rendering, input and crash checks; do not gate
+every journal event on a separate gameplay replay. Original source and credited
+walkthroughs may support current chapter guidance. Keep source-based guidance,
+played campaign coverage and actual rendering checks distinct. Routine decisions
+remain delegated. The overall goal is active; old blocked/paused status notes are
+historical. This supersedes older event-by-event qualification workflow scope.

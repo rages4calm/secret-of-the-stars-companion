@@ -39,6 +39,16 @@ python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (
   --sdl3-dir "D:\Toolchain\lib\cmake\SDL3" --jobs 8
 ```
 
+To choose a new native build folder explicitly:
+
+```powershell
+python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc" `
+  --output-dir "local/source-builds/native040-fresh"
+```
+
+`--output-dir` must not already exist. The default remains a fresh timestamped
+folder; this option does not overwrite an earlier build or profile.
+
 The helper checks the ROM identity before generating anything. It creates a
 fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
@@ -177,10 +187,13 @@ The 0.2.9 source continuation includes guarded original single/compound vehicles
 selected world-map actors and two authenticated interior actor families.
 Journal current possession defaults on within the existing Journal feature;
 `JournalPossession=0` in foundation.ini disables its inventory line.
-Verified current advice extends through selected chapter-five Graviton/GIANT
-states and chapter-six zero-flags town/farming guidance;
-loading an earlier checkpoint removes later advice. Item possession and story
-flags are not permanent completion history.
+Native 0.4.0 adds the full 42-page / 14-section story guide. Original current
+chapter 0-24 suggests a starting section; fine current advice retains the
+bounded opening-through-Sidon predicates. Loading an earlier checkpoint
+recomputes current advice. Item possession, chapter suggestions and written
+walkthrough pages are not permanent completion history.
+See [guide controls and feature checks](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md)
+and [content sources](docs/JOURNAL-GUIDE-SOURCES.md).
 See [current release scope](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md) and the retained
 [integrated actor scope](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md).
 
@@ -223,6 +236,18 @@ Install the .NET 8 SDK on Windows, then:
 python tools/build_public_companion.py
 .\"Start Secret of the Stars Companion.cmd"
 ```
+
+Optional fresh GUI folders can be selected independently:
+
+```powershell
+python tools/build_public_companion.py --source-dir "local/companion-build-sources/gui036-fresh" `
+  --output-dir "local/public-companion/builds/gui036-fresh" --no-select
+```
+
+Both folders must be new. `--source-dir` holds the frozen authored source and
+build intermediates; `--output-dir` holds the published GUI and its receipt.
+`--no-select` keeps the existing public launcher selection while building a
+candidate. Omit it when deliberately selecting the new build.
 
 The helper freezes authored inputs, publishes an isolated self-contained
 Windows x64 application, retains .NET/MIT notices and records a
@@ -302,7 +327,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.3.6 source / Companion 0.3.5)
+## Navigation and display (native 0.4.0 source / Companion 0.3.6)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -381,3 +406,34 @@ and clock/input/restore checks, launcher adoption/update/rollback and separate
 paced/modal playback checks before installation. Package integrity and
 publication are separate again. This source draft does not certify a public
 0.3.8 executable, installation, package or campaign.
+
+## Native 0.4.0 / Companion 0.3.6 story guide
+
+The native authored manifest now binds 62 inputs, including
+`src/foundation_guide_data.h`; Companion retains 24 authored inputs. Runtime
+pinning and the eleven ordered patches remain independent build dependencies.
+Fresh native and GUI compilation receipts remain `compiled_unqualified`.
+The [story-guide continuation](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) records
+separate focused actual page-rendering and input checks.
+
+Journal defaults on in the fresh profile. J / left-stick click opens or closes
+by default. Select changes Current / Guide, Left / Right changes page, Up / Down
+changes section, and Game B closes. Navigation uses the existing configured
+logical game actions rather than hardcoded keyboard/controller face buttons.
+The panel consumes browsing controls and waits for held controls to be released
+before passing them back to gameplay. It is an overlay while the game continues
+running, not a pause screen. Restore resets browsing and recomputes current advice.
+
+Native 0.4.0 declares a changed execution-state ABI for its title input-filter
+integration. Normal source-profile update strictly refuses 0.3.9 to 0.4.0 on the
+declaration mismatch; use fresh source adoption and preserve the prior profile.
+This is not evidence that serialization itself is incompatible: selected legacy
+checkpoint resumes worked in separate focused checks. Do not bypass the update
+contract or turn that finite result into universal checkpoint compatibility.
+
+The full written guide is manually browsable and covers the ending. Suggested
+starting sections use original current chapter 0-24; they are coarse advice,
+not automatic detection of every quest event. The owner and play testers verify
+campaign directions. Fine automatic advice and map pins retain their existing
+bounded predicates. No permanent history, new completion rule or guessed map
+marker is introduced. [Source mapping](docs/JOURNAL-GUIDE-SOURCES.md).

@@ -1,5 +1,5 @@
 {
-  "Companion.csproj": "c52fe07ae62006d11c6966952241ab2ea05b744d1dd4d551793f8c84aba69a7e",
+  "Companion.csproj": "d807c068f65e108dc8cf2a4c43f7a8ab8ac23d29fd2c871bed613b1963ecb464",
   "Core/BackendSelfTests.cs": "1701d888594279419d9617023f0f15e97f00e04797faa057bc52d3829b2a450a",
   "Core/HotkeyCatalog.cs": "edb4a7f75a3f9dbb8e69e188b82bf936f4ee88a1b75e9dbb8bfdf2ffd8f1587e",
   "Core/IniDocument.cs": "201e8f58ed08465f4cdd2e08fbae18e22b156600789b63889c0c4dfa314990e6",
@@ -12,9 +12,9 @@
   "MainForm.Hotkeys.cs": "b2af49f7679ff052ee20a7e0fde20827ea8067a525f356c24898fc6dc52c2a21",
   "MainForm.Presentation.cs": "2a95b653f1219f91baa154177811099ed31d6c88f02e3ccc583fd544e82a9a2e",
   "MainForm.Setup.cs": "3cbadaed7c29cf99bd82e5fa4ee4118102da19371b46ee0d216312ef4c77dc76",
-  "MainForm.cs": "5828849b75c249bade15e803247539e592b477559f8bb8c277ab9831eebe6576",
+  "MainForm.cs": "1f569f4de5c94e77513a3ade7f42816d67c8892d7eebcb0983cc61c148f5db02",
   "NavigationMapUiTests.cs": "6450969aad471dc19473e815a86fbb7a42fceb097eea8e669853ad6d9821a3da",
-  "PresentationUiTests.cs": "f7e58f875c3a535accf357d87b89cec9822aaf157b6018cb27ba6e90be8eefb0",
+  "PresentationUiTests.cs": "d3a9d7c4c20cc6dc1f9516185482e535ed3a05403c963acdee1887ae690811c9",
   "ProfileUpdateTests.cs": "7fa372781eec032c9114ee002937fb81bc1f3b4f100c3caa537429df0a0f2d73",
   "Program.cs": "2d51aa7eb402d989afb16ba41c1e8c3009c22ffb6477d653b1008833361b274b",
   "PublicSetupTests.cs": "182688a5e209308f7b2ebafc56472e7c9f621c7616810db5395ef67da83e9868",

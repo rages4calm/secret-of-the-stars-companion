@@ -105,16 +105,19 @@ static inline unsigned FoundationJournalAfterBridgeRoute(const uint8_t *ram, siz
  * request. FF3F70 searches only the active pack; other possession is mutable.
  * Actual staged-current70 hand-in executes FB0152, original chapter9/reset,
  * then0309 names Bonzley and Garados. These exact observed Aqutallion states
- * are current advice, not Sidon acquisition or durable history. C0 and other
- * parties remain outside this qualification, although the source bit test
- * alone is broader. Refuse while original dialogue/event is busy. */
+ * are current advice, not durable history. Original source also admitsC0:
+ * Sidon's post-battle flag is set before the pack insertion may be refused.
+ * Missing70 atC0 must not send the player to fight the retired actor again.
+ * Refuse while original dialogue/event is busy. */
 static inline unsigned FoundationJournalKajaRoute(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3 || ram[0x5361] || ram[0x5365] != 0x10 ||
         ram[0x4b6] || ram[0x20] != 1 || ram[0x434] || ram[0x435] ||
         ram[0x532] || ram[0x1410] || ram[0x1411] ||
         ram[0x1415] || ram[0x1416] || ram[0x1417]) return 0;
-    if (ram[0x5372] == 8 && ram[0x5360] == 0x80)
-        return (JournalItemGroups(ram, size, 0x70) & 1u) ? 18 : 17;
+    if (ram[0x5372] == 8 && (ram[0x5360] == 0x80 || ram[0x5360] == 0xc0)) {
+        if (JournalItemGroups(ram, size, 0x70) & 1u) return 18;
+        return ram[0x5360] == 0xc0 ? 20 : 17;
+    }
     if (ram[0x5372] == 9 && ram[0x5360] == 0) return 19;
     return 0;
 }
@@ -134,6 +137,27 @@ static inline unsigned FoundationJournalCurrentLead(const uint8_t *ram, size_t s
     unsigned decatas = FoundationJournalDecatasRoute(ram[0x5372], ram[0x5360],
         ram[0x5365], ram[0x4b6], ram[0x20]);
     return decatas ? decatas : FoundationJournalLead(ram[0x5372], ram[0x5360]);
+}
+
+/* Broad guide sections selected by original chapter predicates. These are
+ * navigation starting points, not completed quests or a precise event log.
+ * Later selectors include0788/0789 (Garados/Cody),0816/081A (Leona),
+ *079D/07B3 (Ari),07C5..C9/0820..28 (Brasca),074B/0775 (ship),
+ *07D9 (orbs),07E1 (Booth/Gara),07BC (laboratory),082A/0607 (final phase).
+ * The numbered guide sections are editorial; they are not guest chapters. */
+static inline unsigned FoundationJournalGuidePart(const uint8_t *ram, size_t size) {
+    if (!ram || size < 0x53b3) return 0;
+    unsigned chapter = ram[0x5372];
+    if (chapter == 0) return 1;
+    if (chapter <= 3) return 2;
+    if (chapter <= 5) return 3;
+    if (chapter == 6) return (ram[0x5360] & 0x80) ? 4 : 3;
+    if (chapter <= 10) return 4;
+    if (chapter == 11) return 5;
+    if (chapter <= 15) return 6;
+    if (chapter <= 22) return chapter - 9;
+    if (chapter <= 24) return 14;
+    return 0;
 }
 
 /* Original0755: introductory stage1/flag02 (FA02 -> bit20), then type2
@@ -281,6 +305,10 @@ static inline unsigned FoundationJournalDestinationState(const uint8_t *ram, siz
 
 void FoundationJournalInit(void);
 void FoundationJournalBeforeFrame(void);
+/* Already-configured SNES buttons become journal navigation while it is open.
+ * Real and speculative frames share the filtered word; browsing never writes
+ * story flags, inventory, or a quest-completion log. */
+uint16_t FoundationJournalFilterInput(uint16_t buttons);
 void FoundationJournalReset(void);
 void FoundationJournalHide(void);
 void FoundationJournalAfterFrame(const SnesDesktopHostFrameStats *stats);

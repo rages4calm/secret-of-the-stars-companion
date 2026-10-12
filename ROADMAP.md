@@ -9,29 +9,9 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
-The [native0.3.9 / unchanged Companion0.3.5 update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) adds current Kaja/MOUSTACHE request and hand-in directions, then the original chapter-nine Bonzley/Garados clue. Bonzley and Sidon Forest gain verified area destinations; Kaja's separated entrances retain no-pin fallback. Actual Sidon acquisition, broader party/flag contexts and later Garados/snowmelt remain next story targets. Current possession and advice recompute after restore; no durable quest history is inferred.
+The [native 0.4.0 / Companion 0.3.6 continuation](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) adds a complete manually browsable 42-page story guide in 14 sections. Original current chapter 0-24 suggests a starting section, while existing fine automatic advice remains bounded through the Kaja/Bonzley/Sidon work. The [written sources](docs/JOURNAL-GUIDE-SOURCES.md) cover the ending using credited fallback guides for four unavailable RPGClassics pages. Owner and play testers verify campaign directions; implementation checks focus on actual rendering and input.
 
-The [native0.3.8 / unchanged Companion0.3.5 update](docs/FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md)
-adds current advice after original key-use and the Victory Bridge event, plus
-accumulator-only faithful native admission. The named battle witness moves5→112
-native instructions with exact original boundaries;113 remain original after a
-cross-frame call. Fresh public game, journal, input, restoration, playback and
-launcher update/rollback are separately checked. Its original bridge work remains the
-preceding scope; native0.3.9 separately qualifies the Bonzley/Kaja continuation.
-Broader native/campaign party/effect coverage remains open. No permanent history or campaign-wide native percentage is inferred.
-
-The preceding [native0.3.7 / unchanged Companion0.3.5 update](docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md)
-adds original-event Morgan/WIN-KEY directions, fixes four selected Kustera world
-wrap-margin flashes, and certifies stable generic analyzer exit facts. Fresh
-game, pixel, journal, source-regeneration and launcher controls qualify separately.
-Unsupported emitted instructions still retain original execution. Next are later
-verified bridge/chapter advice and broader native opcode/story/party/effect work.
-
-The [native 0.3.6 / Companion 0.3.5 update](docs/FOUNDATION-ENCOUNTER-RATE-2026-10-11.md) adds editable ordinary random encounters: 0–100%, default 100%, with scripted battles retaining their original path. The modifier scales integer bins in the original threshold, not an exact observed campaign frequency. Actual current/older-build UI, source adoption and compatible update/rollback checks pass; broader campaign and hardware testing remain open.
-
-The preceding [native 0.3.5 continuation](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md) adds verified circus-ticket and Cody/priest guidance with an original entrance-resolved Decatas destination. Its changed journal and map behavior are freshly checked on the exact candidate. Two bad staged room inputs have been regenerated through original entrance loaders and independently checked; this does not claim new campaign coverage or a renderer repair. Eleven selected playback contexts pass. Nine modal route contracts pass across the initial batch and a focused closure; an initial audio gap remains explicit with an unproven cause. Companion stays 0.3.4.
-
-The [0.3.4 source continuation](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md) retains reviewed expanded generation reproducible from public source and an owned ROM. Complete AOT, broader effects/party/story coverage and later verified quest guidance remain unfinished.
+Full native/AOT execution, broader story/party/effect rendering and hardware coverage remain unfinished. Guide coverage does not establish automatic campaign event detection, permanent quest history or new objective pins. Current original execution and guarded renderer fallback remain authoritative.
 
 ## 1. Public first-run setup and packaging
 
@@ -81,45 +61,15 @@ retains the separate experimental provenance and original-loader recipes.
 Natural Algos acquisition and later world-map story entry remain separate from
 staged execution. Experimental build receipts stay refused by normal Setup.
 
-## 3. Expand the quest journal
+## 3. Story guide and current advice
 
-The [native0.2.7 continuation](docs/FOUNDATION-CONTINUATION-2026-10-11.md) executes the original chapter-five Graviton award and escort route with recorded prerequisite staging. Advice uses current chapter/flags and mutable possession, recomputes after rollback, and suppresses the old lab objective after the route advances. Golan's exact world location is unverified, so no new pin is guessed. The [0.2.8 continuation](docs/FOUNDATION-GENERATED-CLEAR-GIANT-2026-10-11.md) executes the original Dynamite join and qualifies current GIANT/large-house advice and destination79. The [0.2.9 continuation](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md) now executes the original Golan battle, Graviton effect, victory, Baz rescue and chapter-six transition with recorded copied-party prerequisites. Current chapter-six zero-flags advice covers farming the town and suppresses the stale GIANT pin. Later father dialogue remains source-only; further destinations and durable completion/history remain open.
+The full written story guide is implemented: 42 pages / 14 sections from David and the first StarCrest through the final battle and ending. It includes separate-party prerequisites, town settlers, warehouse transfers, Kustera shrine components and cooperative final mazes. Select switches Current / Guide; the configured directional game buttons browse pages and sections, and Game B closes. J / left-stick click remains the configurable journal opener.
 
-The [native0.2.5 update](docs/FOUNDATION-VEHICLE-JOURNAL-2026-10-10.md) expands current quest directions from original dialogue and item conditions. Challenge flags and mutable item possession remain separate from durable completion/history.
+The suggested section uses original current chapter 0-24, with selected earlier starting pages. This is a navigation aid, not precise automatic event detection. Browsing does not write guest progression, add a map marker or remember future completion after rollback. Current fine advice retains the original source/state predicates already verified in the [Kaja/Bonzley continuation](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md). Read the [guide sources and coverage limits](docs/JOURNAL-GUIDE-SOURCES.md).
 
-The current-Starcrest card reads both original inventories and recomputes after
-restore. [Native0.3.0](docs/FOUNDATION-PARTIES-CONSTRUCTOR-2026-10-11.md) corrects
-the original inventory domain:00 is Starcrest and40 is Lifevest. The original
-Pennon award is executed from recorded staged prerequisites; natural campaign
-acquisition, irreversible completion and durable history remain distinct.
+The owner and play testers verify campaign directions. Implement useful corrections from their reports without making exhaustive developer campaign replay a prerequisite for each content change. Additional automatic event-specific advice and objective pins still require original source/state evidence; possession, current party and permanent completion remain distinct. Durable quest history is future work and would need defined reset/load/rewind semantics.
 
-Original recruitment and SWAP between both controlled parties, their selected
-locations, inventories, journal and map now have finite producer/restore checks.
-Additional [second-party checks](docs/FOUNDATION-SECOND-PARTY-2026-10-11.md) now qualify Kustera town walking and margin art, genuine house SWAP in both directions, and a coherent Kustera-to-Aqutallion copied-checkpoint restore on unchanged native0.3.2. Wrapping-world second-party margins and broader effects remain unqualified. Bun's original recruitment
-and house exit are verified; the later original city-construction trigger and
-changing town remain next priorities, with no invented outcome flags or pins.
-
-Native0.2.4 adds a full objective/route/current-progress panel and the original
-Uncle Save stage-one Likado clue to David, Aris/Pennon and Bosen advice. All
-reconcile after restore and rollback. [Current bundle](docs/FOUNDATION-PRESENTATION-BUNDLE-2026-10-10.md).
-Add natural Crest acquisition and further dialogue/progression fixtures; verify actual item/story
-writers before enabling completion rules. Define deterministic event history,
-new-game reset, cold restore and rewind behavior. Avoid spoilers or an external
-append-only log that remembers a future state after rollback.
-The [historical Crest assessment](docs/FOUNDATION-JOURNAL-CREST-ASSESSMENT-2026-10-09.md)
-records the earlier investigation. Native0.3.0 corrects its item-domain interpretation
-and executes the original Pennon award from staged prerequisites; durable
-completion and natural campaign acquisition remain unqualified. Opening victories
-are not a Crest fixture.
-
-The optional navigation map now shows original current-area terrain and your
-position, world-town markers, and an independently configurable blinking
-objective marker only when original quest evidence identifies a destination.
-Keyboard/controller actions are assignable. Terrain is built incrementally and
-cached; opening/reopening and paired audio checks are recorded separately from
-host-only tests. Broader maps, story conditions and hardware remain to qualify.
-The native0.2.7 legend matches marker colors. Two source-proven camera-stream/current-cell attribute changes no longer restart same-area terrain generation; independent resource/story/eligibility guards and bounded refresh remain. No visited history or guessed route markers are shown.
-[Map and chapter-four/five update](docs/FOUNDATION-NAVIGATION-MAP-2026-10-11.md).
+The navigation map retains original area terrain, player position, towns and independently qualified destinations. Wider map/story rendering, two-party town changes and effects remain separate work. No guessed route pins or exploration history are added by the full story guide.
 
 ## 4. Audio and presentation polish
 
@@ -139,11 +89,14 @@ comparisons across both parties, town changes and story transitions. The
 current 151 full contexts and 93 prefixes describe generated coverage only;
 full game execution and the remaining backend/refusal cases are still open.
 
-## 6. Wider testing
+## 6. Player testing and focused developer checks
 
-Use small copied-save and reproducible routes for story transitions, combat,
-menus, controllers, listening checks, long sessions and hardware variation.
-Use disposable development fixtures and keep failures/coverage gaps in the evidence.
-A full campaign, every actor/effect and every physical controller are still
-unqualified. Volunteer micro-tests are welcome; another owner playthrough is
-not the default requirement.
+The owner and play testers verify the campaign, navigation directions, party
+progression and evolving town during play. Report a checkpoint context and the
+incorrect step when possible. Developers implement corrections and run focused
+rendering, input, restoration and playback checks on protected copies.
+
+Physical controller variation, listening, long sessions and broad story/effect
+coverage remain open. A manually complete guide does not certify full campaign
+execution or every renderer context. Keep observed failures and tested coverage
+separate, and preserve owner data.

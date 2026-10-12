@@ -41,9 +41,17 @@
 #include "foundation_menu.h"
 #include "foundation_wide.h"
 #include "foundation_qol.h"
+#include "foundation_journal.h"
+#include "common_rtl.h"
+#include "snes/snes.h"
+
+extern Snes *g_snes;
 
 void GameRunOneFrame(void)
 {
+    /* RtlSetPadState updates both the serial/automatic joypad producer and
+     * its current-state mirror. Guest logic and sound continue normally. */
+    RtlSetPadState(0, FoundationJournalFilterInput(g_snes->input1_currentState));
     FoundationRulesInit();
     FoundationQolInit();
     FoundationMenuBeginFrame();
