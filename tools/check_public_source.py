@@ -287,7 +287,7 @@ def main():
                 or sha(continuation_binding)!=provenance.get('native_continuation_source_binding_sha256')
                 or len(names)!=12 or set(names)!=set(binding['files'])
                 or 'validate_continuation_runtime' not in helper
-                or 'ordered-fourteen-full-patch-hashes' not in helper):
+                or 'ordered-fifteen-full-patch-hashes' not in helper):
             errors.append('Native continuation patch/source binding differs from the current snapshot.')
     except (OSError,ValueError,KeyError,TypeError) as error:
         errors.append('Native continuation source binding unreadable: '+str(error))
@@ -321,6 +321,21 @@ def main():
             errors.append('Memory bits patch/source binding differs from the current snapshot.')
     except (OSError,ValueError,KeyError,TypeError) as error:
         errors.append('Memory bits source binding unreadable: '+str(error))
+    region_patch=ROOT/'patches/runtime-native-regions.patch'
+    region_binding=ROOT/'patches/runtime-native-regions.json'
+    try:
+        binding=json.loads(region_binding.read_bytes())
+        names=re.findall(r'^diff --git a/(\S+) b/',region_patch.read_text(encoding='utf-8'),re.M)
+        if ('patches/runtime-native-regions.patch' not in tracked
+                or 'patches/runtime-native-regions.json' not in tracked
+                or sha(region_patch)!=binding['patch_sha256']
+                or sha(region_patch)!=provenance.get('native_regions_patch_sha256')
+                or sha(region_binding)!=provenance.get('native_regions_source_binding_sha256')
+                or len(names)!=6 or set(names)!=set(binding['files'])
+                or sha(region_patch) not in helper or 'validate_native_regions_patch' not in helper):
+            errors.append('Native regions patch/source binding differs from the current snapshot.')
+    except (OSError,ValueError,KeyError,TypeError) as error:
+        errors.append('Native regions source binding unreadable: '+str(error))
     reviewed = ROOT / 'native/foundation/recomp/reviewed-roots.json'
     if ('native/foundation/recomp/reviewed-roots.json' not in tracked
             or sha(reviewed) != provenance.get('reviewed_analysis_roots_sha256')):

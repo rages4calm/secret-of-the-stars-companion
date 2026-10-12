@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "a156a53a238d18d75841561122a399618d1b1130e692728c2aede630395ba053",
+  "files": {
+    "recompiler/v2/emit_bank.py": {
+      "predecessor_sha256": "7ce5ac23d40ec05abbdd6ca9ac1a65181c751e9162e8c7c91dd24e0cf218ea8d",
+      "final_sha256": "68511ffd064c2546365d31c0c82a1567e5729f124c20c9ab6a0acbf160cc5585",
+      "normalized_final_sha256": "68511ffd064c2546365d31c0c82a1567e5729f124c20c9ab6a0acbf160cc5585"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "fd2320885e3718e64523ee4b53dfae7e8a07624113972cc8cdfc4f318bbe5087",
+      "final_sha256": "0ecd55dff04dda615e1794bb00f4aae25e714c36034bb09807e18e2dfa689f9c",
+      "normalized_final_sha256": "0ecd55dff04dda615e1794bb00f4aae25e714c36034bb09807e18e2dfa689f9c"
+    },
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "ce0197ed538e0368aa8d29460e3d335759b132089c834cd2e77f3f87375d6e08",
+      "normalized_final_sha256": "ce0197ed538e0368aa8d29460e3d335759b132089c834cd2e77f3f87375d6e08"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "b0e712730d1cf4095e7a23d0ad34a050991c9c1ff3c628bbcf85c2e19978b33f",
+      "final_sha256": "0cc5d839a56c0ffabffc4fa710ac9807589c4becfd7cf4b531f4d40d061f9233",
+      "normalized_final_sha256": "0cc5d839a56c0ffabffc4fa710ac9807589c4becfd7cf4b531f4d40d061f9233"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "b280b3aa8e72d32911728880f92c80611d224151ffc1b0dff9c0f820f1f1290d",
+      "final_sha256": "6bd6971837a5b8f284035027b7ac793211132362fef88cb187a8762d7b754b0f",
+      "normalized_final_sha256": "6bd6971837a5b8f284035027b7ac793211132362fef88cb187a8762d7b754b0f"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "bbf5fd7952a502400907a616b1fe2f713e40a290935d7ae9eb834c3e99217857",
+      "final_sha256": "eee2b4daac66a46a891582ef853875166073c5311d6f95347cfe6b37a7d17628",
+      "normalized_final_sha256": "eee2b4daac66a46a891582ef853875166073c5311d6f95347cfe6b37a7d17628"
+    }
+  },
+  "scope": "Source-certified CFG poll leaves execute genuine generated IR bodies inside original preopcode scheduler. Exact E0 M/X/PC; read/conditional branch only; masks/hooks/unknown modes retain original. Transient next-PC output; no serialized state changes. Cache7; program manifest3; native regions metadata1."
+}

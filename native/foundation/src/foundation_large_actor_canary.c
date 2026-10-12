@@ -45,18 +45,20 @@ static int InputAlias(const LargeView *view, const void *output, size_t bytes) {
         Overlap(output, bytes, view->cgram, view->cgram_words * sizeof(uint16_t)) ||
         Overlap(output, bytes, bound_rom, bound_size);
 }
-/* Original selected-world saved parked allocation relation. No story or activation writes. */
+/* Original selected-world saved parked allocation relation. No story or activation writes.
+ * CFED TSB0401 owns bit08 on top of the original field route. The authentic
+ * C400 world loader produces0E; retained0C route uses the same exact roster.
+ * Route0E is admitted by ViewValid only with these full wrapping/resource guards. */
 int LargeWrappingParked(const uint8_t *ram, size_t size) {
     static const uint8_t selected[12] = {0x58,0x87,3,0x58,0x8f,3,0x18,0x84,10,0x18,0x88,10};
     static const uint8_t grids[6] = {0x5c,0xa8,9,0,0x97,9};
-    if (!ram || size != 131072 || ram[0x20] != 1 || ram[0x401] != 12 ||
+    if (!ram || size != 131072 || ram[0x20] != 1 || (ram[0x401] != 12 && ram[0x401] != 14) ||
         ram[0x407] != 1 || ram[0x400] || Read16(ram,0x40e) ||
         ram[0x5372] != 17 || (ram[0x5361] & 0x40) || (ram[0x409] & 0x80) ||
         Read16(ram,0x5441) || Read16(ram,0x46d) != 0x0e0e || Read16(ram,0x46f) != 0x0404 ||
         memcmp(ram+0x500,selected,12) || memcmp(ram+0x513,grids,6) ||
         Read16(ram,0x537) != 0x8110 || ram[0x539] != 9 ||
-        Read16(ram,0x55c) != 0x8210 || ram[0x55e] != 9 ||
-        Read16(ram,0x471) || Read16(ram,0x473)) return 0;
+        Read16(ram,0x55c) != 0x8210 || ram[0x55e] != 9) return 0;
     unsigned sx=Read16(ram,0x544b),sy=Read16(ram,0x5455);
     if (sx>=3584 || sy>=3584) return 0;
     for (unsigned i=0;i<19;++i) {
@@ -85,7 +87,7 @@ int LargeWrappingParked(const uint8_t *ram, size_t size) {
 int LargeWrappingCombined(const uint8_t *ram, size_t size) {
     static const uint8_t selected[12] = {0x58,0x87,3,0x58,0x8f,3,0x18,0x84,10,0x18,0x88,10};
     static const uint8_t grids[6] = {0x5c,0xa8,9,0,0x97,9};
-    if (!ram || size != 131072 || ram[0x20] != 1 || ram[0x401] != 12 ||
+    if (!ram || size != 131072 || ram[0x20] != 1 || (ram[0x401] != 12 && ram[0x401] != 14) ||
         ram[0x407] != 1 || ram[0x400] || Read16(ram,0x40e) || ram[0x4b6] ||
         ram[0x5372] != 17 || (ram[0x5361] & 0x40) ||
         (ram[0x409] != 0 && ram[0x409] != 2) ||
@@ -93,8 +95,7 @@ int LargeWrappingCombined(const uint8_t *ram, size_t size) {
         Read16(ram,0x46d) != 0x0e0e || Read16(ram,0x46f) != 0x0404 ||
         memcmp(ram+0x500,selected,12) || memcmp(ram+0x513,grids,6) ||
         Read16(ram,0x537) != 0x8110 || ram[0x539] != 9 ||
-        Read16(ram,0x55c) != 0x8210 || ram[0x55e] != 9 ||
-        Read16(ram,0x471) || Read16(ram,0x473)) return 0;
+        Read16(ram,0x55c) != 0x8210 || ram[0x55e] != 9) return 0;
     unsigned x=Read16(ram,0x5449),y=Read16(ram,0x5453);
     unsigned sx=Read16(ram,0x544b),sy=Read16(ram,0x5455);
     unsigned shadow=!!(ram[0x5457]&0x40);
@@ -124,9 +125,17 @@ static int ViewValid(const LargeView *view) {
     return identity && view && view->ram && view->ram_size == 131072 &&
         view->vram && view->vram_words == 32768 && view->cgram && view->cgram_words == 256 &&
         view->field_eligible && view->obsel == 3 && !view->rotation && !view->setini &&
-        view->ram[0x20] == 1 && view->ram[0x401] == 12 &&
-        (!view->ram[0x407] || LargeWrappingRoster(view->ram,view->ram_size)) &&
-        !Read16(view->ram, 0x471) && !Read16(view->ram, 0x473);
+        view->ram[0x20] == 1 &&
+        (view->ram[0x401] == 12 ||
+         (view->ram[0x401] == 14 && view->ram[0x407] == 1 &&
+          LargeWrappingRoster(view->ram,view->ram_size))) &&
+        (!view->ram[0x407] || LargeWrappingRoster(view->ram,view->ram_size));
+}
+/* Production coordinates are coherent only while both signed offset words stay
+ * in the begun epoch. They are transient producer inputs, not loaded art identity. */
+static int SameOffsets(const LargeReplay *state, const LargeView *view) {
+    return state->offset_x == Signed(Read16(view->ram, 0x471)) &&
+           state->offset_y == Signed(Read16(view->ram, 0x473));
 }
 int LargeBindRom(const uint8_t *rom, size_t size) {
     if (rom != bound_rom || size != bound_size) {
@@ -152,6 +161,8 @@ int LargeBegin(LargeReplay *state, const LargeView *view,
         return 0;
     memcpy(state->expected_low, staging, 8);
     Resource(view, state->resource);
+    state->offset_x = Signed(Read16(view->ram, 0x471));
+    state->offset_y = Signed(Read16(view->ram, 0x473));
     state->valid = 1;
     return 1;
 }
@@ -161,7 +172,8 @@ static int Reject(LargeReplay *state) {
 }
 int LargeCapture(LargeReplay *state, const LargeView *view,
                  const LargeSeam *seam, enum LargeFamily family, unsigned index) {
-    if (!state || !state->valid || state->sealed || !ViewValid(view) || !SameResource(state, view) || !seam ||
+    if (!state || !state->valid || state->sealed || !ViewValid(view) || !SameResource(state, view) ||
+        !SameOffsets(state, view) || !seam ||
         (family != LARGE_PARTY && family != LARGE_REGULAR) ||
         index >= (family == LARGE_PARTY ? 5u : 19u)) return Reject(state);
     const uint8_t *ram = view->ram;
@@ -189,8 +201,10 @@ int LargeCapture(LargeReplay *state, const LargeView *view,
         x = actor.world_x; y = Signed(actor.world_y - 1);
     } else {
         actor.world_x = Read16(ram, at + 1); actor.world_y = Read16(ram, at + 3);
-        x = Signed(actor.world_x - actor.camera_x);
-        y = Signed(actor.world_y - actor.camera_y) - 1;
+        /* DB68 receives the original world + signed offset - primary camera
+         * result. Capture this once; Prepare only applies displayed raster delta. */
+        x = Signed(actor.world_x + state->offset_x - actor.camera_x);
+        y = Signed(actor.world_y + state->offset_y - actor.camera_y) - 1;
         if (seam->descriptor != descriptor || seam->coordinate_x != (uint16_t)x ||
             seam->coordinate_y != (uint16_t)(y + 1)) return Reject(state);
     }
@@ -221,8 +235,10 @@ int LargeCapture(LargeReplay *state, const LargeView *view,
     state->last = actor; state->expected_high = high; ++state->writers;
     return 1;
 }
-int LargeSeal(LargeReplay *state, const uint8_t *staging, size_t size) {
-    if (!state || !state->valid || !state->writers || !staging || size != LARGE_PACKET_BYTES ||
+int LargeSeal(LargeReplay *state, const LargeView *view,
+              const uint8_t *staging, size_t size) {
+    if (!state || !state->valid || !ViewValid(view) || !SameResource(state, view) ||
+        !SameOffsets(state, view) || !state->writers || !staging || size != LARGE_PACKET_BYTES ||
         memcmp(staging, state->expected_low, 8) || staging[512] != state->expected_high)
         return Reject(state);
     memcpy(state->bytes, staging, LARGE_PACKET_BYTES); state->sealed = 1;

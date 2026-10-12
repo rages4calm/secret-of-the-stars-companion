@@ -32,6 +32,7 @@ typedef struct LargeReplay {
     LargeActor last;
     uint8_t expected_low[8], expected_high, bytes[LARGE_PACKET_BYTES], resource[34];
     unsigned writers, generation;
+    int16_t offset_x, offset_y;
     uint8_t valid, collision, sealed, displayed;
 } LargeReplay;
 typedef struct LargeTransfer {
@@ -50,7 +51,8 @@ int LargeBegin(LargeReplay *state, const LargeView *view,
                const uint8_t *initial_staging, size_t size);
 int LargeCapture(LargeReplay *state, const LargeView *view,
                  const LargeSeam *seam, enum LargeFamily family, unsigned index);
-int LargeSeal(LargeReplay *state, const uint8_t *staging, size_t size);
+int LargeSeal(LargeReplay *state, const LargeView *view,
+              const uint8_t *staging, size_t size);
 int LargeComplete(LargeReplay *state, const LargeTransfer *transfer,
                   const uint8_t *actual_packet, size_t size);
 /* Returns at most the last writer's two parts; no duplicate fixed-slot ranks. */

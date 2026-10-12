@@ -80,8 +80,8 @@ static int OffsetMatches(int x, int y) {
     return x == Signed(R16(0x471)) && y == Signed(R16(0x473));
 }
 /* Original ordinary D906/D912, DA9F/DAAD and variable DC64/DC6C
- * consume these signed word offsets. Large and travel families retain their
- * separate zero-offset contracts; a sprite offset alone cannot admit them. */
+ * consume these signed word offsets. Parked and large families require their
+ * separate source contracts; a sprite offset alone cannot admit them. */
 static int OrdinaryOffsetRoster(void) {
     if (g_ram[0x409]) return 0;
     for (unsigned i=0; i<kActors; ++i) {
@@ -408,11 +408,47 @@ void FoundationWideActorsSetEnabled(int value) {
 }
 int FoundationWideActorsEnabled(void) { return enabled; }
 
+/* Exact original saved A0 body/A8 shadow world roster. Offsets already
+ * belong to ordinary DAxx coordinates and displayed Packet; no new transform.
+ * Party special/vehicle descriptors remain outside this bounded admission. */
+static int ParkedOrdinaryOffsetRoster(const Ppu *ppu) {
+    if (!WrappingResource(ppu) || !KnownWrappingOrdinaryVehicle()) return 0;
+    for (unsigned i=0; i<kParty; ++i) {
+        unsigned at=0x4000+18*i;
+        if (g_ram[at]==255) continue;
+        unsigned base=R16(at+3), gfx=base+2*g_ram[at]+(g_ram[at+10]>>7);
+        if (g_ram[at]>3 || base==0xb0 || (gfx>=0xa0 && gfx<0xb0) ||
+            gfx>=(0xd800-0x9800)/8) return 0;
+    }
+    return 1;
+}
+
+/* Nonzero B0 offsets have independent producer ownership: party D989
+ * ignores them; regular DB68 applies them before camera subtraction. Only
+ * ordinary nonwrapping companions or the exact saved world roster can join. */
+static int LargeOffsetRoster(const Ppu *ppu) {
+    if (g_ram[0x407])
+        return (g_ram[0x401]==12 || g_ram[0x401]==14) &&
+            WrappingResource(ppu) && LargeWrappingRoster(g_ram,131072);
+    if (g_ram[0x401]!=12 || g_ram[0x409]) return 0;
+    int large=0;
+    for (unsigned i=0; i<kActors; ++i) {
+        unsigned party=i<kParty, at=party?0x4000+i*18:0x4100+(i-kParty)*25;
+        if (g_ram[at]==255) continue;
+        unsigned base=R16(at+(party?3:5));
+        unsigned gfx=base+g_ram[at]*2+(party?(g_ram[at+10]>>7):(g_ram[0x475]>>7));
+        if (g_ram[at]>3) return 0;
+        if (base==0xb0) { large=1; continue; }
+        if ((gfx>=0xa0 && gfx<0xb0) || gfx>=(0xd800-0x9800)/8) return 0;
+    }
+    return large;
+}
+
 static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
         (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu) || VariableRoster()) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
-        ((!R16(0x471) && !R16(0x473)) || OrdinaryOffsetRoster());
+        ((!R16(0x471) && !R16(0x473)) || OrdinaryOffsetRoster() || ParkedOrdinaryOffsetRoster(ppu) || LargeOffsetRoster(ppu));
 }
 
 static void Resource(const Ppu *ppu, uint8_t key[48]) {
@@ -670,7 +706,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (g_ppu) Resource(g_ppu, producing.resource);
         /* Wrapped B0 needs its original saved allocation relation; ordinary
          * wrapping retains the separate strict resource/packet proof. */
-        if (sequence && g_ram[0x401] == 12 &&
+        if (sequence && (g_ram[0x401] == 12 ||
+            (g_ram[0x401] == 14 && LargeWrappingRoster(g_ram,131072))) &&
             (!g_ram[0x407] || LargeWrappingRoster(g_ram,131072))) {
             LargeView view = LargeInput(g_ppu);
             if (!LargeBegin(&producing.large, &view, g_ram + 0x2200, kPacketBytes)) sequence = 0;
@@ -884,8 +921,11 @@ static void Observe(CpuState *cpu, uint32_t pc) {
                 Reject("reject_reserved_park", cpu); return;
             }
         }
-        if (producing.large.writers && !LargeSeal(&producing.large, g_ram + 0x2200, kPacketBytes)) {
-            Reject("reject_large_staging", cpu); return;
+        if (producing.large.writers) {
+            LargeView view = LargeInput(g_ppu);
+            if (!LargeSeal(&producing.large, &view, g_ram + 0x2200, kPacketBytes)) {
+                Reject("reject_large_staging", cpu); return;
+            }
         }
         memcpy(producing.bytes, g_ram + 0x2200, kPacketBytes);
         producing.valid = 1; queued = producing; sequence = sequence_done = 0;

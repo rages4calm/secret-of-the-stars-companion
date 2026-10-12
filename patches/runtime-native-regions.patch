@@ -1,0 +1,334 @@
+diff --git a/recompiler/v2/emit_bank.py b/recompiler/v2/emit_bank.py
+--- a/recompiler/v2/emit_bank.py
++++ b/recompiler/v2/emit_bank.py
+@@ -94,7 +94,7 @@
+               hle_dispatch=None,
+               inline_arg_map=None,
+               declared_entry_pcs=None,
+-              host_alias_entries=None) -> str:
++              host_alias_entries=None, native_region_collector=None) -> str:
+     """Emit one bank's C source.
+ 
+     Args:
+@@ -214,6 +214,7 @@
+             tail_call_pc16=entry.tail_call_pc16,
+             tail_call_target_name=tail_call_target_name,
+             entry_s_offset=entry.entry_s_offset,
++            native_region_collector=native_region_collector,
+             callee_exit_mx=callee_exit_mx,
+             callee_exit_mx_modes=callee_exit_mx_modes,
+             sibling_entry_pcs=sibling_pcs,
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -490,7 +490,7 @@
+                   inline_arg_map=None,
+                   terminal_jsr_sites=None,
+                   noreturn_jsr_sites=None,
+-                  entry_s_offset: int = 0) -> str:
++                  entry_s_offset: int = 0, native_region_collector=None) -> str:
+     """Emit a complete v2 C function source for one 65816 function.
+ 
+     Pipeline:
+@@ -2308,6 +2308,18 @@
+                         else "RecompStackPop")
+                 src.append(f"    {_pop}();")
+             src.append(f"    {ln}")
++    if native_region_collector is not None:
++        from .native_regions import collect
++        for region_key, region_pairs in block_per_insn_ir.items():
++            if region_key.pc not in _faithful_poll_pcs or len(region_pairs) != 1:
++                continue
++            region_insn, region_ops = region_pairs[0]
++            if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
++                continue
++            region = collect(rom, region_key, region_insn, region_ops,
++                             _block_cycle_const(region_pairs))
++            if region is not None:
++                native_region_collector.append(region)
+     # Defensive trailing return so a missing terminator doesn't fall off
+     # the end of the function in the C compiler's view.
+     src.append("  RecompStackPop();")
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/native_regions.py
+@@ -0,0 +1,51 @@
++"""Source-derived scheduler-owned leaf instructions; never callable roots."""
++import re
++from snes65816 import ABS, rom_offset
++from .ir import CondBranch
++from .codegen import emit_op, _reg
++
++READS={'LDA','LDX','LDY','BIT','CMP','CPX','CPY'}
++BRANCHES={'BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
++
++def collect(rom,key,insn,ops,cycles):
++    if key.m not in (0,1) or key.x not in (0,1) or insn.data_region_exec:
++        return None
++    if not (insn.mnem in READS and insn.mode==ABS or insn.mnem in BRANCHES):
++        return None
++    if insn.mnem in BRANCHES and (len(ops)!=1 or not isinstance(ops[0],CondBranch)):
++        return None
++    pc=insn.addr&0xffffff
++    if pc&0xffff<0x8000 or pc>>16 in (0x7e,0x7f):return None
++    body=[];next_pc=(pc+insn.length)&0xffff
++    for op in ops:
++        if isinstance(op,CondBranch):
++            body.append(f'if ({_reg(op.flag)} == {int(op.take_if)}) {{ *next_pc = {insn.operand&0xffff}u; cpu_aot_extra(cpu,1); }}')
++        else:
++            lines=emit_op(op,pc)
++            if any('unsupported' in line or 'return' in line for line in lines):return None
++            body.extend(lines)
++    code='\n'.join(body).replace('cpu_read16_linear(', 'cpu_aot_read16_linear(').replace('cpu_read16(', 'cpu_aot_read16(').replace('cpu_read8(', 'cpu_aot_read8(')
++    names={}
++    def local(match):
++        return names.setdefault(match[0],f'_region_v{len(names)}')
++    code=re.sub(r'_(?:v\d+|tc\d+_\d+)\b',local,code)
++    offset=rom_offset(pc>>16,pc&0xffff)
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':next_pc,'body':code,'mnemonic':insn.mnem}
++
++def emit(rows,module_prefix=None):
++    header='#include "cpu_state.h"\n#include "program_module.h"\n#include <stdlib.h>\n'
++    if module_prefix:header+='#include "module_namespace.h"\n'
++    out=[header,'extern SnesProgramModule g_program_module;', 'bool cpu_native_region_step(CpuState *cpu,uint32 pc24,uint8 mx,uint16 *next_pc) {',
++         '  static int enabled=-1; if(enabled<0) {const char *e=getenv("SNESRECOMP_DISABLE_NATIVE_REGIONS");enabled=!(e&&e[0]&&e[0]!=\'0\');}',
++         '  const SnesProgramModule *active=snes_program_module_active();',
++         '  if(!enabled || !cpu || !next_pc || cpu->emulation || cpu->m_flag>1 || cpu->x_flag>1 || mx!=((cpu->m_flag<<1)|cpu->x_flag) || (active && active!=&g_program_module)) return false;',
++         '  if ((((uint32)cpu->PB<<16)|(pc24&0xffff)) != pc24) return false;',
++         '  switch (((pc24&0x7fffffu)<<2)|mx) {']
++    for row in sorted(rows,key=lambda r:(r['pc24'],r['m'],r['x'])):
++        case=(row['pc24']<<2)|(row['m']<<1)|row['x']
++        out.extend([f'    case {case}u: {{ /* {row["pc24"]:06x} M{row["m"]}X{row["x"]} {row["mnemonic"]}; ROM {row["bytes"]} */',
++                    f'      if(!cpu_aot_begin(cpu,pc24,{row["length"]}u,{row["cycles"]}u)) return false;',
++                    f'      *next_pc={row["next_pc"]}u;',row['body'],'      cpu_aot_commit(cpu); return true; }'])
++    out.extend(['    default: return false;','  }','}',''])
++    return '\n'.join(out)
++
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 6
++CACHE_FORMAT_VERSION = 7
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -67,6 +67,7 @@
+     "g_ram_routine_guard_count",
+     "g_native_continuations",
+     "g_native_continuation_count",
++    "cpu_native_region_step",
+     "g_program_module",
+     "snes_program_module_register_generated",
+ )
+@@ -1094,6 +1095,21 @@
+     old_output_hashes = old_cache.get("outputs", {})
+     old_bank_symbols = old_cache.get("bank_symbols", {})
+     new_bank_symbols = {}
++    new_bank_regions = {}
++    all_regions = []
++    old_bank_regions = old_cache.get("bank_regions", {})
++    old_region_path = pathlib.Path(out_dir) / "native_regions.json"
++    try:
++        recorded_region_bytes = old_region_path.read_bytes()
++        recorded_regions = json.loads(recorded_region_bytes)["regions"]
++        region_cache_bound = (
++            old_cache.get("format_version") == CACHE_FORMAT_VERSION
++            and hashlib.sha256(recorded_region_bytes).hexdigest()
++                == old_output_hashes.get("native_regions.json")
++            and isinstance(recorded_regions, list))
++    except (OSError, ValueError, KeyError):
++        recorded_regions = []
++        region_cache_bound = False
+     bank_file_header = None
+     if module_prefix:
+         def bank_file_header(bank):  # noqa: E306 - closure over the prefix
+@@ -1142,11 +1158,16 @@
+             # the namespace header would silently omit that bank's symbols.
+             previous_symbols = old_bank_symbols.get(f"{bank:02X}")
+             if (old_bank_keys.get(f"{bank:02X}") == cache_key
+-                    and reusable_output and previous_symbols is not None):
++                    and reusable_output and previous_symbols is not None
++                    and f"{bank:02X}" in old_bank_regions
++                    and region_cache_bound
++                    and all(r in recorded_regions for r in old_bank_regions[f"{bank:02X}"])):
+                 names = tuple(sorted(previous_names))
+                 new_bank_outputs[f"{bank:02X}"] = list(names)
+                 new_bank_symbols[f"{bank:02X}"] = list(previous_symbols)
+                 planned_bank_outputs.update(names)
++                new_bank_regions[f"{bank:02X}"] = old_bank_regions[f"{bank:02X}"]
++                all_regions.extend(new_bank_regions[f"{bank:02X}"])
+                 reused_banks += 1
+                 continue
+ 
+@@ -1186,6 +1207,7 @@
+                 for region_bank, start, end in tuple(data_regions):
+                     if region_bank != bank and _lorom_mirror_pc24((region_bank << 16) | start) == ((bank << 16) | start):
+                         data_regions.append((bank, start, end))
++            bank_regions = []
+             source = emit_bank(
+                 rom, bank, entries_by_bank.get(bank, []),
+                 dispatch_helpers=dict(dispatch_helpers) or None,
+@@ -1211,6 +1233,7 @@
+                 host_alias_entries=host_alias_entries,
+                 file_header=(bank_file_header(bank)
+                              if bank_file_header else None),
++                native_region_collector=bank_regions,
+             )
+             # Continuation suffixes have their own C activations, but are never
+             # added to the owner's sibling declarations or ordinary dispatch.
+@@ -1238,6 +1261,8 @@
+                     inline_arg_map=dict(inline_arg_map) or None,
+                     declared_entry_pcs={e.start & 0xFFFF for e in getattr(cfg, "entries", ())},
+                     file_header=(bank_file_header(bank) if bank_file_header else None))
++            new_bank_regions[f"{bank:02X}"] = bank_regions
++            all_regions.extend(bank_regions)
+             new_bank_symbols[f"{bank:02X}"] = collect_bank_symbols(source)
+             symbol_pcs = {
+                 (entry.name or
+@@ -1265,6 +1290,8 @@
+             *planned_bank_outputs,
+             "dispatch_v2.c",
+             "unresolved_stubs_v2.c",
++            "native_regions_v2.c",
++            "native_regions.json",
+             MODULE_DESCRIPTOR_SOURCE,
+         }
+         if module_prefix:
+@@ -1289,6 +1316,24 @@
+             if stale.name not in planned:
+                 stale.unlink()
+ 
++        from .native_regions import emit as emit_native_regions
++        forced_regions = {pc & 0x7fffff for _bank, _path, cfg in parsed
++                          for pc in getattr(cfg, 'force_lle', ())}
++        unique_regions = {}
++        for region in all_regions:
++            if region['pc24'] in forced_regions:
++                continue
++            rk = (region['pc24'], region['m'], region['x'])
++            if rk in unique_regions and unique_regions[rk] != region:
++                raise ValueError('Conflicting native region mode/body '+repr((unique_regions[rk],region)))
++            unique_regions[rk] = region
++        regions = [unique_regions[k] for k in sorted(unique_regions)]
++        write_if_changed(staging / 'native_regions_v2.c',
++                         emit_native_regions(regions, module_prefix))
++        write_if_changed(staging / 'native_regions.json',
++                         json.dumps({'format_version':1, 'kind':'source_cfg_poll_leaf',
++                                     'rom_sha256':rom_digest, 'regions':regions},
++                                    indent=2, sort_keys=True) + '\n')
+         write_if_changed(
+             staging / "dispatch_v2.c",
+             emit_dispatch_table(manifest, emitted, name_for_pc, inline_arg_map,
+@@ -1345,6 +1390,7 @@
+             "banks": new_bank_keys,
+             "bank_outputs": new_bank_outputs,
+             "bank_symbols": new_bank_symbols,
++            "bank_regions": new_bank_regions,
+             "module": {"id": module_id, "prefix": module_prefix or ""},
+             "outputs": output_hashes,
+             "stats": {
+@@ -1353,6 +1399,7 @@
+                 "lle_variants": len(manifest.nodes) - emitted_count,
+                 "banks": len(all_banks),
+                 "native_continuations": len(continuations),
++                "native_regions": len(regions),
+             },
+         }
+         write_if_changed(
+@@ -1375,3 +1422,5 @@
+         emitted_variants=emitted_count,
+         lle_variants=len(manifest.nodes) - emitted_count,
+     )
++
++
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -23,6 +23,10 @@
+  */
+ 
+ #include "types.h"
++
++struct CpuState;
++/* Generated scheduler-owned instruction leaf; next PC is transient output. */
++bool cpu_native_region_step(struct CpuState *cpu, uint32 pc24, uint8 mx, uint16 *next_pc);
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -826,6 +830,8 @@
+ #endif
+ 
+ /* Private upstream automatic faithful-instruction mode. No CpuState fields. */
++/* Generated scheduler-owned instruction leaf; next PC is transient output. */
++bool cpu_native_region_step(CpuState*, uint32 pc24, uint8 mx, uint16 *next_pc);
+ bool cpu_aot_begin(CpuState*, uint32, unsigned, unsigned);
+ RecompReturn interp_tier_dispatch_faithful(CpuState*,uint32,uint32,uint16,uint8,bool,uint32);
+ void cpu_aot_extra(CpuState*, unsigned);
+@@ -850,3 +856,4 @@
+ } CpuAotRmwOperand;
+ CpuAotRmwOperand cpu_aot_rmw_read(CpuState *, unsigned mode, uint16 *value);
+ void cpu_aot_rmw_write(CpuState *, const CpuAotRmwOperand *, uint16 value);
++
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -2808,7 +2808,36 @@
+         if (g_interp_bridge_pc_hook)
+             g_interp_bridge_pc_hook(pc_before & 0xFFFFFFu,
+                                     in.mf ? 1 : 0, in.xf ? 1 : 0);
+-        int _cyc = interp816_runOpcode(&in);   /* executes the opcode; pushes/pops frames */
++        /* Generated leaf instruction table, not a callable
++         * guest root. The original loop above owns all pre-opcode gates.
++         * The generated table must contain only certified stack-neutral E0
++         * read/branch bodies, excluding all masked/hook/unknown-mode PCs. */
++        extern bool cpu_native_region_step(CpuState *, uint32, uint8, uint16 *);
++        uint16 region_next_pc = in.pc;
++        uint64_t region_cycles_before = cpu->cycles;
++        /* Refusal retains the original published/local register split: bus
++         * callbacks may observe CpuState while the live registers are in in.
++         * Save only register mirrors; never roll back clocks or bus epochs. */
++        Interp816 unpublished_registers;
++        sync_cpu_to_interp(cpu, &unpublished_registers);
++        const uint8 unpublished_p = cpu->P;
++        s_interp_bus_timing_active = 0; /* no instruction bus work has begun */
++        sync_interp_to_cpu(&in, cpu);
++        const bool region_completed = lle_yield_bounce_enabled() &&
++            cpu_native_region_step(cpu, pc_before,
++            coverage_mx, &region_next_pc);
++        int _cyc;
++        if (region_completed) {
++            _cyc = (int)(cpu->cycles - region_cycles_before);
++            sync_cpu_to_interp(cpu, &in);
++            in.pc = region_next_pc;
++        } else {
++            /* Dispatch refusal has performed no fetch, mutation or charge. */
++            sync_interp_to_cpu(&unpublished_registers, cpu);
++            cpu->P = unpublished_p;
++            s_interp_bus_timing_active = 1;
++            _cyc = interp816_runOpcode(&in);
++        }
+         if (s_interp_pctrace && steps < 4)
+             fprintf(stderr, "[pctrace] step=%ld post-runOpcode cyc=%d pc=%02X:%04X\n",
+                     steps, _cyc, in.k, in.pc);
+@@ -2835,10 +2864,12 @@
+             static unsigned checkpoint_opcodes;
+             if (!(++checkpoint_opcodes & 16383u)) Tier2CoverageTick(snes_frame_counter);
+         }
+-        bridge_charge_instruction(cpu, (unsigned)_cyc, s_interp_bus_cycles,
+-                                  s_interp_bus_master, true);
+-        { CpuState observed=*cpu;sync_interp_to_cpu(&in,&observed);
+-          private_instruction_trace(&observed,pc_before,'i',(unsigned)_cyc,s_interp_bus_cycles,s_interp_bus_master); }
++        if (!region_completed) {
++            bridge_charge_instruction(cpu, (unsigned)_cyc, s_interp_bus_cycles,
++                                      s_interp_bus_master, true);
++            { CpuState observed=*cpu;sync_interp_to_cpu(&in,&observed);
++              private_instruction_trace(&observed,pc_before,'i',(unsigned)_cyc,s_interp_bus_cycles,s_interp_bus_master); }
++        } /* Generated body already committed original bus/clocks and g trace. */
+ 
+         /* Env-gated per-instruction cycle watch (SNESRECOMP_CYC_WATCH="lo-hi"
+          * hex pc24): log the LLE charge components for each interpreted

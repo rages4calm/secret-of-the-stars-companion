@@ -1,3 +1,29 @@
+# Current continuation — native0.4.8 / unchanged Companion0.3.6 (2026-10-12)
+
+Read github-repo/docs/FOUNDATION-NATIVE-REGIONS-PARKED-OFFSETS-2026-10-12.md
+and local/evidence/continuation048-20261012/plan.json and closure-report.json.
+Installed native aa21b609; immutable compiled_unqualified receipt
+cd71b5c7; GUI f1bc6792 unchanged. Exact original0E savedworld
+A0/A8/B0 packets support signed offsets: partyB0 ignores; regular adds once.
+Mode0E B0 only exact authenticated wrapping roster/inactive special prefix;
+nonwrap stays0C. Complete544 packet/DMA/raster, originalcenter and terrainguard
+remain. Frame3 has253/478 exact changedmarginpixels; heldoffsetframe6fallback
+is retainednegative.60actualrender and21stationarykeyboard/virtualpad controls.
+15runtimepatches/63native/24GUI; cache7/manifest3. Generated poll leaf bodies
+execute inside original scheduler; deadlines/IRQ/hooks/progress/restore and
+refusal callback-visible registers stay original. Three finite24744boundaries
+exact;4097actual8417native gain, diagnostic8414hook stays original.9104native/
+15640original in this finitewindow, not fullnative/AOT.300frame stationary
+D3D11/audio59.961FPS; steadycounters0. Declared executionABI unchanged.
+Full42pageGuide/25Currentcards/finerleads/maps and allcontrols/QoL remain.
+Owner/playtesters verifycampaign. Complete native/AOT remains unfinished;
+next descriptor/VRAM scheduler-owned region group is private049 work.
+Rootalone owns goallifecycle, build/install/manifests/delivery. Goal ACTIVE.
+LargeoutputsTemp048, steady5GBcap. Never retry oldpolicyblockedcleanup;
+manualfixedCMD is owner-run only. Historical reports retain exactartifactscope.
+
+---
+
 # Current continuation — native0.4.7 / unchanged Companion0.3.6 (2026-10-12)
 
 Read github-repo/docs/FOUNDATION-CURRENT-JOURNAL-NATIVE-BITS-2026-10-12.md and local/evidence/continuation047-20261012.
