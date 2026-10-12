@@ -1,0 +1,23 @@
+{
+  "status": "private_frozen_host_proof_idle27_on_unbuilt26",
+  "predecessor": "C:\\Users\\crono\\AppData\\Local\\Temp\\secret-stars-current051-5431d88c43\\native-addressing-next062\\stack-direct-next026\\runtime",
+  "files": {
+    "runner/src/snes/bridge_task_call.inc": {
+      "predecessor_sha256": "3267f04461d6f0f9a179b3394d59f5b5615b8060a0bebba956f0ec00fd65f9e0",
+      "final_sha256": "f470728c8b39ff9767f01da473de9c9f173d473635c466bd9b324c59ca93fe74"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "d82571bb5eab75e6062b07af3c313f73be2c5aafc595a180e42ddcc590f4cf8e",
+      "final_sha256": "f950f98db5761444e24d4b10b9ee647a07d4c090b27fec2044f1088872426fb1"
+    }
+  },
+  "patch_sha256": "058143dee58cbf9d7bba1856ee703a08ff3bc970248dc62b7cb9c5a2aa28429d",
+  "predecessor26_patch_sha256": "15216693a15553b6c0b3a71a9b96e281300dc31a07cee51a1612d92789f2e39c",
+  "predecessor26_binding_sha256": "25a03769d286abcee36af97b94562a7189a530beecef490c449cf86f002d44f8",
+  "scope": "Two dormant local observer earlyreturns before pure view construction; every active/arming/commit/source-byte/owner/epoch/common-scope check unchanged; cache-only version18",
+  "cache_format": 18,
+  "normal_metadata": 8,
+  "task_metadata": 2,
+  "redirect_metadata": 1,
+  "artifact_qualification": false
+}

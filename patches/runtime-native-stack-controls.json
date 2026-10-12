@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "9743afddec386e3ac989098c51ef32c0a236a63499bb9292e5b26bc8437c2398",
+  "files": {
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "685d90e35cf7530cd5920c0f81191f210a6a933f573263dec24caf3e99051314",
+      "normalized_predecessor_sha256": "685d90e35cf7530cd5920c0f81191f210a6a933f573263dec24caf3e99051314",
+      "final_sha256": "df51de43508e12d5d9dccdf7dcce2e275d1b852d2532809571e258c8e5a7a8ac",
+      "normalized_final_sha256": "df51de43508e12d5d9dccdf7dcce2e275d1b852d2532809571e258c8e5a7a8ac"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "89a2e546be82ed75da2b35b01811e491ed26c25b79626e97b20eba352407399d",
+      "normalized_predecessor_sha256": "89a2e546be82ed75da2b35b01811e491ed26c25b79626e97b20eba352407399d",
+      "final_sha256": "dee4fed8295d4e6efef9f94df32b596fb08523c41bebdd4a0eff3b3b4b86de5a",
+      "normalized_final_sha256": "dee4fed8295d4e6efef9f94df32b596fb08523c41bebdd4a0eff3b3b4b86de5a"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "e9d71965d326095b3f36cc33eefa75dd25e874adac01df9327b013c928d9bc1a",
+      "normalized_predecessor_sha256": "e9d71965d326095b3f36cc33eefa75dd25e874adac01df9327b013c928d9bc1a",
+      "final_sha256": "ed388e850628f48face2d748f1a29405019dc89ac0925df1c169a4f49700e7ed",
+      "normalized_final_sha256": "ed388e850628f48face2d748f1a29405019dc89ac0925df1c169a4f49700e7ed"
+    }
+  },
+  "scope": "Known-E0 source-typed PLP/TCS/TXS/PEA/PEI/PER architectural steps only. Actual popped P owns flags/M/X; full16-bitS transfers never confer task/caller ownership. Ordered high-first byte pushes preserve interveningS and original PEA C2AE Y-zero compatibility effect; PEI uses original wrapped word bus and D-low charge once. Existing roots/masks/branch-independence/callable output, original scheduler/call/return/continuation/task/IRQ/deadline/hooks and runtime ABI calculation stay authoritative. Normal current generation adds49PLP/TCS/TXSrows; PEA/PEI/PER semantic controls are synthetic and normal CFG addszero such rows. Complete native/AOT unfinished."
+}

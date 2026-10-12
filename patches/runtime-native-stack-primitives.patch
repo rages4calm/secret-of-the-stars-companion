@@ -1,0 +1,89 @@
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -1,10 +1,12 @@
+-"""Source-derived scheduler-owned leaf instructions; never callable roots."""
++"""Source-derived scheduler-owned primitive instructions; never callable roots."""
+ import re
+ from snes65816 import ABS, rom_offset
+ from .ir import CondBranch
+ from .codegen import emit_op, _reg
+ 
+ READS={'LDA','LDX','LDY','BIT','CMP','CPX','CPY'}
++STACK_PRIMITIVES={'PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB','TSC','TSX','TCD','TDC'}
++
+ BRANCHES={'BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
+ 
+ def collect(rom,key,insn,ops,cycles,faithful_lines=None):
+@@ -12,11 +14,11 @@
+     # Existing CFG decoding/mode propagation and precise-mode refusal certify them.
+     if key.m not in (0,1) or key.x not in (0,1) or insn.data_region_exec:
+         return None
+-    stack_neutral={'LDA','LDX','LDY','STA','STX','STY','STZ','ADC','SBC','AND','ORA','EOR','CMP','CPX','CPY','BIT',
++    supported={'LDA','LDX','LDY','STA','STX','STY','STZ','ADC','SBC','AND','ORA','EOR','CMP','CPX','CPY','BIT',
+         'CLC','SEC','CLD','SED','CLI','SEI','CLV','REP','SEP','NOP','INX','INY','DEX','DEY','TAX','TAY','TXA','TYA',
+-        'TXY','TYX','XBA','ASL','LSR','ROL','ROR','INC','DEC','TSB','TRB','BRA','BRL','JMP'}|BRANCHES
++        'TXY','TYX','XBA','ASL','LSR','ROL','ROR','INC','DEC','TSB','TRB','BRA','BRL','JMP'}|BRANCHES|STACK_PRIMITIVES
+     from snes65816 import ABS as abs_mode
+-    if insn.mnem not in stack_neutral or insn.mnem=='JMP' and insn.mode!=abs_mode:
++    if insn.mnem not in supported or insn.mnem=='JMP' and insn.mode!=abs_mode:
+         return None
+     if faithful_lines is None:return None
+     # Existing backend records (dp),Y page-cross as a residual; keep it original.
+@@ -25,9 +27,33 @@
+     pc=insn.addr&0xffffff
+     if pc&0xffff<0x8000 or pc>>16 in (0x7e,0x7f):return None
+     code='\n'.join(faithful_lines)
+-    # No return, guest-stack mutation, host invocation or unresolved transition.
+-    if any(token in code for token in ('return','interp_','Recomp','_entry_s','_hrv','_pending_skip','cpu_aot_prefix','cpu->S','cpu->PB =')):
++    # No return, host invocation or unresolved transition; stack effects are explicit primitives.
++    if any(token in code for token in ('return','interp_','Recomp','_entry_s','_hrv','_pending_skip','cpu_aot_prefix','cpu->PB =')):
+         return None
++    if 'cpu->S' in code and insn.mnem not in STACK_PRIMITIVES:
++        return None
++    if insn.mnem in STACK_PRIMITIVES:
++        # A source-certified primitive step keeps the original byte transactions.
++        # Word helpers otherwise combine the intervening stack increment/decrement.
++        push = r'cpu->S = \(uint16\)\(cpu->S - 1\);\s*cpu_aot_write16_reverse\(cpu, 0x00, cpu->S, ([^;]+)\);\s*cpu->S = \(uint16\)\(cpu->S - 1\);'
++        def push_bytes(m):
++            return ('{ uint16 _stack_value = (uint16)('+m[1]+'); '
++                    'cpu_aot_write8(cpu,0x00,cpu->S,(uint8)(_stack_value>>8)); '
++                    'cpu->S=(uint16)(cpu->S-1); '
++                    'cpu_aot_write8(cpu,0x00,cpu->S,(uint8)_stack_value); '
++                    'cpu->S=(uint16)(cpu->S-1); }')
++        code=re.sub(push,push_bytes,code)
++        pull = r'cpu->S = \(uint16\)\(cpu->S \+ 1\);\s*([^;=]+) = cpu_aot_read16\(cpu, 0x00, cpu->S\);\s*cpu->S = \(uint16\)\(cpu->S \+ 1\);'
++        def pull_bytes(m):
++            return ('cpu->S=(uint16)(cpu->S+1); '
++                    'uint16 _stack_low=cpu_aot_read8(cpu,0x00,cpu->S); '
++                    'cpu->S=(uint16)(cpu->S+1); '
++                    'uint16 _stack_high=cpu_aot_read8(cpu,0x00,cpu->S); '
++                    +m[1]+'=(uint16)(_stack_low|(_stack_high<<8));')
++        code=re.sub(pull,pull_bytes,code)
++        # Fail closed if a new backend shape leaves a combined stack access.
++        if re.search(r'cpu_aot_(?:read|write)16(?:_reverse)?\(cpu, 0x00, cpu->S',code):
++            return None
+     destinations=re.findall(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',code)
+     if not destinations:return None
+     label=f'_region_done_{pc&0x7fffff:06x}_{key.m}{key.x}'
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 8
++CACHE_FORMAT_VERSION = 9
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1332,7 +1332,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':2, 'kind':'source_cfg_stack_neutral_instruction',
++                         json.dumps({'format_version':3, 'kind':'source_cfg_scheduler_instruction',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+         write_if_changed(

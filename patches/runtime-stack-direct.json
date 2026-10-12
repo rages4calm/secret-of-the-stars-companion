@@ -1,0 +1,18 @@
+{
+  "patch_sha256": "15216693a15553b6c0b3a71a9b96e281300dc31a07cee51a1612d92789f2e39c",
+  "files": {
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "676bd1f31fed1a700163563412120068391c54588a1c357449c9777a1bdb933b",
+      "sha256": "b2dcb0b24b013f2543e91e2a6d11475a474b71d4012cc42214e5ba2294b42268"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "e596816139263760dcd45f4c92400997b1e111636ce4551606b96e9d9e0c90b1",
+      "sha256": "e9596105a9d631224410da63b82508372ca4ef7e7181c60aee9acfe9bdd82bfb"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "1f762ed4874cb7df721240ad3e2ca3a85894bd6543654708773793b5e1643a81",
+      "sha256": "d82571bb5eab75e6062b07af3c313f73be2c5aafc595a180e42ddcc590f4cf8e"
+    }
+  },
+  "scope": "Source-decoded exact known-E0 direct STK ORA/AND/EOR/ADC/STA/LDA/CMP/SBC data steps; prescribed single readonly S+byte-operand bankzero address and16bit wrap. No SP assignment, stack selector, host caller ownership, roots/modes/masks/STK_IY/CPU/codegen arithmetic or common24/task25 guard changes."
+}

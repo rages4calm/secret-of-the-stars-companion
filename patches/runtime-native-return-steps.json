@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "ba71b546cec6c450942870c65ee303b9b6b2cd66eeb60a9e306afa1bbfc77795",
+  "files": {
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "899f86d52f7700dfd78a452687fa0ff3bbaa4491a2667d72730017373acb8760",
+      "normalized_predecessor_sha256": "899f86d52f7700dfd78a452687fa0ff3bbaa4491a2667d72730017373acb8760",
+      "final_sha256": "5636622fd3fe1573070d0a397b82d40a69d078da0feb7830352e116c466cdf28",
+      "normalized_final_sha256": "5636622fd3fe1573070d0a397b82d40a69d078da0feb7830352e116c466cdf28"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "09d6485365486dc4fe922e0380200c4c948eeb74cda42b79facb4bd28193159c",
+      "normalized_predecessor_sha256": "09d6485365486dc4fe922e0380200c4c948eeb74cda42b79facb4bd28193159c",
+      "final_sha256": "05adc6cffa01c2a54cebf5804c912f525b763daa58331eab05072732ba2c2e49",
+      "normalized_final_sha256": "05adc6cffa01c2a54cebf5804c912f525b763daa58331eab05072732ba2c2e49"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "1a54e67c79bfc507406439bae89554c6232c443fd03102de62ba07e13a48d331",
+      "normalized_predecessor_sha256": "1a54e67c79bfc507406439bae89554c6232c443fd03102de62ba07e13a48d331",
+      "final_sha256": "528d89e26ad3c8899e22a03d15f624e15e86fc29f891ffbeb15da052ec9ddb4d",
+      "normalized_final_sha256": "528d89e26ad3c8899e22a03d15f624e15e86fc29f891ffbeb15da052ec9ddb4d"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "ae17036181dcbf4828f49083c514b57baa2e9d155467f945df22ed046dead26a",
+      "normalized_predecessor_sha256": "ae17036181dcbf4828f49083c514b57baa2e9d155467f945df22ed046dead26a",
+      "final_sha256": "3f634fdf3dc901e263fe3d4c08fd688a8f26b52e1215aadc624629fe64761eb1",
+      "normalized_final_sha256": "3f634fdf3dc901e263fe3d4c08fd688a8f26b52e1215aadc624629fe64761eb1"
+    }
+  },
+  "scope": "Typed-source-certified E0 RTS/RTL exact architectural pop prefixes, fullPC24 transient step output and matching narrow hook dispatch identity. Original pre-return capture, callframe/watermark, one-shot captured-arrival publication, continuation preflight/nonlocal unwind/IRQ/deadline remain original. No host-return transplant, new roots/certificates, stack selectors or coroutine promotion. Header/output contract changes require fresh declaredABI calculation; serialized state unchanged does not prove ABI unchanged."
+}

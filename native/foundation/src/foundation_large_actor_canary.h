@@ -47,6 +47,10 @@ int LargeWrappingParked(const uint8_t *ram, size_t size);
 /* Exact original saved A0/A8 + Algos A8/B0 world allocation, not arbitrary B0. */
 int LargeWrappingCombined(const uint8_t *ram, size_t size);
 int LargeWrappingRoster(const uint8_t *ram, size_t size);
+/* Exact sourceCB87 active82 primary party with separately bounded regular motion. */
+int LargeWrappingTravel(const uint8_t *ram, size_t size);
+/* Same source82 roster, mode0E; original variable prefix sealed by observer. */
+int LargeWrappingTravelVariable(const uint8_t *ram, size_t size);
 int LargeBegin(LargeReplay *state, const LargeView *view,
                const uint8_t *initial_staging, size_t size);
 int LargeCapture(LargeReplay *state, const LargeView *view,

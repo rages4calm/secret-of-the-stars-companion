@@ -121,6 +121,49 @@ int LargeWrappingCombined(const uint8_t *ram, size_t size) {
 int LargeWrappingRoster(const uint8_t *ram, size_t size) {
     return LargeWrappingParked(ram,size) || LargeWrappingCombined(ram,size);
 }
+/* Original CB87 active82 allocation in the already authenticated selected
+ * chapter17 world. Regular0/1 retain source bases/poses and world-sized motion;
+ * CEEB/CFD2 parked families and inactive/variable prefix admission stay separate.
+ * Packed partyB0 ignores0471/0473; this predicate never transforms coordinates. */
+static int LargeWrappingTravelCore(const uint8_t *ram, size_t size) {
+    static const uint8_t selected[12] = {0x58,0x87,3,0x58,0x8f,3,0x18,0x84,10,0x18,0x88,10};
+    static const uint8_t grids[6] = {0x5c,0xa8,9,0,0x97,9};
+    if (!ram || size!=131072 || ram[0x20]!=1 ||
+        (ram[0x401]!=12 && ram[0x401]!=14) || ram[0x407]!=1 || ram[0x409]!=0x82 ||
+        ram[0x400] || Read16(ram,0x40e) || ram[0x4b6] || ram[0x5372]!=17 ||
+        (ram[0x5361]&0x40) || Read16(ram,0x46d)!=0x0e0e || Read16(ram,0x46f)!=0x0404 ||
+        memcmp(ram+0x500,selected,12) || memcmp(ram+0x513,grids,6) ||
+        Read16(ram,0x537)!=0x8110 || ram[0x539]!=9 ||
+        Read16(ram,0x55c)!=0x8210 || ram[0x55e]!=9 ||
+        ram[0x4000]>3 || ram[0x4000]!=ram[0x4012] || ram[0x4009]!=ram[0x4000] ||
+        ram[0x401b]!=0x42 || Read16(ram,0x4003)!=0xa8 || Read16(ram,0x4015)!=0xb0 ||
+        Read16(ram,0x4001)!=0x7080 || Read16(ram,0x4013)!=0x4078 || ram[0x4005] ||
+        (ram[0x4017]!=0 && ram[0x4017]!=0x80) ||
+        ram[0x4024]!=255 || ram[0x4036]!=255 || ram[0x4048]!=255) return 0;
+    for (unsigned i=0;i<19;++i) {
+        unsigned at=0x4100+25*i;
+        if (i<2) {
+            if (ram[at]!=(i?0:2) || Read16(ram,at+5)!=0x598 ||
+                Read16(ram,at+1)>=3584 || Read16(ram,at+3)>=3584) return 0;
+        } else if (ram[at]!=255) return 0;
+    }
+    return 1;
+}
+/* Keep the installed inactive-prefix admission independent. Source D80F also
+ * dispatches DC15 before this exact82 party; its separate predicate admits only
+ * the roster/resource core. The title observer still owns all resolved-prefix,
+ * cursor/capacity/full544/DMA checks before drawing any effect. */
+int LargeWrappingTravel(const uint8_t *ram, size_t size) {
+    if (!LargeWrappingTravelCore(ram,size)) return 0;
+    for (unsigned i=0;i<8;++i) if (ram[0x4300+21*i]) return 0;
+    return 1;
+}
+int LargeWrappingTravelVariable(const uint8_t *ram, size_t size) {
+    return LargeWrappingTravelCore(ram,size) && ram[0x401]==14;
+}
+static int TravelFamily(const uint8_t *ram, size_t size) {
+    return LargeWrappingTravel(ram,size) || LargeWrappingTravelVariable(ram,size);
+}
 static int ViewValid(const LargeView *view) {
     return identity && view && view->ram && view->ram_size == 131072 &&
         view->vram && view->vram_words == 32768 && view->cgram && view->cgram_words == 256 &&
@@ -128,8 +171,9 @@ static int ViewValid(const LargeView *view) {
         view->ram[0x20] == 1 &&
         (view->ram[0x401] == 12 ||
          (view->ram[0x401] == 14 && view->ram[0x407] == 1 &&
-          LargeWrappingRoster(view->ram,view->ram_size))) &&
-        (!view->ram[0x407] || LargeWrappingRoster(view->ram,view->ram_size));
+          (LargeWrappingRoster(view->ram,view->ram_size) || TravelFamily(view->ram,view->ram_size)))) &&
+        (!view->ram[0x407] || LargeWrappingRoster(view->ram,view->ram_size) ||
+         TravelFamily(view->ram,view->ram_size));
 }
 /* Production coordinates are coherent only while both signed offset words stay
  * in the begun epoch. They are transient producer inputs, not loaded art identity. */
@@ -189,8 +233,13 @@ int LargeCapture(LargeReplay *state, const LargeView *view,
         base != 0xb0 || ram[at] == 255 || seam->mask != mask ||
         descriptor < 0x0e9800 || descriptor + 4 > 0x0ed800)
         return Reject(state);
-    if (ram[0x407] && (family != LARGE_REGULAR || index != 18 || ram[at] != 2 || descriptor != 0x0e9d88))
-        return Reject(state);
+    if (ram[0x407]) {
+        int parked=LargeWrappingRoster(ram,view->ram_size) && family==LARGE_REGULAR &&
+            index==18 && ram[at]==2 && descriptor==0x0e9d88;
+        int travel=TravelFamily(ram,view->ram_size) && family==LARGE_PARTY &&
+            index==1 && ram[at]<=3 && descriptor==0x0e9d80+ram[at]*4;
+        if (!parked && !travel) return Reject(state);
+    }
     LargeActor actor = {0}; actor.family = family; actor.index = index;
     actor.pose = ram[at]; actor.descriptor = descriptor;
     actor.camera_x = Signed(Read16(ram, 0x2ad)); actor.camera_y = Signed(Read16(ram, 0x2af));
@@ -298,7 +347,7 @@ unsigned LargePrepare(const LargeReplay *state, const LargeView *view,
             piece.x = Nearest512(piece.x, 128); piece.y = Nearest512(piece.y, 112);
         }
         piece.x -= dx; piece.y -= dy;
-        if (view->ram[0x407]) {
+        if (view->ram[0x407] && state->last.family==LARGE_REGULAR) {
             /* Margin-only geometry from the immutable original completed packet. */
             if (piece.x-128 < -1792) piece.x+=3584;
             if (piece.x-128 >=1792) piece.x-=3584;

@@ -1,0 +1,192 @@
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -50,6 +50,73 @@
+             trace='CPU_STACK_OP_PEA'
+         body+='cpu_aot_write8(cpu,0,cpu->S,(uint8)(_stack_value>>8)); cpu->S=(uint16)(cpu->S-1); cpu_aot_write8(cpu,0,cpu->S,(uint8)_stack_value); cpu->S=(uint16)(cpu->S-1); cpu_trace_stack_op(cpu,0,'+trace+',_old_s,-2); }'
+     return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':(pc+insn.length)&0xffff,'body':body,'mnemonic':insn.mnem}
++
++
++INDIRECT_Y_OPCODES={'ORA':0x11,'AND':0x31,'EOR':0x51,'ADC':0x71,'STA':0x91,'LDA':0xb1,'CMP':0xd1,'SBC':0xf1}
++
++def collect_indirect_y(rom,key,insn,ops,cycles,faithful_lines):
++    """Exact source/lowering and faithful cached-pointer body; no ownership."""
++    from dataclasses import fields,is_dataclass
++    from enum import Enum
++    from itertools import count
++    from snes65816 import INDIR_Y,decode_insn
++    from snes_cycles import instr_cpu_cycles
++    from .lowering import lower
++    from .ir import Value
++    if key.m not in (0,1) or key.x not in (0,1) or insn.data_region_exec or getattr(insn,'const_z_fold_unconditional',False):return None
++    if insn.mnem not in INDIRECT_Y_OPCODES or insn.opcode!=INDIRECT_Y_OPCODES[insn.mnem] or insn.mode!=INDIR_Y or insn.length!=2:return None
++    pc=insn.addr&0xffffff
++    if pc&65535<0x8000 or pc&65535>0xfffd or pc>>16 in (0x7e,0x7f) or key.pc&65535!=pc&65535:return None
++    offset=rom_offset(pc>>16,pc&65535)
++    if offset<0 or offset+2>len(rom):return None
++    decoded=decode_insn(rom,offset,pc&65535,pc>>16,key.m,key.x)
++    if decoded is None or (decoded.opcode,decoded.mnem,decoded.mode,decoded.operand,decoded.length)!=(insn.opcode,insn.mnem,insn.mode,insn.operand,insn.length):return None
++    decoded.m_flag,decoded.x_flag=key.m,key.x
++    if getattr(insn,'m_flag',None)!=key.m or getattr(insn,'x_flag',None)!=key.x:return None
++    if cycles!=instr_cpu_cycles(decoded.opcode,m=key.m,x=key.x,e=0):return None
++    seq=count();canonical=lower(decoded,value_factory=lambda:Value(next(seq)))
++    def typed(value,names):
++        if isinstance(value,Value):
++            if type(value.vid)is not int or value.vid<0:raise ValueError('unknown value')
++            return ('Value',names.setdefault(value.vid,len(names)))
++        if isinstance(value,Enum):return(type(value).__name__,value.value)
++        if is_dataclass(value):return(type(value).__name__,tuple((f.name,typed(getattr(value,f.name),names))for f in fields(value)))
++        if isinstance(value,(list,tuple)):return tuple(typed(v,names)for v in value)
++        return value
++    try:
++        if typed(ops,{})!=typed(canonical,{}):return None
++    except ValueError:return None
++    if faithful_lines is None:return None
++    # Build the exact existing faithful backend effect from fresh typed source.
++    # Alpha-renaming permits emitter-local SSA identities, never different IR.
++    from .emit_function import _dynamic_charge_lines
++    expected=list(_dynamic_charge_lines(decoded))
++    for op in canonical:expected.extend(emit_op(op,source_pc24=pc))
++    expected.append(f'goto L_{(pc+2)&65535:04X}_M{key.m}X{key.x};')
++    transformed=[]
++    for line in expected:
++        line=re.sub(r'cpu->cycles \+= ([0-9]+);',r'cpu_aot_extra(cpu, \1);',line)
++        line=re.sub(r'cpu->master_cycles \+= [^;]+;','',line)
++        for name in ['read8','read16','write8','write16','read16_linear','write16_linear']:
++            line=line.replace('cpu_'+name+'(','cpu_aot_'+name+'(')
++        line=re.sub(r'goto ([^;]+);',r'{ cpu_aot_commit(cpu); goto \1; }',line)
++        transformed.append(line)
++    transformed.append('cpu_aot_commit(cpu);')
++    def compact(lines):
++        s=re.sub(r'/\*.*?\*/','', '\n'.join(lines),flags=re.S);names={}
++        s=re.sub(r'_(?:v\d+|tc\d+_\d+|t\d+)\b',lambda m:names.setdefault(m[0],f'_local{len(names)}'),s)
++        return re.sub(r'\s+','',s)
++    if compact(faithful_lines)!=compact(transformed):return None
++    code='\n'.join(faithful_lines)
++    if code.count('uint16 _ea_lo = cpu_aot_read16(cpu, 0x00, _ea_p);')!=1:return None
++    crossing='if (cpu->x_flag && ((_ea_lo >> 8) != (((uint32)_ea_lo + cpu->Y) >> 8))) cpu_aot_extra(cpu, 1u);'
++    if code.count(crossing)!=(0 if insn.mnem=='STA' else 1):return None
++    label=f'_region_done_{pc&0x7fffff:06x}_{key.m}{key.x}'
++    code=code.replace('cpu_aot_commit(cpu);','')
++    code=re.sub(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',lambda m:f'*next_pc=((uint32)cpu->PB<<16)|0x{m[1]}u; goto {label};',code)
++    names={};code=re.sub(r'_(?:v\d+|tc\d+_\d+|t\d+)\b',lambda m:names.setdefault(m[0],f'_region_v{len(names)}'),code)
++    code+=f'\n{label}: ;'
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':2,'cycles':cycles,'bytes':rom[offset:offset+2].hex(),'next_pc':(pc+2)&65535,'body':code,'mnemonic':insn.mnem,'contract':'native-e0-source-cached-indirect-y-v1'}
+ 
+ def collect(rom,key,insn,ops,cycles,faithful_lines=None):
+     # These rows are scheduler-owned instruction bodies, never callable entries.
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2334,7 +2334,7 @@
+                 task_observed=True
+             src.append(f"    {ln}")
+     if native_region_collector is not None:
+-        from .native_regions import collect, collect_stack_control
++        from .native_regions import collect, collect_stack_control, collect_indirect_y
+         for region_key, region_pairs in block_per_insn_ir.items():
+             if len(region_pairs) != 1:
+                 continue
+@@ -2357,6 +2357,12 @@
+                 continue
+             if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
+                 continue
++            from snes65816 import INDIR_Y
++            if region_insn.mode==INDIR_Y:
++                region=collect_indirect_y(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),native_instruction_lines.get(region_key))
++                if region is not None:native_region_collector.append(region)
++                continue
+             region = collect(rom, region_key, region_insn, region_ops,
+                              native_rmw_cycles.get(region_key, _block_cycle_const(region_pairs)),
+                              native_instruction_lines[region_key])
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 14
++CACHE_FORMAT_VERSION = 15
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1346,7 +1346,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':6, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':7, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -442,6 +442,19 @@
+ static CpuState *s_scheduler_hook_begin_cpu;
+ static uint32_t s_scheduler_hook_begin_pc;
+ static SchedulerHookHandoff s_scheduler_hook_handoff;
++/* Only the original pre-opcode loop may authorize a generated table step.
++ * This is transient dispatch ownership, separate from hook/task/redirect proofs. */
++typedef struct SchedulerRegionScope {
++  CpuState *cpu;
++  uint32_t pc24;
++  uint8_t mx, opcode;
++  uint64_t generation, lifecycle, state_generation, dispatch_epoch;
++  int host_frame;
++  bool (*dispatch)(CpuState *, uint32, uint8, uint32 *);
++} SchedulerRegionScope;
++static SchedulerRegionScope s_scheduler_region_scope;
++static uint64_t s_scheduler_region_dispatch_epoch;
++
+ extern int snes_frame_counter;
+ static void scheduler_hook_epoch_advance(uint64_t *epoch) {
+   if (*epoch == UINT64_MAX) s_scheduler_hook_epoch_exhausted = true;
+@@ -570,6 +583,7 @@
+ void interp_bridge_source_redirect_reset(void);
+ void cpu_native_region_reset(void) {
+   interp_bridge_source_redirect_reset();
++  s_scheduler_region_scope = (SchedulerRegionScope){0};
+   s_scheduler_hook_handoff = (SchedulerHookHandoff){0};
+   s_scheduler_hook_begin_cpu = NULL;
+   s_scheduler_hook_begin_pc = 0;
+@@ -579,7 +593,19 @@
+ bool cpu_aot_begin_scheduler_region(CpuState *cpu, uint32 pc, unsigned length,
+     unsigned cycles, const uint8 *expected,
+     bool (*dispatch)(CpuState *, uint32, uint8, uint32 *)) {
+-  if (!cpu || !expected || !length || length > 4 || !dispatch) return false;
++  const SchedulerRegionScope scope = s_scheduler_region_scope;
++  s_scheduler_region_scope = (SchedulerRegionScope){0}; /* consume before any fetch */
++  if (!cpu || !expected || !length || length > 4 || !dispatch ||
++      scope.cpu != cpu || scope.pc24 != pc || scope.dispatch != dispatch ||
++      scope.mx != (uint8)((cpu->m_flag ? 2 : 0) | (cpu->x_flag ? 1 : 0)) ||
++      scope.pc24 != (((uint32_t)cpu->PB << 16) | (pc & 0xffffu)) ||
++      scope.opcode != expected[0] || s_scheduler_hook_epoch_exhausted ||
++      scope.dispatch_epoch != s_scheduler_region_dispatch_epoch ||
++      scope.generation != s_pre_opcode_hook_generation ||
++      scope.lifecycle != s_scheduler_hook_lifecycle ||
++      scope.state_generation != RtlStateGeneration() ||
++      scope.host_frame != snes_frame_counter || g_watchdog_tripped ||
++      s_pre_opcode_callback_cpu) return false;
+   const uint32_t key = ((((uint32_t)cpu->PB) << 16) | (pc & 0xffffu)) & 0x7fffffu;
+   bool hooked = false;
+   for (int i = 0; i < s_pre_opcode_hook_count; ++i)
+@@ -2929,9 +2955,16 @@
+             s_scheduler_hook_handoff.dispatch = region_dispatch;
+         }
+         if(source_redirect_dispatch){s_redirect_dispatch_cpu=cpu;s_redirect_dispatch_pc=pc_before;s_redirect_dispatch_mx=coverage_mx;}
++        scheduler_hook_epoch_advance(&s_scheduler_region_dispatch_epoch);
++        s_scheduler_region_scope = (SchedulerRegionScope){
++            .cpu=cpu, .pc24=pc_before, .mx=coverage_mx, .opcode=op,
++            .generation=s_pre_opcode_hook_generation, .lifecycle=s_scheduler_hook_lifecycle,
++            .state_generation=RtlStateGeneration(), .dispatch_epoch=s_scheduler_region_dispatch_epoch,
++            .host_frame=snes_frame_counter, .dispatch=region_dispatch};
+         const bool region_completed = !s_redirect.pending && lle_yield_bounce_enabled() &&
+             region_dispatch(cpu, pc_before,
+             coverage_mx, &region_next_pc);
++        s_scheduler_region_scope = (SchedulerRegionScope){0};
+         s_redirect_dispatch_cpu=NULL;
+         s_scheduler_hook_handoff = previous_handoff;
+         int _cyc;

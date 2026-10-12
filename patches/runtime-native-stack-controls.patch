@@ -1,0 +1,122 @@
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -8,6 +8,48 @@
+ STACK_PRIMITIVES={'PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB','TSC','TSX','TCD','TDC'}
+ 
+ BRANCHES={'BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
++
++
++STACK_CONTROLS={'PLP','TCS','TXS','PEA','PEI','PER'}
++
++def collect_stack_control(rom,key,insn,ops,cycles):
++    """Exact typed architectural step; never post-mode or host ownership."""
++    from snes65816 import decode_insn
++    from .ir import PullReg, Transfer, PushEffectiveAddress, Reg, SegKind
++    if insn.mnem not in STACK_CONTROLS or key.m not in (0,1) or key.x not in (0,1):return None
++    if insn.data_region_exec or getattr(insn,'const_z_fold_unconditional',False):return None
++    pc=insn.addr&0xffffff
++    if pc&0xffff<0x8000 or pc>>16 in (0x7e,0x7f) or len(ops)!=1:return None
++    offset=rom_offset(pc>>16,pc&0xffff)
++    if offset < 0 or offset + insn.length > len(rom):return None
++    decoded=decode_insn(rom,offset,pc&0xffff,pc>>16,key.m,key.x)
++    if decoded is None or (decoded.opcode,decoded.mnem,decoded.mode,decoded.operand,decoded.length)!=(insn.opcode,insn.mnem,insn.mode,insn.operand,insn.length):return None
++    from .lowering import lower
++    from snes_cycles import instr_cpu_cycles
++    decoded.m_flag,decoded.x_flag=key.m,key.x
++    if ops!=lower(decoded,value_factory=lambda:None):return None
++    if cycles!=instr_cpu_cycles(decoded.opcode,m=key.m,x=key.x,e=0):return None
++    op=ops[0]
++    if insn.mnem=='PLP':
++        if not isinstance(op,PullReg) or op.reg!=Reg.P:return None
++        body='{ uint8 _old_p=cpu->P; uint16 _old_s=cpu->S; cpu->S=(uint16)(cpu->S+1); cpu->P=cpu_aot_read8(cpu,0,cpu->S); cpu_p_to_mirrors(cpu); if(cpu->x_flag){cpu->X&=0x00ffu;cpu->Y&=0x00ffu;} cpu_trace_stack_op(cpu,0,CPU_STACK_OP_PLP,_old_s,+1); cpu_trace_event(cpu,0,CPU_TR_PLP,_old_p,cpu->P); cpu_trace_px_record(cpu,0,2,_old_p,cpu->P); }'
++    elif insn.mnem in {'TCS','TXS'}:
++        src=Reg.A if insn.mnem=='TCS' else Reg.X
++        if not isinstance(op,Transfer) or op.src!=src or op.dst!=Reg.S:return None
++        body='{ uint16 _old_s=cpu->S; cpu->S='+('cpu->A' if src==Reg.A else 'cpu->X')+'; cpu_trace_event(cpu,0,CPU_TR_DB_WRITE,(uint8)(_old_s>>8),cpu->S); }'
++    else:
++        kind=SegKind.DP_INDIRECT if insn.mnem=='PEI' else SegKind.ABS_BANK
++        if not isinstance(op,PushEffectiveAddress) or op.seg.kind!=kind or op.seg.offset!=insn.operand or op.seg.index is not None:return None
++        if insn.mnem=='PEI':
++            body='if(cpu->D&0xff){cpu_aot_extra(cpu,1);} { uint16 _old_s=cpu->S; uint16 _stack_value=cpu_aot_read16(cpu,0,(uint16)(cpu->D+0x%04xu)); '%insn.operand
++            trace='CPU_STACK_OP_PEI'
++        else:
++            body='{ uint16 _old_s=cpu->S; uint16 _stack_value=0x%04xu; '%insn.operand
++            # Preserve the exact original runtime's explicit compatibility effect.
++            if insn.mnem=='PEA' and insn.operand==0xc2ae:body+='cpu->Y=0; '
++            trace='CPU_STACK_OP_PEA'
++        body+='cpu_aot_write8(cpu,0,cpu->S,(uint8)(_stack_value>>8)); cpu->S=(uint16)(cpu->S-1); cpu_aot_write8(cpu,0,cpu->S,(uint8)_stack_value); cpu->S=(uint16)(cpu->S-1); cpu_trace_stack_op(cpu,0,'+trace+',_old_s,-2); }'
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':(pc+insn.length)&0xffff,'body':body,'mnemonic':insn.mnem}
+ 
+ def collect(rom,key,insn,ops,cycles,faithful_lines=None):
+     # These rows are scheduler-owned instruction bodies, never callable entries.
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -764,6 +764,7 @@
+     native_rmw_cycles: Dict[DecodeKey, int] = {}
+     # Independent source instruction effects, before owning-prefix bookkeeping.
+     native_instruction_lines: Dict[DecodeKey, Tuple[str, ...]] = {}
++    native_stack_control_keys = set()
+     block_order: List[DecodeKey] = []
+ 
+     # Emit blocks in a stable order: entry first, then DFS over successors.
+@@ -2096,6 +2097,12 @@
+         _mode = MODE_STR.get(_mode_id, 'unknown')
+         if _mode_id < 0 or _mode_id in (14,15):
+             _unsupported = True
++        # Independently source-decoded architectural stack controls retain all
++        # original callable refusals, synthesized-dispatch and prefix barriers.
++        from .native_regions import STACK_CONTROLS
++        if (_di.mnem in STACK_CONTROLS and not skip_emit_idx and not nlr_info
++                and not _prefix_refusal and _mode_id >= 0 and _mode_id not in (14,15)):
++            native_stack_control_keys.add(key)
+         if _unsupported:
+             lines = [f'return interp_tier_dispatch_faithful(cpu, (((uint32)cpu->PB << 16) | 0x{key.pc & 0xffff:04x}u), 0x{((bank<<16)|key.pc):06x}u, _entry_s, _hrv, false, _host_return_pc24); /* precise-mode unsupported: {_di.mnem} {_mode} */']
+         else:
+@@ -2314,7 +2321,7 @@
+                 src.append(f"    {_pop}();")
+             src.append(f"    {ln}")
+     if native_region_collector is not None:
+-        from .native_regions import collect
++        from .native_regions import collect, collect_stack_control
+         for region_key, region_pairs in block_per_insn_ir.items():
+             if len(region_pairs) != 1:
+                 continue
+@@ -2329,6 +2336,12 @@
+                                      for lo, hi in (exclude_ranges or ()))
+             if region_masked:
+                 continue
++            if region_key in native_stack_control_keys:
++                region = collect_stack_control(rom, region_key, region_insn, region_ops,
++                                               _block_cycle_const(region_pairs))
++                if region is not None:
++                    native_region_collector.append(region)
++                continue
+             if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
+                 continue
+             region = collect(rom, region_key, region_insn, region_ops,
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 11
++CACHE_FORMAT_VERSION = 12
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1332,8 +1332,9 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':5, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+-                                     'instruction_source':'source_faithful_before_activation_plumbing',
++                         json.dumps({'format_version':6, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                                     'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
++                                     'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+         write_if_changed(

@@ -1,0 +1,31 @@
+diff --git a/runner/src/snes/bridge_task_call.inc b/runner/src/snes/bridge_task_call.inc
+--- a/runner/src/snes/bridge_task_call.inc
++++ b/runner/src/snes/bridge_task_call.inc
+@@ -57,6 +57,7 @@
+  p->source=source;p->length=length;p->fall=fall;p->branch=branch;p->opcode=opcode;p->inflight=1;
+ }
+ static void task_call_pre_local(CpuState *c,const Interp816 *in,uint32 source){
++ if(!s_task_call.phase&&(source!=0x01d80fu||!s_task_active.published))return;
+  TaskResumeState v=task_local_view(c,in,source);task_call_pre_view(c,&v,source);
+ }
+ static void task_call_pre_cpu(CpuState *c,uint32 source){
+@@ -85,6 +86,7 @@
+  p->expected=*v;p->inflight=0;
+ }
+ static void task_call_committed_local(CpuState *c,uint32 source,const Interp816 *in,uint32 actual){
++ if(!s_task_call.phase)return;
+  TaskResumeState v=task_local_view(c,in,actual);task_call_commit_view(c,source,&v);
+ }
+ static void task_call_committed_cpu(CpuState *c,uint32 source){
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 17
++CACHE_FORMAT_VERSION = 18
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine

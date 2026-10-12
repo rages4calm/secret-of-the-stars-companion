@@ -1,3 +1,20 @@
+# Current validation scope — native 0.5.1 / unchanged Companion 0.3.6
+
+The [current source and artifact scope](FOUNDATION-NATIVE-TRAVEL-CONTINUATIONS-2026-10-12.md)
+binds fresh native 079885fd and immutable compilation receipt 3579936e.
+Compilation remains `compiled_unqualified`; actual execution/render/input results:
+three finite runs match all24,744 completed original state/clock/bus/PPU/save-load boundaries; enabled24,706native/38original. Two six-frame staged original-loader effect runs pass61checks with144 independently expected margin pixels at each positive frame. Keyboard/indexed SDL virtual-pad paths pass21checks; root inspected contacts. One stationary 300-frame D3D11/VSync/audio route
+passes at 60.030 FPS with zero steady audio counter deltas and positive 75,051 margin
+pixels. Startup counts and earlier exact25 paced failures remain separate.
+Profile/install/package/publication results: Both native installation paths/authored mirrors match, unchanged036 launcher passes60-frame title-first launch and owner settings/saves/selectors remain exact. Only deliberate ROM-free source/launcher/notices are packaged; native game/ROM/generated game code/assets/saves stay local. Package/server digest checks are separate from compilation and finite operation.
+
+Complete native/AOT and broader original rendering/hardware coverage remain open.
+Owner/play testers verify campaign directions. Human campaign verdicts are
+separate from developer implementation/rendering/input/playback checks. Source,
+generation, compiled artifacts and historical qualification never transfer scope.
+
+---
+
 # Current validation — native0.3.8 / unchanged Companion0.3.5
 
 The [bridge/accumulator continuation](FOUNDATION-BRIDGE-ACCUMULATOR-2026-10-12.md)

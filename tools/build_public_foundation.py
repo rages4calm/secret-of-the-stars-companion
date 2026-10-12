@@ -101,6 +101,346 @@ LEAF_REGIONS_BINDING=ROOT/'patches/runtime-native-leaf-regions.json'
 LEAF_REGIONS_PATCH_SHA256='a7a6d68e3e94edd085a254a3c1ec242670289ba1b6cf6051e2d207dae4522b95'
 HOOK_HANDOFF_BINDING=ROOT/'patches/runtime-native-hook-handoff.json'
 HOOK_HANDOFF_PATCH_SHA256='afe4e1ab4476432f1bcb48ab1fc6e5d35f90b357c21996518d358e2e5bf0ac03'
+STACK_PRIMITIVES_BINDING=ROOT/'patches/runtime-native-stack-primitives.json'
+STACK_PRIMITIVES_PATCH_SHA256='a4b0541252fa1cc9c87047314b4223aaeb4d2c716a9aa347db33d2a041f1abbd'
+RETURN_STEPS_BINDING=ROOT/'patches/runtime-native-return-steps.json'
+RETURN_STEPS_PATCH_SHA256='ba71b546cec6c450942870c65ee303b9b6b2cd66eeb60a9e306afa1bbfc77795'
+PREFIX_INSTRUCTIONS_BINDING=ROOT/'patches/runtime-native-prefix-instructions.json'
+PREFIX_INSTRUCTIONS_PATCH_SHA256='be14f3e131a93189893c5c24c2eed7b298e1aa0d7297af8ddd75aa394fbb727f'
+
+STACK_CONTROLS_BINDING=ROOT/'patches/runtime-native-stack-controls.json'
+STACK_CONTROLS_PATCH_SHA256='9743afddec386e3ac989098c51ef32c0a236a63499bb9292e5b26bc8437c2398'
+
+
+SELECTED_TASK_BINDING=ROOT/'patches/runtime-selected-task-resume.json'
+SELECTED_TASK_PATCH_SHA256='d42e308324f17563412fdee97a21de1904ee38a348ff20cb86eabf39bbb29c60'
+SELECTED_TASK_BINDING_SHA256='bee507075d73c569101e91685691f383d69d8c54d4de7a697583fc1e20fb3240'
+SELECTED_TASK_SOURCE_NAMES=('recompiler/v2/cfg_loader.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_resume.py', 'runner/src/cpu_state.c', 'runner/src/cpu_state.h', 'runner/src/snes/bridge_task_helpers.inc', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h', 'runner/src/task_resume_contract.h', 'runner/src/task_resume_contract.inc')
+
+
+REDIRECT_OBSERVER_IDLE_BINDING=ROOT/'patches/runtime-redirect-observer-idle.json'
+REDIRECT_OBSERVER_IDLE_PATCH_SHA256='8721710970d4c0a5d21549a55519fbf66a6d8da6642125b104a27f48141d28ab'
+REDIRECT_OBSERVER_IDLE_BINDING_SHA256='c89019161e29ad7f7334d35c219f8b55fdc5f191a69b5e1c50f1c8658dca6522'
+REDIRECT_OBSERVER_IDLE_SOURCE_NAMES=('runner/src/snes/bridge_redirect_helpers.inc', 'recompiler/v2/program_emit.py')
+
+def redirect_observer_idle_binding():
+    if sha(REDIRECT_OBSERVER_IDLE_BINDING)!=REDIRECT_OBSERVER_IDLE_BINDING_SHA256:raise RuntimeError('Redirect observer idle binding identity changed.')
+    value=json.loads(REDIRECT_OBSERVER_IDLE_BINDING.read_bytes())
+    if value.get('patch_sha256')!=REDIRECT_OBSERVER_IDLE_PATCH_SHA256 or set(value.get('files',{}))!=set(REDIRECT_OBSERVER_IDLE_SOURCE_NAMES):raise RuntimeError('Redirect observer idle two-file binding differs.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files'],**prefix_instructions_binding()['files'],**stack_controls_binding()['files'],**selected_task_binding()['files'],**source_redirect_binding()['files'],**indirect_y_binding()['files'],**task_callee_binding()['files'],**stack_direct_binding()['files'],**host_proof_idle_binding()['files']}
+    records={}
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256']or re.fullmatch('[0-9a-f]{64}',record.get('final_sha256',''))is None:raise RuntimeError('Redirect observer idle predecessor/final lineage differs: '+name)
+        records[name]={**record,'normalized_final_sha256':record['final_sha256']}
+    return {**value,'files':records}
+
+def validate_redirect_observer_idle_patch(path):
+    binding=redirect_observer_idle_binding();names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=REDIRECT_OBSERVER_IDLE_PATCH_SHA256 or len(names)!=2 or set(names)!=set(binding['files']):raise RuntimeError('Redirect observer idle patch identity/scope changed.')
+    return names
+
+HOST_PROOF_IDLE_BINDING=ROOT/'patches/runtime-host-proof-idle.json'
+HOST_PROOF_IDLE_PATCH_SHA256='058143dee58cbf9d7bba1856ee703a08ff3bc970248dc62b7cb9c5a2aa28429d'
+HOST_PROOF_IDLE_BINDING_SHA256='900e284d5973983d3efcdaa2cef6a5e8dc97ed351ea0f439029b050c6b6284a8'
+HOST_PROOF_IDLE_SOURCE_NAMES=('runner/src/snes/bridge_task_call.inc', 'recompiler/v2/program_emit.py')
+
+def host_proof_idle_binding():
+    if sha(HOST_PROOF_IDLE_BINDING)!=HOST_PROOF_IDLE_BINDING_SHA256:raise RuntimeError('Host proof idle binding identity changed.')
+    value=json.loads(HOST_PROOF_IDLE_BINDING.read_bytes())
+    if value.get('patch_sha256')!=HOST_PROOF_IDLE_PATCH_SHA256 or set(value.get('files',{}))!=set(HOST_PROOF_IDLE_SOURCE_NAMES):raise RuntimeError('Host proof idle two-file binding differs.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files'],**prefix_instructions_binding()['files'],**stack_controls_binding()['files'],**selected_task_binding()['files'],**source_redirect_binding()['files'],**indirect_y_binding()['files'],**task_callee_binding()['files'],**stack_direct_binding()['files']}
+    records={}
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256']or re.fullmatch('[0-9a-f]{64}',record.get('final_sha256',''))is None:raise RuntimeError('Host proof idle predecessor/final lineage differs: '+name)
+        records[name]={**record,'normalized_final_sha256':record['final_sha256']}
+    return {**value,'files':records}
+
+def validate_host_proof_idle_patch(path):
+    binding=host_proof_idle_binding();names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=HOST_PROOF_IDLE_PATCH_SHA256 or len(names)!=2 or set(names)!=set(binding['files']):raise RuntimeError('Host proof idle patch identity/scope changed.')
+    return names
+
+STACK_DIRECT_BINDING=ROOT/'patches/runtime-stack-direct.json'
+STACK_DIRECT_PATCH_SHA256='15216693a15553b6c0b3a71a9b96e281300dc31a07cee51a1612d92789f2e39c'
+STACK_DIRECT_BINDING_SHA256='25a03769d286abcee36af97b94562a7189a530beecef490c449cf86f002d44f8'
+STACK_DIRECT_SOURCE_NAMES=('recompiler/v2/native_regions.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py')
+
+def stack_direct_binding():
+    if sha(STACK_DIRECT_BINDING)!=STACK_DIRECT_BINDING_SHA256:raise RuntimeError('Stack direct binding identity changed.')
+    value=json.loads(STACK_DIRECT_BINDING.read_bytes())
+    if value.get('patch_sha256')!=STACK_DIRECT_PATCH_SHA256 or set(value.get('files',{}))!=set(STACK_DIRECT_SOURCE_NAMES):raise RuntimeError('Stack direct three-file binding differs.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files'],**prefix_instructions_binding()['files'],**stack_controls_binding()['files'],**selected_task_binding()['files'],**source_redirect_binding()['files'],**indirect_y_binding()['files'],**task_callee_binding()['files']}
+    records={}
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256']or re.fullmatch('[0-9a-f]{64}',record.get('sha256',''))is None:raise RuntimeError('Stack direct predecessor/final lineage differs: '+name)
+        records[name]={'predecessor_sha256':record['predecessor_sha256'],'final_sha256':record['sha256'],'normalized_final_sha256':record['sha256']}
+    return {**value,'files':records}
+
+def validate_stack_direct_patch(path):
+    binding=stack_direct_binding();names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=STACK_DIRECT_PATCH_SHA256 or len(names)!=3 or set(names)!=set(binding['files']):raise RuntimeError('Stack direct patch identity/scope changed.')
+    return names
+
+def validate_stack_direct_outputs(directory,cache,rom_sha,rom):
+    directory=Path(directory);rom=Path(rom);raw=rom.read_bytes()
+    value=json.loads((directory/'native_regions.json').read_bytes());rows=value.get('regions');code=(directory/'native_regions_v2.c').read_text(encoding='utf-8')
+    if sha(rom)!=rom_sha or value.get('rom_sha256')!=rom_sha or value.get('format_version')!=8 or not isinstance(rows,list)or len(rows)!=9076:raise RuntimeError('Stack direct actualROM/metadata8/count differs.')
+    subset=[r for r in rows if r.get('contract')=='native-e0-source-cached-stack-direct-v1']
+    opcodes={'ORA':0x03,'AND':0x23,'EOR':0x43,'ADC':0x63,'STA':0x83,'LDA':0xa3,'CMP':0xc3,'SBC':0xe3}
+    if len(subset)!=6:raise RuntimeError('Stack direct six source-derived mode rows required.')
+    for row in subset:
+        pc=row.get('pc24');b=row.get('bytes');body=row.get('body');mnemonic=row.get('mnemonic');offset=(pc>>16)*32768+(pc&32767)
+        if row.get('m')not in(0,1)or row.get('x')not in(0,1)or row.get('length')!=2 or row.get('next_pc')!=((pc+2)&65535)or mnemonic not in opcodes or not isinstance(b,str)or len(b)!=4 or bytes.fromhex(b)[0]!=opcodes[mnemonic]or raw[offset:offset+2].hex()!=b:raise RuntimeError('Stack direct typed source row/ROM/mode differs.')
+        expected='uint32 _ea = (uint16)(cpu->S + 0x%04X);'%bytes.fromhex(b)[1]
+        if not isinstance(body,str)or body not in code or body.count('cpu->S')!=1 or body.count(expected)!=1 or 'cpu_aot_begin' in body or 'cpu_aot_commit' in body or '*next_pc=((uint32)cpu->PB<<16)|'not in body:raise RuntimeError('Stack direct readonly S/single bankzero EA/body differs.')
+    if cache.get('outputs',{}).get('native_regions_v2.c')!=sha(directory/'native_regions_v2.c')or cache.get('outputs',{}).get('native_regions.json')!=sha(directory/'native_regions.json'):raise RuntimeError('Stack direct output/cache mismatch.')
+    return {'metadata_format':8,'normal_rows':len(rows),'stack_direct_rows':len(subset),'execution_qualified':False}
+
+TASK_CALLEE_BINDING=ROOT/'patches/runtime-native-task-callee.json'
+TASK_CALLEE_PATCH_SHA256='ad6077aab910fbdff3d579452d156dc69993b462427cbcd6808e207cb5204ea6'
+TASK_CALLEE_BINDING_SHA256='92ec2e1cf404f69204b00ffbcdba61416ae79f9865ab5a93acaae2b0dcf169a4'
+TASK_CALLEE_SOURCE_NAMES=('recompiler/v2/task_resume.py', 'recompiler/v2/program_emit.py', 'runner/src/snes/bridge_task_helpers.inc', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/bridge_task_call.inc')
+
+def task_callee_binding():
+    if sha(TASK_CALLEE_BINDING)!=TASK_CALLEE_BINDING_SHA256:raise RuntimeError('Task callee binding identity changed.')
+    value=json.loads(TASK_CALLEE_BINDING.read_bytes())
+    if value.get('patch_sha256')!=TASK_CALLEE_PATCH_SHA256 or set(value.get('files',{}))!=set(TASK_CALLEE_SOURCE_NAMES):raise RuntimeError('Task callee five-file binding differs.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files'],**prefix_instructions_binding()['files'],**stack_controls_binding()['files'],**selected_task_binding()['files'],**source_redirect_binding()['files'],**indirect_y_binding()['files']}
+    records={}
+    for name,record in value['files'].items():
+        if record.get('predecessor_sha256')!=(predecessors[name]['final_sha256'] if name in predecessors else None):raise RuntimeError('Task callee predecessor differs: '+name)
+        if re.fullmatch('[0-9a-f]{64}',record.get('final_sha256',''))is None:raise RuntimeError('Task callee final hash missing.')
+        records[name]={**record,'normalized_final_sha256':record['final_sha256']}
+    return {**value,'files':records}
+
+def validate_task_callee_patch(path):
+    binding=task_callee_binding();names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=TASK_CALLEE_PATCH_SHA256 or len(names)!=5 or set(names)!=set(binding['files']):raise RuntimeError('Task callee patch identity/scope changed.')
+    return names
+
+INDIRECT_Y_BINDING=ROOT/'patches/runtime-indirect-y.json'
+INDIRECT_Y_PATCH_SHA256='e2b7b7da6944d2aec3b0e4724b422cc2359f93f2782235f3ebf1c2bf742d08a5'
+INDIRECT_Y_BINDING_SHA256='fb74e71b35d46c2863eb970d576efeda1869f8819de8f72ecf23816ad8d850ba'
+INDIRECT_Y_SOURCE_NAMES=('recompiler/v2/native_regions.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py', 'runner/src/snes/interp_bridge.c')
+
+def indirect_y_binding():
+    if sha(INDIRECT_Y_BINDING)!=INDIRECT_Y_BINDING_SHA256:raise RuntimeError('IndirectY binding identity changed.')
+    value=json.loads(INDIRECT_Y_BINDING.read_bytes())
+    if value.get('patch_sha256')!=INDIRECT_Y_PATCH_SHA256 or set(value.get('files',{}))!=set(INDIRECT_Y_SOURCE_NAMES):raise RuntimeError('IndirectY four-file binding missing/stale.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files'],**prefix_instructions_binding()['files'],**stack_controls_binding()['files'],**selected_task_binding()['files'],**source_redirect_binding()['files']}
+    records={}
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256'] or re.fullmatch('[0-9a-f]{64}',record.get('sha256','')) is None:raise RuntimeError('IndirectY predecessor/final lineage differs: '+name)
+        # Frozen24 authored sources are exactLF; do not rewrite binding JSON.
+        records[name]={'predecessor_sha256':record['predecessor_sha256'],'final_sha256':record['sha256'],'normalized_final_sha256':record['sha256']}
+    return {**value,'files':records}
+
+def validate_indirect_y_patch(path):
+    binding=indirect_y_binding();names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=4 or set(names)!=set(binding['files']):raise RuntimeError('IndirectY patch identity/scope changed; preserve build.')
+    return names
+
+def validate_indirect_y_outputs(directory,cache,rom_sha,rom):
+    directory=Path(directory);rom=Path(rom);raw=rom.read_bytes()
+    if sha(rom)!=rom_sha:raise RuntimeError('IndirectY supplied ROM identity differs.')
+    value=json.loads((directory/'native_regions.json').read_bytes());rows=value.get('regions');code=(directory/'native_regions_v2.c').read_text(encoding='utf-8')
+    if value.get('format_version')!=8 or value.get('rom_sha256')!=rom_sha or not isinstance(rows,list) or len(rows)!=9076:raise RuntimeError('IndirectY metadata8/source-scoped normal generation differs.')
+    subset=[r for r in rows if r.get('contract')=='native-e0-source-cached-indirect-y-v1']
+    opcodes={'ORA':0x11,'AND':0x31,'EOR':0x51,'ADC':0x71,'STA':0x91,'LDA':0xb1,'CMP':0xd1,'SBC':0xf1}
+    if len(subset)!=16:raise RuntimeError('IndirectY sixteen source-derived mode rows required.')
+    for row in subset:
+        pc=row.get('pc24');m=row.get('m');x=row.get('x');body=row.get('body');b=row.get('bytes');mnemonic=row.get('mnemonic');offset=(pc>>16)*32768+(pc&32767)
+        if m not in (0,1) or x not in (0,1) or row.get('length')!=2 or row.get('next_pc')!=((pc+2)&65535) or mnemonic not in opcodes or not isinstance(b,str) or len(b)!=4 or bytes.fromhex(b)[0]!=opcodes[mnemonic] or raw[offset:offset+2].hex()!=b:raise RuntimeError('IndirectY typed source row/ROM/mode differs.')
+        if not isinstance(body,str) or body not in code or body.count('uint16 _ea_lo = cpu_aot_read16(cpu, 0x00, _ea_p);')!=1 or 'cpu_aot_begin' in body or 'cpu_aot_commit' in body or '*next_pc=((uint32)cpu->PB<<16)|' not in body:raise RuntimeError('IndirectY faithful pointer/body/fullPC differs.')
+    for name,count in (('native_regions_v2.c',9076),('native_task_resume_v2.c',121),('native_source_redirect_v2.c',3)):
+        path=directory/name;reject_links(path);source=path.read_text(encoding='utf-8')
+        if source.count('cpu_aot_begin_scheduler_region(')!=count or 'cpu_aot_begin_region(' in source:raise RuntimeError('IndirectY common one-use scheduler scope missing: '+name)
+        if cache.get('outputs',{}).get(name)!=sha(path):raise RuntimeError('IndirectY scoped output/cache mismatch: '+name)
+    return {'metadata_format':8,'normal_rows':len(rows),'indirect_y_rows':len(subset),'execution_qualified':False}
+
+def selected_task_binding():
+    if sha(SELECTED_TASK_BINDING)!=SELECTED_TASK_BINDING_SHA256:
+        raise RuntimeError('Selected task binding exact identity changed.')
+    value=json.loads(SELECTED_TASK_BINDING.read_bytes())
+    if value.get('patch_sha256')!=SELECTED_TASK_PATCH_SHA256 or set(value.get('files',{}))!=set(SELECTED_TASK_SOURCE_NAMES):
+        raise RuntimeError('Selected task eleven-file binding missing/stale.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files'],**prefix_instructions_binding()['files'],**stack_controls_binding()['files']}
+    for name,record in value['files'].items():
+        if name in predecessors and record.get('predecessor_sha256')!=predecessors[name]['final_sha256']:
+            raise RuntimeError('Selected task predecessor lineage differs: '+name)
+        for key in ('final_sha256','normalized_final_sha256'):
+            if re.fullmatch('[0-9a-f]{64}',record.get(key,'')) is None:raise RuntimeError('Selected task final hash missing.')
+    return value
+
+def validate_selected_task_patch(path):
+    binding=selected_task_binding()
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=11 or set(names)!=set(binding['files']):
+        raise RuntimeError('Selected task patch identity/scope changed; preserve build.')
+    return names
+
+def validate_selected_task_recipe(cfg_dir):
+    expected='source_task_resume_v1 00FF03 008461 0083E2 008429 00842F 01D878 01840A'
+    records=[]
+    for path in Path(cfg_dir).glob('*.cfg'):
+        for line in path.read_text(encoding='utf-8').splitlines():
+            clean=line.split('#',1)[0].strip()
+            if clean.startswith('source_task_resume'):records.append((path.name,' '.join(clean.split())))
+    if records!=[('bank00.cfg',expected)]:raise RuntimeError('Exactly one source-selected task recipe in bank00.cfg is required.')
+
+SOURCE_REDIRECT_BINDING=ROOT/'patches/runtime-source-redirect.json'
+SOURCE_REDIRECT_PATCH_SHA256='0d5dcadea5529cc7e86e9d584c31321b8ae1c732ec82262be04d5d6a1832d40e'
+SOURCE_REDIRECT_BINDING_SHA256='10fac75b53b43f46dfc9fc72d1fad6e4bf4322f8c530662296343ba54bc5a62b'
+SOURCE_REDIRECT_SOURCE_NAMES=('recompiler/v2/cfg_loader.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/source_redirect.py', 'runner/src/cpu_state.c', 'runner/src/snes/interp_bridge.c', 'runner/src/redirect_contract.h', 'runner/src/redirect_contract.inc', 'runner/src/snes/bridge_redirect_helpers.inc')
+
+def source_redirect_binding():
+    if sha(SOURCE_REDIRECT_BINDING)!=SOURCE_REDIRECT_BINDING_SHA256:
+        raise RuntimeError('Source redirect binding exact identity changed.')
+    value=json.loads(SOURCE_REDIRECT_BINDING.read_bytes())
+    if value.get('patch_sha256')!=SOURCE_REDIRECT_PATCH_SHA256 or set(value.get('files',{}))!=set(SOURCE_REDIRECT_SOURCE_NAMES):
+        raise RuntimeError('Source redirect eight-file binding missing/stale.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files'],**prefix_instructions_binding()['files'],**stack_controls_binding()['files'],**selected_task_binding()['files']}
+    for name,record in value['files'].items():
+        if name in predecessors and record.get('predecessor_sha256')!=predecessors[name]['final_sha256']:
+            raise RuntimeError('Source redirect predecessor lineage differs: '+name)
+        if name not in predecessors and record.get('predecessor_sha256') is not None:raise RuntimeError('Source redirect undeclared predecessor: '+name)
+        for key in ('final_sha256','normalized_final_sha256'):
+            if re.fullmatch('[0-9a-f]{64}',record.get(key,'')) is None:raise RuntimeError('Source redirect final hash missing.')
+    return value
+
+def validate_source_redirect_patch(path):
+    binding=source_redirect_binding()
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=8 or set(names)!=set(binding['files']):
+        raise RuntimeError('Source redirect patch identity/scope changed; preserve build.')
+    return names
+
+def validate_source_redirect_recipe(cfg_dir):
+    expected='source_redirect_v1 01D111 00FF20 0084D9 0084FA 01D119 02 01D176'
+    records=[]
+    for path in Path(cfg_dir).glob('*.cfg'):
+        for line in path.read_text(encoding='utf-8').splitlines():
+            clean=line.split('#',1)[0].strip()
+            if clean.startswith('source_redirect'):records.append((path.name,' '.join(clean.split())))
+    if records!=[('bank01.cfg',expected)]:raise RuntimeError('Exactly one source-source redirect recipe in bank01.cfg is required.')
+
+def validate_selected_task_outputs(directory,cache,rom_sha,rom):
+    directory=Path(directory);metadata_path=directory/'native_task_resume.json';source_path=directory/'native_task_resume_v2.c'
+    reject_links(metadata_path);reject_links(source_path)
+    value=json.loads(metadata_path.read_bytes())
+    recipe={'callee': 65283, 'calls': [120952, 99338], 'return': 33839, 'select': 33833, 'subcall': {'call': 120847, 'callee': 120959, 'entry_m': 1, 'entry_x': [0, 1], 'exit_m': 0, 'exit_x': 0, 'landing': 120850, 'return': 121008, 'rows': [{'branch': 0, 'bytes': 'c230', 'fall': 120961, 'length': 2, 'm': 1, 'opcode': 194, 'pc24': 120959, 'x': 0}, {'branch': 0, 'bytes': 'a95555', 'fall': 120964, 'length': 3, 'm': 0, 'opcode': 169, 'pc24': 120961, 'x': 0}, {'branch': 0, 'bytes': '8f00247e', 'fall': 120968, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120964, 'x': 0}, {'branch': 0, 'bytes': '8f01247e', 'fall': 120972, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120968, 'x': 0}, {'branch': 0, 'bytes': '8f1e247e', 'fall': 120976, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120972, 'x': 0}, {'branch': 0, 'bytes': 'a980f0', 'fall': 120979, 'length': 3, 'm': 0, 'opcode': 169, 'pc24': 120976, 'x': 0}, {'branch': 0, 'bytes': 'a23000', 'fall': 120982, 'length': 3, 'm': 0, 'opcode': 162, 'pc24': 120979, 'x': 0}, {'branch': 0, 'bytes': 'ca', 'fall': 120983, 'length': 1, 'm': 0, 'opcode': 202, 'pc24': 120982, 'x': 0}, {'branch': 0, 'bytes': 'ca', 'fall': 120984, 'length': 1, 'm': 0, 'opcode': 202, 'pc24': 120983, 'x': 0}, {'branch': 0, 'bytes': 'ca', 'fall': 120985, 'length': 1, 'm': 0, 'opcode': 202, 'pc24': 120984, 'x': 0}, {'branch': 0, 'bytes': 'ca', 'fall': 120986, 'length': 1, 'm': 0, 'opcode': 202, 'pc24': 120985, 'x': 0}, {'branch': 0, 'bytes': '9f00227e', 'fall': 120990, 'length': 4, 'm': 0, 'opcode': 159, 'pc24': 120986, 'x': 0}, {'branch': 120982, 'bytes': 'd0f6', 'fall': 120992, 'length': 2, 'm': 0, 'opcode': 208, 'pc24': 120990, 'x': 0}, {'branch': 0, 'bytes': '8ff0237e', 'fall': 120996, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120992, 'x': 0}, {'branch': 0, 'bytes': '8ff4237e', 'fall': 121000, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120996, 'x': 0}, {'branch': 0, 'bytes': '8ff8237e', 'fall': 121004, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 121000, 'x': 0}, {'branch': 0, 'bytes': '8ffc237e', 'fall': 121008, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 121004, 'x': 0}, {'branch': 0, 'bytes': '60', 'fall': 120850, 'length': 1, 'm': 0, 'opcode': 96, 'pc24': 121008, 'x': 0}, {'branch': 0, 'bytes': 'c230', 'fall': 120961, 'length': 2, 'm': 1, 'opcode': 194, 'pc24': 120959, 'x': 1}], 'same_owner': True}}
+    if value.get('format_version')!=2 or value.get('kind')!='source_selected_task_resume' or value.get('rom_sha256')!=rom_sha or value.get('recipe')!=recipe:
+        raise RuntimeError('Selected task generated source recipe/ROM metadata mismatch.')
+    rows=value.get('rows');graphs=value.get('graphs')
+    if not isinstance(rows,list) or len(rows)!=121 or len({r.get('pc24') for r in rows})!=119 or not isinstance(graphs,list) or len(graphs)!=4:
+        raise RuntimeError('Selected task source-scoped generation count differs.')
+    if any(r.get('contract')!='native-e0-source-selected-task-resume-v1' or r.get('mnemonic')in('JSR','JSL','RTS','RTL','TCS','TXS','PLP','PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB') for r in rows):
+        raise RuntimeError('Selected task rows cross original call/stack/return barrier.')
+    rom=Path(rom);raw=rom.read_bytes();code=source_path.read_text(encoding='utf-8')
+    if sha(rom)!=rom_sha:raise RuntimeError('Task callee actual ROM differs.')
+    for row in rows:
+        pc=row.get('pc24');b=row.get('bytes');body=row.get('body');offset=(pc>>16)*32768+(pc&32767)
+        if row.get('m')not in(0,1)or row.get('x')not in(0,1)or not isinstance(b,str)or row.get('length')!=len(bytes.fromhex(b))or raw[offset:offset+row['length']].hex()!=b or not isinstance(body,str)or body not in code:raise RuntimeError('Task callee typed row/ROM/body differs.')
+    for row in recipe['subcall']['rows']:
+        pc=row['pc24'];offset=(pc>>16)*32768+(pc&32767)
+        if raw[offset:offset+row['length']].hex()!=row['bytes']:raise RuntimeError('Task callee original subcall/return source differs.')
+    for name in ('native_task_resume.json','native_task_resume_v2.c'):
+        if cache.get('outputs',{}).get(name)!=sha(directory/name):raise RuntimeError('Selected task output missing or changed: '+name)
+    return value
+
+def validate_source_redirect_outputs(directory,cache,rom_sha,rom):
+    directory=Path(directory);rom=Path(rom);raw=rom.read_bytes()
+    if sha(rom)!=rom_sha or len(raw)!=1572864:raise RuntimeError('Source redirect supplied ROM identity mismatch.')
+    metadata=directory/'native_source_redirect.json';source=directory/'native_source_redirect_v2.c';reject_links(metadata);reject_links(source)
+    value=json.loads(metadata.read_bytes());recipe={'entry':0x01d111,'return':0x0084fa,'selector':2,'table':0x01d119,'landing':0x01d176,'decimal':0,'barrier':0x01d17e}
+    if value.get('format_version')!=1 or value.get('kind')!='source_bound_original_redirect' or value.get('recipe')!=recipe:raise RuntimeError('Source redirect generated source recipe mismatch.')
+    specs=((0x01d176,1,0,'REP','c220',3,0xd178),(0x01d178,0,0,'LDA','a90300',3,0xd17b),(0x01d17b,0,0,'STA','8d4f04',5,0xd17e))
+    rows=value.get('rows');code=source.read_text(encoding='utf-8')
+    if not isinstance(rows,list) or len(rows)!=3:raise RuntimeError('Source redirect source-scoped three rows required.')
+    for row,spec in zip(rows,specs):
+        pc,m,x,mnemonic,b,cycles,next_pc=spec;offset=(pc>>16)*32768+(pc&32767)
+        if (row.get('pc24'),row.get('m'),row.get('x'),row.get('mnemonic'),row.get('bytes'),row.get('cycles'),row.get('next_pc'))!=spec or row.get('length')!=len(bytes.fromhex(b)) or row.get('contract')!='native-e0-source-original-redirect-v1' or raw[offset:offset+len(bytes.fromhex(b))].hex()!=b:raise RuntimeError('Source redirect typed architectural row/ROM differs.')
+        if not isinstance(row.get('body'),str) or row['body'] not in code:raise RuntimeError('Source redirect generated row body missing.')
+    for guard in ('if(!cpu_source_redirect_active(cpu,pc24,mx))return false;','cpu_source_redirect_recipe_matches','*next_pc=((uint32)cpu->PB<<16)|0xD178u','*next_pc=((uint32)cpu->PB<<16)|0xD17Bu','*next_pc=((uint32)cpu->PB<<16)|0xD17Eu'):
+        if guard not in code:raise RuntimeError('Source redirect generated typed/owner guard missing.')
+    spans=((0x00a403,'4cfda8'),(0x00a8fd,'e220a9028d42042206c401'),(0x01c406,'4c07d1'),(0x01d107,'e220ad4204c9ffd0016b2220ff00'),(0x00ff20,'4cd984'),(0x0084d9,'088bc23029ff000aaae220a30548abc2208a386303a8b9000038e901008303ab286b'),(0x01d119,'76d1'))
+    for pc,hexbytes in spans:
+        b=bytes.fromhex(hexbytes);offset=(pc>>16)*32768+(pc&32767)
+        if raw[offset:offset+len(b)]!=b:raise RuntimeError('Source redirect dispatcher ROM recipe differs.')
+        for i,v in enumerate(b):
+            if f'if(!peek(ctx,{pc+i}u,&b)||b!={v}u)return 0;' not in code:raise RuntimeError('Source redirect generated dispatcher byte guard missing.')
+    for name in ('native_source_redirect.json','native_source_redirect_v2.c'):
+        if cache.get('outputs',{}).get(name)!=sha(directory/name):raise RuntimeError('Source redirect generated output/cache mismatch: '+name)
+    return value
+
+def stack_controls_binding():
+    value=json.loads(STACK_CONTROLS_BINDING.read_bytes())
+    if value.get('patch_sha256')!=STACK_CONTROLS_PATCH_SHA256 or not isinstance(value.get('files'),dict) or len(value['files'])!=3:
+        raise RuntimeError('Native stack control three-file binding missing/stale.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files'],**prefix_instructions_binding()['files']}
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256']:
+            raise RuntimeError('Native stack control predecessor lineage differs: '+name)
+    return value
+
+def validate_stack_controls_patch(path):
+    binding=stack_controls_binding()
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=3 or set(names)!=set(binding['files']):
+        raise RuntimeError('Native stack control patch identity/scope changed; preserve build.')
+    return names
+
+def prefix_instructions_binding():
+    value=json.loads(PREFIX_INSTRUCTIONS_BINDING.read_bytes())
+    if value.get('patch_sha256')!=PREFIX_INSTRUCTIONS_PATCH_SHA256 or not isinstance(value.get('files'),dict) or len(value['files'])!=3:
+        raise RuntimeError('Native prefix instruction three-file binding missing/stale.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files'],**return_steps_binding()['files']}
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256']:
+            raise RuntimeError('Native prefix instruction predecessor lineage differs: '+name)
+    return value
+
+def validate_prefix_instructions_patch(path):
+    binding=prefix_instructions_binding()
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=3 or set(names)!=set(binding['files']):
+        raise RuntimeError('Native prefix instruction patch identity/scope changed; preserve build.')
+    return names
+
+def return_steps_binding():
+    value=json.loads(RETURN_STEPS_BINDING.read_bytes())
+    if value.get('patch_sha256')!=RETURN_STEPS_PATCH_SHA256 or not isinstance(value.get('files'),dict) or len(value['files'])!=4:
+        raise RuntimeError('Native return step four-file binding missing/stale.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files'],**stack_primitives_binding()['files']}
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256']:
+            raise RuntimeError('Native return step predecessor lineage differs: '+name)
+    return value
+
+def validate_return_steps_patch(path):
+    binding=return_steps_binding()
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=4 or set(names)!=set(binding['files']):
+        raise RuntimeError('Native return step patch identity/scope changed; preserve build.')
+    return names
+
+def stack_primitives_binding():
+    value=json.loads(STACK_PRIMITIVES_BINDING.read_bytes())
+    if value.get('patch_sha256')!=STACK_PRIMITIVES_PATCH_SHA256 or not isinstance(value.get('files'),dict) or len(value['files'])!=2:
+        raise RuntimeError('Native stack primitive two-file binding missing/stale.')
+    predecessors={**continuation_binding()['files'],**rmw_binding()['files'],**memory_bits_binding()['files'],**native_regions_binding()['files'],**leaf_regions_binding()['files'],**hook_handoff_binding()['files']}
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256']:
+            raise RuntimeError('Native stack primitive predecessor lineage differs: '+name)
+    return value
+
+def validate_stack_primitives_patch(path):
+    binding=stack_primitives_binding()
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=2 or set(names)!=set(binding['files']):
+        raise RuntimeError('Native stack primitive patch identity/scope changed; preserve build.')
+    return names
+
 def hook_handoff_binding():
     value=json.loads(HOOK_HANDOFF_BINDING.read_bytes())
     if value.get('patch_sha256')!=HOOK_HANDOFF_PATCH_SHA256 or not isinstance(value.get('files'),dict) or len(value['files'])!=4:
@@ -154,7 +494,7 @@ def validate_native_regions_patch(path):
         raise RuntimeError('Native region patch identity/scope changed; preserve build.')
     return names
 
-def validate_final_runtime(runtime,normalize=False,memory_bits=True,native_regions=True,leaf_regions=True,hook_handoff=True):
+def validate_final_runtime(runtime,normalize=False,memory_bits=True,native_regions=True,leaf_regions=True,hook_handoff=True,stack_primitives=True,return_steps=True,prefix_instructions=True,stack_controls=True,selected_task=True,source_redirect=True,indirect_y=True,task_callee=True,stack_direct=True,host_proof_idle=True,redirect_observer_idle=True):
     # Earlier patches remain frozen. The final delta replaces only its exact
     # predecessors; unaffected continuation inputs retain their final binding.
     files={**continuation_binding()['files'],**rmw_binding()['files']}
@@ -162,6 +502,17 @@ def validate_final_runtime(runtime,normalize=False,memory_bits=True,native_regio
     if native_regions:files.update(native_regions_binding()['files'])
     if native_regions and leaf_regions:files.update(leaf_regions_binding()['files'])
     if native_regions and leaf_regions and hook_handoff:files.update(hook_handoff_binding()['files'])
+    if native_regions and leaf_regions and hook_handoff and stack_primitives:files.update(stack_primitives_binding()['files'])
+    if native_regions and leaf_regions and hook_handoff and stack_primitives and return_steps:files.update(return_steps_binding()['files'])
+    if native_regions and leaf_regions and hook_handoff and stack_primitives and return_steps and prefix_instructions:files.update(prefix_instructions_binding()['files'])
+    if native_regions and leaf_regions and hook_handoff and stack_primitives and return_steps and prefix_instructions and stack_controls:files.update(stack_controls_binding()['files'])
+    if stack_controls and selected_task and prefix_instructions and return_steps and stack_primitives and hook_handoff and leaf_regions and native_regions:files.update(selected_task_binding()['files'])
+    if source_redirect and selected_task and stack_controls and prefix_instructions and return_steps and stack_primitives and hook_handoff and leaf_regions and native_regions:files.update(source_redirect_binding()['files'])
+    if indirect_y and source_redirect and selected_task and stack_controls and prefix_instructions and return_steps and stack_primitives and hook_handoff and leaf_regions and native_regions:files.update(indirect_y_binding()['files'])
+    if task_callee and indirect_y and source_redirect and selected_task and stack_controls and prefix_instructions and return_steps and stack_primitives and hook_handoff and leaf_regions and native_regions:files.update(task_callee_binding()['files'])
+    if stack_direct and task_callee and indirect_y and source_redirect and selected_task and stack_controls and prefix_instructions and return_steps and stack_primitives and hook_handoff and leaf_regions and native_regions:files.update(stack_direct_binding()['files'])
+    if host_proof_idle and stack_direct and task_callee and indirect_y and source_redirect and selected_task and stack_controls and prefix_instructions and return_steps and stack_primitives and hook_handoff and leaf_regions and native_regions:files.update(host_proof_idle_binding()['files'])
+    if redirect_observer_idle and host_proof_idle and stack_direct and task_callee and indirect_y and source_redirect and selected_task and stack_controls and prefix_instructions and return_steps and stack_primitives and hook_handoff and leaf_regions and native_regions:files.update(redirect_observer_idle_binding()['files'])
     for name,record in files.items():
         path=runtime/name;reject_links(path);raw=path.read_bytes()
         normalized=raw.replace(b'\r\n',b'\n')
@@ -183,10 +534,10 @@ def runtime_source_accounting(runtime,patch_names,new_names=()):
 
 def runtime_cache_identity(patch_hashes):
     hashes=list(patch_hashes)
-    if len(hashes)!=17 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
-        raise ValueError('Runtime cache requires exactly seventeen ordered full patch hashes')
+    if len(hashes)!=28 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
+        raise ValueError('Runtime cache requires exactly twenty-eight ordered full patch hashes')
     combined=hashlib.sha256(('\n'.join(hashes)+'\n').encode('ascii')).hexdigest()
-    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-seventeen-full-patch-hashes',
+    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-twenty-eight-full-patch-hashes',
       'ordered_patch_sha256':hashes,'combined_patch_sha256':combined,'directory_key':RUNTIME_PIN[:12]+'-'+combined[:16]}
 
 def check_cache_marker_identity(marker,identity):
@@ -599,12 +950,14 @@ def main():
     p.add_argument('--no-converged-exits',dest='certify_converged_exits',action='store_false',help='Diagnostic: retain original exit-fact quarantine without final re-certification')
     p.add_argument('--no-reviewed-roots',dest='reviewed_roots',action='store_false',help='Diagnostic: omit reviewed authored analysis seeds; retain baseline CFG roots')
     p.add_argument('--emit-proven-prefixes',action='store_true',help='Enable the distinct proved aot_prefix disposition via pinned v2_emit --faithful-prefixes; unknown calls continue in original code')
-    p.add_argument('--runtime-cache-dir',type=Path,help='Reuse an explicit pinned runtime cache; seventeen full ordered patch hashes choose a new key, old keys are preserved')
+    p.add_argument('--runtime-cache-dir',type=Path,help='Reuse an explicit pinned runtime cache; twenty-two full ordered patch hashes choose a new key, old keys are preserved')
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
     p.add_argument('--output-dir',type=Path,help='Optional new build directory; refuses an existing path. Default: local/source-builds/timestamp.')
     args=p.parse_args()
+    validate_selected_task_recipe(ROOT/'native/foundation/recomp')
+    validate_source_redirect_recipe(ROOT/'native/foundation/recomp')
     reject_links(args.rom.absolute());reject_links(ROOT.absolute())
     rom=args.rom.resolve(strict=True);source=ROOT/'native/foundation'
     identity={}
@@ -695,12 +1048,48 @@ def main():
     hook_handoff_patch=out/'runtime-native-hook-handoff.patch'
     shutil.copy2(ROOT/'patches/runtime-native-hook-handoff.patch',hook_handoff_patch)
     hook_handoff_names=validate_hook_handoff_patch(hook_handoff_patch)
+    stack_primitives_patch=out/'runtime-native-stack-primitives.patch'
+    shutil.copy2(ROOT/'patches/runtime-native-stack-primitives.patch',stack_primitives_patch)
+    stack_primitives_names=validate_stack_primitives_patch(stack_primitives_patch)
+    return_steps_patch=out/'runtime-native-return-steps.patch'
+    shutil.copy2(ROOT/'patches/runtime-native-return-steps.patch',return_steps_patch)
+    return_steps_names=validate_return_steps_patch(return_steps_patch)
+    prefix_instructions_patch=out/'runtime-native-prefix-instructions.patch'
+    shutil.copy2(ROOT/'patches/runtime-native-prefix-instructions.patch',prefix_instructions_patch)
+    prefix_instructions_names=validate_prefix_instructions_patch(prefix_instructions_patch)
+    stack_controls_patch=out/'runtime-native-stack-controls.patch'
+    shutil.copy2(ROOT/'patches/runtime-native-stack-controls.patch',stack_controls_patch)
+    stack_controls_names=validate_stack_controls_patch(stack_controls_patch)
+    selected_task_patch=out/'runtime-selected-task-resume.patch'
+    shutil.copy2(ROOT/'patches/runtime-selected-task-resume.patch',selected_task_patch)
+    selected_task_names=validate_selected_task_patch(selected_task_patch)
+    source_redirect_patch=out/'runtime-source-redirect.patch'
+    shutil.copy2(ROOT/'patches/runtime-source-redirect.patch',source_redirect_patch)
+    source_redirect_names=validate_source_redirect_patch(source_redirect_patch)
+    indirect_y_patch=out/'runtime-indirect-y.patch'
+    shutil.copy2(ROOT/'patches/runtime-indirect-y.patch',indirect_y_patch)
+    indirect_y_names=validate_indirect_y_patch(indirect_y_patch)
+    task_callee_patch=out/'runtime-native-task-callee.patch'
+    shutil.copy2(ROOT/'patches/runtime-native-task-callee.patch',task_callee_patch)
+    task_callee_names=validate_task_callee_patch(task_callee_patch)
+    stack_direct_patch=out/'runtime-stack-direct.patch'
+    shutil.copy2(ROOT/'patches/runtime-stack-direct.patch',stack_direct_patch)
+    stack_direct_names=validate_stack_direct_patch(stack_direct_patch)
+    host_proof_idle_patch=out/'runtime-host-proof-idle.patch'
+    shutil.copy2(ROOT/'patches/runtime-host-proof-idle.patch',host_proof_idle_patch)
+    host_proof_idle_names=validate_host_proof_idle_patch(host_proof_idle_patch)
+    redirect_observer_idle_patch=out/'runtime-redirect-observer-idle.patch'
+    shutil.copy2(ROOT/'patches/runtime-redirect-observer-idle.patch',redirect_observer_idle_patch)
+    redirect_observer_idle_names=validate_redirect_observer_idle_patch(redirect_observer_idle_patch)
     new_patch_names={'recompiler/v2/faithful_prefix.py','recompiler/v2/reviewed_roots.py','recompiler/v2/native_regions.py'}
+    new_patch_names.update(name for name,record in selected_task_binding()['files'].items() if record['predecessor_sha256'] is None)
+    new_patch_names.update(name for name,record in source_redirect_binding()['files'].items() if record['predecessor_sha256'] is None)
+    new_patch_names.update(name for name,record in task_callee_binding()['files'].items()if record['predecessor_sha256']is None)
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
     cache_root=args.runtime_cache_dir.absolute() if args.runtime_cache_dir else ROOT/'local/upstream'
     reject_links(cache_root)
-    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch),sha(accumulator_patch),sha(continuation_patch),sha(rmw_patch),sha(memory_bits_patch),sha(native_regions_patch),sha(leaf_regions_patch),sha(hook_handoff_patch)])
+    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch),sha(accumulator_patch),sha(continuation_patch),sha(rmw_patch),sha(memory_bits_patch),sha(native_regions_patch),sha(leaf_regions_patch),sha(hook_handoff_patch),sha(stack_primitives_patch),sha(return_steps_patch),sha(prefix_instructions_patch),sha(stack_controls_patch),sha(selected_task_patch),sha(source_redirect_patch),sha(indirect_y_patch),sha(task_callee_patch),sha(stack_direct_patch),sha(host_proof_idle_patch),sha(redirect_observer_idle_patch)])
     runtime=cache_root/cache_identity['directory_key']
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     reject_links(runtime);reject_links(marker)
@@ -712,7 +1101,7 @@ def main():
         command(['git','submodule','update','--init','--recursive'],runtime)
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:
         raise RuntimeError('Existing runtime is at another revision; it has been preserved.')
-    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names)|set(accumulator_names)|set(continuation_names)|set(rmw_names)|set(memory_bits_names)|set(native_regions_names)|set(leaf_regions_names)|set(hook_handoff_names))
+    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names)|set(accumulator_names)|set(continuation_names)|set(rmw_names)|set(memory_bits_names)|set(native_regions_names)|set(leaf_regions_names)|set(hook_handoff_names)|set(stack_primitives_names)|set(return_steps_names)|set(prefix_instructions_names)|set(stack_controls_names)|set(selected_task_names)|set(source_redirect_names)|set(indirect_y_names)|set(task_callee_names)|set(stack_direct_names)|set(host_proof_idle_names)|set(redirect_observer_idle_names))
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
         check_cache_marker_identity(receipt,cache_identity)
@@ -732,6 +1121,21 @@ def main():
             raise RuntimeError('Native leaf regions marker missing/stale; preserve cache.')
         if receipt.get('native_hook_handoff_patch_sha256')!=sha(hook_handoff_patch):
             raise RuntimeError('Native hook handoff marker missing/stale; preserve cache.')
+        if receipt.get('native_stack_primitives_patch_sha256')!=sha(stack_primitives_patch):
+            raise RuntimeError('Native stack primitive marker missing/stale; preserve cache.')
+        if receipt.get('native_return_steps_patch_sha256')!=sha(return_steps_patch):
+            raise RuntimeError('Native return step marker missing/stale; preserve cache.')
+        if receipt.get('native_prefix_instructions_patch_sha256')!=sha(prefix_instructions_patch):
+            raise RuntimeError('Native prefix instruction marker missing/stale; preserve cache.')
+        if receipt.get('native_stack_controls_patch_sha256')!=sha(stack_controls_patch):
+            raise RuntimeError('Native stack control marker missing/stale; preserve cache.')
+        if receipt.get('selected_task_resume_patch_sha256')!=sha(selected_task_patch):raise RuntimeError('Selected task marker missing/stale; preserve cache.')
+        if receipt.get('source_redirect_patch_sha256')!=sha(source_redirect_patch) or receipt.get('source_redirect_source_binding_sha256')!=sha(SOURCE_REDIRECT_BINDING):raise RuntimeError('Source redirect marker missing/stale; preserve cache.')
+        if receipt.get('indirect_y_patch_sha256')!=sha(indirect_y_patch) or receipt.get('indirect_y_source_binding_sha256')!=sha(INDIRECT_Y_BINDING):raise RuntimeError('IndirectY marker missing/stale; preserve cache.')
+        if receipt.get('task_callee_patch_sha256')!=sha(task_callee_patch) or receipt.get('task_callee_source_binding_sha256')!=sha(TASK_CALLEE_BINDING):raise RuntimeError('Task callee marker missing/stale; preserve cache.')
+        if receipt.get('stack_direct_patch_sha256')!=sha(stack_direct_patch)or receipt.get('stack_direct_source_binding_sha256')!=sha(STACK_DIRECT_BINDING):raise RuntimeError('Stack direct marker missing/stale; preserve cache.')
+        if receipt.get('host_proof_idle_patch_sha256')!=sha(host_proof_idle_patch)or receipt.get('host_proof_idle_source_binding_sha256')!=sha(HOST_PROOF_IDLE_BINDING):raise RuntimeError('Host proof idle marker missing/stale; preserve cache.')
+        if receipt.get('redirect_observer_idle_patch_sha256')!=sha(redirect_observer_idle_patch)or receipt.get('redirect_observer_idle_source_binding_sha256')!=sha(REDIRECT_OBSERVER_IDLE_BINDING):raise RuntimeError('Redirect observer idle marker missing/stale; preserve cache.')
         accumulator_lineage=receipt['runtime_accumulator_source_lineage']
         if (receipt.get('runtime_pin')!=RUNTIME_PIN or receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
                 or receipt.get('faithful_instruction_patch_sha256')!=sha(faithful_patch)
@@ -809,6 +1213,96 @@ def main():
             raw=path.read_bytes()
             if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
         command(['git','apply','--check',hook_handoff_patch],runtime);command(['git','apply',hook_handoff_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,stack_primitives=False)
+        for name,record in stack_primitives_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:
+                raise RuntimeError('Native stack primitive predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',stack_primitives_patch],runtime);command(['git','apply',stack_primitives_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,return_steps=False)
+        for name,record in return_steps_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:
+                raise RuntimeError('Native return step predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',return_steps_patch],runtime);command(['git','apply',return_steps_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,prefix_instructions=False)
+        for name,record in prefix_instructions_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:
+                raise RuntimeError('Native prefix instruction predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',prefix_instructions_patch],runtime);command(['git','apply',prefix_instructions_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,stack_controls=False)
+        for name,record in stack_controls_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:
+                raise RuntimeError('Native stack control predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',stack_controls_patch],runtime);command(['git','apply',stack_controls_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,selected_task=False,source_redirect=False)
+        for name,record in selected_task_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if record['predecessor_sha256'] is None:
+                if path.exists():raise RuntimeError('New selected task source already exists: '+name)
+                continue
+            if sha(path)!=record['predecessor_sha256']:raise RuntimeError('Selected task predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',selected_task_patch],runtime);command(['git','apply',selected_task_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,source_redirect=False)
+        for name,record in source_redirect_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if record['predecessor_sha256'] is None:
+                if path.exists():raise RuntimeError('New source redirect source already exists: '+name)
+                continue
+            if sha(path)!=record['predecessor_sha256']:raise RuntimeError('Source redirect predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',source_redirect_patch],runtime);command(['git','apply',source_redirect_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,indirect_y=False)
+        for name,record in indirect_y_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:raise RuntimeError('IndirectY predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',indirect_y_patch],runtime);command(['git','apply',indirect_y_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,task_callee=False)
+        for name,record in task_callee_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if record['predecessor_sha256']is None:
+                if path.exists():raise RuntimeError('New task callee source already exists: '+name)
+                continue
+            if sha(path)!=record['predecessor_sha256']:raise RuntimeError('Task callee predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',task_callee_patch],runtime);command(['git','apply',task_callee_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,stack_direct=False)
+        for name,record in stack_direct_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:raise RuntimeError('Stack direct predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n'in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',stack_direct_patch],runtime);command(['git','apply',stack_direct_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,host_proof_idle=False)
+        for name,record in host_proof_idle_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:raise RuntimeError('Host proof idle predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n'in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',host_proof_idle_patch],runtime);command(['git','apply',host_proof_idle_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,redirect_observer_idle=False)
+        for name,record in redirect_observer_idle_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:raise RuntimeError('Redirect observer idle predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n'in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',redirect_observer_idle_patch],runtime);command(['git','apply',redirect_observer_idle_patch],runtime)
         validate_final_runtime(runtime,normalize=True)
         runtime_source_accounting(runtime,patch_names,new_patch_names)
         write_runtime_marker(marker,{'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
@@ -830,6 +1324,24 @@ def main():
           'native_regions_patch_sha256':sha(native_regions_patch),
           'native_leaf_regions_patch_sha256':sha(leaf_regions_patch),
           'native_hook_handoff_patch_sha256':sha(hook_handoff_patch),
+          'native_stack_primitives_patch_sha256':sha(stack_primitives_patch),
+          'native_return_steps_patch_sha256':sha(return_steps_patch),
+          'native_prefix_instructions_patch_sha256':sha(prefix_instructions_patch),
+          'native_stack_controls_patch_sha256':sha(stack_controls_patch),
+          'selected_task_resume_patch_sha256':sha(selected_task_patch),
+          'selected_task_resume_source_binding_sha256':sha(SELECTED_TASK_BINDING),
+          'source_redirect_patch_sha256':sha(source_redirect_patch),
+          'source_redirect_source_binding_sha256':sha(SOURCE_REDIRECT_BINDING),
+          'indirect_y_patch_sha256':sha(indirect_y_patch),
+          'indirect_y_source_binding_sha256':sha(INDIRECT_Y_BINDING),
+          'task_callee_patch_sha256':sha(task_callee_patch),
+          'task_callee_source_binding_sha256':sha(TASK_CALLEE_BINDING),
+          'stack_direct_patch_sha256':sha(stack_direct_patch),
+          'stack_direct_source_binding_sha256':sha(STACK_DIRECT_BINDING),
+          'host_proof_idle_patch_sha256':sha(host_proof_idle_patch),
+          'host_proof_idle_source_binding_sha256':sha(HOST_PROOF_IDLE_BINDING),
+          'redirect_observer_idle_patch_sha256':sha(redirect_observer_idle_patch),
+          'redirect_observer_idle_source_binding_sha256':sha(REDIRECT_OBSERVER_IDLE_BINDING),
           'new_patched_sources':sorted(new_patch_names),
           'patched_sources':{n:sha(runtime/n) for n in patch_names}})
     validate_final_runtime(runtime)
@@ -859,20 +1371,27 @@ def main():
     automatic_manifest=json.loads(automatic_manifest_path.read_text(encoding='utf-8'))
     generated_cache=project/'src/gen/.snesrecomp-cache.json'
     reject_links(generated_cache);generated_metadata=json.loads(generated_cache.read_bytes())
-    if generated_metadata.get('format_version')!=8 or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
+    if generated_metadata.get('format_version')!=19 or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
         raise RuntimeError('Target generated cache/module identity mismatch; preserve build.')
+    if set(generated_metadata.get('outputs',{}))!=set(('bank00_v2.c', 'bank01_part00_v2.c', 'bank01_part01_v2.c', 'bank01_part02_v2.c', 'bank01_part03_v2.c', 'bank01_part06_v2.c', 'bank01_part08_v2.c', 'bank01_part09_v2.c', 'bank01_part0a_v2.c', 'bank01_part0b_v2.c', 'bank01_part0c_v2.c', 'bank01_part0d_v2.c', 'bank01_part0e_v2.c', 'bank02_v2.c', 'bank1c_v2.c', 'dispatch_v2.c', 'module_v2.c', 'native_regions.json', 'native_regions_v2.c', 'native_source_redirect.json', 'native_source_redirect_v2.c', 'native_task_resume.json', 'native_task_resume_v2.c', 'program_manifest.json', 'unresolved_stubs_v2.c')):raise RuntimeError('Source-first25 generated output allowlist differs.')
     for name,digest in generated_metadata.get('outputs',{}).items():
         if Path(name).is_absolute()or'..'in Path(name).parts:raise RuntimeError('Target generated output escapes build; preserve build.')
         output=project/'src/gen'/name;reject_links(output)
         if sha(output)!=digest:raise RuntimeError('Target generated output/cache mismatch; preserve build.')
+    validate_selected_task_recipe(ROOT/'native/foundation/recomp')
+    validate_source_redirect_recipe(ROOT/'native/foundation/recomp')
+    selected_task_metadata=validate_selected_task_outputs(project/'src/gen',generated_metadata,expected,rom)
+    source_redirect_metadata=validate_source_redirect_outputs(project/'src/gen',generated_metadata,expected,rom)
     region_metadata_path=project/'src/gen/native_regions.json'
     region_source_path=project/'src/gen/native_regions_v2.c'
     reject_links(region_metadata_path);reject_links(region_source_path)
     region_metadata=json.loads(region_metadata_path.read_bytes())
-    if region_metadata.get('format_version')!=2 or region_metadata.get('kind')!='source_cfg_stack_neutral_instruction' or region_metadata.get('rom_sha256')!=expected or not isinstance(region_metadata.get('regions'),list):
+    if region_metadata.get('format_version')!=8 or region_metadata.get('result_contract')!='full_pc24_transient_original_scheduler' or region_metadata.get('instruction_source')!='source_faithful_and_typed_architectural_before_activation_plumbing' or region_metadata.get('stack_control_contract')!='native-e0-typed-architectural-stack-v1' or region_metadata.get('kind')!='source_cfg_scheduler_instruction' or region_metadata.get('rom_sha256')!=expected or not isinstance(region_metadata.get('regions'),list):
         raise RuntimeError('Target native-region metadata identity mismatch; preserve build.')
     if generated_metadata.get('outputs',{}).get('native_regions.json')!=sha(region_metadata_path) or generated_metadata.get('outputs',{}).get('native_regions_v2.c')!=sha(region_source_path):
         raise RuntimeError('Target native-region output/cache mismatch; preserve build.')
+    indirect_y_generation=validate_indirect_y_outputs(project/'src/gen',generated_metadata,expected,rom)
+    stack_direct_metadata=validate_stack_direct_outputs(project/'src/gen',generated_metadata,expected,rom)
     from_cfg=set()
     sys.path.insert(0,str(runtime/'recompiler'))
     from v2.cfg_loader import load_bank_cfg
@@ -957,6 +1476,11 @@ def main():
       'native_regions_patch_sha256':sha(native_regions_patch),
           'native_leaf_regions_patch_sha256':sha(leaf_regions_patch),
           'native_hook_handoff_patch_sha256':sha(hook_handoff_patch),
+          'native_stack_primitives_patch_sha256':sha(stack_primitives_patch),
+          'native_return_steps_patch_sha256':sha(return_steps_patch),
+          'native_prefix_instructions_patch_sha256':sha(prefix_instructions_patch),
+          'native_stack_controls_patch_sha256':sha(stack_controls_patch),
+          'selected_task_resume_patch_sha256':sha(selected_task_patch),
       'memory_bits_source_binding_sha256':sha(MEMORY_BITS_BINDING),
       'memory_bits_scope':memory_bits_binding()['scope'],
       'native_regions_source_binding_sha256':sha(NATIVE_REGIONS_BINDING),
@@ -965,7 +1489,39 @@ def main():
       'native_leaf_regions_scope':leaf_regions_binding()['scope'],
       'native_hook_handoff_source_binding_sha256':sha(HOOK_HANDOFF_BINDING),
       'native_hook_handoff_scope':hook_handoff_binding()['scope'],
-      'native_region_generation':{'cache_format':8,'metadata_format':2,'source_cfg_leaf_rows':len(region_metadata['regions']),'metadata_sha256':sha(region_metadata_path),'source_sha256':sha(region_source_path),'diagnostic_disable':'SNESRECOMP_DISABLE_NATIVE_REGIONS=1','execution_qualified':False},
+      'native_stack_primitives_source_binding_sha256':sha(STACK_PRIMITIVES_BINDING),
+      'native_stack_primitives_scope':stack_primitives_binding()['scope'],
+      'native_return_steps_source_binding_sha256':sha(RETURN_STEPS_BINDING),
+      'native_return_steps_scope':return_steps_binding()['scope'],
+      'native_prefix_instructions_source_binding_sha256':sha(PREFIX_INSTRUCTIONS_BINDING),
+      'native_prefix_instructions_scope':prefix_instructions_binding()['scope'],
+      'native_stack_controls_source_binding_sha256':sha(STACK_CONTROLS_BINDING),
+      'native_stack_controls_scope':stack_controls_binding()['scope'],
+      'selected_task_resume_source_binding_sha256':sha(SELECTED_TASK_BINDING),
+      'selected_task_resume_scope':selected_task_binding()['scope'],
+      'source_redirect_patch_sha256':sha(source_redirect_patch),
+      'source_redirect_source_binding_sha256':sha(SOURCE_REDIRECT_BINDING),
+      'source_redirect_scope':source_redirect_binding()['scope'],
+      'indirect_y_patch_sha256':sha(indirect_y_patch),
+      'indirect_y_source_binding_sha256':sha(INDIRECT_Y_BINDING),
+      'indirect_y_scope':indirect_y_binding()['scope'],
+      'redirect_observer_idle_patch_sha256':sha(redirect_observer_idle_patch),
+      'redirect_observer_idle_source_binding_sha256':sha(REDIRECT_OBSERVER_IDLE_BINDING),
+      'redirect_observer_idle_scope':redirect_observer_idle_binding()['scope'],
+      'host_proof_idle_patch_sha256':sha(host_proof_idle_patch),
+      'host_proof_idle_source_binding_sha256':sha(HOST_PROOF_IDLE_BINDING),
+      'host_proof_idle_scope':host_proof_idle_binding()['scope'],
+      'stack_direct_patch_sha256':sha(stack_direct_patch),
+      'stack_direct_source_binding_sha256':sha(STACK_DIRECT_BINDING),
+      'stack_direct_scope':stack_direct_binding()['scope'],
+      'stack_direct_generation':stack_direct_metadata,
+      'task_callee_patch_sha256':sha(task_callee_patch),
+      'task_callee_source_binding_sha256':sha(TASK_CALLEE_BINDING),
+      'task_callee_scope':task_callee_binding()['scope'],
+      'indirect_y_generation':indirect_y_generation,
+      'source_redirect_generation':{'metadata_format':1,'mode_rows':len(source_redirect_metadata['rows']),'distinct_pcs':len({r['pc24']for r in source_redirect_metadata['rows']}),'metadata_sha256':sha(project/'src/gen/native_source_redirect.json'),'source_sha256':sha(project/'src/gen/native_source_redirect_v2.c'),'execution_qualified':False},
+      'selected_task_resume_generation':{'metadata_format':2,'mode_rows':len(selected_task_metadata['rows']),'distinct_pcs':len({r['pc24']for r in selected_task_metadata['rows']}),'metadata_sha256':sha(project/'src/gen/native_task_resume.json'),'source_sha256':sha(project/'src/gen/native_task_resume_v2.c'),'execution_qualified':False},
+      'native_region_generation':{'cache_format':19,'metadata_format':8,'stack_control_contract':region_metadata['stack_control_contract'],'result_contract':region_metadata['result_contract'],'instruction_source':region_metadata['instruction_source'],'source_cfg_scheduler_rows':len(region_metadata['regions']),'metadata_sha256':sha(region_metadata_path),'source_sha256':sha(region_source_path),'diagnostic_disable':'SNESRECOMP_DISABLE_NATIVE_REGIONS=1','execution_qualified':False},
       'runtime_accumulator_patch_sha256':sha(accumulator_patch),'runtime_accumulator_emitter_sha256':ACCUMULATOR_EMITTER_SHA256,'runtime_accumulator_source_review':{'offline_unit_report_sha256':ACCUMULATOR_UNIT_SHA256,'scope':'Pinned reviewed offline instruction/source proof; public Setup does not consume private fixtures or infer actual-artifact gameplay qualification.'},
       'runtime_accumulator_source_lineage':accumulator_lineage,
       'runtime_accumulator_patch_scope':'Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies. MemoryRMW/INC/DEC/refusals and original buses/timing/ABI remain.',

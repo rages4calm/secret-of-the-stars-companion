@@ -1,0 +1,54 @@
+{
+  "patch_sha256": "0d5dcadea5529cc7e86e9d584c31321b8ae1c732ec82262be04d5d6a1832d40e",
+  "files": {
+    "recompiler/v2/cfg_loader.py": {
+      "predecessor_sha256": "e63f695bc3109bffe843488077771de6b3139cf3fc683271914c8f1061188c81",
+      "normalized_predecessor_sha256": "1db46df6a5e0746363906e5771cd58302629788bb18621a640621fa3fdaef82f",
+      "final_sha256": "e32496f758e61b48b552f45eb46000ba15baaaa5fddeee8cc0fc81ca49b0abd6",
+      "normalized_final_sha256": "e32496f758e61b48b552f45eb46000ba15baaaa5fddeee8cc0fc81ca49b0abd6"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "5b24010a9e521f5fa5081aea96237f5cfaf8e113ead08d1f536d44534eb0c503",
+      "normalized_predecessor_sha256": "3a4f2f415a6a7f4cfdc1fe0c35101c55721858ce8a539f414395949af3503781",
+      "final_sha256": "ea95d565a3af06b3bd9ef81f5f2ebd2d0c2e3b97c070c9c3d165c1f3474702f3",
+      "normalized_final_sha256": "ea95d565a3af06b3bd9ef81f5f2ebd2d0c2e3b97c070c9c3d165c1f3474702f3"
+    },
+    "recompiler/v2/source_redirect.py": {
+      "predecessor_sha256": null,
+      "normalized_predecessor_sha256": null,
+      "final_sha256": "4f17f9b04ddebbd961557dc1b42287403d6ce3dee0247c4786d5b853eaf68f80",
+      "normalized_final_sha256": "4f17f9b04ddebbd961557dc1b42287403d6ce3dee0247c4786d5b853eaf68f80"
+    },
+    "runner/src/cpu_state.c": {
+      "predecessor_sha256": "fcfe38b5eae8d95f42e37ccb34311b40d553fdafefebd140bb8eb48d14bed9fe",
+      "normalized_predecessor_sha256": "347408ff9d6ce3f27a1ca9972cfa08c17881d5d952d41c6fe0f64cc00389e2db",
+      "final_sha256": "0a4b53ca254dd66aa81d0d232fc7ad3d29fb2a8739be16820a83c4129c4de7f7",
+      "normalized_final_sha256": "0a4b53ca254dd66aa81d0d232fc7ad3d29fb2a8739be16820a83c4129c4de7f7"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "fd79507164010a7519c1766fe6554c444e129ae024e05f791d976637a06e39f4",
+      "normalized_predecessor_sha256": "d83158f8314c621aa95b0b9dbb23f20d5533079d9e3502c134f1426f7605729b",
+      "final_sha256": "27106cd2e6e8a385a828b4afee4573ecdff685b77658334553ff2488a7aaea80",
+      "normalized_final_sha256": "27106cd2e6e8a385a828b4afee4573ecdff685b77658334553ff2488a7aaea80"
+    },
+    "runner/src/redirect_contract.h": {
+      "predecessor_sha256": null,
+      "normalized_predecessor_sha256": null,
+      "final_sha256": "3b1a2b80d80eeb9e0d2c8fefbf30ace3411a4b7e0bf9ebce267c70e0a154b37a",
+      "normalized_final_sha256": "3b1a2b80d80eeb9e0d2c8fefbf30ace3411a4b7e0bf9ebce267c70e0a154b37a"
+    },
+    "runner/src/redirect_contract.inc": {
+      "predecessor_sha256": null,
+      "normalized_predecessor_sha256": null,
+      "final_sha256": "3f46bce9d676589a179a7b840eb901b3de5b03f8b0991eb3834e0ec43c603500",
+      "normalized_final_sha256": "3f46bce9d676589a179a7b840eb901b3de5b03f8b0991eb3834e0ec43c603500"
+    },
+    "runner/src/snes/bridge_redirect_helpers.inc": {
+      "predecessor_sha256": null,
+      "normalized_predecessor_sha256": null,
+      "final_sha256": "f7fb977a9cad12fb2b032693f502e472dcd5728abbd8a77889418bc963362255",
+      "normalized_final_sha256": "f7fb977a9cad12fb2b032693f502e472dcd5728abbd8a77889418bc963362255"
+    }
+  },
+  "scope": "One existing typed D111:M1X0 original JSL FF20 with actual D0/selector2 and stable LoROM low WRAM mirrors. Full original dispatcher transaction and rewritten RTL remain original. Independent source/task/stack/fullPC/owner/dispatch epochs and one-use prefetch-safe scheduler authorization license only separately source-derived D176/D178/D17B architectural prefix; unknown E000/FF03 barriers, masks and forced-original FF20/84D9 remain. No callee exit, C406/A90C roots, serialized fields or full native/AOT claim; real declared ABI/profile calculation remains required."
+}

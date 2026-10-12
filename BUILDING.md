@@ -43,7 +43,7 @@ To choose a new native build folder explicitly:
 
 ```powershell
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc" `
-  --output-dir "local/source-builds/native041-fresh"
+  --output-dir "local/source-builds/native051-fresh"
 ```
 
 `--output-dir` must not already exist. The default remains a fresh timestamped
@@ -53,43 +53,35 @@ The helper checks the ROM identity before generating anything. It creates a
 fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
-The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current thirteen-patch key is `7931b53c4968-a4be41767ed1b650`. All thirteen full ordered hashes remain in the marker and receipt. Keep caches needed by active builds; remove obsolete rebuildable payloads under the project's required-only storage policy.
+The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`.
+The current 28-patch key is `7931b53c4968-3b28789fe84824aa`. All 28 full ordered
+hashes remain in the marker and receipt. Fresh builds use the public helper and
+verified runtime/SDL dependencies; changed existing caches are preserved, never
+reset to make a build pass. Keep required active caches and remove closed
+rebuildable outputs under the required-only storage policy.
 
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
 [`native/foundation/framework_pins.txt`](native/foundation/framework_pins.txt).
-The script checks those pins and applies `patches/runtime-foundation.patch`,
-`patches/runtime-navigation-map.patch`, `patches/runtime-faithful-clear.patch`,
-`patches/runtime-modal-audio.patch` and
-`patches/runtime-automatic-faithful.patch`, followed by the separate
-`patches/runtime-paired-lifecycle.patch`, `patches/runtime-proven-prefix.patch`,
-`patches/runtime-faithful-hook-boundary.patch` and the metadata-only
-`patches/runtime-reviewed-roots.patch`, then the separate generic
-`patches/runtime-converged-exits.patch`, followed by the exact single-file
-`patches/runtime-accumulator.patch`, then
-`patches/runtime-native-continuations.patch`, then
-`patches/runtime-memory-rmw.patch`.
-Each patch has an independently recorded hash in the cache key and marker; the
-combined resulting source hashes are checked before reusing a checkout. Unexpected
-revisions or edits stop the build without deleting or resetting that checkout.
+The helper checks both submodule pins and applies all 28 individually hashed
+runtime patches in order. The public `patches/` bindings record exact prior and
+final source hashes; each new stage validates its predecessor before applying,
+then validates final sources and source accounting. Unexpected edits or cache
+markers stop the build while preserving the existing checkout.
 
-The eleventh patch admits only decoded, exact one-byte accumulator `ASL`, `LSR`,
-`ROL` and `ROR` instructions with known M/X flags through the existing faithful
-emitter. At this predecessor, memory read/modify/write forms and `INC`/`DEC`
-remain on the original path; the thirteenth patch extends them as described below.
-Existing original buses, instruction clocks, masks, unknown-mode/call
-yields and registered pre-opcode callbacks retain their contracts. This extends
-generic default generation; it is not a whole-game AOT or performance claim.
+The current native instruction and continuation families run inside the original
+scheduler. Registered callbacks finish before a certified instruction can run;
+original stack/return ownership, buses, clocks, deadlines, IRQ, masks, forced
+original entries and unknown-mode/call refusal remain authoritative. Independent
+instruction bodies preserve source flags and conditional branches before prefix
+activation transforms. Supported indirect-Y and direct stack-relative data
+operations remain separate from unsupported addressing forms.
 
-The helper binds the complete ten-patch predecessor and complete post-apply
-emitter before accepting an exact source-bound CRLF-to-LF conversion in the new
-eleven-patch cache. The twelfth patch follows that frozen emitter, with separate exact predecessor/final hashes in patches/runtime-native-continuations.json. The resulting emitter must match its current full recorded SHA-256;
-mixed, unknown or changed source bytes are refused. The cache marker and real
-compilation receipt record the predecessor, patch output, conversion and final
-source identities. Earlier ten-patch caches are not rewritten. The source
-provenance carries hash-only reviewed offline instruction evidence, with no
-private fixture or report-file dependency in public Setup. Source review does
-not qualify a newly compiled executable.
+The selected original-call and redirect continuations require live source bytes,
+owner/epoch and consumed-frame proofs. Dormant task and redirect observers return
+before unnecessary view/recipe work when no authorization is live. They do not
+cache a positive match or bypass an active guard. Complete native/AOT conversion
+remains unfinished; these are bounded source contracts.
 
 Normal generation uses the pinned analyzer/emitter with the checked
 CRC32/SHA-256, `recomp/symbols.toml`, all three bank configurations and
@@ -97,9 +89,10 @@ CRC32/SHA-256, `recomp/symbols.toml`, all three bank configurations and
 certification default on. `--no-converged-exits` is a diagnostic opt-out.
 The supported SDK regeneration command forwards `--cfg-roots`,
 `--no-host-root-scan`, `--faithful-prefixes`, `--certify-converged-exits` and the single
-`--reviewed-root-manifest` input. The builder may invoke the same emitter directly;
-From a fresh authored project, both interfaces reproduce the same graph, all19
-generated files and the generated prototype header. Start without a prior
+`--reviewed-root-manifest` input. The builder may invoke the same emitter directly.
+The current default emitter produces an exact allowlist of 25 generated outputs;
+the prototype header is also generated locally. The earlier 19-output SDK
+comparisons retain their historical scope. Start without a prior
 generated `recomp/funcs.h`: feeding that output back as an input can change
 interrupt aliases and the module digest. The public builder always creates a
 fresh source folder. The automatic faithful patch retains upstream decoded instruction
@@ -155,7 +148,7 @@ and registered callbacks remain authoritative. With the existing roots, the
 reviewed-root continuation reported 196 roots and 245 contexts: 151 full
 bodies, 93 proved prefixes and one interpreted context under its nine-patch
 generator. Those are historical generation counts. Read each new compilation
-receipt for its actual eleven-patch dispositions; they are not campaign execution
+receipt for its actual current ordered-patch identities and dispositions; they are not campaign execution
 coverage.
 
 For generation diagnostics, `--no-reviewed-roots` omits the authored additional
@@ -163,7 +156,7 @@ seeds and `--no-proven-prefixes` disables prefix emission. Neither option is
 needed for normal Setup. `--emit-proven-prefixes` remains accepted explicitly.
 The optional `--profile-*` inputs retain their separate exact original
 five-patch receipt/program/analyzer/runtime checks; they are not a default or
-a public dependency. Captured-source identity and target eleven-patch generator
+a public dependency. Captured-source identity and current target generator
 identity remain separate. ROM-derived output stays ignored and local.
 [Reviewed metadata, reproducibility and limits](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md).
 
@@ -190,14 +183,15 @@ The 0.2.9 source continuation includes guarded original single/compound vehicles
 selected world-map actors and two authenticated interior actor families.
 Journal current possession defaults on within the existing Journal feature;
 `JournalPossession=0` in foundation.ini disables its inventory line.
-Native 0.4.0 adds the full 42-page / 14-section story guide. Original current
-chapter 0-24 suggests a starting section; fine current advice retains the
-bounded opening-through-Sidon predicates. Loading an earlier checkpoint
+The full 42-page / 14-section story guide remains browsable through the ending.
+Current has dedicated cards for all 25 original chapters, plus the existing
+finer opening-through-Sidon predicates. The guide starting section follows the
+current original chapter. Loading an earlier checkpoint
 recomputes current advice. Item possession, chapter suggestions and written
 walkthrough pages are not permanent completion history.
 See [guide controls and feature checks](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md)
 and [content sources](docs/JOURNAL-GUIDE-SOURCES.md).
-See [current release scope](docs/FOUNDATION-INTERIOR-TOWN-DISPLAY-2026-10-11.md) and the retained
+See [current release scope](docs/FOUNDATION-NATIVE-TRAVEL-CONTINUATIONS-2026-10-12.md) and the retained
 [integrated actor scope](docs/FOUNDATION-INTEGRATED-RELEASE-2026-10-09.md).
 
 The engine's default input and hotkeys may differ from an already configured
@@ -330,7 +324,30 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.4.0 source / Companion 0.3.6)
+## Current source and artifact scope (native 0.5.1 / Companion 0.3.6)
+
+The current snapshot has 63 native and 24 unchanged Companion authored inputs.
+Its 28 ordered patches use cache19 / normal instruction metadata8 / selected-task
+metadata2 / redirect metadata1. Default generation records 9,076 normal mode
+rows, 121 selected-task rows and 3 source-redirect rows in 25 outputs. Fifteen
+callable bank C units retain the earlier callable source bodies. These are
+source/generation counts, not whole-game execution or campaign certification.
+
+Fresh executable SHA-256:
+`079885fda683aaf449c4336a726ae96ebeaa827e033f82cfbdf332b410c88aaf`.
+Immutable compilation receipt SHA-256:
+`3579936ea1d7b26af66057f27fe7769749e0faea93e5b391e18341cb7000c2e5`.
+The receipt remains `compiled_unqualified`. Its declared execution-state ABI is
+`de6eb89eb74024bc3e57df857a6a14fe6dd4d7d73dedf888fcba425eb5678321`.
+Exact artifact execution/render/input checks: three finite runs match all24,744 completed original state/clock/bus/PPU/save-load boundaries; enabled24,706native/38original. Two six-frame staged original-loader effect runs pass61checks with144 independently expected margin pixels at each positive frame. Keyboard/indexed SDL virtual-pad paths pass21checks; root inspected contacts.
+Exact profile/update checks: one isolated050-to051 update through hash-bound unchanged Companion036 production Core methods preserves settings/copied saves, verifies target receipt/executable and retains gameplay-unqualified readiness. This host-method check is separate from the actual installedGUI60-frame title-first launch, which also passes. Both native paths and36new metadata fields match; owner settings/saves/selectors are unchanged.
+One stationary 300-frame D3D11/VSync/audio route passed at 60.030 FPS, with zero
+steady underflow/missing/audible-drop deltas and 75,051 authenticated margin pixels.
+Startup drops are recorded separately; this does not certify every scene or PC.
+
+Historical sections below retain their dated patch and artifact identities.
+
+## Historical navigation and display scope (native 0.4.0 / Companion 0.3.6)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and

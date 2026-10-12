@@ -1,0 +1,27 @@
+{
+  "status": "private_frozen_redirect_idle28_on_unbuilt26_plus27",
+  "predecessor": "C:\\Users\\crono\\AppData\\Local\\Temp\\secret-stars-current051-5431d88c43\\host-proof-performance-next063\\redirect-idle-next028\\predecessor-runtime",
+  "cumulative26_runtime": "C:\\Users\\crono\\AppData\\Local\\Temp\\secret-stars-current051-5431d88c43\\native-addressing-next062\\stack-direct-next026\\runtime",
+  "cumulative27_overlay": "C:\\Users\\crono\\AppData\\Local\\Temp\\secret-stars-current051-5431d88c43\\host-proof-performance-next063\\runtime",
+  "files": {
+    "runner/src/snes/bridge_redirect_helpers.inc": {
+      "predecessor_sha256": "f7fb977a9cad12fb2b032693f502e472dcd5728abbd8a77889418bc963362255",
+      "final_sha256": "c11c448394a9b053ed1e9326fade9d2025d061aa287a2a68d041c1c46679150c"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "f950f98db5761444e24d4b10b9ee647a07d4c090b27fec2044f1088872426fb1",
+      "final_sha256": "3ad6d7f33c3042828fa5695e7e2a1b8fb194c362d9e9bf1b317a482709395e43"
+    }
+  },
+  "patch_sha256": "8721710970d4c0a5d21549a55519fbf66a6d8da6642125b104a27f48141d28ab",
+  "predecessor26_patch_sha256": "15216693a15553b6c0b3a71a9b96e281300dc31a07cee51a1612d92789f2e39c",
+  "predecessor26_binding_sha256": "25a03769d286abcee36af97b94562a7189a530beecef490c449cf86f002d44f8",
+  "predecessor27_patch_sha256": "058143dee58cbf9d7bba1856ee703a08ff3bc970248dc62b7cb9c5a2aa28429d",
+  "predecessor27_binding_sha256": "900e284d5973983d3efcdaa2cef6a5e8dc97ed351ea0f439029b050c6b6284a8",
+  "scope": "Dormant original-local redirect observers return before view/fullrecipe only at non-D111 with all stage/pending/published/handoff/active/prepared/call-candidate/dispatch-cpu authorizations absent; every live source/byte/owner/epoch/hooks/reset/common scope check unchanged; no positive match cache",
+  "cache_format": 19,
+  "normal_metadata": 8,
+  "task_metadata": 2,
+  "redirect_metadata": 1,
+  "artifact_qualification": false
+}

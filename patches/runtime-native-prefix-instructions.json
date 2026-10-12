@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "be14f3e131a93189893c5c24c2eed7b298e1aa0d7297af8ddd75aa394fbb727f",
+  "files": {
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "d611131d12cecb5fa5063ef604299243f6e5210e7916d5f20e83e6ea9b4c9403",
+      "normalized_predecessor_sha256": "d611131d12cecb5fa5063ef604299243f6e5210e7916d5f20e83e6ea9b4c9403",
+      "final_sha256": "89a2e546be82ed75da2b35b01811e491ed26c25b79626e97b20eba352407399d",
+      "normalized_final_sha256": "89a2e546be82ed75da2b35b01811e491ed26c25b79626e97b20eba352407399d"
+    },
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "5636622fd3fe1573070d0a397b82d40a69d078da0feb7830352e116c466cdf28",
+      "normalized_predecessor_sha256": "5636622fd3fe1573070d0a397b82d40a69d078da0feb7830352e116c466cdf28",
+      "final_sha256": "685d90e35cf7530cd5920c0f81191f210a6a933f573263dec24caf3e99051314",
+      "normalized_final_sha256": "685d90e35cf7530cd5920c0f81191f210a6a933f573263dec24caf3e99051314"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "05adc6cffa01c2a54cebf5804c912f525b763daa58331eab05072732ba2c2e49",
+      "normalized_predecessor_sha256": "05adc6cffa01c2a54cebf5804c912f525b763daa58331eab05072732ba2c2e49",
+      "final_sha256": "e9d71965d326095b3f36cc33eefa75dd25e874adac01df9327b013c928d9bc1a",
+      "normalized_final_sha256": "e9d71965d326095b3f36cc33eefa75dd25e874adac01df9327b013c928d9bc1a"
+    }
+  },
+  "scope": "Independent decoded source-instruction snapshots before prefix activation plumbing; exact conditional IR/ROM target/actual flag and fold refusal. Original prefix function/commit/refusal/count and frozen19 Return/fullPC24/scheduler ownership remain unchanged. No new roots/modes/masks/certificates/calls. Generated additions are separate from actual qualification; complete native/AOT unfinished."
+}

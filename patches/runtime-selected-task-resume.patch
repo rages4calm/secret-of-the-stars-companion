@@ -1,0 +1,563 @@
+diff --git a/recompiler/v2/cfg_loader.py b/recompiler/v2/cfg_loader.py
+--- a/recompiler/v2/cfg_loader.py
++++ b/recompiler/v2/cfg_loader.py
+@@ -80,6 +80,7 @@
+ @dataclass
+ class BankCfg:
+     bank: int
++    source_task_resumes: list = field(default_factory=list)
+     includes: List[str] = field(default_factory=list)
+     entries: List[BankEntry] = field(default_factory=list)
+     names: List[NameDecl] = field(default_factory=list)
+@@ -276,6 +277,12 @@
+ 
+             tokens = stripped.split()
+             head = tokens[0]
++            if head == 'source_task_resume_v1':
++                if len(tokens)!=8:raise ValueError('source_task_resume_v1 requires seven exact source PCs')
++                recipe=tuple(_parse_hex(v) for v in tokens[1:])
++                if any(v<0 or v>0xffffff for v in recipe):raise ValueError('source_task_resume_v1 requires exact 24-bit source PCs')
++                cfg.source_task_resumes.append(recipe)
++                continue
+ 
+             # bank = NN
+             if head == 'bank' and len(tokens) >= 3 and tokens[1] == '=':
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -490,7 +490,8 @@
+                   inline_arg_map=None,
+                   terminal_jsr_sites=None,
+                   noreturn_jsr_sites=None,
+-                  entry_s_offset: int = 0, native_region_collector=None) -> str:
++                  entry_s_offset: int = 0, native_region_collector=None,
++                  source_task_resume_stops=None) -> str:
+     """Emit a complete v2 C function source for one 65816 function.
+ 
+     Pipeline:
+@@ -620,9 +621,15 @@
+                             inline_arg_map=inline_arg_map,
+                             terminal_jsr_sites=terminal_jsr_sites,
+                             noreturn_jsr_sites=noreturn_jsr_sites,
+-                            stop_on_unknown_callee_exit=bool(_prefix_expected),
++                            stop_on_unknown_callee_exit=bool(_prefix_expected) or source_task_resume_stops is not None,
+                             hle_entry_pcs=(set(hle_func or ()) |
+                                            set(hle_spc_upload or ())))
++    if source_task_resume_stops is not None:
++        actual = frozenset(tuple(row) for row in graph.unknown_callee_exit_sites)
++        if actual != frozenset(tuple(row) for row in source_task_resume_stops):
++            raise ValueError("selected-task resume source call barriers mismatch")
++        if graph.authority_conflict or graph.unresolved_indirects:
++            raise ValueError("selected-task resume source authority/indirect refusal")
+     if _prefix_expected:
+         _prefix_stops = frozenset(site for site, _target, _m, _x
+                                  in graph.unknown_callee_exit_sites)
+@@ -2307,6 +2314,7 @@
+         if not _is_refusal:
+             src.append(f'    if (!cpu_aot_begin(cpu, {block_pc24}u, {_insn.length}u, {_cyc_const}u)) {{')
+             src.append(f'      RecompStackPop(); return interp_tier_dispatch_faithful(cpu, {_transfer_target_expr(block_pc24, False)}, 0x{block_pc24:06x}u, _entry_s, _hrv, false, _host_return_pc24); }}')
++        task_observed=False
+         for ln in block_lines[key]:
+             # Inject a stack-auditor pop before any return so the shadow
+             # stack stays balanced. An LLE yield unwind is NOT a return: the
+@@ -2319,6 +2327,11 @@
+                         if "interp_bridge_lle_yield_unwind" in stripped
+                         else "RecompStackPop")
+                 src.append(f"    {_pop}();")
++            if not task_observed and _insn.mnem in ('TCS','RTL') and 'cpu_aot_commit(cpu)' in ln and ('/*' not in ln or ln.index('cpu_aot_commit(cpu)')<ln.index('/*')):
++                actual='_rpc24' if _insn.mnem=='RTL' else f'(((uint32)cpu->PB<<16)|0x{(_insn.addr+_insn.length)&65535:04x}u)'
++                observer=f'interp_bridge_source_task_committed(cpu,0x{_insn.addr:06x}u,{actual});'
++                ln=ln.replace('cpu_aot_commit(cpu)','(cpu_aot_commit(cpu), '+observer[:-1]+')',1)
++                task_observed=True
+             src.append(f"    {ln}")
+     if native_region_collector is not None:
+         from .native_regions import collect, collect_stack_control
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 12
++CACHE_FORMAT_VERSION = 13
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1069,6 +1069,8 @@
+     set_faithful_prefix_contracts(prefix_contracts(manifest, parsed))
+     entries_by_bank, emitted, name_for_pc, cfg_by_bank = build_emission_entries(
+         manifest, parsed, enable_hle=enable_hle)
++    from .task_resume import derive as derive_task_resume
++    task_rows,task_recipe,task_graphs=derive_task_resume(rom,parsed,module_prefix)
+     continuations = _native_continuation_rows(manifest)
+     _validate_native_continuation_graphs(manifest, continuations, parsed, rom,
+                                          dispatch_helpers, inline_arg_map)
+@@ -1292,6 +1294,8 @@
+             "unresolved_stubs_v2.c",
+             "native_regions_v2.c",
+             "native_regions.json",
++            "native_task_resume_v2.c",
++            "native_task_resume.json",
+             MODULE_DESCRIPTOR_SOURCE,
+         }
+         if module_prefix:
+@@ -1316,6 +1320,9 @@
+             if stale.name not in planned:
+                 stale.unlink()
+ 
++        from .task_resume import emit_source as emit_task_resume
++        write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
++        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':1,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+         from .native_regions import emit as emit_native_regions
+         forced_regions = {pc & 0x7fffff for _bank, _path, cfg in parsed
+                           for pc in getattr(cfg, 'force_lle', ())}
+diff --git a/recompiler/v2/task_resume.py b/recompiler/v2/task_resume.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/task_resume.py
+@@ -0,0 +1,73 @@
++"""Explicit source-selected task metadata; never promotes ordinary roots."""
++import json
++from snes65816 import rom_offset
++from .decoder import decode_function
++from .emit_function import emit_function
++from .native_regions import emit
++
++def derive(rom,parsed,module_prefix=None):
++ specs=[s for _b,_p,c in parsed for s in getattr(c,'source_task_resumes',())]
++ if len(specs)>1:raise ValueError('one selected-task recipe per module')
++ if specs and module_prefix:raise ValueError('selected-task recipe requires default module ownership')
++ if not specs:return [],None,[]
++ callee,save,scan,select,ret,call0,call1=specs[0]
++ if select!=scan+71 or ret!=select+6 or any(p>>16 for p in (callee,save,scan,select,ret)):
++  raise ValueError('selected-task source layout/bank refusal')
++ raw=lambda p,n:rom[rom_offset(p>>16,p&65535):rom_offset(p>>16,p&65535)+n]
++ save_expected=bytes.fromhex('08c210da5a0b8b4babae0100e2209d1100a9019d1000c2203b9d12004c')+(scan+31).to_bytes(2,'little')
++ restore_expected=bytes.fromhex('8e0100c220bd12001bab2b7afa286b')
++ # Complete source scan, including status/delay selection and 12*4 bound.
++ scan_expected=bytes.fromhex('c210a20000c230a900005be220bd1000f00dc902f038c901d005de1100f020c2208a18690400aae03000d0d92203801ce220ad000010fb297f8d00004c')+scan.to_bytes(2,'little')+restore_expected
++ spans=[(callee,b'\x4c'+save.to_bytes(2,'little')),(save,save_expected),(scan,scan_expected)]
++ for call in (call0,call1):spans.append((call-4,b'\xe2\x20\xa9\x01\x22'+callee.to_bytes(3,'little')))
++ for p,b in spans:
++  if raw(p,len(b))!=b:raise ValueError('selected-task source recipe bytes mismatch '+hex(p))
++ data=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++ forced={p&0x7fffff for _b,_p,c in parsed for p in c.force_lle}
++ for p,b in spans:
++  for byte in range(len(b)):
++   at=(p&0xff0000)|((p+byte)&65535)
++   if at&0x7fffff in forced or any((at>>16)in(bank,bank^128)and a<=at&65535<z for bank,a,z in data):
++    raise ValueError('selected-task recipe overlaps source mask')
++ rows=[];graphs=[]
++ for call in (call0,call1):
++  landing=call+4;bank=landing>>16
++  # Source-supplied explicit bounds end at the original next sibling branch
++  # boundary for these two initial contracts; reject unrelated coverage.
++  if landing not in (0x01d87c,0x01840e):raise ValueError('unreviewed selected-task landing')
++  end=0xd87f if landing==0x01d87c else 0x84ca
++  for x in (0,1):
++   graph=decode_function(rom,bank,landing&65535,1,x,end=end,max_insns=256,data_regions=data,stop_on_unknown_callee_exit=True)
++   local=[]
++   # Actual20 faithful-line snapshot and architectural branch collector.
++   emit_function(rom,bank,landing&65535,1,x,end=end,func_name='TaskSourceDerivation',data_regions=data,
++    exclude_ranges=[(p&65535,(p&65535)+1)for p in forced if p>>16==bank],native_region_collector=local,
++    source_task_resume_stops=graph.unknown_callee_exit_sites)
++   allowed={(k.pc&65535,k.m,k.x):di.insn for k,di in graph.insns.items()}
++   for row in local:
++    if row['mnemonic'] in ('JSR','JSL','RTS','RTL','TCS','TXS','PLP','PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB'):
++     continue
++    key=(row['pc24']&65535,row['m'],row['x']);i=allowed[key]
++    if row['bytes']!=raw(i.addr,i.length).hex():raise ValueError('selected-task row source mismatch')
++    if any(((row['pc24']&0xff0000)|((row['pc24']+j)&65535))&0x7fffff in forced for j in range(row['length'])):continue
++    row['contract']='native-e0-source-selected-task-resume-v1';rows.append(row)
++   graphs.append({'landing':landing,'m':1,'x':x,'decoded_rows':len(graph.insns),'call_barriers':graph.unknown_callee_exit_sites})
++ unique={}
++ for row in rows:
++  k=(row['pc24'],row['m'],row['x'])
++  if k in unique and unique[k]!=row:raise ValueError('selected-task mode/body conflict')
++  unique[k]=row
++ return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'spans':spans},graphs
++
++def emit_source(rows,recipe,module_prefix=None):
++ code=emit(rows,module_prefix).replace('cpu_native_region_step','cpu_source_task_region_step')
++ code=code.replace('extern SnesProgramModule g_program_module;','extern SnesProgramModule g_program_module;\n#include "task_resume_contract.h"\nextern bool cpu_source_task_resume_active(CpuState *,uint32,uint8);')
++ code=code.replace('  switch (((pc24&0x7fffffu)<<2)|mx) {','  if(!cpu_source_task_resume_active(cpu,pc24,mx)) return false;\n  switch (((pc24&0x7fffffu)<<2)|mx) {')
++ if recipe:
++  r=recipe;calls=r['calls'];code+='\nconst TaskResumeRecipe g_native_task_resume_recipe={'+f"{r['select']}u,{r['return']}u,{r['callee']}u,1u,16u,18u,12u,4u,1u,11u,{{{calls[0]}u,{calls[1]}u}},{{{calls[0]+4}u,{calls[1]+4}u}}"+'};\n'
++  code+='int cpu_source_task_recipe_matches(int (*peek)(void *,uint32,unsigned char *),void *ctx) {\n unsigned char b;\n'
++  for pc,raw in r['spans']:
++   for n,value in enumerate(raw):code+=f' if(!peek(ctx,{pc+n}u,&b)||b!={value}u)return 0;\n'
++  code+=' return 1;\n}\n'
++ else:code+='\nconst TaskResumeRecipe g_native_task_resume_recipe={0};\nint cpu_source_task_recipe_matches(int (*peek)(void *,uint32,unsigned char *),void *ctx){(void)peek;(void)ctx;return 0;}\n'
++ return code
+diff --git a/runner/src/cpu_state.c b/runner/src/cpu_state.c
+--- a/runner/src/cpu_state.c
++++ b/runner/src/cpu_state.c
+@@ -1438,6 +1438,7 @@
+ extern int snes_frame_counter;
+ 
+ void cpu_continuation_reset(void) {
++    interp_bridge_source_task_reset();
+     cpu_native_region_reset();
+     memset(s_native_continuations, 0, sizeof s_native_continuations);
+     s_native_continuation_depth = 0;
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -27,6 +27,9 @@
+ struct CpuState;
+ /* Generated scheduler-owned instruction leaf; next PC is transient output. */
+ bool cpu_native_region_step(struct CpuState *cpu, uint32 pc24, uint8 mx, uint32 *next_pc);
++void interp_bridge_source_task_reset(void);
++void interp_bridge_source_task_committed(struct CpuState *,uint32 source_pc,uint32 actual_pc);
++bool cpu_source_task_resume_active(struct CpuState *,uint32 pc24,uint8 mx);
+ 
+ #ifdef __cplusplus
+ extern "C" {
+diff --git a/runner/src/snes/bridge_task_helpers.inc b/runner/src/snes/bridge_task_helpers.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/snes/bridge_task_helpers.inc
+@@ -0,0 +1,102 @@
++/* Private source-selected task observer; original guest/runtime ownership wins. */
++#include "../task_resume_contract.h"
++#include "../task_resume_contract.inc"
++#include "cart.h"
++#include "../program_module.h"
++__attribute__((weak)) const TaskResumeRecipe g_native_task_resume_recipe={0};
++__attribute__((weak)) int cpu_source_task_recipe_matches(int (*peek)(void *,uint32,unsigned char *),void *ctx){(void)peek;(void)ctx;return 0;}
++__attribute__((weak)) bool cpu_source_task_region_step(CpuState *cpu,uint32 pc,uint8 mx,uint32 *next) {
++ (void)cpu;(void)pc;(void)mx;(void)next;return false;
++}
++extern SnesProgramModule g_program_module;
++static TaskResumeSnapshot s_task_proof,s_task_active;
++static uint64_t s_task_owner_serial,s_task_next_serial;
++static uint64_t s_task_hook_generation;
++static unsigned s_task_prepared;
++static TaskResumeState s_task_from;
++static uint32 s_task_prepared_source,s_task_prepared_target;
++void interp_bridge_source_task_reset(void) {
++ task_resume_reset(&s_task_proof);task_resume_reset(&s_task_active);
++ s_task_prepared=0;memset(&s_task_from,0,sizeof(s_task_from));
++}
++static int task_peek(void *ctx,uint32 at,uint8 *out) {
++ CpuState *cpu=(CpuState*)ctx;
++ if(at<0x2000u&&cpu&&cpu->ram){*out=cpu->ram[at];return 1;}
++ if(at>0xffffffu||(at&0xffffu)<0x8000u||!g_snes||!g_snes->cart||!g_snes->cart->rom)return 0;
++ Cart *c=g_snes->cart;const uint8 *p=cart_getRomPtr(c,(uint8)(at>>16),(uint16)at);
++ uintptr_t start=(uintptr_t)c->rom,where=(uintptr_t)p;
++ if(!p||where<start||where-start>=c->romSize)return 0;*out=*p;return 1;
++}
++static uint8 task_pack_p(const CpuState *c) {
++ return (uint8)((c->m_flag?CPU_P_M:0)|(c->x_flag?CPU_P_X:0)|
++ (c->_flag_C?CPU_P_C:0)|(c->_flag_Z?CPU_P_Z:0)|(c->_flag_I?CPU_P_I:0)|
++ (c->_flag_D?CPU_P_D:0)|(c->_flag_V?CPU_P_V:0)|(c->_flag_N?CPU_P_N:0));
++}
++static TaskResumeState task_cpu_view(CpuState *c,uint32 actual) {
++ const SnesProgramModule *m=snes_program_module_active();if(!m)m=&g_program_module;
++ TaskResumeState v={(uintptr_t)c,(uintptr_t)m,
++  s_interp_owner_exit_valid?(uintptr_t)&s_interp_owner_exit_valid:0,
++  RtlStateGeneration(),(uint64_t)snes_frame_counter,s_task_owner_serial,
++  actual,c->S,c->A,c->X,c->Y,c->D,task_pack_p(c),c->DB,c->emulation};return v;
++}
++static TaskResumeState task_local_view(CpuState *c,const Interp816 *in,uint32 actual) {
++ TaskResumeState v=task_cpu_view(c,actual);
++ v.s=in->sp;v.a=in->a;v.x=in->x;v.y=in->y;v.d=in->dp;v.db=in->db;v.e=in->e;
++ v.p=(uint8)((in->mf?CPU_P_M:0)|(in->xf?CPU_P_X:0)|(in->c?CPU_P_C:0)|
++  (in->z?CPU_P_Z:0)|(in->i?CPU_P_I:0)|(in->d?CPU_P_D:0)|(in->v?CPU_P_V:0)|(in->n?CPU_P_N:0));return v;
++}
++static void task_committed_view(CpuState *c,uint32 source,const TaskResumeState *v) {
++ const TaskResumeRecipe *r=&g_native_task_resume_recipe;
++ if(v->module!=(uintptr_t)&g_program_module||!r->count)return;
++ if(source==r->select_pc){interp_bridge_source_task_reset();s_task_hook_generation=s_pre_opcode_hook_generation;
++  if(cpu_source_task_recipe_matches(task_peek,c))task_resume_selected(&s_task_proof,r,source,v,task_peek,c);}
++ else if(source==r->return_pc){task_resume_reset(&s_task_active);
++  if(s_task_hook_generation!=s_pre_opcode_hook_generation){interp_bridge_source_task_reset();return;}
++  task_resume_publish(&s_task_proof,source,v,task_peek,c);}
++}
++void interp_bridge_source_task_committed(CpuState *c,uint32 source,uint32 actual) {
++ if(!c)return;TaskResumeState v=task_cpu_view(c,actual);task_committed_view(c,source,&v);
++}
++static int task_prepare_return(CpuState *c,uint32 source,uint32 actual,unsigned route) {
++ s_task_prepared=0;
++ if(!s_task_proof.published||s_task_proof.handoff||source!=s_task_proof.recipe->return_pc)return 0;
++ TaskResumeState v=task_cpu_view(c,actual);
++ if(v.pc!=s_task_proof.actual_landing||v.s!=s_task_proof.actual_s||v.p!=s_task_proof.actual_p)return 0;
++ s_task_from=v;s_task_prepared_source=source;s_task_prepared_target=actual;s_task_prepared=route;return 1;
++}
++static void task_owner_enter(CpuState *c,uint32 entry,int interrupt_run) {
++ TaskResumeState v=task_cpu_view(c,entry);
++ if(!interrupt_run&&s_task_prepared&&entry==s_task_prepared_target){
++  unsigned route=s_task_prepared;s_task_prepared=0;
++  if(task_resume_handoff(&s_task_proof,s_task_prepared_source,route,&s_task_from,&v))return;
++ }
++ interp_bridge_source_task_reset();
++}
++static int task_pre_opcode(CpuState *c,uint32 pc,uint8 mx) {
++ TaskResumeState v=task_cpu_view(c,pc);uint32 landing;uint8 mode;
++ if(s_task_hook_generation!=s_pre_opcode_hook_generation){interp_bridge_source_task_reset();return 0;}
++ if(s_task_proof.published){TaskResumeSnapshot keep=s_task_proof;
++  if(task_resume_take(&s_task_proof,&v,task_peek,c,&landing,&mode)){
++   s_task_active=keep;s_task_active.actual=v;s_task_active.actual_landing=landing;s_task_active.actual_p=v.p;
++  }
++ }
++ if(!s_task_active.published)return 0;
++ TaskResumeSnapshot *a=&s_task_active;
++ int valid=v.cpu==a->actual.cpu&&v.module==a->actual.module&&v.owner==a->actual.owner&&
++  v.owner_epoch==a->actual.owner_epoch&&v.frame==a->actual.frame&&v.generation==a->actual.generation&&
++  v.pc==a->actual.pc&&v.s==a->actual.s&&v.p==a->actual.p&&v.a==a->actual.a&&
++  v.x==a->actual.x&&v.y==a->actual.y&&v.d==a->actual.d&&v.db==a->actual.db&&!v.e&&
++  mx==(((v.p>>5)&1)*2+((v.p>>4)&1));
++ uint8 b;for(unsigned n=0;valid&&n<11;n++)valid=task_peek(c,a->saved_s+1+n,&b)&&b==a->bytes[n];
++ uint8 lo,hi,status,slo,shi;
++ valid=valid&&task_peek(c,a->recipe->current_index,&lo)&&task_peek(c,a->recipe->current_index+1,&hi)&&
++  (uint16)(lo|((uint16)hi<<8))==a->index&&task_peek(c,a->recipe->status_base+a->index,&status)&&status==1&&
++  task_peek(c,a->recipe->saved_s_base+a->index,&slo)&&task_peek(c,a->recipe->saved_s_base+a->index+1,&shi)&&
++  (uint16)(slo|((uint16)shi<<8))==a->saved_s;
++ if(!valid){task_resume_reset(a);return 0;}return 1;
++}
++bool cpu_source_task_resume_active(CpuState *c,uint32 pc,uint8 mx){return task_pre_opcode(c,pc,mx)!=0;}
++static void task_step_finished(CpuState *c,uint32 actual,int completed) {
++ if(!completed){task_resume_reset(&s_task_active);return;}
++ s_task_active.actual=task_cpu_view(c,actual);
++}
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -894,6 +894,7 @@
+  * frame then injected NMI at a stale PC over a half-unwound stack and ran
+  * garbage into InvalidInterrupt_Crash ($80:8573). */
+ static int      s_interp_owner_is_scheduler = 0;
++#include "bridge_task_helpers.inc"
+ 
+ /* Has a post-return S crossed above the owning interpreter frame's exit
+  * watermark, into a compiled ancestor? Never true for a scheduler owner.
+@@ -2905,6 +2906,9 @@
+         const uint8 unpublished_p = cpu->P;
+         s_interp_bus_timing_active = 0; /* no instruction bus work has begun */
+         sync_interp_to_cpu(&in, cpu);
++        bool (*region_dispatch)(CpuState *,uint32,uint8,uint32 *)=cpu_native_region_step;
++        const int source_task_dispatch=task_pre_opcode(cpu,pc_before,coverage_mx);
++        if(source_task_dispatch)region_dispatch=cpu_source_task_region_step;
+         const SchedulerHookHandoff previous_handoff = s_scheduler_hook_handoff;
+         s_scheduler_hook_handoff = (SchedulerHookHandoff){0};
+         s_scheduler_hook_handoff.observed_hooks = scheduler_hooks_observed;
+@@ -2916,10 +2920,10 @@
+             s_scheduler_hook_handoff.lifecycle = s_scheduler_hook_lifecycle;
+             s_scheduler_hook_handoff.state_generation = RtlStateGeneration();
+             s_scheduler_hook_handoff.host_frame = snes_frame_counter;
+-            s_scheduler_hook_handoff.dispatch = cpu_native_region_step;
++            s_scheduler_hook_handoff.dispatch = region_dispatch;
+         }
+         const bool region_completed = lle_yield_bounce_enabled() &&
+-            cpu_native_region_step(cpu, pc_before,
++            region_dispatch(cpu, pc_before,
+             coverage_mx, &region_next_pc);
+         s_scheduler_hook_handoff = previous_handoff;
+         int _cyc;
+@@ -2934,6 +2938,11 @@
+             cpu->P = unpublished_p;
+             s_interp_bus_timing_active = 1;
+             _cyc = interp816_runOpcode(&in);
++        }
++        if(source_task_dispatch)task_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed);
++        if(pc_before==g_native_task_resume_recipe.select_pc||pc_before==g_native_task_resume_recipe.return_pc) {
++            const TaskResumeState task_view=task_local_view(cpu,&in,((uint32)in.k<<16)|in.pc);
++            task_committed_view(cpu,pc_before,&task_view);
+         }
+         if (s_interp_pctrace && steps < 4)
+             fprintf(stderr, "[pctrace] step=%ld post-runOpcode cyc=%d pc=%02X:%04X\n",
+@@ -3472,10 +3481,13 @@
+     const uint16_t _saved_owner_exit_s = s_interp_owner_exit_s;
+     const int _saved_owner_exit_valid = s_interp_owner_exit_valid;
+     const int _saved_owner_is_scheduler = s_interp_owner_is_scheduler;
++    const uint64_t saved_task_owner_serial=s_task_owner_serial;
++    s_task_owner_serial=++s_task_next_serial;
+     s_interp_owner_exit_s = s_exit;
+     s_interp_owner_exit_valid = 1;
+     s_interp_owner_is_scheduler = yield_pc != 0;
+     s_interp_bridge_depth++;
++    task_owner_enter(cpu,entry_pc24,stop_on_rti);
+     /* Attribution scope (see interp_scope_name above). Saved/restored rather
+      * than assumed clean: a bounce chain re-enters this wrapper with an AOT
+      * name installed, and that name must come back on our exit. */
+@@ -3491,6 +3503,8 @@
+     g_interp_wlog_pc24 = 0;  /* control returns to compiled code */
+     RecompStackPop();
+     g_last_recomp_func = _saved_func;
++    interp_bridge_source_task_reset();
++    s_task_owner_serial=saved_task_owner_serial;
+     s_interp_bridge_depth--;
+     s_interp_owner_exit_s = _saved_owner_exit_s;
+     s_interp_owner_exit_valid = _saved_owner_exit_valid;
+@@ -4027,6 +4041,7 @@
+      * stopping when its RTS/RTL moves above it exactly matches an hrv=0 AOT
+      * tail dispatch; using the enclosing routine's entry_s would conflate two
+      * distinct stack frames. */
++    task_prepare_return(cpu,site_pc24,target_pc24,1u);
+     const uint16_t target_entry_s = cpu->S;
+     uint32_t landing = target_pc24;
+     int ok = interp_bridge_run_ex2(cpu, target_pc24, target_entry_s, &landing,
+@@ -4076,6 +4091,7 @@
+     interp_tier_note(target_pc24);
+     const uint8_t mx = tier2_entry_mx(cpu);
+     tier2_discover(site_pc24, target_pc24, mx, TIER2_KIND_DISPATCH, -1);
++    task_prepare_return(cpu,site_pc24,target_pc24,2u);
+     const uint16_t post_pop_s = cpu->S;
+     uint32_t landing = target_pc24;
+     int ok = interp_bridge_run_ex2(cpu, target_pc24, post_pop_s, &landing,
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -304,4 +304,8 @@
+                              uint8_t kind, int clean);
+ #endif
+ 
++void interp_bridge_source_task_reset(void);
++void interp_bridge_source_task_committed(CpuState *,uint32_t,uint32_t);
++bool cpu_source_task_resume_active(CpuState *,uint32,uint8);
++
+ #endif /* INTERP_BRIDGE_H */
+diff --git a/runner/src/task_resume_contract.h b/runner/src/task_resume_contract.h
+new file mode 100644
+--- /dev/null
++++ b/runner/src/task_resume_contract.h
+@@ -0,0 +1,46 @@
++#ifndef SOURCE_SELECTED_TASK_RESUME_H
++#define SOURCE_SELECTED_TASK_RESUME_H
++#include <stdint.h>
++#include <stddef.h>
++
++/* Transient proof state only. Original guest WRAM is the suspended task. */
++typedef struct {
++ uint32_t select_pc, return_pc, callee_pc;
++ uint16_t current_index, status_base, saved_s_base;
++ uint8_t count, stride, status, frame_bytes;
++ uint32_t callsite[2], landing[2];
++} TaskResumeRecipe;
++typedef struct {
++ uintptr_t cpu, module, owner;
++ uint64_t generation, frame, owner_epoch;
++ uint32_t pc;
++ uint16_t s,a,x,y,d;
++ uint8_t p,db,e;
++} TaskResumeState;
++typedef int (*TaskResumePeek)(void *,uint32_t,uint8_t *);
++typedef struct {
++ TaskResumeState epoch,actual;
++ const TaskResumeRecipe *recipe;
++ uint16_t index,saved_s;
++ uint8_t bytes[11], pending;
++ uint32_t actual_landing;
++ uint16_t actual_s;
++ uint8_t actual_p,published,handoff;
++} TaskResumeSnapshot;
++
++void task_resume_reset(TaskResumeSnapshot *);
++/* Called after committed TCS, never writes/fetches/charges guest state. */
++int task_resume_selected(TaskResumeSnapshot *,const TaskResumeRecipe *,uint32_t,
++                         const TaskResumeState *,TaskResumePeek,void *);
++/* Called after actual committed RTL; never changes host return ownership. */
++int task_resume_publish(TaskResumeSnapshot *,uint32_t,const TaskResumeState *,
++                        TaskResumePeek,void *);
++enum TaskResumeOwnerRoute { TASK_OWNER_POPPED_RETURN=1,TASK_OWNER_REWRITTEN_RETURN=2 };
++/* Only the actual original popped/rewritten-return handler may issue this.
++   It records a handoff already chosen by original ownership code. */
++int task_resume_handoff(TaskResumeSnapshot *,uint32_t,unsigned,
++                         const TaskResumeState *,const TaskResumeState *);
++/* Consume once at scheduler safe admission, after existing pre-opcode gates. */
++int task_resume_take(TaskResumeSnapshot *,const TaskResumeState *,
++                     TaskResumePeek,void *,uint32_t *,uint8_t *);
++#endif
+diff --git a/runner/src/task_resume_contract.inc b/runner/src/task_resume_contract.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/task_resume_contract.inc
+@@ -0,0 +1,87 @@
++#include "task_resume_contract.h"
++#include <string.h>
++
++void task_resume_reset(TaskResumeSnapshot *s) { if(s) memset(s,0,sizeof(*s)); }
++static uint16_t word(const uint8_t *p) { return (uint16_t)(p[0]|((uint16_t)p[1]<<8)); }
++static int epoch(const TaskResumeState *a,const TaskResumeState *b) {
++ return a->cpu==b->cpu && a->module==b->module && a->owner==b->owner &&
++ a->generation==b->generation && a->frame==b->frame && a->owner_epoch==b->owner_epoch;
++}
++static int peekword(TaskResumePeek peek,void *ctx,uint32_t at,uint16_t *out) {
++ uint8_t a,b;if(!peek(ctx,at,&a)||!peek(ctx,at+1,&b))return 0;
++ *out=(uint16_t)(a|((uint16_t)b<<8));return 1;
++}
++int task_resume_selected(TaskResumeSnapshot *s,const TaskResumeRecipe *r,uint32_t source_pc,
++ const TaskResumeState *v,TaskResumePeek peek,void *ctx) {
++ if(!s)return 0;task_resume_reset(s);
++ if(!r||!v||!peek||v->e||!v->cpu||!v->module||!v->owner||
++    source_pc!=r->select_pc||v->pc!=r->select_pc+1||r->count!=12||r->stride!=4||r->status!=1||
++    r->frame_bytes!=11||v->s>0x1ff4)return 0;
++ uint16_t index,saved;uint8_t status,delay;
++ if(!peekword(peek,ctx,r->current_index,&index)||index!=v->x||
++    index%r->stride||index>=r->count*r->stride||
++    !peek(ctx,r->status_base+index,&status)||status!=r->status||
++    !peek(ctx,r->status_base+index+1,&delay)||delay||
++    !peekword(peek,ctx,r->saved_s_base+index,&saved)||saved!=v->s||saved!=v->a)return 0;
++ uint8_t frame[11];
++ for(unsigned n=0;n<11;n++)if(!peek(ctx,saved+1+n,&frame[n]))return 0;
++ /* Both source suspension callsites immediately SEP20 before JSL FF03.
++    Saved X is symbolic and becomes the exact runtime variant selector. */
++ if(!(frame[7]&0x20))return 0;
++ uint32_t landing=((uint32_t)frame[10]<<16)|(uint16_t)(word(frame+8)+1);
++ int found=0;
++ for(unsigned n=0;n<2;n++)if(landing==r->landing[n]) {
++   uint8_t call[4];for(unsigned j=0;j<4;j++)if(!peek(ctx,r->callsite[n]+j,&call[j]))return 0;
++   uint32_t target=call[1]|((uint32_t)call[2]<<8)|((uint32_t)call[3]<<16);
++   found=call[0]==0x22&&target==r->callee_pc&&r->landing[n]==r->callsite[n]+4;
++ }
++ if(!found)return 0;
++ s->epoch=*v;s->recipe=r;s->index=index;s->saved_s=saved;
++ memcpy(s->bytes,frame,11);s->pending=1;return 1;
++}
++int task_resume_publish(TaskResumeSnapshot *s,uint32_t source_pc,const TaskResumeState *v,
++ TaskResumePeek peek,void *ctx) {
++ if(!s||!v||!peek||!s->pending||s->published)return 0;
++ int valid=epoch(&s->epoch,v)&&!v->e&&source_pc==s->recipe->return_pc;
++ uint16_t index,saved;
++ valid=valid&&peekword(peek,ctx,s->recipe->current_index,&index)&&index==s->index&&
++  peekword(peek,ctx,s->recipe->saved_s_base+index,&saved)&&saved==s->saved_s;
++ for(unsigned n=0;valid&&n<11;n++){uint8_t b;valid=peek(ctx,s->saved_s+1+n,&b)&&b==s->bytes[n];}
++ uint8_t p=s->bytes[7];uint16_t mask=(p&0x10)?0xff:0xffff;
++ uint32_t landing=((uint32_t)s->bytes[10]<<16)|(uint16_t)(word(s->bytes+8)+1);
++ valid=valid&&v->pc==landing&&v->a==s->saved_s&&v->s==s->saved_s+11&&v->db==s->bytes[0]&&v->d==word(s->bytes+1)&&
++  v->y==(word(s->bytes+3)&mask)&&v->x==(word(s->bytes+5)&mask)&&v->p==p;
++ if(!valid){task_resume_reset(s);return 0;}
++ s->pending=0;s->published=1;s->actual=*v;s->actual_landing=landing;s->actual_s=v->s;s->actual_p=p;
++ return 1;
++}
++int task_resume_take(TaskResumeSnapshot *s,const TaskResumeState *v,TaskResumePeek peek,void *ctx,uint32_t *pc,uint8_t *mx) {
++ if(!s||!v||!peek||!pc||!mx)return 0;
++ int ok=s->published&&!s->pending&&epoch(&s->epoch,v)&&!v->e&&
++  v->pc==s->actual_landing&&v->s==s->actual_s&&v->p==s->actual_p&&
++  v->a==s->actual.a&&v->x==s->actual.x&&v->y==s->actual.y&&v->d==s->actual.d&&v->db==s->actual.db;
++ uint16_t index,saved;uint8_t status;
++ ok=ok&&peekword(peek,ctx,s->recipe->current_index,&index)&&index==s->index&&
++  peek(ctx,s->recipe->status_base+index,&status)&&status==1&&
++  peekword(peek,ctx,s->recipe->saved_s_base+index,&saved)&&saved==s->saved_s;
++ for(unsigned n=0;ok&&n<11;n++){uint8_t b;ok=peek(ctx,s->saved_s+1+n,&b)&&b==s->bytes[n];}
++ if(ok){*pc=s->actual_landing;*mx=(uint8_t)(((v->p>>5)&1)*2+((v->p>>4)&1));}
++ task_resume_reset(s);return ok;
++}
++static int landing_state(const TaskResumeState *a,const TaskResumeState *b) {
++ return a->pc==b->pc&&a->s==b->s&&a->p==b->p&&a->a==b->a&&a->x==b->x&&a->y==b->y&&
++  a->d==b->d&&a->db==b->db&&a->e==b->e;
++}
++int task_resume_handoff(TaskResumeSnapshot *s,uint32_t source,unsigned route,
++ const TaskResumeState *from,const TaskResumeState *to) {
++ if(!s||!from||!to)return 0;
++ int valid=s->published&&!s->pending&&!s->handoff&&source==s->recipe->return_pc&&
++  (route==TASK_OWNER_POPPED_RETURN||route==TASK_OWNER_REWRITTEN_RETURN)&&
++  epoch(&s->epoch,from)&&landing_state(&s->actual,from)&&landing_state(from,to)&&
++  to->cpu==from->cpu&&to->module==from->module&&to->generation==from->generation&&
++  to->frame==from->frame&&to->owner&&to->owner_epoch;
++ if(!valid){task_resume_reset(s);return 0;}
++ /* No execution, register, memory, clock, unwind or C return decision here. */
++ s->epoch.owner=to->owner;s->epoch.owner_epoch=to->owner_epoch;
++ s->actual.owner=to->owner;s->actual.owner_epoch=to->owner_epoch;s->handoff=1;return 1;
++}

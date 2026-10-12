@@ -1,0 +1,124 @@
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -117,6 +117,73 @@
+     names={};code=re.sub(r'_(?:v\d+|tc\d+_\d+|t\d+)\b',lambda m:names.setdefault(m[0],f'_region_v{len(names)}'),code)
+     code+=f'\n{label}: ;'
+     return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':2,'cycles':cycles,'bytes':rom[offset:offset+2].hex(),'next_pc':(pc+2)&65535,'body':code,'mnemonic':insn.mnem,'contract':'native-e0-source-cached-indirect-y-v1'}
++
++STACK_DIRECT_OPCODES={'ORA':0x03,'AND':0x23,'EOR':0x43,'ADC':0x63,'STA':0x83,'LDA':0xa3,'CMP':0xc3,'SBC':0xe3}
++
++def collect_stack_direct(rom,key,insn,ops,cycles,faithful_lines):
++    """Exact source/lowering and faithful cached stack-address body."""
++    from dataclasses import fields,is_dataclass
++    from enum import Enum
++    from itertools import count
++    from snes65816 import STK,decode_insn
++    from snes_cycles import instr_cpu_cycles
++    from .lowering import lower
++    from .ir import Value
++    if key.m not in (0,1) or key.x not in (0,1) or insn.data_region_exec or getattr(insn,'const_z_fold_unconditional',False):return None
++    if insn.mnem not in STACK_DIRECT_OPCODES or insn.opcode!=STACK_DIRECT_OPCODES[insn.mnem] or insn.mode!=STK or insn.length!=2:return None
++    pc=insn.addr&0xffffff
++    if pc&65535<0x8000 or pc&65535>0xfffd or pc>>16 in (0x7e,0x7f) or key.pc&65535!=pc&65535:return None
++    offset=rom_offset(pc>>16,pc&65535)
++    if offset<0 or offset+2>len(rom):return None
++    decoded=decode_insn(rom,offset,pc&65535,pc>>16,key.m,key.x)
++    if decoded is None or (decoded.opcode,decoded.mnem,decoded.mode,decoded.operand,decoded.length)!=(insn.opcode,insn.mnem,insn.mode,insn.operand,insn.length):return None
++    decoded.m_flag,decoded.x_flag=key.m,key.x
++    if getattr(insn,'m_flag',None)!=key.m or getattr(insn,'x_flag',None)!=key.x:return None
++    if cycles!=instr_cpu_cycles(decoded.opcode,m=key.m,x=key.x,e=0):return None
++    seq=count();canonical=lower(decoded,value_factory=lambda:Value(next(seq)))
++    def typed(value,names):
++        if isinstance(value,Value):
++            if type(value.vid)is not int or value.vid<0:raise ValueError('unknown value')
++            return ('Value',names.setdefault(value.vid,len(names)))
++        if isinstance(value,Enum):return(type(value).__name__,value.value)
++        if is_dataclass(value):return(type(value).__name__,tuple((f.name,typed(getattr(value,f.name),names))for f in fields(value)))
++        if isinstance(value,(list,tuple)):return tuple(typed(v,names)for v in value)
++        return value
++    try:
++        if typed(ops,{})!=typed(canonical,{}):return None
++    except ValueError:return None
++    if faithful_lines is None:return None
++    # Build the exact existing faithful backend effect from fresh typed source.
++    # Alpha-renaming permits emitter-local SSA identities, never different IR.
++    from .emit_function import _dynamic_charge_lines
++    expected=list(_dynamic_charge_lines(decoded))
++    for op in canonical:expected.extend(emit_op(op,source_pc24=pc))
++    expected.append(f'goto L_{(pc+2)&65535:04X}_M{key.m}X{key.x};')
++    transformed=[]
++    for line in expected:
++        line=re.sub(r'cpu->cycles \+= ([0-9]+);',r'cpu_aot_extra(cpu, \1);',line)
++        line=re.sub(r'cpu->master_cycles \+= [^;]+;','',line)
++        for name in ['read8','read16','write8','write16','read16_linear','write16_linear']:
++            line=line.replace('cpu_'+name+'(','cpu_aot_'+name+'(')
++        line=re.sub(r'goto ([^;]+);',r'{ cpu_aot_commit(cpu); goto \1; }',line)
++        transformed.append(line)
++    transformed.append('cpu_aot_commit(cpu);')
++    def compact(lines):
++        s=re.sub(r'/\*.*?\*/','', '\n'.join(lines),flags=re.S);names={}
++        s=re.sub(r'_(?:v\d+|tc\d+_\d+|t\d+)\b',lambda m:names.setdefault(m[0],f'_local{len(names)}'),s)
++        return re.sub(r'\s+','',s)
++    if compact(faithful_lines)!=compact(transformed):return None
++    code='\n'.join(faithful_lines)
++    # Exactly one readonly stack-address reference; no stack selection/push/pop.
++    address=f'uint32 _ea = (uint16)(cpu->S + {insn.operand:#06x});'
++    if code.count(address)!=1 or code.count('cpu->S')!=1:return None
++    if re.search(r'cpu->S\s*(?:[+*/&|^-]?=|\+\+|--)',code):return None
++    label=f'_region_done_{pc&0x7fffff:06x}_{key.m}{key.x}'
++    code=code.replace('cpu_aot_commit(cpu);','')
++    code=re.sub(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',lambda m:f'*next_pc=((uint32)cpu->PB<<16)|0x{m[1]}u; goto {label};',code)
++    names={};code=re.sub(r'_(?:v\d+|tc\d+_\d+|t\d+)\b',lambda m:names.setdefault(m[0],f'_region_v{len(names)}'),code)
++    code+=f'\n{label}: ;'
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':2,'cycles':cycles,'bytes':rom[offset:offset+2].hex(),'next_pc':(pc+2)&65535,'body':code,'mnemonic':insn.mnem,'contract':'native-e0-source-cached-stack-direct-v1'}
+ 
+ def collect(rom,key,insn,ops,cycles,faithful_lines=None):
+     # These rows are scheduler-owned instruction bodies, never callable entries.
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2334,7 +2334,7 @@
+                 task_observed=True
+             src.append(f"    {ln}")
+     if native_region_collector is not None:
+-        from .native_regions import collect, collect_stack_control, collect_indirect_y
++        from .native_regions import collect, collect_stack_control, collect_indirect_y, collect_stack_direct
+         for region_key, region_pairs in block_per_insn_ir.items():
+             if len(region_pairs) != 1:
+                 continue
+@@ -2357,7 +2357,12 @@
+                 continue
+             if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
+                 continue
+-            from snes65816 import INDIR_Y
++            from snes65816 import INDIR_Y, STK
++            if region_insn.mode==STK:
++                region=collect_stack_direct(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),native_instruction_lines.get(region_key))
++                if region is not None:native_region_collector.append(region)
++                continue
+             if region_insn.mode==INDIR_Y:
+                 region=collect_indirect_y(rom,region_key,region_insn,region_ops,
+                     _block_cycle_const(region_pairs),native_instruction_lines.get(region_key))
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 16
++CACHE_FORMAT_VERSION = 17
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1346,7 +1346,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':7, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':8, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'rom_sha256':rom_digest, 'regions':regions},

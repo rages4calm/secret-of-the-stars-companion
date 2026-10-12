@@ -1,0 +1,72 @@
+{
+  "patch_sha256": "d42e308324f17563412fdee97a21de1904ee38a348ff20cb86eabf39bbb29c60",
+  "files": {
+    "recompiler/v2/cfg_loader.py": {
+      "predecessor_sha256": "a454630ec351cd964eddda239eb6c9664f7c140039093515866039e5f59b9283",
+      "normalized_predecessor_sha256": "00fbdf2f2f4610186a42aadf9ea7bbfc54ed40494cadf29cd60da406b6013f0c",
+      "final_sha256": "e63f695bc3109bffe843488077771de6b3139cf3fc683271914c8f1061188c81",
+      "normalized_final_sha256": "1db46df6a5e0746363906e5771cd58302629788bb18621a640621fa3fdaef82f"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "dee4fed8295d4e6efef9f94df32b596fb08523c41bebdd4a0eff3b3b4b86de5a",
+      "normalized_predecessor_sha256": "dee4fed8295d4e6efef9f94df32b596fb08523c41bebdd4a0eff3b3b4b86de5a",
+      "final_sha256": "6569404fc6d7ae1b59231bb258540cdb557fbc585550492007d1ff745bb4927f",
+      "normalized_final_sha256": "643c0bac015d5b3ecf2cb954f5c3583829b55828db03069e615786762592272c"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "ed388e850628f48face2d748f1a29405019dc89ac0925df1c169a4f49700e7ed",
+      "normalized_predecessor_sha256": "ed388e850628f48face2d748f1a29405019dc89ac0925df1c169a4f49700e7ed",
+      "final_sha256": "5b24010a9e521f5fa5081aea96237f5cfaf8e113ead08d1f536d44534eb0c503",
+      "normalized_final_sha256": "3a4f2f415a6a7f4cfdc1fe0c35101c55721858ce8a539f414395949af3503781"
+    },
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": null,
+      "normalized_predecessor_sha256": null,
+      "final_sha256": "3483a0634d7b0deac8d13399ae1ee00d62db2f2b4beb3038ee539f2653032597",
+      "normalized_final_sha256": "e146452d1eaae2e9b3d5443ec1b5d789d86394ed3246bfa1cf89365a2c93114b"
+    },
+    "runner/src/cpu_state.c": {
+      "predecessor_sha256": "f18d54e9c186d7acfcd22001c7c83dcc82392b7216b3332cc64843922666044b",
+      "normalized_predecessor_sha256": "f18d54e9c186d7acfcd22001c7c83dcc82392b7216b3332cc64843922666044b",
+      "final_sha256": "fcfe38b5eae8d95f42e37ccb34311b40d553fdafefebd140bb8eb48d14bed9fe",
+      "normalized_final_sha256": "347408ff9d6ce3f27a1ca9972cfa08c17881d5d952d41c6fe0f64cc00389e2db"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "528d89e26ad3c8899e22a03d15f624e15e86fc29f891ffbeb15da052ec9ddb4d",
+      "normalized_predecessor_sha256": "528d89e26ad3c8899e22a03d15f624e15e86fc29f891ffbeb15da052ec9ddb4d",
+      "final_sha256": "fcc2fcf84b60495dbb2b0108efe98f230e2c37a59c84e9cf15ff8905e274b232",
+      "normalized_final_sha256": "4e8ad9f1d1f8e9d44854bb487b49fc2c1597c34bc4e8b78faa43505a39de4d2e"
+    },
+    "runner/src/snes/bridge_task_helpers.inc": {
+      "predecessor_sha256": null,
+      "normalized_predecessor_sha256": null,
+      "final_sha256": "b9932300af96aaff5bcb9bf7a491b1fd9a3a72f5597e32dac38cb7cff03b7ed3",
+      "normalized_final_sha256": "b2949be7f92ab67bf054f2c3ba54fe905028dbb5011006f4b429c1839b3349ec"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "3f634fdf3dc901e263fe3d4c08fd688a8f26b52e1215aadc624629fe64761eb1",
+      "normalized_predecessor_sha256": "3f634fdf3dc901e263fe3d4c08fd688a8f26b52e1215aadc624629fe64761eb1",
+      "final_sha256": "fd79507164010a7519c1766fe6554c444e129ae024e05f791d976637a06e39f4",
+      "normalized_final_sha256": "d83158f8314c621aa95b0b9dbb23f20d5533079d9e3502c134f1426f7605729b"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "3f0d544ae49d56e421db9b6473ae9bb56d9e5c91cc426874f2f50700678e1e8e",
+      "normalized_predecessor_sha256": "1973b83331204e39b2d8d9c26bc1fbb3fcc01c0e8f038203624cb2bd5e83d608",
+      "final_sha256": "4fdcffd52e6c5aa649f7fed253808c7c9a3ecdfaf8bfdf4da5bf714368f03a31",
+      "normalized_final_sha256": "cb5f873b3c054c41f12fb616a1babbf9516da88f7ff00a0ddd66d88f58d349b5"
+    },
+    "runner/src/task_resume_contract.h": {
+      "predecessor_sha256": null,
+      "normalized_predecessor_sha256": null,
+      "final_sha256": "a95f325c96d648994aa10972a93a1319f0c9cd6d6dd1040d7b41d6883ac85348",
+      "normalized_final_sha256": "a9909b513719236ebccac7e42cafeb67ce3c0085d8d8d0998b7c509f502e4fba"
+    },
+    "runner/src/task_resume_contract.inc": {
+      "predecessor_sha256": null,
+      "normalized_predecessor_sha256": null,
+      "final_sha256": "86e9e1a49a4b00ab80762d1e5759fe49e0b57e6a75923de56857cd91ceb9cc96",
+      "normalized_final_sha256": "1ec47dfd7df128b75ede79beb9e33776c654676c1fa6e1444dcc5aab210bf8a2"
+    }
+  },
+  "scope": "Private bounded two-landings source-selected task resume. Actual20 faithful-line/CondBranch/ROM-target/constant-fold guards unchanged. No ordinary roots, callee summaries, guest writes, serialized fields, artifact qualification or fullnative/AOT claim. Original IRQ/deadline/hook and unwind decisions remain prior gates. Root owns canonical integration, ABI/profile update and fresh public-helper artifact qualification."
+}

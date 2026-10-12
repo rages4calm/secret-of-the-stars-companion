@@ -1,0 +1,48 @@
+{
+  "status": "private_frozen_runtime25_on_unbuilt24",
+  "predecessor": "C:\\Users\\crono\\AppData\\Local\\Temp\\secret-stars-current051-5431d88c43\\native-indirect-y-next061\\runtime",
+  "files": {
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": "3483a0634d7b0deac8d13399ae1ee00d62db2f2b4beb3038ee539f2653032597",
+      "final_sha256": "bf4b8af4c584f0b26e29c31548794d32cb5052714fd10b62ce8cbe687b426e54"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "040023004f40943c831818db92bddbf6076f90deab40c32cdf36d7f49b0b228b",
+      "final_sha256": "1f762ed4874cb7df721240ad3e2ca3a85894bd6543654708773793b5e1643a81"
+    },
+    "runner/src/snes/bridge_task_helpers.inc": {
+      "predecessor_sha256": "b9932300af96aaff5bcb9bf7a491b1fd9a3a72f5597e32dac38cb7cff03b7ed3",
+      "final_sha256": "86569e088973f03df80407ee37f687f6bc1b74d094b2054d20c2203561c46583"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "ad569590de4f9a0b50a7e427bb8238ed71b51aa0b073534d364a867820090361",
+      "final_sha256": "63eb7a5802a67a23a388381f7b3e88f652538f157b8f35a0fffa0a01d6b0652f"
+    },
+    "runner/src/snes/bridge_task_call.inc": {
+      "predecessor_sha256": null,
+      "final_sha256": "3267f04461d6f0f9a179b3394d59f5b5615b8060a0bebba956f0ec00fd65f9e0"
+    }
+  },
+  "patch_sha256": "ad6077aab910fbdff3d579452d156dc69993b462427cbcd6808e207cb5204ea6",
+  "predecessor24_patch_sha256": "e2b7b7da6944d2aec3b0e4724b422cc2359f93f2782235f3ebf1c2bf742d08a5",
+  "predecessor24_binding_sha256": "fb74e71b35d46c2863eb970d576efeda1869f8819de8f72ecf23816ad8d850ba",
+  "reviewed23_prototype_patch_sha256": "3bf0abf9106399d95fa4f384e2d45becd5ea00327e82deafe0f5aac500f30209",
+  "reviewed23_prototype_binding_sha256": "23f115c8db22a5f643d92e4dff723409ca6d73bc5ef130ddddaaccc48d601676",
+  "normal_metadata": 7,
+  "task_metadata": 2,
+  "redirect_metadata": 1,
+  "cache_format": 16,
+  "normal_rows": 9070,
+  "task_rows": 121,
+  "redirect_rows": 3,
+  "unchanged_source_pins": {
+    "recompiler/v2/native_regions.py": "676bd1f31fed1a700163563412120068391c54588a1c357449c9777a1bdb933b",
+    "recompiler/v2/emit_function.py": "e596816139263760dcd45f4c92400997b1e111636ce4551606b96e9d9e0c90b1",
+    "recompiler/v2/source_redirect.py": "4f17f9b04ddebbd961557dc1b42287403d6ce3dee0247c4786d5b853eaf68f80",
+    "runner/src/cpu_state.c": "0a4b53ca254dd66aa81d0d232fc7ad3d29fb2a8739be16820a83c4129c4de7f7",
+    "runner/src/task_resume_contract.h": "a95f325c96d648994aa10972a93a1319f0c9cd6d6dd1040d7b41d6883ac85348",
+    "runner/src/task_resume_contract.inc": "86e9e1a49a4b00ab80762d1e5759fe49e0b57e6a75923de56857cd91ceb9cc96"
+  },
+  "scope": "Causally observed original D80F JSR and source-proved D87F instructions/actual D8B0 RTS under same original owner, two-byte consumed-frame refresh, one-use D812 task continuation only after original retained-owner decision; all24common scopes/guards remain; no new ordinary roots/masks/IRQ/deadline/unwind/guest writes",
+  "artifact_qualification": false
+}

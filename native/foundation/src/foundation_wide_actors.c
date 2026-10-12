@@ -247,11 +247,19 @@ static int InactiveSpecialLayer(void) {
     return 1;
 }
 
+static int TravelVariableRoster(void);
+static int LargeTravelWrappingResource(const Ppu *ppu);
+
 /* Variable DC15 effects share ordinary mode0E; this admission is independent
- * of capture readiness. Large/travel producers keep their separate contracts.
+ * of capture readiness. The exact selected mode42 world may join the same
+ * original D80F effect/party/regular traversal; other travel stays separate.
  * A displayed packet, not live4300 flags, owns the actual effect list. */
 static int VariableRoster(void) {
-    if (g_ram[0x401] != 14 || g_ram[0x409]) return 0;
+    if (g_ram[0x401] != 14) return 0;
+    if (g_ram[0x409]==0x42) return TravelVariableRoster();
+    if (g_ram[0x409]==0x82) return LargeTravelWrappingResource(g_ppu) &&
+        LargeWrappingTravelVariable(g_ram,131072);
+    if (g_ram[0x409]) return 0;
     for (unsigned i=0;i<kActors;++i) {
         unsigned party=i<kParty;
         unsigned at=party?0x4000+i*18:0x4100+(i-kParty)*25;
@@ -448,9 +456,8 @@ static int KnownTravelProxy(unsigned index);
 /* Exact original mode42 A8 compact shadow plus A0 append body. Both ordinary
  * party coordinates already contain producer0471/0473 at D917. Other special
  * regular allocations and mode82 retain their separately bounded contracts. */
-static int OrdinaryTravelOffsetRoster(void) {
-    if ((g_ram[0x401]!=12 && !InactiveSpecialLayer()) ||
-        g_ram[0x409]!=0x42 || !KnownTravelProxy(0)) return 0;
+static int OrdinaryTravelRecords(void) {
+    if (g_ram[0x409]!=0x42 || !KnownTravelProxy(0)) return 0;
     for (unsigned i=0; i<kRegular; ++i) {
         unsigned at=0x4100+25*i;
         if (g_ram[at]==255) continue;
@@ -462,11 +469,12 @@ static int OrdinaryTravelOffsetRoster(void) {
 }
 
 /* Original CBC1 mode42 allocator in the selected chapter17 world may
- * retain mode0E with all eight special flags inactive. This is a separate
- * exact roster/resource route, not general effect or alternate-world admission. */
+ * retain mode0E. D80F tests mode bits02/04/08 independently and traverses
+ * DC15 effects before D8B1 party and DA56 regular. Resource/roster eligibility
+ * remains independent of capture readiness; the closed prefix owns drawing. */
 static int OrdinaryTravelWrappingResource(const Ppu *ppu) {
-    if (!ppu || !g_snes || !g_snes->dma || !OrdinaryTravelOffsetRoster() ||
-        g_ram[0x407]!=1 || R16(0x40e) || g_ram[0x400] ||
+    if (!ppu || !g_snes || !g_snes->dma || !OrdinaryTravelRecords() ||
+        (g_ram[0x401]!=12 && g_ram[0x401]!=14) || g_ram[0x407]!=1 || R16(0x40e) || g_ram[0x400] ||
         g_ram[0x5372]!=17 || (g_ram[0x5361]&0x40) ||
         R16(0x46d)!=0x0e0e || R16(0x46f)!=0x0404 ||
         R24(0x500)!=0x038758 || R24(0x503)!=0x038f58 ||
@@ -485,11 +493,30 @@ static int OrdinaryTravelWrappingResource(const Ppu *ppu) {
     return 1;
 }
 
+/* The active variable prefix joins only this exact original-loader world.
+ * No flags or effect art roles are inferred; original DC15 records and their
+ * completed prefix must pass the existing capture/cursor/544-byte seals. */
+static int TravelVariableRoster(void) {
+    return g_ram[0x401]==14 && OrdinaryTravelWrappingResource(g_ppu);
+}
+static int OrdinaryTravelOffsetRoster(void) {
+    return (g_ram[0x401]==12 || InactiveSpecialLayer() || TravelVariableRoster()) &&
+        OrdinaryTravelRecords();
+}
+
+/* Exact selected original82 world; packet/cursor/epoch proofs remain below.
+ * No resource or saved parked family is inferred from the travel flag alone. */
+static int LargeTravelWrappingResource(const Ppu *ppu) {
+    if (!ppu || !g_snes || !g_snes->dma || !(LargeWrappingTravel(g_ram,131072) || LargeWrappingTravelVariable(g_ram,131072)) ||
+        ppu->bgmode!=9 || PPU_mosaicSize(ppu)>1 || ppu->setini) return 0;
+    for (unsigned i=0;i<8;++i) if (g_snes->dma->channel[i].hdmaActive) return 0;
+    return 1;
+}
 static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
-        (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu) || VariableRoster()) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu) || OrdinaryTravelWrappingResource(ppu)) &&
-        ((!R16(0x471) && !R16(0x473)) || OrdinaryOffsetRoster() || ParkedOrdinaryOffsetRoster(ppu) || LargeOffsetRoster(ppu) || OrdinaryTravelOffsetRoster());
+        (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu) || VariableRoster()) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu) || OrdinaryTravelWrappingResource(ppu) || LargeTravelWrappingResource(ppu)) &&
+        ((!R16(0x471) && !R16(0x473)) || OrdinaryOffsetRoster() || ParkedOrdinaryOffsetRoster(ppu) || LargeOffsetRoster(ppu) || OrdinaryTravelOffsetRoster() || LargeTravelWrappingResource(ppu));
 }
 
 static void Resource(const Ppu *ppu, uint8_t key[48]) {
@@ -678,14 +705,15 @@ static LargeView LargeInput(const Ppu *ppu) {
  * an ordinary four-piece body at packed128,80 and preserves append ordering.
  * Only exact primary-party allocations are admitted; no general A8 rule. */
 static int KnownTravelProxy(unsigned index) {
-    int large = !g_ram[0x407] && g_ram[0x409] == 0x82;
+    int wrapped_large=LargeTravelWrappingResource(g_ppu);
+    int large = (!g_ram[0x407] && g_ram[0x409] == 0x82) || wrapped_large;
     int ordinary = g_ram[0x409] == 0x42 && g_ram[0x407] <= 1;
     return (large || ordinary) && index == 0 && g_ram[0x4b6] == 0 &&
         g_ram[0x4000] <= 3 && g_ram[0x4000] == g_ram[0x4012] &&
         R16(0x4003) == 0xa8 && R16(0x4015) == (large ? 0xb0 : 0xa0) &&
         R16(0x4001) == 0x7080 && R16(0x4013) == (large ? 0x4078 : 0x5080) &&
         g_ram[0x4005] == 0 &&
-        (g_ram[0x4017] == 0 || (ordinary && g_ram[0x4017] == 0x80)) &&
+        (g_ram[0x4017] == 0 || ((ordinary || wrapped_large) && g_ram[0x4017] == 0x80)) &&
         g_ram[0x4009] == g_ram[0x4000] && g_ram[0x401b] == 0x42 &&
         g_ram[0x4024] == 255 && g_ram[0x4036] == 255 && g_ram[0x4048] == 255;
 }
@@ -746,11 +774,11 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (cursor != (12+prefix)*4 || R16(0x0e34) != 0x10 || R16(0x0e38) != 0x201 ||
             R16(0x0e10) != producing.mask) sequence = 0;
         if (g_ppu) Resource(g_ppu, producing.resource);
-        /* Wrapped B0 needs its original saved allocation relation; ordinary
-         * wrapping retains the separate strict resource/packet proof. */
+        /* Wrapping B0 uses either original saved regular18 or the exact active82
+         * party1 relation; each retains its separate resource/packet proof. */
         if (sequence && (g_ram[0x401] == 12 ||
-            (g_ram[0x401] == 14 && LargeWrappingRoster(g_ram,131072))) &&
-            (!g_ram[0x407] || LargeWrappingRoster(g_ram,131072))) {
+            (g_ram[0x401] == 14 && (LargeWrappingRoster(g_ram,131072) || LargeTravelWrappingResource(g_ppu)))) &&
+            (!g_ram[0x407] || LargeWrappingRoster(g_ram,131072) || LargeTravelWrappingResource(g_ppu))) {
             LargeView view = LargeInput(g_ppu);
             if (!LargeBegin(&producing.large, &view, g_ram + 0x2200, kPacketBytes)) sequence = 0;
         }
@@ -758,7 +786,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             unsigned at = 0x4000 + i * 18;
             if (g_ram[at] != 255) {
                 unsigned base = R16(at + 3), gfx = base + g_ram[at] * 2 + (g_ram[at + 10] >> 7);
-                if ((g_ram[0x407] && (base == 0xb0 ||
+                if ((g_ram[0x407] && ((base == 0xb0 && !(i==1 && LargeTravelWrappingResource(g_ppu))) ||
                     ((gfx & 0xfff8) == 0xa8 && !KnownTravelProxy(i)))) ||
                     (base != 0xb0 && (g_ram[at] > 3 ||
                     ((gfx & 0xfff8) == 0xa8 && !KnownTravelProxy(i)) ||
@@ -785,7 +813,8 @@ static void Observe(CpuState *cpu, uint32_t pc) {
     if (!OffsetMatches(producing.offset_x,producing.offset_y)) { Reject("reject_offset_epoch", cpu); return; }
     if (!SameResource(g_ppu, &producing)) { Reject("reject_resource", cpu); return; }
     if (pc == 0x01d989 || pc == 0x01db68) {
-        if (g_ram[0x407] && !LargeWrappingRoster(g_ram,131072)) { Reject("reject_wrapping_large", cpu); return; }
+        if (g_ram[0x407] && !LargeWrappingRoster(g_ram,131072) &&
+            !(pc==0x01d989 && LargeTravelWrappingResource(g_ppu))) { Reject("reject_wrapping_large", cpu); return; }
         enum LargeFamily family = pc == 0x01d989 ? LARGE_PARTY : LARGE_REGULAR;
         unsigned index = g_ram[family == LARGE_PARTY ? 0x0e13 : 0x0e14];
         unsigned rank = (family == LARGE_PARTY ? 0 : kParty) + index;
@@ -1085,26 +1114,30 @@ int FoundationWideActorsPeriodicRaster(const Ppu *source, int *world_x, int *wor
     if (LocalWrappingResource(source)) return LocalPeriodicRaster(source,world_x,world_y);
     if (!source || !world_x || !world_y || world_x == world_y ||
         !displayed.valid || !Scene(source) ||
-        (!WrappingResource(source) && !OrdinaryTravelWrappingResource(source)) ||
+        (!WrappingResource(source) && !OrdinaryTravelWrappingResource(source) && !LargeTravelWrappingResource(source)) ||
         !SameResource(source,&displayed) || !PacketMatches(source,displayed.bytes) ||
         (unsigned)(snes_frame_counter-displayed.producer_frame) != 2) return 0;
     for (unsigned i=0;i<kParty;++i) {
         unsigned at=0x4000+i*18;
         if (g_ram[at] != 255) {
             unsigned base=R16(at+3),gfx=base+g_ram[at]*2+(g_ram[at+10]>>7);
-            if (base==0xb0 || ((gfx&0xfff8)==0xa8 && !KnownTravelProxy(i)) || g_ram[at]>3 ||
+            if ((base==0xb0 && !(i==1 && LargeTravelWrappingResource(source))) ||
+                ((gfx&0xfff8)==0xa8 && !KnownTravelProxy(i)) || g_ram[at]>3 ||
                 gfx >= (0xd800-0x9800)/8) return 0;
         }
     }
     if (displayed.large.writers) {
         const LargeActor *body=&displayed.large.last;
+        int parked=LargeWrappingRoster(g_ram,131072) && body->family==LARGE_REGULAR &&
+            body->index==18 && body->pose==2 && body->descriptor==0x0e9d88 &&
+            body->world_x==R16(0x42c3) && body->world_y==R16(0x42c5);
+        int travel=LargeTravelWrappingResource(source) && body->family==LARGE_PARTY &&
+            body->index==1 && body->pose==g_ram[0x4012] && body->pose<=3 &&
+            body->descriptor==0x0e9d80+body->pose*4 && body->world_x==120 && body->world_y==64;
         if (!displayed.large.valid || !displayed.large.displayed ||
-            displayed.large.writers!=1 || !LargeWrappingRoster(g_ram,131072) ||
-            body->family!=LARGE_REGULAR || body->index!=18 || body->pose!=2 ||
-            body->descriptor!=0x0e9d88 || body->world_x!=R16(0x42c3) ||
-            body->world_y!=R16(0x42c5) || body->camera_x!=displayed.camera_x ||
-            body->camera_y!=displayed.camera_y) return 0;
-    } else if (LargeWrappingRoster(g_ram,131072)) return 0;
+            displayed.large.writers!=1 || (!parked && !travel) ||
+            body->camera_x!=displayed.camera_x || body->camera_y!=displayed.camera_y) return 0;
+    } else if (LargeWrappingRoster(g_ram,131072) || LargeTravelWrappingResource(source)) return 0;
     int raster[2] = {source->m7matrix[6],source->m7matrix[7]};
     int live[2] = {R16(0x2ad),R16(0x2af)};
     int packet[2] = {displayed.camera_x,displayed.camera_y};
@@ -1238,7 +1271,7 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
                 index >= kParty + kAppendRegular ?
                 4 + (index - kParty - kAppendRegular) * 4 + part : 12 + bits_index;
             unsigned virtual_order=virtual_slot+1;
-            if (displayed.effects.valid && index<kParty+kAppendRegular) {
+            if (displayed.effects.valid && !actor->travel_proxy && index<kParty+kAppendRegular) {
                 /* Effect source ordinals include culled visits. Append actors
                  * follow the entire effect group without virtual-slot overflow. */
                 virtual_slot=12; virtual_order=kEffectVisits+1+bits_index;
@@ -1256,7 +1289,7 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
             }
         }
     }
-    if ((!wrap || LargeWrappingRoster(g_ram,131072)) && displayed.large.writers) {
+    if ((!wrap || LargeWrappingRoster(g_ram,131072) || LargeTravelWrappingResource(source)) && displayed.large.writers) {
         LargeView view = LargeInput(source); LargePiece pieces[2];
         unsigned extra = LargePrepare(&displayed.large, &view, displayed.bytes, kPacketBytes,
             cx - displayed.camera_x, cy - displayed.camera_y, line, pieces, large_colors);

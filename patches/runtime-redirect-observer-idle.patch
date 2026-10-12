@@ -1,0 +1,36 @@
+diff --git a/runner/src/snes/bridge_redirect_helpers.inc b/runner/src/snes/bridge_redirect_helpers.inc
+--- a/runner/src/snes/bridge_redirect_helpers.inc
++++ b/runner/src/snes/bridge_redirect_helpers.inc
+@@ -19,7 +19,12 @@
+ }
+ static RedirectState redirect_local_view(CpuState *c,const Interp816 *in,uint32 actual){RedirectState v=redirect_cpu_view(c,actual);v.state=task_local_view(c,in,actual);return v;}
+ static int redirect_safe(CpuState *c){return c&&c->ram&&g_snes&&g_snes->cart&&g_snes->cart->type==CART_LOROM&&!s_aot_instruction&&!s_native_instruction_cpu&&!g_watchdog_tripped&&!s_scheduler_hook_epoch_exhausted&&!s_pre_opcode_callback_cpu&&!cpu_interrupt_context_active()&&s_task_owner_serial&&s_task_next_serial!=UINT64_MAX&&cpu_source_redirect_recipe_matches(redirect_peek,c);}
++static int redirect_observer_dormant(uint32 source){
++ return source!=0x01d111u&&!s_redirect.stage&&!s_redirect.pending&&!s_redirect.published&&
++  !s_redirect.handoff&&!s_redirect.active&&!s_redirect_prepared&&!s_redirect_call_candidate&&!s_redirect_dispatch_cpu;
++}
+ static void redirect_pre_local(CpuState *c,const Interp816 *in,uint32 pc,int hooked){
++ if(redirect_observer_dormant(pc))return;
+  RedirectState v=redirect_local_view(c,in,pc);
+  if(!redirect_safe(c)||hooked){interp_bridge_source_redirect_reset();return;}
+  if(pc==0x01d111){
+@@ -30,6 +35,7 @@
+  }else if(s_redirect.pending)redirect_before(&s_redirect,&v,redirect_peek,c);
+ }
+ static void redirect_committed_local(CpuState *c,uint32 source,const Interp816 *in,uint32 actual){
++ if(redirect_observer_dormant(source))return;
+  RedirectState v=redirect_local_view(c,in,actual);
+  if(!redirect_safe(c)){interp_bridge_source_redirect_reset();return;}
+  if(source==0x01d111){
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 18
++CACHE_FORMAT_VERSION = 19
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine

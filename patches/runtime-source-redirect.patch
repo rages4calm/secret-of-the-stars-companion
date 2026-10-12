@@ -1,0 +1,431 @@
+diff --git a/recompiler/v2/cfg_loader.py b/recompiler/v2/cfg_loader.py
+--- a/recompiler/v2/cfg_loader.py
++++ b/recompiler/v2/cfg_loader.py
+@@ -81,6 +81,7 @@
+ class BankCfg:
+     bank: int
+     source_task_resumes: list = field(default_factory=list)
++    source_redirects: list = field(default_factory=list)
+     includes: List[str] = field(default_factory=list)
+     entries: List[BankEntry] = field(default_factory=list)
+     names: List[NameDecl] = field(default_factory=list)
+@@ -277,6 +278,10 @@
+ 
+             tokens = stripped.split()
+             head = tokens[0]
++            if head == 'source_redirect_v1':
++                if tokens!=['source_redirect_v1','01D111','00FF20','0084D9','0084FA','01D119','02','01D176']:raise ValueError('unreviewed source redirect recipe')
++                cfg.source_redirects.append(tuple(int(t,16)for t in tokens[1:]))
++                continue
+             if head == 'source_task_resume_v1':
+                 if len(tokens)!=8:raise ValueError('source_task_resume_v1 requires seven exact source PCs')
+                 recipe=tuple(_parse_hex(v) for v in tokens[1:])
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 13
++CACHE_FORMAT_VERSION = 14
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1071,6 +1071,8 @@
+         manifest, parsed, enable_hle=enable_hle)
+     from .task_resume import derive as derive_task_resume
+     task_rows,task_recipe,task_graphs=derive_task_resume(rom,parsed,module_prefix)
++    from .source_redirect import derive as derive_redirect
++    redirect_rows,redirect_recipe=derive_redirect(rom,parsed,manifest,module_prefix)
+     continuations = _native_continuation_rows(manifest)
+     _validate_native_continuation_graphs(manifest, continuations, parsed, rom,
+                                          dispatch_helpers, inline_arg_map)
+@@ -1295,6 +1297,8 @@
+             "native_regions_v2.c",
+             "native_regions.json",
+             "native_task_resume_v2.c",
++            "native_source_redirect_v2.c",
++            "native_source_redirect.json",
+             "native_task_resume.json",
+             MODULE_DESCRIPTOR_SOURCE,
+         }
+@@ -1323,6 +1327,9 @@
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+         write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':1,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
++        from .source_redirect import emit_source as emit_redirect
++        write_if_changed(staging/'native_source_redirect_v2.c',emit_redirect(redirect_rows,redirect_recipe,module_prefix))
++        write_if_changed(staging/'native_source_redirect.json',json.dumps({'format_version':1,'kind':'source_bound_original_redirect','recipe':{k:v for k,v in redirect_recipe.items()if k!='spans'}if redirect_recipe else None,'rows':redirect_rows},indent=2,sort_keys=True)+'\n')
+         from .native_regions import emit as emit_native_regions
+         forced_regions = {pc & 0x7fffff for _bank, _path, cfg in parsed
+                           for pc in getattr(cfg, 'force_lle', ())}
+diff --git a/recompiler/v2/source_redirect.py b/recompiler/v2/source_redirect.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/source_redirect.py
+@@ -0,0 +1,57 @@
++"""One source-bound original dispatcher arrival; no roots or callee summary."""
++from snes65816 import rom_offset
++from .decoder import decode_function
++from .emit_function import emit_function
++from .native_regions import emit
++from .program_analysis import VariantKey,NodeDisposition
++
++def derive(rom,parsed,manifest,module_prefix=None):
++ specs=[s for _b,_p,c in parsed for s in getattr(c,'source_redirects',())]
++ if not specs:return [],None
++ if len(specs)!=1 or module_prefix:raise ValueError('redirect module/recipe ownership refusal')
++ if specs[0]!=(0x01d111,0x00ff20,0x0084d9,0x0084fa,0x01d119,2,0x01d176):raise ValueError('redirect source recipe refusal')
++ key=VariantKey(0x01c406,1,0);node=manifest.nodes.get(key)
++ if not node or node.disposition!=NodeDisposition.AOT_PREFIX or not any(e.site_pc24==0x01d111 and e.target==VariantKey(0x00ff20,1,0)for e in node.demands):
++  raise ValueError('redirect lacks existing typed D111 demand authority')
++ raw=lambda p,n:rom[rom_offset(p>>16,p&65535):rom_offset(p>>16,p&65535)+n]
++ spans=[(0x00a403,bytes.fromhex('4cfda8')),(0x00a8fd,bytes.fromhex('e220a9028d42042206c401')),
++ (0x01c406,bytes.fromhex('4c07d1')),(0x01d107,bytes.fromhex('e220ad4204c9ffd0016b2220ff00')),
++ (0x00ff20,bytes.fromhex('4cd984')),
++ (0x0084d9,bytes.fromhex('088bc23029ff000aaae220a30548abc2208a386303a8b9000038e901008303ab286b')),
++ (0x01d119,bytes.fromhex('76d1'))]
++ for p,b in spans:
++  if raw(p,len(b))!=b:raise ValueError('redirect source byte mismatch '+hex(p))
++ masks=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++ forced={p&0x7fffff for _b,_p,c in parsed for p in c.force_lle}
++ if not {0x00ff20,0x0084d9}<=forced:raise ValueError('redirect original dispatcher guards missing')
++ # Dispatcher source remains quarantined; only independently derived receiving
++ # architectural rows undergo ordinary all-byte data/native exclusion guards.
++ graph=decode_function(rom,1,0xd176,1,0,end=0xd182,max_insns=32,data_regions=masks,stop_on_unknown_callee_exit=True)
++ if set(graph.unknown_callee_exit_sites)!={(0x01d17e,0x01e000,0,0)}:raise ValueError('redirect unknown call barrier changed '+repr(graph.unknown_callee_exit_sites))
++ local=[]
++ emit_function(rom,1,0xd176,1,0,end=0xd182,func_name='SourceRedirectDerivation',data_regions=masks,
++  exclude_ranges=[(p&65535,(p&65535)+1)for p in forced if p>>16==1],native_region_collector=local,
++  source_task_resume_stops=graph.unknown_callee_exit_sites)
++ rows=[r for r in local if r['pc24']in(0x01d176,0x01d178,0x01d17b)]
++ if len(rows)!=3 or {r['mnemonic']for r in rows}!={'REP','LDA','STA'}:raise ValueError('redirect masked or ambiguous prefix')
++ for r in rows:
++  if any((((r['pc24']&0xff0000)|((r['pc24']+j)&65535))&0x7fffff)in forced for j in range(r['length'])):raise ValueError('redirect forced prefix')
++  if r['bytes']!=raw(r['pc24'],r['length']).hex():raise ValueError('redirect row bytes mismatch')
++  r['contract']='native-e0-source-original-redirect-v1'
++ return rows,{'entry':0x01d111,'return':0x0084fa,'selector':2,'table':0x01d119,'landing':0x01d176,'decimal':0,'spans':spans,'barrier':0x01d17e}
++
++def emit_source(rows,recipe,module_prefix=None):
++ code=emit(rows,module_prefix).replace('cpu_native_region_step','cpu_source_redirect_region_step')
++ code=code.replace('extern SnesProgramModule g_program_module;','extern SnesProgramModule g_program_module;\nextern bool cpu_source_redirect_active(CpuState *,uint32,uint8);')
++ code=code.replace('  switch (((pc24&0x7fffffu)<<2)|mx) {','  if(!cpu_source_redirect_active(cpu,pc24,mx))return false;\n  switch (((pc24&0x7fffffu)<<2)|mx) {')
++ code+='\nint cpu_source_redirect_recipe_matches(int (*peek)(void *,uint32,unsigned char *),void *ctx){\n unsigned char b;\n'
++ if recipe:
++  for pc,raw in recipe['spans']:
++   for n,value in enumerate(raw):code+=f' if(!peek(ctx,{pc+n}u,&b)||b!={value}u)return 0;\n'
++  for row in rows:
++   for n,value in enumerate(bytes.fromhex(row['bytes'])):code+=f' if(!peek(ctx,{row["pc24"]+n}u,&b)||b!={value}u)return 0;\n'
++  code+=' return 1;\n}\n'
++ else:code+=' (void)peek;(void)ctx;(void)b;return 0;\n}\n'
++ return code
++
++
+diff --git a/runner/src/cpu_state.c b/runner/src/cpu_state.c
+--- a/runner/src/cpu_state.c
++++ b/runner/src/cpu_state.c
+@@ -1439,6 +1439,8 @@
+ 
+ void cpu_continuation_reset(void) {
+     interp_bridge_source_task_reset();
++    extern void interp_bridge_source_redirect_reset(void);
++    interp_bridge_source_redirect_reset();
+     cpu_native_region_reset();
+     memset(s_native_continuations, 0, sizeof s_native_continuations);
+     s_native_continuation_depth = 0;
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -567,7 +567,9 @@
+ static void aot_require(CpuState *cpu) {
+   if(s_aot_instruction!=cpu || !s_interp_bus_timing_active) {fputs("Invalid AOT transaction\n",stderr);abort();}
+ }
++void interp_bridge_source_redirect_reset(void);
+ void cpu_native_region_reset(void) {
++  interp_bridge_source_redirect_reset();
+   s_scheduler_hook_handoff = (SchedulerHookHandoff){0};
+   s_scheduler_hook_begin_cpu = NULL;
+   s_scheduler_hook_begin_pc = 0;
+@@ -895,6 +897,7 @@
+  * garbage into InvalidInterrupt_Crash ($80:8573). */
+ static int      s_interp_owner_is_scheduler = 0;
+ #include "bridge_task_helpers.inc"
++#include "bridge_redirect_helpers.inc"
+ 
+ /* Has a post-return S crossed above the owning interpreter frame's exit
+  * watermark, into a compiled ancestor? Never true for a scheduler owner.
+@@ -2869,6 +2872,7 @@
+             g_native_continuation_count && cpu_capture_native_return(cpu,
+                 pc_before, in.sp, op, &completed_return);
+ 
++        redirect_pre_local(cpu,&in,pc_before,scheduler_hooks_observed);
+         const uint8_t coverage_mx = (uint8_t)((in.mf << 1) | in.xf);
+         const uint8_t coverage_e = in.e;
+         const uint16_t dp_before = in.dp;
+@@ -2909,6 +2913,8 @@
+         bool (*region_dispatch)(CpuState *,uint32,uint8,uint32 *)=cpu_native_region_step;
+         const int source_task_dispatch=task_pre_opcode(cpu,pc_before,coverage_mx);
+         if(source_task_dispatch)region_dispatch=cpu_source_task_region_step;
++        const int source_redirect_dispatch=!source_task_dispatch&&redirect_pre_opcode(cpu,pc_before,coverage_mx);
++        if(source_redirect_dispatch)region_dispatch=cpu_source_redirect_region_step;
+         const SchedulerHookHandoff previous_handoff = s_scheduler_hook_handoff;
+         s_scheduler_hook_handoff = (SchedulerHookHandoff){0};
+         s_scheduler_hook_handoff.observed_hooks = scheduler_hooks_observed;
+@@ -2922,9 +2928,11 @@
+             s_scheduler_hook_handoff.host_frame = snes_frame_counter;
+             s_scheduler_hook_handoff.dispatch = region_dispatch;
+         }
+-        const bool region_completed = lle_yield_bounce_enabled() &&
++        if(source_redirect_dispatch){s_redirect_dispatch_cpu=cpu;s_redirect_dispatch_pc=pc_before;s_redirect_dispatch_mx=coverage_mx;}
++        const bool region_completed = !s_redirect.pending && lle_yield_bounce_enabled() &&
+             region_dispatch(cpu, pc_before,
+             coverage_mx, &region_next_pc);
++        s_redirect_dispatch_cpu=NULL;
+         s_scheduler_hook_handoff = previous_handoff;
+         int _cyc;
+         if (region_completed) {
+@@ -2939,6 +2947,8 @@
+             s_interp_bus_timing_active = 1;
+             _cyc = interp816_runOpcode(&in);
+         }
++        if(source_redirect_dispatch)redirect_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed);
++        redirect_committed_local(cpu,pc_before,&in,((uint32)in.k<<16)|in.pc);
+         if(source_task_dispatch)task_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed);
+         if(pc_before==g_native_task_resume_recipe.select_pc||pc_before==g_native_task_resume_recipe.return_pc) {
+             const TaskResumeState task_view=task_local_view(cpu,&in,((uint32)in.k<<16)|in.pc);
+@@ -3488,6 +3498,7 @@
+     s_interp_owner_is_scheduler = yield_pc != 0;
+     s_interp_bridge_depth++;
+     task_owner_enter(cpu,entry_pc24,stop_on_rti);
++    redirect_owner_enter(cpu,entry_pc24,stop_on_rti);
+     /* Attribution scope (see interp_scope_name above). Saved/restored rather
+      * than assumed clean: a bounce chain re-enters this wrapper with an AOT
+      * name installed, and that name must come back on our exit. */
+@@ -3504,6 +3515,7 @@
+     RecompStackPop();
+     g_last_recomp_func = _saved_func;
+     interp_bridge_source_task_reset();
++    interp_bridge_source_redirect_reset();
+     s_task_owner_serial=saved_task_owner_serial;
+     s_interp_bridge_depth--;
+     s_interp_owner_exit_s = _saved_owner_exit_s;
+@@ -4042,6 +4054,7 @@
+      * tail dispatch; using the enclosing routine's entry_s would conflate two
+      * distinct stack frames. */
+     task_prepare_return(cpu,site_pc24,target_pc24,1u);
++    redirect_prepare_return(cpu,site_pc24,target_pc24,1u);
+     const uint16_t target_entry_s = cpu->S;
+     uint32_t landing = target_pc24;
+     int ok = interp_bridge_run_ex2(cpu, target_pc24, target_entry_s, &landing,
+@@ -4092,6 +4105,7 @@
+     const uint8_t mx = tier2_entry_mx(cpu);
+     tier2_discover(site_pc24, target_pc24, mx, TIER2_KIND_DISPATCH, -1);
+     task_prepare_return(cpu,site_pc24,target_pc24,2u);
++    redirect_prepare_return(cpu,site_pc24,target_pc24,2u);
+     const uint16_t post_pop_s = cpu->S;
+     uint32_t landing = target_pc24;
+     int ok = interp_bridge_run_ex2(cpu, target_pc24, post_pop_s, &landing,
+diff --git a/runner/src/redirect_contract.h b/runner/src/redirect_contract.h
+new file mode 100644
+--- /dev/null
++++ b/runner/src/redirect_contract.h
+@@ -0,0 +1,22 @@
++#ifndef SOURCE_REDIRECT_CONTRACT_H
++#define SOURCE_REDIRECT_CONTRACT_H
++#include "task_resume_contract.h"
++typedef struct {
++ TaskResumeState state;
++ uint64_t hook,lifecycle;
++ uintptr_t dispatch;
++ unsigned depth;
++} RedirectState;
++typedef struct {
++ RedirectState initial,expected,arrival;
++ uint16_t s0;
++ uint8_t p,db,task[64],stage,pending,published,handoff,active;
++} RedirectProof;
++void redirect_reset(RedirectProof *);
++int redirect_arm(RedirectProof *,const RedirectState *,TaskResumePeek,void *);
++int redirect_before(RedirectProof *,const RedirectState *,TaskResumePeek,void *);
++int redirect_committed(RedirectProof *,uint32_t,const RedirectState *,TaskResumePeek,void *);
++int redirect_handoff(RedirectProof *,unsigned,const RedirectState *,const RedirectState *);
++int redirect_take(RedirectProof *,const RedirectState *,TaskResumePeek,void *);
++int redirect_active(RedirectProof *,const RedirectState *,TaskResumePeek,void *);
++#endif
+diff --git a/runner/src/redirect_contract.inc b/runner/src/redirect_contract.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/redirect_contract.inc
+@@ -0,0 +1,96 @@
++#include "redirect_contract.h"
++#include <string.h>
++static const uint32_t redirect_sites[]={0x00ff20,0x0084d9,0x0084da,0x0084db,0x0084dd,0x0084e0,0x0084e1,0x0084e2,0x0084e4,0x0084e6,0x0084e7,0x0084e8,0x0084ea,0x0084eb,0x0084ec,0x0084ee,0x0084ef,0x0084f2,0x0084f3,0x0084f6,0x0084f8,0x0084f9,0x0084fa};
++void redirect_reset(RedirectProof *p){if(p)memset(p,0,sizeof(*p));}
++static int red_epoch(const RedirectState *a,const RedirectState *b){
++ const TaskResumeState *x=&a->state,*y=&b->state;
++ return x->cpu==y->cpu&&x->module==y->module&&x->owner==y->owner&&x->generation==y->generation&&x->frame==y->frame&&x->owner_epoch==y->owner_epoch&&a->hook==b->hook&&a->lifecycle==b->lifecycle&&a->dispatch==b->dispatch&&a->depth==b->depth;
++}
++static int red_regs(const RedirectState *a,const RedirectState *b){
++ const TaskResumeState *x=&a->state,*y=&b->state;
++ return x->pc==y->pc&&x->s==y->s&&x->a==y->a&&x->x==y->x&&x->y==y->y&&x->d==y->d&&x->p==y->p&&x->db==y->db&&x->e==y->e;
++}
++static int red_byte(TaskResumePeek peek,void *c,uint32_t at,uint8_t v){uint8_t b;return peek(c,at,&b)&&b==v;}
++static int red_word(TaskResumePeek peek,void *c,uint32_t at,uint16_t v){return red_byte(peek,c,at,(uint8_t)v)&&red_byte(peek,c,at+1,(uint8_t)(v>>8));}
++static int red_memory(const RedirectProof *p,TaskResumePeek peek,void *c){
++ for(unsigned n=0;n<64;n++)if(!red_byte(peek,c,n,p->task[n]))return 0;
++ if(!red_word(peek,c,0x01d119,0xd176)||!red_byte(peek,c,((uint32_t)p->db<<16)|0x442,2))return 0;
++ const uint16_t ret=p->stage>=20?0xd175:0xd114;
++ if(!red_word(peek,c,p->s0+1,ret)||!red_byte(peek,c,p->s0+3,1))return 0;
++ if(p->stage>=2&&!red_byte(peek,c,p->s0,p->p))return 0;
++ if(p->stage>=3&&!red_byte(peek,c,p->s0-1,p->db))return 0;
++ if(p->stage>=10&&!red_byte(peek,c,p->s0-2,1))return 0;
++ return 1;
++}
++int redirect_arm(RedirectProof *p,const RedirectState *v,TaskResumePeek peek,void *c){
++ if(!p)return 0;redirect_reset(p);
++ if(!v||!peek)return 0;const TaskResumeState *s=&v->state;
++ /* Source task footprint and scratch stack must not alias; all bytes WRAM. */
++ if(s->e||!s->cpu||!s->module||!s->owner||!s->owner_epoch||!v->dispatch||!v->depth||
++    s->pc!=0x00ff20||(s->p&0x38)!=0x20||(s->a&255)!=2||s->s<0x43||s->s>0x1ffc||
++    !((s->db<=0x3f)||(s->db>=0x80&&s->db<=0xbf))||
++    !red_word(peek,c,s->s+1,0xd114)||!red_byte(peek,c,s->s+3,1)||
++    !red_word(peek,c,0x01d119,0xd176)||!red_byte(peek,c,((uint32_t)s->db<<16)|0x442,2))return 0;
++ p->initial=p->expected=*v;p->s0=s->s;p->p=s->p;p->db=s->db;
++ for(unsigned n=0;n<64;n++)if(!peek(c,n,&p->task[n])){redirect_reset(p);return 0;}
++ p->pending=1;return 1;
++}
++int redirect_before(RedirectProof *p,const RedirectState *v,TaskResumePeek peek,void *c){
++ if(!p||!v||!p->pending)return 0;
++ if(p->stage>=sizeof(redirect_sites)/sizeof(*redirect_sites)||v->state.pc!=redirect_sites[p->stage]||
++    !red_epoch(&p->expected,v)||!red_regs(&p->expected,v)||!red_memory(p,peek,c)){redirect_reset(p);return 0;}
++ return 1;
++}
++static void red_nz(TaskResumeState *v,uint16_t n,unsigned width){uint16_t mask=width==8?255:65535,sign=width==8?128:32768;v->p=(uint8_t)((v->p&~0x82)|((n&mask)?0:2)|((n&sign)?128:0));}
++int redirect_committed(RedirectProof *p,uint32_t source,const RedirectState *actual,TaskResumePeek peek,void *c){
++ if(!p||!actual||!p->pending)return 0;
++ if(p->stage>=23||source!=redirect_sites[p->stage]||!red_epoch(&p->expected,actual)){redirect_reset(p);return 0;}
++ RedirectState next=p->expected;TaskResumeState *v=&next.state;
++ switch(p->stage){
++ case 0:break; /* original FF20 JMP */
++ case 1:--v->s;break; /* PHP */
++ case 2:--v->s;break; /* PHB */
++ case 3:v->p&=(uint8_t)~0x30;break;
++ case 4:v->a&=255;red_nz(v,v->a,16);break;
++ case 5:v->a=4;v->p&=(uint8_t)~1;red_nz(v,v->a,16);break;
++ case 6:v->x=v->a;red_nz(v,v->x,16);break;
++ case 7:v->p|=0x20;break;
++ case 8:v->a=(uint16_t)((v->a&0xff00)|1);red_nz(v,1,8);break;
++ case 9:--v->s;break;
++ case 10:++v->s;v->db=1;red_nz(v,1,8);break;
++ case 11:v->p&=(uint8_t)~0x20;break;
++ case 12:v->a=v->x;red_nz(v,v->a,16);break;
++ case 13:v->p|=1;break;
++ case 14:v->a=0xd119;v->p&=(uint8_t)~0x41;red_nz(v,v->a,16);break;
++ case 15:v->y=v->a;red_nz(v,v->y,16);break;
++ case 16:v->a=0xd176;red_nz(v,v->a,16);break;
++ case 17:v->p|=1;break;
++ case 18:v->a=0xd175;v->p=(uint8_t)((v->p&~0x40)|1);red_nz(v,v->a,16);break;
++ case 19:break; /* original STA $03,S */
++ case 20:++v->s;v->db=p->db;red_nz(v,v->db,8);break;
++ case 21:++v->s;v->p=p->p;break;
++ case 22:v->s=(uint16_t)(v->s+3);break;
++ }
++ ++p->stage;v->pc=p->stage==23?0x01d176:redirect_sites[p->stage];
++ if(!red_regs(&next,actual)||!red_memory(p,peek,c)){redirect_reset(p);return 0;}
++ p->expected=next;
++ if(p->stage==23){p->pending=0;p->published=1;p->arrival=next;}
++ return 1;
++}
++int redirect_handoff(RedirectProof *p,unsigned route,const RedirectState *from,const RedirectState *to){
++ if(!p||!from||!to)return 0;
++ int ok=p->published&&!p->pending&&!p->handoff&&(route==1||route==2)&&red_epoch(&p->arrival,from)&&red_regs(&p->arrival,from)&&red_regs(from,to)&&
++  from->state.cpu==to->state.cpu&&from->state.module==to->state.module&&from->state.generation==to->state.generation&&from->state.frame==to->state.frame&&
++  from->hook==to->hook&&from->lifecycle==to->lifecycle&&to->state.owner&&to->state.owner_epoch&&to->dispatch&&to->depth;
++ if(!ok){redirect_reset(p);return 0;}
++ p->arrival=*to;p->expected=*to;p->handoff=1;return 1;
++}
++int redirect_take(RedirectProof *p,const RedirectState *v,TaskResumePeek peek,void *c){
++ if(!p||!v)return 0;
++ int ok=p->published&&!p->pending&&!p->active&&red_epoch(&p->arrival,v)&&red_regs(&p->arrival,v)&&red_memory(p,peek,c);
++ if(!ok){redirect_reset(p);return 0;}p->published=0;p->active=1;return 1;
++}
++int redirect_active(RedirectProof *p,const RedirectState *v,TaskResumePeek peek,void *c){
++ if(!p||!v||!p->active)return 0;
++ if(!red_epoch(&p->expected,v)||!red_regs(&p->expected,v)||!red_memory(p,peek,c)){redirect_reset(p);return 0;}return 1;
++}
+diff --git a/runner/src/snes/bridge_redirect_helpers.inc b/runner/src/snes/bridge_redirect_helpers.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/snes/bridge_redirect_helpers.inc
+@@ -0,0 +1,70 @@
++/* Source-bound original dispatcher observers; no guest writes or host returns. */
++#include "../redirect_contract.h"
++#include "../redirect_contract.inc"
++__attribute__((weak)) int cpu_source_redirect_recipe_matches(TaskResumePeek p,void *c){(void)p;(void)c;return 0;}
++__attribute__((weak)) bool cpu_source_redirect_region_step(CpuState *c,uint32 p,uint8 m,uint32 *n){(void)c;(void)p;(void)m;(void)n;return false;}
++static int redirect_peek(void *ctx,uint32 at,uint8 *out){ CpuState *c=(CpuState*)ctx;unsigned bank=at>>16,low=at&65535;if(at<=0xffffff&&low<0x2000&&(bank<=0x3f||(bank>=0x80&&bank<=0xbf))&&c&&c->ram){*out=c->ram[low];return 1;}return task_peek(ctx,at,out); }
++static CpuState *s_redirect_dispatch_cpu;
++static uint32 s_redirect_dispatch_pc;
++static uint8 s_redirect_dispatch_mx;
++static RedirectProof s_redirect;
++static RedirectState s_redirect_from;
++static unsigned s_redirect_prepared;
++static uint32 s_redirect_target;
++static int s_redirect_call_candidate;
++static RedirectState s_redirect_call;
++void interp_bridge_source_redirect_reset(void){s_redirect_dispatch_cpu=NULL;redirect_reset(&s_redirect);s_redirect_prepared=0;s_redirect_call_candidate=0;memset(&s_redirect_from,0,sizeof s_redirect_from);}
++static RedirectState redirect_cpu_view(CpuState *c,uint32 actual){
++ RedirectState v={task_cpu_view(c,actual),s_pre_opcode_hook_generation,s_scheduler_hook_lifecycle,(uintptr_t)cpu_source_redirect_region_step,(unsigned)s_interp_bridge_depth};return v;
++}
++static RedirectState redirect_local_view(CpuState *c,const Interp816 *in,uint32 actual){RedirectState v=redirect_cpu_view(c,actual);v.state=task_local_view(c,in,actual);return v;}
++static int redirect_safe(CpuState *c){return c&&c->ram&&g_snes&&g_snes->cart&&g_snes->cart->type==CART_LOROM&&!s_aot_instruction&&!s_native_instruction_cpu&&!g_watchdog_tripped&&!s_scheduler_hook_epoch_exhausted&&!s_pre_opcode_callback_cpu&&!cpu_interrupt_context_active()&&s_task_owner_serial&&s_task_next_serial!=UINT64_MAX&&cpu_source_redirect_recipe_matches(redirect_peek,c);}
++static void redirect_pre_local(CpuState *c,const Interp816 *in,uint32 pc,int hooked){
++ RedirectState v=redirect_local_view(c,in,pc);
++ if(!redirect_safe(c)||hooked){interp_bridge_source_redirect_reset();return;}
++ if(pc==0x01d111){
++  interp_bridge_source_redirect_reset();
++  if(!v.state.e&&(v.state.p&0x38)==0x20&&(v.state.a&255)==2&&v.state.s>=0x46&&v.state.s<=0x1fff&&
++     ((v.state.db<=0x3f)||(v.state.db>=0x80&&v.state.db<=0xbf))&&
++     red_byte(redirect_peek,c,((uint32)v.state.db<<16)|0x442,2)){s_redirect_call=v;s_redirect_call_candidate=1;}
++ }else if(s_redirect.pending)redirect_before(&s_redirect,&v,redirect_peek,c);
++}
++static void redirect_committed_local(CpuState *c,uint32 source,const Interp816 *in,uint32 actual){
++ RedirectState v=redirect_local_view(c,in,actual);
++ if(!redirect_safe(c)){interp_bridge_source_redirect_reset();return;}
++ if(source==0x01d111){
++  int ok=s_redirect_call_candidate&&red_epoch(&s_redirect_call,&v)&&v.state.s+3==s_redirect_call.state.s&&v.state.pc==0x00ff20&&
++   v.state.a==s_redirect_call.state.a&&v.state.x==s_redirect_call.state.x&&v.state.y==s_redirect_call.state.y&&v.state.d==s_redirect_call.state.d&&v.state.p==s_redirect_call.state.p&&v.state.db==s_redirect_call.state.db;
++  s_redirect_call_candidate=0;
++  if(ok)redirect_arm(&s_redirect,&v,redirect_peek,c);else interp_bridge_source_redirect_reset();
++ }else if(s_redirect.pending)redirect_committed(&s_redirect,source,&v,redirect_peek,c);
++}
++static int redirect_pre_opcode(CpuState *c,uint32 pc,uint8 mx){
++ RedirectState v=redirect_cpu_view(c,pc);
++ if(!redirect_safe(c)){interp_bridge_source_redirect_reset();return 0;}
++ if(s_redirect.published&&!redirect_take(&s_redirect,&v,redirect_peek,c))return 0;
++ return redirect_active(&s_redirect,&v,redirect_peek,c)&&mx==((v.state.p>>4)&3);
++}
++bool cpu_source_redirect_active(CpuState *c,uint32 pc,uint8 mx){
++ int scoped=s_redirect_dispatch_cpu==c&&s_redirect_dispatch_pc==pc&&s_redirect_dispatch_mx==mx;
++ s_redirect_dispatch_cpu=NULL; /* consumed before any generated opcode bus */
++ if(!scoped){interp_bridge_source_redirect_reset();return false;}
++ return redirect_pre_opcode(c,pc,mx)!=0;
++}
++static void redirect_step_finished(CpuState *c,uint32 actual,int completed){
++ if(!completed){interp_bridge_source_redirect_reset();return;}
++ s_redirect.expected=redirect_cpu_view(c,actual);
++}
++static void redirect_prepare_return(CpuState *c,uint32 source,uint32 actual,unsigned route){
++ s_redirect_prepared=0;if(source!=0x0084fa||actual!=0x01d176||!s_redirect.published||s_redirect.handoff)return;
++ RedirectState v=redirect_cpu_view(c,actual);
++ if(redirect_safe(c)&&red_epoch(&s_redirect.arrival,&v)&&red_regs(&s_redirect.arrival,&v)){s_redirect_from=v;s_redirect_target=actual;s_redirect_prepared=route;}
++}
++static void redirect_owner_enter(CpuState *c,uint32 entry,int interrupt_run){
++ RedirectState v=redirect_cpu_view(c,entry);
++ if(!interrupt_run&&s_redirect_prepared&&entry==s_redirect_target){unsigned route=s_redirect_prepared;s_redirect_prepared=0;if(redirect_handoff(&s_redirect,route,&s_redirect_from,&v))return;}
++ interp_bridge_source_redirect_reset();
++}
++
++
++

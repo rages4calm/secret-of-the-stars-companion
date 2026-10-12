@@ -1,0 +1,94 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -762,6 +762,8 @@
+     # Lower every (insn, key) into its IR ops, in block order.
+     block_lines: Dict[DecodeKey, List[str]] = {}
+     native_rmw_cycles: Dict[DecodeKey, int] = {}
++    # Independent source instruction effects, before owning-prefix bookkeeping.
++    native_instruction_lines: Dict[DecodeKey, Tuple[str, ...]] = {}
+     block_order: List[DecodeKey] = []
+ 
+     # Emit blocks in a stable order: entry first, then DFS over successors.
+@@ -2126,6 +2128,9 @@
+                 _new_lines.append(_ln)
+             _new_lines.append('cpu_aot_commit(cpu);')
+             lines = _new_lines
++        # This snapshot has the faithful instruction semantics and refusal,
++        # but never acquires the owning prefix activation/count/commit state.
++        native_instruction_lines[key] = tuple(lines)
+         if _prefix_expected:
+             lines = [line.replace('cpu_aot_commit(cpu)',
+                      'cpu_aot_prefix_commit(cpu)') for line in lines]
+@@ -2328,7 +2333,7 @@
+                 continue
+             region = collect(rom, region_key, region_insn, region_ops,
+                              native_rmw_cycles.get(region_key, _block_cycle_const(region_pairs)),
+-                             block_lines[region_key])
++                             native_instruction_lines[region_key])
+             if region is not None:
+                 native_region_collector.append(region)
+     # Defensive trailing return so a missing terminator doesn't fall off
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -1,7 +1,7 @@
+ """Source-derived scheduler-owned primitive instructions; never callable roots."""
+ import re
+ from snes65816 import ABS, rom_offset
+-from .ir import CondBranch, Return
++from .ir import CondBranch, Return, Reg
+ from .codegen import emit_op, _reg
+ 
+ READS={'LDA','LDX','LDY','BIT','CMP','CPX','CPY'}
+@@ -27,6 +27,28 @@
+     pc=insn.addr&0xffffff
+     if pc&0xffff<0x8000 or pc>>16 in (0x7e,0x7f):return None
+     code='\n'.join(faithful_lines)
++    # A scheduler row may be entered independently of the owning CFG path.
++    # Never inherit a predecessor-proved flag or optimized branch edge.
++    if getattr(insn,'const_z_fold_unconditional',False):return None
++    if insn.mnem in BRANCHES:
++        from snes65816 import REL
++        conditions={'BEQ':(Reg.ZF,1,0xf0),'BNE':(Reg.ZF,0,0xd0),
++                    'BCS':(Reg.C,1,0xb0),'BCC':(Reg.C,0,0x90),
++                    'BMI':(Reg.N,1,0x30),'BPL':(Reg.N,0,0x10),
++                    'BVS':(Reg.V,1,0x70),'BVC':(Reg.V,0,0x50)}
++        flag,taken,opcode=conditions[insn.mnem]
++        if (len(ops)!=1 or not isinstance(ops[0],CondBranch) or
++            ops[0].flag!=flag or ops[0].take_if!=taken or
++            insn.mode!=REL or insn.length!=2):return None
++        offset=rom_offset(pc>>16,pc&0xffff)
++        raw=rom[offset:offset+2]
++        if len(raw)!=2 or raw[0]!=opcode:return None
++        fall=(pc+2)&0xffff
++        target=(fall+(raw[1] if raw[1]<128 else raw[1]-256))&0xffff
++        destinations={int(value,16) for value in
++                      re.findall(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',code)}
++        condition=r'if\s*\(\s*'+re.escape(_reg(flag))+r'\s*==\s*'+str(taken)+r'\s*\)'
++        if destinations!={fall,target} or not re.search(condition,code):return None
+     if insn.mnem in {'RTS','RTL'}:
+         # Only a decoded, precise source Return may expose its architectural
+         # byte-pop prefix. All host-frame and publication decisions stay in
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 10
++CACHE_FORMAT_VERSION = 11
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1332,7 +1332,8 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':4, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':5, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                                     'instruction_source':'source_faithful_before_activation_plumbing',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+         write_if_changed(

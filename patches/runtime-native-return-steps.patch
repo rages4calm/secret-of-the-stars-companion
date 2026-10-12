@@ -1,0 +1,177 @@
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -1,7 +1,7 @@
+ """Source-derived scheduler-owned primitive instructions; never callable roots."""
+ import re
+ from snes65816 import ABS, rom_offset
+-from .ir import CondBranch
++from .ir import CondBranch, Return
+ from .codegen import emit_op, _reg
+ 
+ READS={'LDA','LDX','LDY','BIT','CMP','CPX','CPY'}
+@@ -16,7 +16,7 @@
+         return None
+     supported={'LDA','LDX','LDY','STA','STX','STY','STZ','ADC','SBC','AND','ORA','EOR','CMP','CPX','CPY','BIT',
+         'CLC','SEC','CLD','SED','CLI','SEI','CLV','REP','SEP','NOP','INX','INY','DEX','DEY','TAX','TAY','TXA','TYA',
+-        'TXY','TYX','XBA','ASL','LSR','ROL','ROR','INC','DEC','TSB','TRB','BRA','BRL','JMP'}|BRANCHES|STACK_PRIMITIVES
++        'TXY','TYX','XBA','ASL','LSR','ROL','ROR','INC','DEC','TSB','TRB','BRA','BRL','JMP'}|BRANCHES|STACK_PRIMITIVES|{'RTS','RTL'}
+     from snes65816 import ABS as abs_mode
+     if insn.mnem not in supported or insn.mnem=='JMP' and insn.mode!=abs_mode:
+         return None
+@@ -27,6 +27,36 @@
+     pc=insn.addr&0xffffff
+     if pc&0xffff<0x8000 or pc>>16 in (0x7e,0x7f):return None
+     code='\n'.join(faithful_lines)
++    if insn.mnem in {'RTS','RTL'}:
++        # Only a decoded, precise source Return may expose its architectural
++        # byte-pop prefix. All host-frame and publication decisions stay in
++        # the original scheduler after this full-PC24 step.
++        returns=[op for op in ops if isinstance(op,Return)]
++        if (len(returns)!=1 or returns[0].interrupt or
++            returns[0].source_pc24!=insn.addr or
++            returns[0].long!=(insn.mnem=='RTL') or
++            'cpu_aot_prefix' in code or 'precise-mode unsupported:' in code):
++            return None
++        architectural=re.match(r'\s*\{ uint16 _ret_s = cpu->S;.*?uint32 _rpc24 = \(\(uint32\)_rpb << 16\) \| _rpc;\s*cpu_aot_commit\(cpu\);',code,re.S)
++        if architectural is None:return None
++        body=architectural[0]
++        # Fail closed on a different backend pop shape or additional effects.
++        clean=re.sub(r'/\*.*?\*/','',body,flags=re.S)
++        increment='cpu->S = (uint16)(cpu->S + 1);'
++        exact=['{ uint16 _ret_s = cpu->S;',increment,
++               'uint16 _rpcl = (uint16)cpu_aot_read8(cpu, 0x00, cpu->S);',increment,
++               'uint16 _rpch = (uint16)cpu_aot_read8(cpu, 0x00, cpu->S);']
++        if insn.mnem=='RTL':
++            exact += [increment,'uint8 _rpb = cpu_aot_read8(cpu, 0x00, cpu->S);',
++                      'cpu->PB = _rpb;']
++        else:exact += ['uint8 _rpb = cpu->PB;']
++        exact += ['uint32 _rpc = (uint32)((((_rpch << 8) | _rpcl) + 1) & 0xFFFFu);',
++                  'uint32 _rpc24 = ((uint32)_rpb << 16) | _rpc;','cpu_aot_commit(cpu);']
++        compact=lambda value:re.sub(r'\s+','',value)
++        if compact(clean)!=compact(''.join(exact)):return None
++        body=body.rsplit('cpu_aot_commit(cpu);',1)[0]+'*next_pc=_rpc24; }'
++        offset=rom_offset(pc>>16,pc&0xffff)
++        return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':(pc+insn.length)&0xffff,'body':body,'mnemonic':insn.mnem}
+     # No return, host invocation or unresolved transition; stack effects are explicit primitives.
+     if any(token in code for token in ('return','interp_','Recomp','_entry_s','_hrv','_pending_skip','cpu_aot_prefix','cpu->PB =')):
+         return None
+@@ -58,7 +88,7 @@
+     if not destinations:return None
+     label=f'_region_done_{pc&0x7fffff:06x}_{key.m}{key.x}'
+     code=code.replace('cpu_aot_commit(cpu);','')
+-    code=re.sub(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',lambda m:f'*next_pc=0x{m[1]}u; goto {label};',code)
++    code=re.sub(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',lambda m:f'*next_pc=((uint32)cpu->PB<<16)|0x{m[1]}u; goto {label};',code)
+     if re.search(r'\bgoto\s+(?!'+label+r'\b)',code):return None
+     names={}
+     def local(match):return names.setdefault(match[0],f'_region_v{len(names)}')
+@@ -70,7 +100,7 @@
+ def emit(rows,module_prefix=None):
+     header='#include "cpu_state.h"\n#include "program_module.h"\n#include "cpu_trace.h"\n#include <stdlib.h>\n'
+     if module_prefix:header+='#include "module_namespace.h"\n'
+-    out=[header,'extern SnesProgramModule g_program_module;', 'bool cpu_native_region_step(CpuState *cpu,uint32 pc24,uint8 mx,uint16 *next_pc) {',
++    out=[header,'extern SnesProgramModule g_program_module;', 'bool cpu_native_region_step(CpuState *cpu,uint32 pc24,uint8 mx,uint32 *next_pc) {',
+          '  static int enabled=-1; if(enabled<0) {const char *e=getenv("SNESRECOMP_DISABLE_NATIVE_REGIONS");enabled=!(e&&e[0]&&e[0]!=\'0\');}',
+          '  const SnesProgramModule *active=snes_program_module_active();',
+          '  if(!enabled || !cpu || !next_pc || cpu->emulation || cpu->m_flag>1 || cpu->x_flag>1 || mx!=((cpu->m_flag<<1)|cpu->x_flag) || (active && active!=&g_program_module)) return false;',
+@@ -80,7 +110,7 @@
+         case=(row['pc24']<<2)|(row['m']<<1)|row['x']
+         out.extend([f'    case {case}u: {{ /* {row["pc24"]:06x} M{row["m"]}X{row["x"]} {row["mnemonic"]}; ROM {row["bytes"]} */',
+                     f'      if(!cpu_aot_begin_scheduler_region(cpu,pc24,{row["length"]}u,{row["cycles"]}u,(const uint8[]){{{','.join(str(b) for b in bytes.fromhex(row['bytes']))}}},cpu_native_region_step)) return false;',
+-                    f'      *next_pc={row["next_pc"]}u;',row['body'],'      cpu_aot_commit(cpu); return true; }'])
++                    f'      *next_pc=((uint32)cpu->PB<<16)|{row["next_pc"]}u;',row['body'],'      cpu_aot_commit(cpu); return true; }'])
+     out.extend(['    default: return false;','  }','}',''])
+     return '\n'.join(out)
+ 
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 9
++CACHE_FORMAT_VERSION = 10
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1332,7 +1332,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':3, 'kind':'source_cfg_scheduler_instruction',
++                         json.dumps({'format_version':4, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+         write_if_changed(
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -26,7 +26,7 @@
+ 
+ struct CpuState;
+ /* Generated scheduler-owned instruction leaf; next PC is transient output. */
+-bool cpu_native_region_step(struct CpuState *cpu, uint32 pc24, uint8 mx, uint16 *next_pc);
++bool cpu_native_region_step(struct CpuState *cpu, uint32 pc24, uint8 mx, uint32 *next_pc);
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -831,10 +831,10 @@
+ 
+ /* Private upstream automatic faithful-instruction mode. No CpuState fields. */
+ /* Generated scheduler-owned instruction leaf; next PC is transient output. */
+-bool cpu_native_region_step(CpuState*, uint32 pc24, uint8 mx, uint16 *next_pc);
++bool cpu_native_region_step(CpuState*, uint32 pc24, uint8 mx, uint32 *next_pc);
+ bool cpu_aot_begin(CpuState*, uint32, unsigned, unsigned);
+ void cpu_native_region_reset(void);
+-bool cpu_aot_begin_scheduler_region(CpuState*, uint32, unsigned, unsigned, const uint8*, bool (*)(CpuState*, uint32, uint8, uint16*));
++bool cpu_aot_begin_scheduler_region(CpuState*, uint32, unsigned, unsigned, const uint8*, bool (*)(CpuState*, uint32, uint8, uint32*));
+ RecompReturn interp_tier_dispatch_faithful(CpuState*,uint32,uint32,uint16,uint8,bool,uint32);
+ void cpu_aot_extra(CpuState*, unsigned);
+ void cpu_aot_commit(CpuState*);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -437,7 +437,7 @@
+   bool observed_hooks;
+   int host_frame;
+   uint64_t lifecycle, state_generation;
+-  bool (*dispatch)(CpuState *, uint32, uint8, uint16 *);
++  bool (*dispatch)(CpuState *, uint32, uint8, uint32 *);
+ } SchedulerHookHandoff;
+ static CpuState *s_scheduler_hook_begin_cpu;
+ static uint32_t s_scheduler_hook_begin_pc;
+@@ -576,7 +576,7 @@
+ 
+ bool cpu_aot_begin_scheduler_region(CpuState *cpu, uint32 pc, unsigned length,
+     unsigned cycles, const uint8 *expected,
+-    bool (*dispatch)(CpuState *, uint32, uint8, uint16 *)) {
++    bool (*dispatch)(CpuState *, uint32, uint8, uint32 *)) {
+   if (!cpu || !expected || !length || length > 4 || !dispatch) return false;
+   const uint32_t key = ((((uint32_t)cpu->PB) << 16) | (pc & 0xffffu)) & 0x7fffffu;
+   bool hooked = false;
+@@ -2892,10 +2892,10 @@
+                                     in.mf ? 1 : 0, in.xf ? 1 : 0);
+         /* Generated leaf instruction table, not a callable
+          * guest root. The original loop above owns all pre-opcode gates.
+-         * The generated table must contain only certified stack-neutral E0
+-         * read/branch bodies, excluding all masked/hook/unknown-mode PCs. */
+-        extern bool cpu_native_region_step(CpuState *, uint32, uint8, uint16 *);
+-        uint16 region_next_pc = in.pc;
++         * The generated table contains source-certified E0 architectural steps;
++         * full PB/PC results retain original return/caller/scheduler ownership. */
++        extern bool cpu_native_region_step(CpuState *, uint32, uint8, uint32 *);
++        uint32 region_next_pc = ((uint32)in.k << 16) | in.pc;
+         uint64_t region_cycles_before = cpu->cycles;
+         /* Refusal retains the original published/local register split: bus
+          * callbacks may observe CpuState while the live registers are in in.
+@@ -2926,7 +2926,8 @@
+         if (region_completed) {
+             _cyc = (int)(cpu->cycles - region_cycles_before);
+             sync_cpu_to_interp(cpu, &in);
+-            in.pc = region_next_pc;
++            in.k = (uint8)(region_next_pc >> 16);
++            in.pc = (uint16)region_next_pc;
+         } else {
+             /* Dispatch refusal has performed no fetch, mutation or charge. */
+             sync_interp_to_cpu(&unpublished_registers, cpu);

@@ -1,0 +1,22 @@
+{
+  "patch_sha256": "e2b7b7da6944d2aec3b0e4724b422cc2359f93f2782235f3ebf1c2bf742d08a5",
+  "files": {
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "df51de43508e12d5d9dccdf7dcce2e275d1b852d2532809571e258c8e5a7a8ac",
+      "sha256": "676bd1f31fed1a700163563412120068391c54588a1c357449c9777a1bdb933b"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "6569404fc6d7ae1b59231bb258540cdb557fbc585550492007d1ff745bb4927f",
+      "sha256": "e596816139263760dcd45f4c92400997b1e111636ce4551606b96e9d9e0c90b1"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "ea95d565a3af06b3bd9ef81f5f2ebd2d0c2e3b97c070c9c3d165c1f3474702f3",
+      "sha256": "040023004f40943c831818db92bddbf6076f90deab40c32cdf36d7f49b0b228b"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "27106cd2e6e8a385a828b4afee4573ecdff685b77658334553ff2488a7aaea80",
+      "sha256": "ad569590de4f9a0b50a7e427bb8238ed71b51aa0b073534d364a867820090361"
+    }
+  },
+  "scope": "Exact source-decoded known-E0 ORA/AND/EOR/ADC/STA/LDA/CMP/SBC indirect-Y architectural scheduler steps from existing faithful cached-pointer body; all normal/task/redirect table begins now require one-use original scheduler dispatch scope, separate stricter hook/task/redirect proofs retained; no callable roots/exit modes/masks/CPU/codegen arithmetic changed."
+}

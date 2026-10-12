@@ -1,0 +1,280 @@
+diff --git a/recompiler/v2/task_resume.py b/recompiler/v2/task_resume.py
+--- a/recompiler/v2/task_resume.py
++++ b/recompiler/v2/task_resume.py
+@@ -29,6 +29,29 @@
+    at=(p&0xff0000)|((p+byte)&65535)
+    if at&0x7fffff in forced or any((at>>16)in(bank,bank^128)and a<=at&65535<z for bank,a,z in data):
+     raise ValueError('selected-task recipe overlaps source mask')
++ # Source-selected subordinate callee: no new ordinary root or assumed exit.
++ subcall_rows=[]
++ expected=[('REP',0x30),('LDA',0x5555),('STA',0x7e2400),('STA',0x7e2401),('STA',0x7e241e),('LDA',0xf080),('LDX',0x30),('DEX',0),('DEX',0),('DEX',0),('DEX',0),('STA',0x7e2200),('BNE',0xd896),('STA',0x7e23f0),('STA',0x7e23f4),('STA',0x7e23f8),('STA',0x7e23fc),('RTS',0)]
++ for sx in (0,1):
++  cg=decode_function(rom,1,0xd87f,1,sx,end=0xd8b1,max_insns=64,data_regions=data,stop_on_unknown_callee_exit=True)
++  ordered=sorted(cg.insns.items(),key=lambda pair:pair[0].pc)
++  if [(di.insn.mnem,di.insn.operand)for _key,di in ordered]!=expected or cg.unknown_callee_exit_sites or cg.unresolved_indirects:
++   raise ValueError('selected subordinate source callee contract changed')
++  for key,di in ordered:
++   i=di.insn
++   for n in range(i.length):
++    at=(i.addr&0xff0000)|((i.addr+n)&65535)
++    if at&0x7fffff in forced or any((at>>16)in(bank,bank^128)and a<=at&65535<z for bank,a,z in data):raise ValueError('selected subordinate source callee overlaps mask')
++   if i.mnem=='RTS'and(key.m,key.x,i.addr)!=(0,0,0x01d8b0):raise ValueError('subordinate source exit mode refusal')
++   subcall_rows.append({'pc24':i.addr,'m':key.m,'x':key.x,'length':i.length,'opcode':raw(i.addr,1)[0],'fall':0x01d812 if i.mnem=='RTS'else i.addr+i.length,'branch':(0x010000|i.operand)if i.mnem=='BNE'else 0,'bytes':raw(i.addr,i.length).hex()})
++ subcall_rows=list({(r['pc24'],r['m'],r['x']):r for r in subcall_rows}.values())
++ if raw(0x01d80f,3)!=bytes.fromhex('207fd8'):raise ValueError('selected original call source refusal')
++ spans.extend([(0x01d80f,raw(0x01d80f,3)),(0x01d87f,raw(0x01d87f,50))])
++ for p,b in spans[-2:]:
++  for n in range(len(b)):
++   at=(p&0xff0000)|((p+n)&65535)
++   if at&0x7fffff in forced or any((at>>16)in(bank,bank^128)and a<=at&65535<z for bank,a,z in data):raise ValueError('selected original call spans overlap source mask')
++ subordinate_exits={(0x01d87f,1,0):(0,0),(0x01d87f,1,1):(0,0)}
+  rows=[];graphs=[]
+  for call in (call0,call1):
+   landing=call+4;bank=landing>>16
+@@ -37,12 +60,12 @@
+   if landing not in (0x01d87c,0x01840e):raise ValueError('unreviewed selected-task landing')
+   end=0xd87f if landing==0x01d87c else 0x84ca
+   for x in (0,1):
+-   graph=decode_function(rom,bank,landing&65535,1,x,end=end,max_insns=256,data_regions=data,stop_on_unknown_callee_exit=True)
++   graph=decode_function(rom,bank,landing&65535,1,x,end=end,max_insns=256,data_regions=data,stop_on_unknown_callee_exit=True,callee_exit_mx=subordinate_exits)
+    local=[]
+    # Actual20 faithful-line snapshot and architectural branch collector.
+    emit_function(rom,bank,landing&65535,1,x,end=end,func_name='TaskSourceDerivation',data_regions=data,
+     exclude_ranges=[(p&65535,(p&65535)+1)for p in forced if p>>16==bank],native_region_collector=local,
+-    source_task_resume_stops=graph.unknown_callee_exit_sites)
++    source_task_resume_stops=graph.unknown_callee_exit_sites,callee_exit_mx=subordinate_exits)
+    allowed={(k.pc&65535,k.m,k.x):di.insn for k,di in graph.insns.items()}
+    for row in local:
+     if row['mnemonic'] in ('JSR','JSL','RTS','RTL','TCS','TXS','PLP','PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB'):
+@@ -57,7 +80,7 @@
+   k=(row['pc24'],row['m'],row['x'])
+   if k in unique and unique[k]!=row:raise ValueError('selected-task mode/body conflict')
+   unique[k]=row
+- return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'spans':spans},graphs
++ return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'spans':spans,'subcall':{'call':0x01d80f,'callee':0x01d87f,'return':0x01d8b0,'landing':0x01d812,'entry_m':1,'entry_x':[0,1],'exit_m':0,'exit_x':0,'same_owner':True,'rows':subcall_rows}},graphs
+ 
+ def emit_source(rows,recipe,module_prefix=None):
+  code=emit(rows,module_prefix).replace('cpu_native_region_step','cpu_source_task_region_step')
+@@ -70,4 +93,10 @@
+    for n,value in enumerate(raw):code+=f' if(!peek(ctx,{pc+n}u,&b)||b!={value}u)return 0;\n'
+   code+=' return 1;\n}\n'
+  else:code+='\nconst TaskResumeRecipe g_native_task_resume_recipe={0};\nint cpu_source_task_recipe_matches(int (*peek)(void *,uint32,unsigned char *),void *ctx){(void)peek;(void)ctx;return 0;}\n'
++ if recipe:
++  code+='\nint cpu_source_task_call_sources_match(TaskResumePeek peek,void *ctx){return cpu_source_task_recipe_matches(peek,ctx); }\n'
++  code+='int cpu_source_task_call_row(uint32 pc,uint8 mx,unsigned *len,uint32 *fall,uint32 *branch,uint8 *op){\n switch((pc<<2)|mx){\n'
++  for row in recipe['subcall']['rows']:
++   code+=f"case {(row['pc24']<<2)|(row['m']*2+row['x'])}u: *len={row['length']}u;*fall={row['fall']}u;*branch={row['branch']}u;*op={row['opcode']}u;return 1;\n"
++  code+='default:return 0;} }\n'
+  return code
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 15
++CACHE_FORMAT_VERSION = 16
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1326,7 +1326,7 @@
+ 
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+-        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':1,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
++        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':2,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+         from .source_redirect import emit_source as emit_redirect
+         write_if_changed(staging/'native_source_redirect_v2.c',emit_redirect(redirect_rows,redirect_recipe,module_prefix))
+         write_if_changed(staging/'native_source_redirect.json',json.dumps({'format_version':1,'kind':'source_bound_original_redirect','recipe':{k:v for k,v in redirect_recipe.items()if k!='spans'}if redirect_recipe else None,'rows':redirect_rows},indent=2,sort_keys=True)+'\n')
+diff --git a/runner/src/snes/bridge_task_helpers.inc b/runner/src/snes/bridge_task_helpers.inc
+--- a/runner/src/snes/bridge_task_helpers.inc
++++ b/runner/src/snes/bridge_task_helpers.inc
+@@ -16,6 +16,7 @@
+ static TaskResumeState s_task_from;
+ static uint32 s_task_prepared_source,s_task_prepared_target;
+ void interp_bridge_source_task_reset(void) {
++ task_call_reset();
+  task_resume_reset(&s_task_proof);task_resume_reset(&s_task_active);
+  s_task_prepared=0;memset(&s_task_from,0,sizeof(s_task_from));
+ }
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -637,6 +637,9 @@
+   return begun;
+ }
+ 
++static void task_call_reset(void);
++static void task_call_pre_cpu(CpuState *,uint32);
++static void task_call_committed_cpu(CpuState *,uint32);
+ bool cpu_aot_begin(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles) {
+   if(!cpu || cpu->emulation || s_aot_instruction || s_native_instruction_cpu || s_interp_bus_timing_active || !cycles || !length) return false;
+   /* Ordinary AOT entries always refuse registered hook PCs. A scheduler
+@@ -646,6 +649,7 @@
+     if (s_pre_opcode_hooks[i].pc24 == hook_pc &&
+         (s_scheduler_hook_begin_cpu != cpu || s_scheduler_hook_begin_pc != hook_pc))
+       return false;
++  task_call_pre_cpu(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
+   s_aot_instruction=cpu;s_aot_cycles=cycles;s_aot_pc=((uint32)cpu->PB<<16)|(pc&0xffff);
+   s_aot_length=length;memset(s_aot_fetched,0,sizeof s_aot_fetched);
+   s_aot_rmw_read=false;s_aot_rmw_written=false;
+@@ -733,6 +737,7 @@
+   unsigned cycles=s_aot_cycles,bus=s_interp_bus_cycles;uint64_t master=s_interp_bus_master;
+   s_interp_bus_timing_active=0;s_aot_instruction=NULL;g_interp_apu_driving=s_aot_apu_driving;
+   bridge_charge_instruction(cpu,cycles,bus,master,false);g_faithful_aot_steps++;cpu_mirrors_to_p(cpu);
++  task_call_committed_cpu(cpu,s_aot_pc);
+   private_instruction_trace(cpu,s_aot_pc,'g',cycles,bus,master);
+   static int init=0,lo=-1,hi=-1;extern int snes_frame_counter;
+   if(!init){const char *e=getenv("PRIVATE_FAITHFUL_TRACE");init=1;if(e)sscanf(e,"%d-%d",&lo,&hi);}
+@@ -923,6 +928,7 @@
+  * garbage into InvalidInterrupt_Crash ($80:8573). */
+ static int      s_interp_owner_is_scheduler = 0;
+ #include "bridge_task_helpers.inc"
++#include "bridge_task_call.inc"
+ #include "bridge_redirect_helpers.inc"
+ 
+ /* Has a post-return S crossed above the owning interpreter frame's exit
+@@ -2978,6 +2984,7 @@
+             sync_interp_to_cpu(&unpublished_registers, cpu);
+             cpu->P = unpublished_p;
+             s_interp_bus_timing_active = 1;
++            task_call_pre_local(cpu,&in,pc_before);
+             _cyc = interp816_runOpcode(&in);
+         }
+         if(source_redirect_dispatch)redirect_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed);
+@@ -3019,6 +3026,7 @@
+             { CpuState observed=*cpu;sync_interp_to_cpu(&in,&observed);
+               private_instruction_trace(&observed,pc_before,'i',(unsigned)_cyc,s_interp_bus_cycles,s_interp_bus_master); }
+         } /* Generated body already committed original bus/clocks and g trace. */
++        task_call_committed_local(cpu,pc_before,&in,((uint32)in.k<<16)|in.pc);
+ 
+         /* Env-gated per-instruction cycle watch (SNESRECOMP_CYC_WATCH="lo-hi"
+          * hex pc24): log the LLE charge components for each interpreted
+@@ -3311,6 +3319,8 @@
+                 }
+                 in.k  = (uint8)((ret >> 16) & 0xFF);
+                 in.pc = (uint16)(ret & 0xFFFF);
++                if (_air == RECOMP_RETURN_NORMAL)
++                    task_call_owner_resume_local(cpu,&in,((uint32)in.k<<16)|in.pc);
+                 /* Resume-task mode: a successful bounce is forward progress
+                  * (incl. a bounced yield that just slept a frame on its fiber);
+                  * the cap should only catch interp-side wedges, not bound the
+@@ -3355,6 +3365,7 @@
+                 return 1;
+             }
+         }
++        task_call_owner_resume_local(cpu,&in,((uint32)in.k<<16)|in.pc);
+         if (captured_return) {
+             completed_return.landing_pc = ((uint32)in.k << 16) | in.pc;
+             completed_return.after_return_s = in.sp;
+diff --git a/runner/src/snes/bridge_task_call.inc b/runner/src/snes/bridge_task_call.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/snes/bridge_task_call.inc
+@@ -0,0 +1,105 @@
++/* One source-selected call, inside the SAME original scheduler owner only. */
++__attribute__((weak)) int cpu_source_task_call_sources_match(TaskResumePeek peek,void *ctx){(void)peek;(void)ctx;return 0;}
++__attribute__((weak)) int cpu_source_task_call_row(uint32 pc,uint8 mx,unsigned *len,uint32 *fall,uint32 *branch,uint8 *op){
++ (void)pc;(void)mx;(void)len;(void)fall;(void)branch;(void)op;return 0;
++}
++typedef struct {
++ TaskResumeSnapshot task;
++ TaskResumeState before,expected;
++ uint16 entry_s;
++ uint32 source,fall,branch;
++ uint64 hooks;
++ unsigned phase,depth,length,inflight;
++ uint8 opcode;
++} SourceTaskCall;
++static SourceTaskCall s_task_call;
++static void task_call_reset(void){memset(&s_task_call,0,sizeof(s_task_call));}
++static int task_call_epoch(const TaskResumeState *v) {
++ const TaskResumeState *e=&s_task_call.before;
++ return v->cpu==e->cpu&&v->module==e->module&&v->owner&&v->owner==e->owner&&
++  v->owner_epoch==e->owner_epoch&&v->generation==e->generation&&v->frame==e->frame&&
++  !v->e&&s_task_call.depth==(unsigned)s_interp_bridge_depth&&s_task_call.hooks==s_pre_opcode_hook_generation;
++}
++static int task_call_registers(const TaskResumeState *a,const TaskResumeState *b){
++ return a->pc==b->pc&&a->s==b->s&&a->a==b->a&&a->x==b->x&&a->y==b->y&&a->d==b->d&&a->db==b->db&&a->p==b->p&&a->e==b->e;
++}
++static int task_call_frame(CpuState *c,unsigned count){
++ TaskResumeSnapshot *a=&s_task_call.task;uint8 b,lo,hi;
++ for(unsigned n=0;n<count;n++)if(!task_peek(c,a->saved_s+1+n,&b)||b!=a->bytes[n])return 0;
++ if(!task_peek(c,a->recipe->current_index,&lo)||!task_peek(c,a->recipe->current_index+1,&hi)||
++    (uint16)(lo|((uint16)hi<<8))!=a->index||!task_peek(c,a->recipe->status_base+a->index,&b)||b!=1||
++    !task_peek(c,a->recipe->saved_s_base+a->index,&lo)||!task_peek(c,a->recipe->saved_s_base+a->index+1,&hi)||
++    (uint16)(lo|((uint16)hi<<8))!=a->saved_s)return 0;
++ return 1;
++}
++static int task_call_environment(CpuState *c,const TaskResumeState *v,unsigned count){
++ return task_call_epoch(v)&&task_call_frame(c,count)&&cpu_source_task_call_sources_match(task_peek,c)&&
++  !g_watchdog_tripped&&!s_pre_opcode_callback_cpu&&
++  !(g_snes&&g_snes->inIrq&&!(v->p&CPU_P_I))&&!interp_bridge_lle_master_deadline_reached(c);
++}
++/* Called only immediately before the real original JSR, after old gates. */
++static void task_call_arm(CpuState *c,const TaskResumeState *v,uint32 source){
++ if(s_task_call.phase||source!=0x01d80fu||!s_task_active.published)return;
++ SourceTaskCall candidate={0};candidate.task=s_task_active;candidate.before=candidate.expected=*v;
++ candidate.entry_s=v->s;candidate.hooks=s_pre_opcode_hook_generation;candidate.depth=(unsigned)s_interp_bridge_depth;
++ candidate.phase=1;s_task_call=candidate;
++ if(v->s!=candidate.task.saved_s+11u||v->pc!=source||v->module!=(uintptr_t)&g_program_module||
++    (v->p&CPU_P_M)==0||!task_call_registers(v,&candidate.task.actual)||!task_call_environment(c,v,11))task_call_reset();
++}
++static void task_call_pre_view(CpuState *c,const TaskResumeState *v,uint32 source){
++ if(!s_task_call.phase){task_call_arm(c,v,source);return;}
++ if(s_task_call.phase!=2){task_call_reset();return;}
++ SourceTaskCall *p=&s_task_call;
++ unsigned length;uint32 fall,branch;uint8 opcode,mx=(uint8)(((v->p>>5)&1)*2+((v->p>>4)&1));
++ if(p->inflight||!task_call_environment(c,v,11)||!task_call_registers(v,&p->expected)||
++    !cpu_source_task_call_row(source,mx,&length,&fall,&branch,&opcode)||v->s!=(uint16)(p->entry_s-2u)||
++    v->d!=p->before.d||v->db!=p->before.db||v->y!=p->before.y||source!=v->pc){task_call_reset();return;}
++ p->source=source;p->length=length;p->fall=fall;p->branch=branch;p->opcode=opcode;p->inflight=1;
++}
++static void task_call_pre_local(CpuState *c,const Interp816 *in,uint32 source){
++ TaskResumeState v=task_local_view(c,in,source);task_call_pre_view(c,&v,source);
++}
++static void task_call_pre_cpu(CpuState *c,uint32 source){
++ if(!s_task_call.phase)return;TaskResumeState v=task_cpu_view(c,source);task_call_pre_view(c,&v,source);
++}
++static void task_call_commit_view(CpuState *c,uint32 source,const TaskResumeState *v){
++ SourceTaskCall *p=&s_task_call;if(!p->phase)return;
++ if(p->phase==1){
++  uint8 low,high;
++  /* The real JSR owns precisely these two writes in the consumed FF03 frame. */
++  if(source!=0x01d80fu||v->pc!=0x01d87fu||v->s!=(uint16)(p->entry_s-2u)||
++     !task_call_environment(c,v,9)||v->a!=p->before.a||v->x!=p->before.x||v->y!=p->before.y||
++     v->d!=p->before.d||v->db!=p->before.db||v->p!=p->before.p||
++     !task_peek(c,p->entry_s-1u,&low)||!task_peek(c,p->entry_s,&high)||low!=0x11u||high!=0xd8u){task_call_reset();return;}
++  p->task.bytes[9]=low;p->task.bytes[10]=high;p->expected=*v;p->phase=2;task_resume_reset(&s_task_active);return;
++ }
++ if(p->phase!=2||!p->inflight)return;
++ const uint32 next=p->opcode==0xd0u&&!(v->p&CPU_P_Z)?p->branch:p->fall;
++ if(source!=p->source||!task_call_environment(c,v,11)||v->pc!=next||
++    v->d!=p->before.d||v->db!=p->before.db||v->y!=p->before.y){task_call_reset();return;}
++ if(p->opcode==0x60u){
++  if(source!=0x01d8b0u||v->pc!=0x01d812u||v->s!=p->entry_s||((v->p>>4)&3)!=0){task_call_reset();return;}
++  p->expected=*v;p->phase=3;p->inflight=0;return;
++ }
++ if(v->s!=(uint16)(p->entry_s-2u)){task_call_reset();return;}
++ p->expected=*v;p->inflight=0;
++}
++static void task_call_committed_local(CpuState *c,uint32 source,const Interp816 *in,uint32 actual){
++ TaskResumeState v=task_local_view(c,in,actual);task_call_commit_view(c,source,&v);
++}
++static void task_call_committed_cpu(CpuState *c,uint32 source){
++ if(s_task_call.phase!=2||!s_task_call.inflight)return;
++ if(c->PB!=1){task_call_reset();return;}
++ /* Native source19 RTS semantics consume the exact prechecked two-byte frame.
++    Candidate only: original watermark/paired owner decision must publish later. */
++ const uint32 next=s_task_call.opcode==0xd0u&&!c->_flag_Z?s_task_call.branch:s_task_call.fall;
++ TaskResumeState v=task_cpu_view(c,next);task_call_commit_view(c,source,&v);
++}
++/* Observes only after the original scheduler retained this SAME owner. */
++static void task_call_owner_resume_local(CpuState *c,const Interp816 *in,uint32 actual){
++ SourceTaskCall *p=&s_task_call;if(p->phase!=3)return;
++ TaskResumeState v=task_local_view(c,in,actual);
++ if(actual!=0x01d812u||!task_call_environment(c,&v,11)||!task_call_registers(&v,&p->expected)){task_call_reset();return;}
++ s_task_active=p->task;s_task_active.actual=v;s_task_active.actual_landing=v.pc;s_task_active.actual_p=v.p;
++ task_call_reset();
++}

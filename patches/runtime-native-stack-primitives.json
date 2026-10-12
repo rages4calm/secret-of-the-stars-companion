@@ -1,0 +1,18 @@
+{
+  "patch_sha256": "a4b0541252fa1cc9c87047314b4223aaeb4d2c716a9aa347db33d2a041f1abbd",
+  "files": {
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "03798893ca713513981ef25f823490c9d7ae485262283531d704727cb704273d",
+      "normalized_predecessor_sha256": "03798893ca713513981ef25f823490c9d7ae485262283531d704727cb704273d",
+      "final_sha256": "899f86d52f7700dfd78a452687fa0ff3bbaa4491a2667d72730017373acb8760",
+      "normalized_final_sha256": "899f86d52f7700dfd78a452687fa0ff3bbaa4491a2667d72730017373acb8760"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "2f0b42684dd22cb446d0e466db60a5bac85964af7e11a26841975f4196933ab8",
+      "normalized_predecessor_sha256": "2f0b42684dd22cb446d0e466db60a5bac85964af7e11a26841975f4196933ab8",
+      "final_sha256": "09d6485365486dc4fe922e0380200c4c948eeb74cda42b79facb4bd28193159c",
+      "normalized_final_sha256": "09d6485365486dc4fe922e0380200c4c948eeb74cda42b79facb4bd28193159c"
+    }
+  },
+  "scope": "Known E0 typed-IR source-certified push/pull and register primitives in scheduler table. Original byte stack order/wrap, cycles/flags and original scheduling gates. No PLP, stack selection, effective-address pushes, calls, returns or prefix/coroutine promotion."
+}
