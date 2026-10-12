@@ -9,17 +9,9 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
-The [native 0.3.4 source continuation](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md)
-makes the reviewed expanded generation reproducible with public source and an
-owned ROM, without private gameplay recordings. It retains the preceding
-[Decatas guidance and renderer-boundary repair](docs/FOUNDATION-DECATAS-NATIVE-2026-10-11.md).
-Fresh execution, checkpoint, packet/art and launcher-adoption checks pass,
-with thirteen clean normal playback routes and a clean nine-route modal
-repeat. Initial modal audio failures remain retained with an unproven cause;
-installation and 18 copied launch/visible-GUI checks pass.
-Package/publication integrity is checked separately. Generation counts do not
-certify the campaign. Complete AOT, broader effects/party/story coverage and
-later verified quest guidance remain unfinished.
+The [native 0.3.5 continuation](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md) adds verified circus-ticket and Cody/priest guidance with an original entrance-resolved Decatas destination. Its changed journal and map behavior are freshly checked on the exact candidate. Two bad staged room inputs have been regenerated through original entrance loaders and independently checked; this does not claim new campaign coverage or a renderer repair. Eleven selected playback contexts pass. Nine modal route contracts pass across the initial batch and a focused closure; an initial audio gap remains explicit with an unproven cause. Companion stays 0.3.4.
+
+The [0.3.4 source continuation](docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md) retains reviewed expanded generation reproducible from public source and an owned ROM. Complete AOT, broader effects/party/story coverage and later verified quest guidance remain unfinished.
 
 ## 1. Public first-run setup and packaging
 
@@ -28,7 +20,7 @@ cancellation, isolated profile adoption, explicit compilation status, title-firs
 launch and selected copied-save resume. Public Play no longer requires private
 fixture/checkpoint data. XP/gold rates, guarded movement boost and keyboard/
 controller hotkeys are editable in the launcher.
-The [WIP release](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.3.3-wip) now provides a ROM-free launcher/source ZIP, checksum and version manifest. Users still need their owned ROM and the documented development tools to build the game locally.
+The [WIP release](https://github.com/rages4calm/secret-of-the-stars-companion/releases) now provides a ROM-free launcher/source ZIP, checksum and version manifest. Users still need their owned ROM and the documented development tools to build the game locally.
 Source-profile updates now create verified new folders and retain old profiles
 for selection-only rollback. A source-first package tool includes one
 self-contained GUI, authored source and notices; native game and original data

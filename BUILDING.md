@@ -269,7 +269,7 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Navigation and display (native 0.3.4 source / Companion 0.3.4)
+## Navigation and display (native 0.3.5 source / Companion 0.3.4)
 
 Enhancements exposes **Current-area map** and **Show current objective on map**.
 Hotkeys exposes **Map** for keyboard and controller. Defaults are **M** and
@@ -317,3 +317,11 @@ Native 0.3.1 corrects the original Y,X entrance format used by town/objective pi
 and adds current Bun/architect clues. See [the exact continuation](docs/FOUNDATION-MAP-TOWN-2026-10-11.md).
 For development captures, coordinate staging must be followed by original loaders
 and an independent background check; parity against another corrupt fixture is insufficient.
+
+Native0.3.5 changes only the journal/version among61 authored inputs. Runtime
+patches, generated original-game outputs and checkpoint ABI retain034 identity.
+[Circus/priest source qualification](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md)
+records fresh overlay/map/launcher/playback checks and the corrected original
+entrance-produced scene inputs. Do not reuse the old Golan/room227 development
+checkpoints for positive scenery evidence. Random-encounter-rate control is a
+new owner-requested next feature; it is not part of0.3.5.

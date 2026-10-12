@@ -59,8 +59,24 @@ static inline unsigned FoundationJournalDecatasRoute(unsigned stage, unsigned fl
     return flags == 0xc0 ? 10 : 11;
 }
 
+/* Narrow current priest clue from original0150/032F, after0332 FA7F.
+ * Actual01D35E/364/368 reset the current chapter flags;01D335 writes5365bit10.
+ * Exact observed state only, not permanent circus/victory/recruitment history.
+ * Other-party access and later/nonzero current flags remain unqualified.
+ * Mutable ticket/Starcrest/roster possession does not establish this clue. */
+static inline unsigned FoundationJournalPriestRoute(unsigned stage, unsigned flags,
+                                                    unsigned secondary_flags,
+                                                    unsigned global_flags,
+                                                    unsigned party, unsigned mode) {
+    return stage == 7 && flags == 0 && secondary_flags == 0 &&
+        global_flags == 0x10 && party == 0 && mode == 1 ? 13 : 0;
+}
+
 static inline unsigned FoundationJournalCurrentLead(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3) return 0;
+    unsigned priest = FoundationJournalPriestRoute(ram[0x5372], ram[0x5360],
+        ram[0x5361], ram[0x5365], ram[0x4b6], ram[0x20]);
+    if (priest) return priest;
     unsigned decatas = FoundationJournalDecatasRoute(ram[0x5372], ram[0x5360],
         ram[0x5365], ram[0x4b6], ram[0x20]);
     return decatas ? decatas : FoundationJournalLead(ram[0x5372], ram[0x5360]);
@@ -186,6 +202,11 @@ static inline unsigned FoundationJournalDestination(unsigned stage, unsigned fla
  * circus pin, nor leave a Decatas marker after the current ticket offer. */
 static inline unsigned FoundationJournalDestinationState(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3) return 0xffff;
+    /* Original032F names Decatas; the exact chapter7 selector088420 uses
+     * town85/088FA1 name03, with original world entrances08AF50/58.
+     * This marks the named town, never a guessed temple door coordinate. */
+    if (FoundationJournalPriestRoute(ram[0x5372], ram[0x5360],
+        ram[0x5361], ram[0x5365], ram[0x4b6], ram[0x20])) return 85;
     unsigned route = FoundationJournalDecatasRoute(ram[0x5372], ram[0x5360],
         ram[0x5365], ram[0x4b6], ram[0x20]);
     if (route == 9 || route == 10) return 85;

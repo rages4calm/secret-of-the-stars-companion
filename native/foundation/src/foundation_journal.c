@@ -164,10 +164,13 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             route[0] = "Decatas: the mayor's house.";
             route[1] = "Speak with the new mayor.";
             if (lead == 11) {
-                objective[0] = current ? "Take the ticket to circus." : "Follow the mayor's advice.";
-                objective[1] = current ? "Follow the mayor's advice." :
+                /* Original0815 FF3F71 scans the active pack. The gate
+                 * accepts held71 even with a full pack and retains the ticket.
+                 * Other/missing possession alone cannot promise admission. */
+                objective[0] = current ? "Show ticket at circus gate." : "Follow the mayor's advice.";
+                objective[1] = current ? "Find the lion in the circus." :
                     item_groups ? "Ticket is in the other pack." : "Ticket is not held now.";
-                route[0] = "Mayor: go to the circus.";
+                route[0] = current ? "Gate needs the current pack." : "Mayor: go to the circus.";
                 route[1] = "Ask people for more clues.";
             } else if (lead == 12) {
                 objective[0] = "Aqutallion handles this.";
@@ -178,6 +181,14 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             progress = item_groups == 3 ? "TICKET: BOTH PACKS" : current ? "TICKET: CURRENT PACK" :
                 item_groups ? "TICKET: OTHER PACK" : "TICKET: NOT HELD NOW";
         }
+    } else if (lead == 13) {
+        objective[0] = "Tell the priest about Cody.";
+        objective[1] = "He was turned into a lion.";
+        /* Original032F F003 resolves through02AF24/04C200 to DECATAS.
+         * No temple door/world coordinate or recruited-party claim follows. */
+        route[0] = "Ask at the Decatas temple.";
+        route[1] = "Cody asks for the priest.";
+        progress = "Current lion's request";
     } else if (lead == 8) {
         objective[0] = "Help the new town grow.";
         objective[1] = "Find builders and farmers.";

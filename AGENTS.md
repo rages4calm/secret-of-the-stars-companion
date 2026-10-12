@@ -1,3 +1,34 @@
+# Current source continuation — native0.3.5 / unchanged Companion0.3.4 (2026-10-11)
+
+Read docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md first. Exact native76db66cd /
+immutable compiled_unqualified receipt2ddc658d has61 authored inputs; only
+VERSION and foundation_journal.c/h change from034. GUIb6328fc5/receiptf7a714c0,
+nine runtime patches, checkpoint ABI and19 generated original outputs remain.
+Current ticket guidance, Cody/priest request and exact guarded Decatas town85
+objective are separately qualified; no recruitment/history/completion inferred.
+
+Fresh journal1678/59, map1035/23 plus838 captured-byte checks, GUI60/52 and
+eleven selected actual playback contexts pass. Nine modal contracts pass via
+eight initial cases and a focused fresh keyboard-toggle/control closure.
+Initial5underflows/2165missing remain; cause unproven, no audio repair claimed.
+Map raw output-budget gate remains failed pending redundant EXE cleanup;
+functional contracts and global5GB storage check are separately reported.
+
+Old Golan3225 and room227d5d36 checkpoints contain incoherent background data;
+originalSWAP tile repair alone also retained an invalid table arrival. Never
+use them as positive scenery/paced fixtures. Original inbound loaders now
+produce source-checked floor/scenery replacements; seven narrow raw256/core
+pairs are separate from full400/campaign/SWAP qualification. Preserve every
+failed report's scope and real compilation receipts. Use copied EXEs and
+original center/culling/collision/pace guards. Full AOT/campaign remains open.
+
+Owner requests RandomEncounterPercent0–100 beside XP/gold next. Default100 and
+OriginalView100 must preserve original behavior; random suppression must not
+affect scripted/boss battle producers or introduce hidden RNG/history. Keep
+private next proposals out of the frozen035 source until deliberate promotion.
+
+---
+
 # Current installed continuation â€” native0.3.4 / unchanged Companion0.3.4 (2026-10-11)
 
 Read docs/FOUNDATION-REVIEWED-ROOTS-2026-10-11.md first. Fresh ordinary public
