@@ -19,6 +19,8 @@ FAITHFUL_HOOK_BOUNDARY_PATCH_SHA256='410d54a4e1e782dbabf2a11f8d4211035621ae77a8e
 REVIEWED_ROOTS_PATCH_SHA256='80bde334f29c7c29cba8ebb9b4f743f4d082abd23f2a808bf9f2c85817652521'
 REVIEWED_ROOTS_PATCH_NAMES=('recompiler/v2/reviewed_roots.py','tools/v2_emit.py','tools/sdk_generate.py','snesrecomp_cli.py')
 REVIEWED_ROOTS_INPUT='recomp/reviewed-roots.json'
+CONVERGED_EXIT_PATCH_SHA256='7788775dad2fcaced635b3c9805358471dbd4943815ea762a7bba8f4bfdc27a4'
+CONVERGED_EXIT_PATCH_NAMES=('recompiler-rs/src/bin/analyze.rs', 'tools/v2_analyze.py', 'tools/v2_emit.py', 'tools/sdk_generate.py', 'snesrecomp_cli.py')
 
 FOUNDATION_PATCH_SHA256='526f7d87b5cf736ce8b57da9db5f4435cce8d33ed1686a587a6a02ca66d73318'
 
@@ -30,10 +32,10 @@ def runtime_source_accounting(runtime,patch_names,new_names=()):
 
 def runtime_cache_identity(patch_hashes):
     hashes=list(patch_hashes)
-    if len(hashes)!=9 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
-        raise ValueError('Runtime cache requires exactly nine ordered full patch hashes')
+    if len(hashes)!=10 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
+        raise ValueError('Runtime cache requires exactly ten ordered full patch hashes')
     combined=hashlib.sha256(('\n'.join(hashes)+'\n').encode('ascii')).hexdigest()
-    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-nine-full-patch-hashes',
+    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-ten-full-patch-hashes',
       'ordered_patch_sha256':hashes,'combined_patch_sha256':combined,'directory_key':RUNTIME_PIN[:12]+'-'+combined[:16]}
 
 def check_cache_marker_identity(marker,identity):
@@ -60,6 +62,16 @@ def validate_reviewed_roots_patch(path):
 def check_reviewed_roots_marker(marker,digest):
     if marker.get('reviewed_roots_patch_sha256')!=digest:
         raise RuntimeError('Existing runtime reviewed-root patch identity missing/stale; preserve cache.')
+
+def validate_converged_exit_patch(path):
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=CONVERGED_EXIT_PATCH_SHA256 or set(names)!=set(CONVERGED_EXIT_PATCH_NAMES) or len(names)!=len(CONVERGED_EXIT_PATCH_NAMES):
+        raise RuntimeError('Converged exit patch identity/five-file scope changed; preserve build.')
+    return names
+
+def check_converged_exit_marker(marker,digest):
+    if marker.get('converged_exit_patch_sha256')!=digest:
+        raise RuntimeError('Existing runtime converged exit patch identity missing/stale; preserve cache.')
 
 def reviewed_roots_preflight(runtime,project,identity,enabled=True):
     # Isolate target SDK imports from optional original-five-patch profile audit.
@@ -120,7 +132,7 @@ def source_runtime_preflight(runtime,preflight):
     preflight['protected'][str(marker)]=sha(marker);preflight['source_runtime']=runtime
     return runtime
 
-def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=True,reviewed=True):
+def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=True,reviewed=True,certify=True):
     if prefixes:
         emit=[sys.executable,runtime/'tools/v2_emit.py','--rom',rom,'--cfg-dir',project/'recomp',
           '--out-dir',project/'src/gen','--analysis-backend','native','--cfg-roots','--no-host-root-scan','--faithful-prefixes']
@@ -131,6 +143,7 @@ def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=True,r
           '--expected-crc32',identity['expected_crc32'],'--expected-sha256',identity['expected_sha256'],'--cfg-roots','--no-host-root-scan']
         sync=None
     if reviewed:emit+=['--reviewed-root-manifest',project/REVIEWED_ROOTS_INPUT]
+    if certify:emit+=['--certify-converged-exits']
     for profile in profiles:emit+=['--profile-manifest',profile]
     return [emit,sync]if sync else[emit]
 
@@ -372,11 +385,12 @@ def main():
     p.add_argument('--profile-program-manifest',type=Path,help='Exact original generated program manifest belonging to these captures')
     p.add_argument('--profile-analyzer',type=Path,help='Exact existing original native analyzer; actual generator digest must match captured build, no cache path guessing')
     p.add_argument('--profile-runtime-dir',type=Path,help='Explicit unchanged original five-patch capture runtime, separately validated from target runtime')
-    p.set_defaults(emit_proven_prefixes=True,reviewed_roots=True)
+    p.set_defaults(emit_proven_prefixes=True,reviewed_roots=True,certify_converged_exits=True)
     p.add_argument('--no-proven-prefixes',dest='emit_proven_prefixes',action='store_false',help='Diagnostic: disable faithful prefix analysis')
+    p.add_argument('--no-converged-exits',dest='certify_converged_exits',action='store_false',help='Diagnostic: retain original exit-fact quarantine without final re-certification')
     p.add_argument('--no-reviewed-roots',dest='reviewed_roots',action='store_false',help='Diagnostic: omit reviewed authored analysis seeds; retain baseline CFG roots')
     p.add_argument('--emit-proven-prefixes',action='store_true',help='Enable the distinct proved aot_prefix disposition via pinned v2_emit --faithful-prefixes; unknown calls continue in original code')
-    p.add_argument('--runtime-cache-dir',type=Path,help='Optional isolated runtime cache directory; same pinned nine-patch key and validation')
+    p.add_argument('--runtime-cache-dir',type=Path,help='Optional isolated runtime cache directory; same pinned ten-patch key and validation')
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
@@ -447,12 +461,15 @@ def main():
     reviewed_patch=out/'runtime-reviewed-roots.patch'
     shutil.copy2(ROOT/'patches/runtime-reviewed-roots.patch',reviewed_patch)
     reviewed_names=validate_reviewed_roots_patch(reviewed_patch)
+    converged_patch=out/'runtime-converged-exits.patch'
+    shutil.copy2(ROOT/'patches/runtime-converged-exits.patch',converged_patch)
+    converged_names=validate_converged_exit_patch(converged_patch)
     new_patch_names={'recompiler/v2/faithful_prefix.py','recompiler/v2/reviewed_roots.py'}
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
     cache_root=args.runtime_cache_dir.absolute() if args.runtime_cache_dir else ROOT/'local/upstream'
     reject_links(cache_root)
-    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch)])
+    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch)])
     runtime=cache_root/cache_identity['directory_key']
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     reject_links(runtime);reject_links(marker)
@@ -464,12 +481,13 @@ def main():
         command(['git','submodule','update','--init','--recursive'],runtime)
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:
         raise RuntimeError('Existing runtime is at another revision; it has been preserved.')
-    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names))
+    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names))
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
         check_cache_marker_identity(receipt,cache_identity)
         check_faithful_hook_boundary_marker(receipt,sha(hook_boundary_patch))
         check_reviewed_roots_marker(receipt,sha(reviewed_patch))
+        check_converged_exit_marker(receipt,sha(converged_patch))
         if (receipt.get('runtime_pin')!=RUNTIME_PIN or receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
                 or receipt.get('faithful_instruction_patch_sha256')!=sha(faithful_patch)
                 or receipt.get('host_modal_audio_patch_sha256')!=sha(audio_patch)
@@ -493,6 +511,7 @@ def main():
         command(['git','apply','--check',prefix_patch],runtime);command(['git','apply',prefix_patch],runtime)
         command(['git','apply','--check',hook_boundary_patch],runtime);command(['git','apply',hook_boundary_patch],runtime)
         command(['git','apply','--check',reviewed_patch],runtime);command(['git','apply',reviewed_patch],runtime)
+        command(['git','apply','--check',converged_patch],runtime);command(['git','apply',converged_patch],runtime)
         runtime_source_accounting(runtime,patch_names,new_patch_names)
         write_runtime_marker(marker,{'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
           'runtime_cache_identity':cache_identity,
@@ -503,6 +522,7 @@ def main():
           'lifecycle_patch_sha256':sha(lifecycle_patch),'prefix_patch_sha256':sha(prefix_patch),
           'faithful_hook_boundary_patch_sha256':sha(hook_boundary_patch),
           'reviewed_roots_patch_sha256':sha(reviewed_patch),
+          'converged_exit_patch_sha256':sha(converged_patch),
           'new_patched_sources':sorted(new_patch_names),
           'patched_sources':{n:sha(runtime/n) for n in patch_names}})
     target_sources={n:sha(runtime/n)for n in patch_names};target_marker_digest=sha(marker)
@@ -518,7 +538,7 @@ def main():
         with(out/'profile-ingest.json').open('x',encoding='utf-8')as report_file:report_file.write(json.dumps(profile_report,indent=2)+'\n')
     (project/'mods/preloaded/packages').mkdir(parents=True)
     print('Generating private local code from the verified ROM.',flush=True)
-    generates=generation_commands(runtime,project,rom,identity,profile_snapshots,args.emit_proven_prefixes,args.reviewed_roots)
+    generates=generation_commands(runtime,project,rom,identity,profile_snapshots,args.emit_proven_prefixes,args.reviewed_roots,args.certify_converged_exits)
     generation_env={k:v for k,v in os.environ.items()if not k.startswith('SNESRECOMP_')}
     generation_env['PYTHONDONTWRITEBYTECODE']='1'
     if profile_inputs is not None:generation_env['SNESRECOMP_NATIVE_ANALYZER']=str(profile_inputs['analyzer'])
@@ -622,7 +642,9 @@ def main():
       'lifecycle_patch_sha256':sha(lifecycle_patch),'prefix_patch_sha256':sha(prefix_patch),
           'faithful_hook_boundary_patch_sha256':sha(hook_boundary_patch),
           'reviewed_roots_patch_sha256':sha(reviewed_patch),
+          'converged_exit_patch_sha256':sha(converged_patch),
       'reviewed_root_generation':reviewed_report,
+      'converged_exit_patch_scope':'Generic post-convergence double fresh-decode certificate for previously unstable exact exit facts. Structural masks, forced-original entries and unresolved, conflicting, recursive or unstable dependencies remain authoritative. No decoded opcode emission or runtime instruction changes.',
       'reviewed_roots_patch_scope':'Strict metadata-only authored PC/M/X seeds through normal additional_roots; CFG masks and force-LLE remain authoritative. No decoded bodies, exit facts or eligibility override.',
       'lifecycle_patch_scope':'Scoped paired host return-tag lifecycle in three original dispatch branches; no guest/checkpoint layout or instruction timing change.',
       'faithful_hook_boundary_patch_scope':'Single interp_bridge pre-opcode hook boundary refusal preserves original callback producers; no generated opcode executes across that boundary and original transfer/timing remain authoritative.',
@@ -630,6 +652,7 @@ def main():
       'automatic_faithful_patch_scope':'Upstream decoded instruction/IR emission with original bus transfers and internal clocks, per-instruction scheduler commits, cached effective addresses, native flag/return semantics and faithful unsupported continuation. No serialized guest fields or checkpoint/SRAM layout changes.',
       'automatic_generation':{'mode':'upstream-faithful-instruction','cfg_roots':True,'host_root_scan':False,
           'faithful_prefixes':args.emit_proven_prefixes,'prefix_wrapper_option':'--emit-proven-prefixes','prefix_generator_option':'--faithful-prefixes',
+          'certify_converged_exits':args.certify_converged_exits,'converged_exit_generator_option':'--certify-converged-exits','converged_exit_diagnostic_optout':'--no-converged-exits',
           'generation_commands':[list(map(str,cmd))for cmd in generates],
           'generator_digest':generated_metadata['generator_digest'],'config_digest':generated_metadata['config_digest'],
           'cache_sha256':sha(generated_cache),'emitted_output_hashes':generated_metadata['outputs'],

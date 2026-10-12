@@ -1,4 +1,34 @@
-# Current validation — native 0.3.4 / Companion 0.3.4
+# Current validation — native0.3.7 / unchanged Companion0.3.5
+
+The [Morgan/world-wrap continuation](FOUNDATION-MORGAN-WRAP-2026-10-12.md)
+binds native3dcc39e1 and immutable compilation receiptd31d8990. Fresh original
+game checks459/26, actual rendering555/18 and journal1108/46 pass independently.
+Both party inventories, original center/guest clocks, all four selected wrap
+seams, context refusals and actual restoration are checked. SDK regeneration
+passes24 controls with exact19 generated files plus the prototype header.
+Unchanged GUIeb6876c3 freshly passes85 adoption,52 update/rollback and51 current
+UI controls plus four180-frame launch/checkpoint routes on this native build.
+
+The analyzer's152 eligible/93prefix variants describe generation. The actual
+newly admitted battle entry initially executes five native instructions before
+an unsupported accumulator shift; full native/AOT and campaign remain unfinished.
+An independently traced older checkpoint is034, not036 as its diagnostic folder
+name suggested; actual036-produced key states and036-to037 update/rollback are
+separately replayed. Historical tag2/tag3 inputs were pruned and are not freshly
+certified. Twenty-five APU logger beam-coordinate differences remain outside a
+full APU/audio parity claim. Failed diagnostic-index, SDK-input, expected-label
+and output-budget attempts remain recorded with source-backed corrections.
+
+Ten separate paced gameplay contexts qualify approximately60FPS with zero
+steady underflows, missing frames and audible drops. Modal/browser/rewind and
+delivery/installed controls are recorded in the continuation's release closure.
+No physical-controller recertification, listening assessment, universal load,
+natural campaign or complete native execution is inferred. Compilation receipts
+remain `compiled_unqualified`; qualification does not rewrite them.
+
+---
+
+# Historical validation — native 0.3.4 / Companion 0.3.4
 
 The [reviewed-root continuation](FOUNDATION-REVIEWED-ROOTS-2026-10-11.md)
 records an ordinary public build with no private profiles. Its complete

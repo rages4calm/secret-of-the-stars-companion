@@ -1,6 +1,6 @@
 {
   "snapshot_date": "2026-10-11",
-  "native_version": "0.3.6",
+  "native_version": "0.3.7",
   "companion_version": "0.3.5",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
@@ -25,5 +25,6 @@
   "prefix_patch_sha256": "32905d2a9be83e62a84cc0fb0286433ef0e509fe21fb60c64b38532834e0bf0f",
   "faithful_hook_boundary_patch_sha256": "410d54a4e1e782dbabf2a11f8d4211035621ae77a8ed68138523dde32588024c",
   "reviewed_roots_patch_sha256": "80bde334f29c7c29cba8ebb9b4f743f4d082abd23f2a808bf9f2c85817652521",
-  "reviewed_analysis_roots_sha256": "fbaff77af92e7a4bef9f12fea6c6a8dccb3a18c8249cb9c62e0553461b984521"
+  "reviewed_analysis_roots_sha256": "fbaff77af92e7a4bef9f12fea6c6a8dccb3a18c8249cb9c62e0553461b984521",
+  "converged_exit_patch_sha256": "7788775dad2fcaced635b3c9805358471dbd4943815ea762a7bba8f4bfdc27a4"
 }

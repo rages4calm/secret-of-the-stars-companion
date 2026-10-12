@@ -43,7 +43,7 @@ The helper checks the ROM identity before generating anything. It creates a
 fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
-The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current nine-patch key is `7931b53c4968-d2a52ce241c92ff8`. All nine full ordered hashes remain in the marker and receipt. Previous caches are retained.
+The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current ten-patch key is `7931b53c4968-0907e3e59c6770f1`. All ten full ordered hashes remain in the marker and receipt. Keep caches needed by active builds; remove obsolete rebuildable payloads under the project's required-only storage policy.
 
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
@@ -54,18 +54,24 @@ The script checks those pins and applies `patches/runtime-foundation.patch`,
 `patches/runtime-automatic-faithful.patch`, followed by the separate
 `patches/runtime-paired-lifecycle.patch`, `patches/runtime-proven-prefix.patch`,
 `patches/runtime-faithful-hook-boundary.patch` and the metadata-only
-`patches/runtime-reviewed-roots.patch`.
+`patches/runtime-reviewed-roots.patch`, then the separate generic
+`patches/runtime-converged-exits.patch`.
 Each patch has an independently recorded hash in the cache key and marker; the
 combined resulting source hashes are checked before reusing a checkout. Unexpected
 revisions or edits stop the build without deleting or resetting that checkout.
 
 Normal generation uses the pinned analyzer/emitter with the checked
 CRC32/SHA-256, `recomp/symbols.toml`, all three bank configurations and
-`recomp/reviewed-roots.json`. Reviewed roots and proved prefixes default on.
+`recomp/reviewed-roots.json`. Reviewed roots, proved prefixes and converged-exit
+certification default on. `--no-converged-exits` is a diagnostic opt-out.
 The supported SDK regeneration command forwards `--cfg-roots`,
-`--no-host-root-scan`, `--faithful-prefixes` and the single
+`--no-host-root-scan`, `--faithful-prefixes`, `--certify-converged-exits` and the single
 `--reviewed-root-manifest` input. The builder may invoke the same emitter directly;
-both interfaces reproduce the same graph, game bodies and dispatch tables. The automatic faithful patch retains upstream decoded instruction
+From a fresh authored project, both interfaces reproduce the same graph, all19
+generated files and the generated prototype header. Start without a prior
+generated `recomp/funcs.h`: feeding that output back as an input can change
+interrupt aliases and the module digest. The public builder always creates a
+fresh source folder. The automatic faithful patch retains upstream decoded instruction
 and IR generation while committing original bus transfers and internal clocks
 one instruction at a time. Unsupported modes return to the original interpreter.
 The three reviewed inline-data ranges remain hard-masked; their special return

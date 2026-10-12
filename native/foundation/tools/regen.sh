@@ -16,6 +16,7 @@
 #                 not been pinned to yet — expect the generated C to differ)
 #   --cfg-roots   seed analysis from every func declaration in recomp/*.cfg
 #   --no-reviewed-roots  diagnostic: omit authored reviewed analysis seeds
+#   --no-converged-exits diagnostic: retain original exit-fact quarantine
 #   --no-proven-prefixes diagnostic: disable faithful prefixes
 #   --emit-proven-prefixes enable the ordinary default explicitly
 #   -h|--help     this message
@@ -29,6 +30,7 @@ VERIFY=1
 CFG_ROOTS=1
 REVIEWED_ROOTS=1
 PROVEN_PREFIXES=1
+CONVERGED_EXITS=1
 ROM=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -36,6 +38,7 @@ while [ $# -gt 0 ]; do
     --no-verify) VERIFY=0; shift ;;
     --cfg-roots) CFG_ROOTS=1; shift ;;
     --no-reviewed-roots) REVIEWED_ROOTS=0; shift ;;
+    --no-converged-exits) CONVERGED_EXITS=0; shift ;;
     --no-proven-prefixes) PROVEN_PREFIXES=0; shift ;;
     --emit-proven-prefixes) PROVEN_PREFIXES=1; shift ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed -n '/^# /p' | sed 's/^# //'; exit 0 ;;
@@ -89,6 +92,7 @@ GEN_ARGS=(--rom "$ROM" --cfg-dir recomp --out-dir src/gen
 if [ "$CFG_ROOTS" -eq 1 ]; then GEN_ARGS+=(--cfg-roots); fi
 if [ "$REVIEWED_ROOTS" -eq 1 ]; then GEN_ARGS+=(--reviewed-root-manifest "$ROOT/recomp/reviewed-roots.json"); fi
 if [ "$PROVEN_PREFIXES" -eq 1 ]; then GEN_ARGS+=(--faithful-prefixes); fi
+if [ "$CONVERGED_EXITS" -eq 1 ]; then GEN_ARGS+=(--certify-converged-exits); fi
 if [ "$VERIFY" -eq 1 ]; then GEN_ARGS+=("${VERIFY_ARGS[@]}"); fi
 
 echo "== Generating src/gen =="

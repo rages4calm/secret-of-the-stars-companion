@@ -221,7 +221,8 @@ def main():
             ('runtime-paired-lifecycle.patch', 'lifecycle_patch_sha256', 'Paired return lifecycle'),
             ('runtime-proven-prefix.patch', 'prefix_patch_sha256', 'Proved instruction prefix'),
             ('runtime-faithful-hook-boundary.patch', 'faithful_hook_boundary_patch_sha256', 'Original callback boundary'),
-            ('runtime-reviewed-roots.patch', 'reviewed_roots_patch_sha256', 'Reviewed analysis roots')):
+            ('runtime-reviewed-roots.patch', 'reviewed_roots_patch_sha256', 'Reviewed analysis roots'),
+            ('runtime-converged-exits.patch', 'converged_exit_patch_sha256', 'Converged exit certification')):
         extension = ROOT / 'patches' / patch_name
         if ('patches/' + patch_name not in tracked or not extension.is_file()
                 or sha(extension) != provenance.get(identity)):

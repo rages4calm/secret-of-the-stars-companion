@@ -1,7 +1,7 @@
 {
   ".gitmodules": "d75d80e840891a8e8723d38134165f166c6d8236b0e7ed718d39c9c751937743",
   "CMakeLists.txt": "22f572b56d5b327c5446df6ea70b646af11d4651193ab04f951883cff8f6a0c9",
-  "VERSION": "6d7ff4be0be7debf12dc50067f10057f5d85815ef89e542bc291bc2c893cbbbb",
+  "VERSION": "2e376439ec341f14ae018b8aa4796b9336702e6a59d6c42b91f61d84baac9807",
   "framework_pins.txt": "fd8b6d4e6e1057018df3e61eeaa5d357316e204a3e35084cda5c7157e0383a9a",
   "recomp/bank00.cfg": "1d62c9d87f77fed226749284851e31ebfab981538a6f520dbc1ac46b36d4c44c",
   "recomp/bank01.cfg": "74f3144991f0f77da913ce274432f50358acb2c1ba5ed5711c3288af37d9b747",
@@ -24,8 +24,8 @@
   "src/foundation_hd_ui.h": "b3d7fc54c8171738d4b3c11afdbdb889680240f87d255bfe1ea5a2678f7af3ec",
   "src/foundation_hotkeys.c": "f9f9f812fa95cf5ec54bb49cff8c06914727900c4368f45eba7b34803c78f163",
   "src/foundation_hotkeys.h": "4419703d83d33b3e428e191e2e3892b8b13b87bdce17d8c41513d79394b5e6df",
-  "src/foundation_journal.c": "0c1e3388f345173139b02a6a1e5bf0914353a8a63daf43570d991f71cd625c14",
-  "src/foundation_journal.h": "daef75a20931710ec64701807f127c211f2b50d891a32d63181dee392b6c38c2",
+  "src/foundation_journal.c": "01b977df11d54a651823b6a8015161d2398e97b6549e01636dd8350559470c20",
+  "src/foundation_journal.h": "31e98f367655c3cdd7770f33f13799f2631f5d88c6cc373f115cc8e2d05a1b55",
   "src/foundation_large_actor_canary.c": "dd81cdee7a50776eadba9ab6b5aa3b7d205cdecd3f3997fcbcdf2f072662594e",
   "src/foundation_large_actor_canary.h": "96d5fc4c06c045aaf035b2e45b3417e843c23f9becd7782e11458c32e25628f9",
   "src/foundation_loading.c": "a0a32dd0ea9a426d778516fd6d10ee74e5b2f204bdc7780940c1384702f5e2ee",
@@ -48,7 +48,7 @@
   "src/foundation_state.h": "ed1262bce8f8915e82801cf45d0d94886b165453e35911adf134565cae6716db",
   "src/foundation_wide.c": "cc0b939eb6c1a592021dfc03a2e0cea67bf49bdbfc38cd54a748bd231e29781e",
   "src/foundation_wide.h": "11de8dc2874be0277f187e5ff2f74bbacb92c6d3cccb41a903c3c91f7b25efd9",
-  "src/foundation_wide_actors.c": "730690c7d128ad009d86d61e4fea9d9ae9bce8a4361aa9b663218408038bde30",
+  "src/foundation_wide_actors.c": "050b0566d0cc5684e10992597aed25c1525559d47ef4ec9e9c1bba9cded0a68d",
   "src/foundation_wide_actors.h": "ccfa687f694597bd1e99511461707ace764ab924f288de211fab31dc46834b36",
   "src/game_rtl.c": "ea84866999cada145559ce2a5f2af152f4d78ae6e974d35e14911c7d73013df0",
   "src/game_rtl.h": "618c4aa15560d7b94eb07c4b6bd95229c632a02692f0bba5afd61985b6259907",
@@ -58,6 +58,6 @@
   "src/variables.h": "0accb76a563c0296c2800676128d4c33378197636b7e45196f642c00632e7e19",
   "tools/generate_constructor.py": "f160d9af519d47543e0e8b9be182bc7120127dc963422442d1797ebaba06eaae",
   "tools/generate_faithful_clear.py": "0161be56bffd28f0158957685ba6b769a40d5053cd9630e180f8f53acf82866b",
-  "tools/regen.sh": "3bf0ebb116df9faec317e9179b4519e1354047768dc160d4f1a406742e593831",
+  "tools/regen.sh": "50aecc8ddedd3ffbeaba0a497bc4bea180bb4e2de244efce674986f8c1056d95",
   "recomp/reviewed-roots.json": "fbaff77af92e7a4bef9f12fea6c6a8dccb3a18c8249cb9c62e0553461b984521"
 }

@@ -181,6 +181,19 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
             progress = item_groups == 3 ? "TICKET: BOTH PACKS" : current ? "TICKET: CURRENT PACK" :
                 item_groups ? "TICKET: OTHER PACK" : "TICKET: NOT HELD NOW";
         }
+    } else if (lead == 14 || lead == 15) {
+        unsigned key_groups = JournalItemGroups(g_ram, 0x20000, 0x01);
+        unsigned current = key_groups & 1u; /* Exact admitted Aqutallion context. */
+        objective[0] = current ? "Lower the bridge to Bonzley." :
+            lead == 14 ? "Recover WIN-KEY from Morgan." : "Follow the priest's advice.";
+        objective[1] = current ? "Bridge lies south of Winds." :
+            key_groups ? "WIN-KEY: in the other pack." : "WIN-KEY is not held now.";
+        route[0] = lead == 14 && !key_groups ? "Morgan-House: hidden route." :
+            "Bridge lies south of Winds.";
+        route[1] = lead == 14 && !key_groups ? "Follow the right-hand wall." :
+            "The bridge leads to Bonzley.";
+        progress = key_groups == 3 ? "WIN-KEY: BOTH PACKS" : current ? "WIN-KEY: CURRENT PACK" :
+            key_groups ? "WIN-KEY: OTHER PACK" : "WIN-KEY: NOT HELD NOW";
     } else if (lead == 13) {
         objective[0] = "Tell the priest about Cody.";
         objective[1] = "He was turned into a lion.";

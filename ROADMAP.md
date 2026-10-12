@@ -9,6 +9,13 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
+The [native0.3.7 / unchanged Companion0.3.5 update](docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md)
+adds original-event Morgan/WIN-KEY directions, fixes four selected Kustera world
+wrap-margin flashes, and certifies stable generic analyzer exit facts. Fresh
+game, pixel, journal, source-regeneration and launcher controls qualify separately.
+Unsupported emitted instructions still retain original execution. Next are later
+verified bridge/chapter advice and broader native opcode/story/party/effect work.
+
 The [native 0.3.6 / Companion 0.3.5 update](docs/FOUNDATION-ENCOUNTER-RATE-2026-10-11.md) adds editable ordinary random encounters: 0–100%, default 100%, with scripted battles retaining their original path. The modifier scales integer bins in the original threshold, not an exact observed campaign frequency. Actual current/older-build UI, source adoption and compatible update/rollback checks pass; broader campaign and hardware testing remain open.
 
 The preceding [native 0.3.5 continuation](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md) adds verified circus-ticket and Cody/priest guidance with an original entrance-resolved Decatas destination. Its changed journal and map behavior are freshly checked on the exact candidate. Two bad staged room inputs have been regenerated through original entrance loaders and independently checked; this does not claim new campaign coverage or a renderer repair. Eleven selected playback contexts pass. Nine modal route contracts pass across the initial batch and a focused closure; an initial audio gap remains explicit with an unproven cause. Companion stays 0.3.4.

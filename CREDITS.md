@@ -2,13 +2,13 @@
 
 ## Project work
 
-**Carl Prewitt Jr. ([rages4calm](https://github.com/rages4calm))** maintains the
+**chrono.trigger ([rages4calm](https://github.com/rages4calm))** maintains the
 Secret of the Stars Companion project, its game-specific native enhancements,
 Windows launcher integration, inspection/replay tools and development direction.
 
 The Companion adapts original MIT-licensed UI/navigation patterns from
-[EarthBound Companion](https://github.com/rages4calm/earthbound-companion), also
-by Carl Prewitt Jr. [Zelda Companion](https://github.com/rages4calm/zelda-companion)
+[EarthBound Companion](https://github.com/rages4calm/earthbound-companion).
+[Zelda Companion](https://github.com/rages4calm/zelda-companion)
 informed the launcher workflow and presentation goals. Another project's game
 assets, Redux conversion or randomizer code are not included here.
 
@@ -48,6 +48,14 @@ Scale2x GPL source library. [Authors](https://www.scale2x.it/authors) ·
 These credits acknowledge references, not bundled implementations or a promise
 that their features work in this game:
 
+- **Eric Tomasso — [Snaggletooth](https://github.com/etroimcasso/Snaggletooth)**:
+  pinned MIT-licensed 65816 disassembler/assembler libraries used locally to
+  independently check instruction boundaries and explicit processor widths.
+  This development tool is not incorporated into the game's runtime or package.
+- **KingMike — [RPGClassics Secret of the Stars shrine](https://tartarus.rpgclassics.com/secretstars/)**:
+  walkthrough and item descriptions used to corroborate quest directions.
+  Journal conditions still come from verified original game events; walkthrough
+  text and artwork are not bundled.
 - **BlueImp78 — [Secret of the Stars Battle Info Hack](https://github.com/BlueImp78/Secret-of-The-Stars-Battle-Info-Hack)**:
   battle-state research. No license was found in the inspected source. Its
   assembly, patched ROM and cached source are excluded. The current enemy-HP

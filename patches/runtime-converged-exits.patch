@@ -1,0 +1,706 @@
+diff --git a/recompiler-rs/src/bin/analyze.rs b/recompiler-rs/src/bin/analyze.rs
+--- a/recompiler-rs/src/bin/analyze.rs
++++ b/recompiler-rs/src/bin/analyze.rs
+@@ -1120,11 +1120,138 @@
+     solved
+ }
+ 
++// A transient, early-round exit mismatch is not by itself a proof that the
++// complete final graph has conflicting exits. Re-certify only after convergence,
++// against closed, nonrecursive, nonquarantined dependencies. No assumed exits.
++fn converged_exit_certificate(
++    key: VariantKey,
++    graph: &FunctionDecodeGraph,
++    nodes: &BTreeMap<VariantKey, NodeSummary>,
++    exact: &HashMap<(u32, u8, u8), (u8, u8)>,
++    sets: &HashMap<(u32, u8, u8), Vec<(u8, u8)>>,
++    unstable: &HashSet<(u32, u8, u8)>,
++    inputs: &Inputs,
++    mapping: RomMapping,
++) -> Option<((u8, u8), String)> {
++    let node = nodes.get(&key)?;
++    if node.reasons != ["unstable_exit_fact"]
++        || graph.is_empty()
++        || graph.authority_conflict
++        || !graph.data_region_exec_pcs.is_empty()
++        || !graph.unknown_callee_exit_sites.is_empty()
++        || !graph.unresolved_indirects.is_empty()
++        || !graph.suppressed_indirect_calls.is_empty()
++        || graph.insns().iter().any(|di| {
++            di.insn.mnem == "RTI"
++                || di.insn.mnem == "XCE"
++                || (di.insn.mnem == "PLP" && di.key.p_stack.is_empty())
++        })
++        || has_truncated_call_continuation(graph)
++        || inputs.force_lle.contains(&key.pc24)
++        || mirror_pc24(mapping, key.pc24).is_some_and(|pc| inputs.force_lle.contains(&pc))
++    {
++        return None;
++    }
++    fn visit(
++        key: VariantKey,
++        nodes: &BTreeMap<VariantKey, NodeSummary>,
++        exact: &HashMap<(u32, u8, u8), (u8, u8)>,
++        sets: &HashMap<(u32, u8, u8), Vec<(u8, u8)>>,
++        unstable: &HashSet<(u32, u8, u8)>,
++        inputs: &Inputs,
++        mapping: RomMapping,
++        active: &mut HashSet<VariantKey>,
++        completed: &mut BTreeMap<VariantKey, Vec<(u8, u8)>>,
++    ) -> Option<()> {
++        if completed.contains_key(&key) {
++            return Some(());
++        }
++        if active.len() >= 256
++            || !active.insert(key)
++            || unstable.contains(&(key.pc24, key.m, key.x))
++            || inputs.force_lle.contains(&key.pc24)
++            || mirror_pc24(mapping, key.pc24).is_some_and(|pc| inputs.force_lle.contains(&pc))
++        {
++            return None;
++        }
++        let node = nodes.get(&key)?;
++        if node.disposition != "aot_eligible" || !node.reasons.is_empty() {
++            return None;
++        }
++        let mut modes = if let Some(pair) = exact.get(&(key.pc24, key.m, key.x)) {
++            vec![*pair]
++        } else {
++            sets.get(&(key.pc24, key.m, key.x))?.clone()
++        };
++        if modes.is_empty() {
++            return None;
++        }
++        modes.sort();
++        modes.dedup();
++        for edge in &node.demands {
++            if edge.resolution != "aot_exact" {
++                return None;
++            }
++            visit(
++                edge.target?,
++                nodes,
++                exact,
++                sets,
++                unstable,
++                inputs,
++                mapping,
++                active,
++                completed,
++            )?;
++        }
++        active.remove(&key);
++        completed.insert(key, modes);
++        Some(())
++    }
++    let mut active = HashSet::from([key]);
++    let mut dependencies = BTreeMap::new();
++    for edge in &node.demands {
++        if edge.resolution != "aot_exact" {
++            return None;
++        }
++        visit(
++            edge.target?,
++            nodes,
++            exact,
++            sets,
++            unstable,
++            inputs,
++            mapping,
++            &mut active,
++            &mut dependencies,
++        )?;
++    }
++    let modes = analyze_function_exit_mx_modes_with_sets(graph, Some(exact), Some(sets))?;
++    if modes.len() != 1 {
++        return None;
++    }
++    let pair = modes[0];
++    // Sort concrete decode records, including width, PHP history, original
++    // opcode/operand and all successors. Independent redecodes must agree.
++    let mut records: Vec<String> = graph.insns().iter().map(|di| format!("{di:?}")).collect();
++    records.sort();
++    let mut returns: Vec<_> = function_return_stack_delta_states(graph)
++        .into_iter()
++        .collect();
++    returns.sort_by_key(|item| item.0);
++    let certificate = format!(
++        "{key:?}|{pair:?}|{records:?}|{:?}|{dependencies:?}|{returns:?}",
++        graph.boundary_exits
++    );
++    Some((pair, certificate))
++}
++
+ fn analyze(
+     inputs: &Inputs,
+     rom: &[u8],
+     max_insns: usize,
+     max_nodes: usize,
++    certify_converged_exits: bool,
+ ) -> Result<
+     (
+         BTreeMap<VariantKey, NodeSummary>,
+@@ -1140,6 +1267,9 @@
+     let mut active_sets: HashMap<(u32, u8, u8), Vec<(u8, u8)>> = inputs.declared_exit_sets.clone();
+     let mut unstable_exact = HashSet::new();
+     let mut unstable_sets = HashSet::new();
++    let mut pending_certificates = HashMap::new();
++    let mut certified_once = HashSet::new();
++    let mut refused_certificates = HashSet::new();
+     let mut poisoned = HashSet::new();
+     let mut helpers: HashMap<u32, String> = HashMap::new();
+     let mut inline_args = inputs.inline_skip.clone();
+@@ -1620,6 +1750,79 @@
+         active_exact = next_exact;
+         active_sets = next_sets;
+         if stable {
++            if certify_converged_exits {
++                let mut waiting = false;
++                let mut recovered = false;
++                let all_unstable = unstable_exact.union(&unstable_sets).copied().collect();
++                for fact_key in unstable_exact.iter().copied().collect::<BTreeSet<_>>() {
++                    if unstable_sets.contains(&fact_key)
++                        || certified_once.contains(&fact_key)
++                        || refused_certificates.contains(&fact_key)
++                    {
++                        continue;
++                    }
++                    let key = VariantKey::new(fact_key.0, fact_key.1, fact_key.2);
++                    let Some((graph, _, _, _)) = summary_cache.get(&key) else {
++                        continue;
++                    };
++                    let Some((pair, certificate)) = converged_exit_certificate(
++                        key,
++                        graph,
++                        &nodes,
++                        &active_exact,
++                        &active_sets,
++                        &all_unstable,
++                        inputs,
++                        mapping,
++                    ) else {
++                        pending_certificates.remove(&fact_key);
++                        continue;
++                    };
++                    if pending_certificates.get(&fact_key) == Some(&certificate) {
++                        unstable_exact.remove(&fact_key);
++                        active_exact.insert(fact_key, pair);
++                        certified_once.insert(fact_key);
++                        recovered = true;
++                        if let Some(log) = round_log.as_mut() {
++                            writeln!(
++                                log,
++                                "{}",
++                                json!({"round":_round,"converged_exit_certificate":"confirmed",
++                                "key":key.manifest_key(),"exit":pair,"instructions":graph.len(),
++                                "certificate":certificate})
++                            )
++                            .expect("write certificate log");
++                        }
++                    } else {
++                        if pending_certificates.contains_key(&fact_key) {
++                            // A second, independently rebuilt certificate
++                            // disagreed. Retain LLE, rather than waiting for a
++                            // later coincidental match or exhausting rounds.
++                            refused_certificates.insert(fact_key);
++                            pending_certificates.remove(&fact_key);
++                            continue;
++                        }
++                        pending_certificates.insert(fact_key, certificate);
++                        waiting = true;
++                        if let Some(log) = round_log.as_mut() {
++                            writeln!(
++                                log,
++                                "{}",
++                                json!({"round":_round,"converged_exit_certificate":"pending",
++                                "key":key.manifest_key(),"exit":pair,"instructions":graph.len()})
++                            )
++                            .expect("write certificate log");
++                        }
++                    }
++                }
++                if waiting || recovered {
++                    // Rebuild every graph; the second certificate is not a
++                    // second comparison of the same cached decoder result.
++                    cache = DecodeCache::new();
++                    summary_cache.clear();
++                    continue;
++                }
++            }
+             if let (Ok(path), Ok(target_text)) = (
+                 std::env::var("SNESRECOMP_NATIVE_ANALYSIS_SNAPSHOT"),
+                 std::env::var("SNESRECOMP_NATIVE_ANALYSIS_SNAPSHOT_TARGET"),
+@@ -1806,8 +2009,14 @@
+     inputs
+         .roots
+         .retain(|key| !inputs.force_lle.contains(&key.pc24));
+-    let (nodes, exact, sets, helpers, inline_args) =
+-        analyze(&inputs, &rom, max_insns, max_nodes).expect("native analysis");
++    let (nodes, exact, sets, helpers, inline_args) = analyze(
++        &inputs,
++        &rom,
++        max_insns,
++        max_nodes,
++        has_arg(&args, "--certify-converged-exits"),
++    )
++    .expect("native analysis");
+     let manifest = manifest_json(&inputs, &nodes, &exact, &sets, &helpers, &inline_args);
+     let text = serde_json::to_string_pretty(&manifest).expect("serialize manifest") + "\n";
+     fs::write(&manifest_path, text).expect("write manifest");
+@@ -1939,4 +2148,318 @@
+         assert_eq!(solved[&caller], BTreeSet::new());
+         assert_eq!(solved[&helper], BTreeSet::from([(0, 0)]));
+     }
+-}
++
++    fn converged_fixture(
++        name: &str,
++    ) -> (
++        Inputs,
++        Vec<u8>,
++        VariantKey,
++        FunctionDecodeGraph,
++        BTreeMap<VariantKey, NodeSummary>,
++        HashMap<(u32, u8, u8), (u8, u8)>,
++        HashSet<(u32, u8, u8)>,
++    ) {
++        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
++            .join("proof-config")
++            .join(name);
++        fs::create_dir_all(&path).unwrap();
++        fs::write(
++            path.join("bank00.cfg"),
++            "bank = 00\n# Synthetic conservative convergence controls\n",
++        )
++        .unwrap();
++        let mut rom = vec![0u8; 0x8000];
++        rom[..7].copy_from_slice(&[0x20, 0x00, 0x90, 0x20, 0x00, 0x91, 0x60]);
++        rom[0x1000..0x1003].copy_from_slice(&[0xe2, 0x30, 0x60]);
++        rom[0x1100..0x1103].copy_from_slice(&[0xc2, 0x10, 0x60]);
++        let inputs = load_inputs(&path, &mut rom, false).unwrap();
++        let key = VariantKey::new(0x008000, 1, 1);
++        let exact = HashMap::from([((0x009000, 1, 1), (1, 1)), ((0x009100, 1, 1), (1, 0))]);
++        let unstable = HashSet::from([(key.pc24, key.m, key.x)]);
++        let env = DecodeEnv {
++            callee_exit_mx: Some(&exact),
++            stop_on_unknown_callee_exit: true,
++            ..Default::default()
++        };
++        let graph = decode_function(&rom, 0, 0x8000, 1, 1, None, &env);
++        let root = summarize(
++            key,
++            &graph,
++            &inputs,
++            &rom,
++            RomMapping::LoRom,
++            &HashSet::new(),
++            true,
++        );
++        let mut nodes = BTreeMap::from([(key, root)]);
++        for pc in [0x009000, 0x009100] {
++            let entry = VariantKey::new(pc, 1, 1);
++            let g = decode_function(&rom, 0, pc & 0xffff, 1, 1, None, &env);
++            nodes.insert(
++                entry,
++                summarize(
++                    entry,
++                    &g,
++                    &inputs,
++                    &rom,
++                    RomMapping::LoRom,
++                    &HashSet::new(),
++                    false,
++                ),
++            );
++        }
++        (inputs, rom, key, graph, nodes, exact, unstable)
++    }
++
++    #[test]
++    fn complete_final_exit_certificate_is_repeatable() {
++        let (inputs, rom, key, graph, nodes, exact, unstable) = converged_fixture("repeat");
++        let first = converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom,
++        )
++        .unwrap();
++        assert_eq!(first.0, (1, 0));
++        let env = DecodeEnv {
++            callee_exit_mx: Some(&exact),
++            stop_on_unknown_callee_exit: true,
++            ..Default::default()
++        };
++        let independent = decode_function(&rom, 0, 0x8000, 1, 1, None, &env);
++        assert_eq!(
++            Some(first),
++            converged_exit_certificate(
++                key,
++                &independent,
++                &nodes,
++                &exact,
++                &HashMap::new(),
++                &unstable,
++                &inputs,
++                RomMapping::LoRom
++            )
++        );
++    }
++
++    #[test]
++    fn converged_certificate_retains_root_and_dependency_refusals() {
++        let (mut inputs, _rom, key, mut graph, mut nodes, mut exact, mut unstable) =
++            converged_fixture("refusals");
++        let root = nodes[&key].clone();
++        for reason in [
++            "structural_poison",
++            "truncated_call_continuation",
++            "unproven_callee_exit",
++            "authority_conflict",
++            "decode_budget_exhausted",
++        ] {
++            nodes
++                .get_mut(&key)
++                .unwrap()
++                .reasons
++                .push(reason.to_string());
++            assert!(converged_exit_certificate(
++                key,
++                &graph,
++                &nodes,
++                &exact,
++                &HashMap::new(),
++                &unstable,
++                &inputs,
++                RomMapping::LoRom
++            )
++            .is_none());
++            nodes.insert(key, root.clone());
++        }
++        for pc in [key.pc24, key.pc24 ^ 0x800000, 0x009000, 0x809000] {
++            inputs.force_lle.insert(pc);
++            assert!(converged_exit_certificate(
++                key,
++                &graph,
++                &nodes,
++                &exact,
++                &HashMap::new(),
++                &unstable,
++                &inputs,
++                RomMapping::LoRom
++            )
++            .is_none());
++            inputs.force_lle.remove(&pc);
++        }
++        unstable.insert((0x009000, 1, 1));
++        assert!(converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom
++        )
++        .is_none());
++        unstable.remove(&(0x009000, 1, 1));
++        exact.remove(&(0x009000, 1, 1));
++        assert!(converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom
++        )
++        .is_none());
++        exact.insert((0x009000, 1, 1), (1, 1));
++        let dep = VariantKey::new(0x009000, 1, 1);
++        let original = nodes[&dep].clone();
++        nodes.get_mut(&dep).unwrap().demands.push(DemandEdge {
++            site_pc24: dep.pc24,
++            kind: "direct_call",
++            resolution: "aot_exact",
++            target: Some(dep),
++            detail: String::new(),
++        });
++        assert!(converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom
++        )
++        .is_none());
++        nodes.insert(dep, original.clone());
++        nodes
++            .get_mut(&dep)
++            .unwrap()
++            .reasons
++            .push("unproven_callee_exit".to_string());
++        assert!(converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom
++        )
++        .is_none());
++        nodes.insert(dep, original);
++        graph.authority_conflict = true;
++        assert!(converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom
++        )
++        .is_none());
++        graph.authority_conflict = false;
++        graph.data_region_exec_pcs.insert(key.pc24);
++        assert!(converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom
++        )
++        .is_none());
++        graph.data_region_exec_pcs.clear();
++        graph
++            .unknown_callee_exit_sites
++            .push((key.pc24, dep.pc24, 1, 1));
++        assert!(converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom
++        )
++        .is_none());
++    }
++
++    #[test]
++    fn converged_certificate_refuses_real_conflicting_returns() {
++        let (inputs, mut rom, key, _graph, mut nodes, exact, unstable) =
++            converged_fixture("conflict");
++        rom[..8].copy_from_slice(&[0xd0, 0x03, 0xc2, 0x20, 0x60, 0xe2, 0x20, 0x60]);
++        let graph = decode_function(&rom, 0, 0x8000, 1, 1, None, &DecodeEnv::default());
++        nodes.get_mut(&key).unwrap().demands.clear();
++        assert_eq!(
++            analyze_function_exit_mx_modes_with_sets(&graph, Some(&exact), Some(&HashMap::new()))
++                .unwrap()
++                .len(),
++            2
++        );
++        assert!(converged_exit_certificate(
++            key,
++            &graph,
++            &nodes,
++            &exact,
++            &HashMap::new(),
++            &unstable,
++            &inputs,
++            RomMapping::LoRom
++        )
++        .is_none());
++        for opcode in [0x28, 0x40, 0xfb] {
++            // unpaired PLP, RTI, dynamic XCE
++            rom[..2].copy_from_slice(&[opcode, 0x60]);
++            let graph = decode_function(&rom, 0, 0x8000, 1, 1, None, &DecodeEnv::default());
++            assert!(converged_exit_certificate(
++                key,
++                &graph,
++                &nodes,
++                &exact,
++                &HashMap::new(),
++                &unstable,
++                &inputs,
++                RomMapping::LoRom
++            )
++            .is_none());
++        }
++    }
++
++    #[test]
++    fn optional_convergence_recovers_late_width_discovery_only() {
++        let (mut inputs, rom, key, _graph, _nodes, _exact, _unstable) = converged_fixture("late");
++        inputs.roots = BTreeSet::from([
++            key,
++            VariantKey::new(0x009000, 1, 1),
++            VariantKey::new(0x009100, 1, 1),
++        ]);
++        let (original, old_exact, _, _, _) = analyze(&inputs, &rom, 4096, 100, false).unwrap();
++        assert_eq!(original[&key].reasons, ["unstable_exit_fact"]);
++        assert!(!old_exact.contains_key(&(key.pc24, key.m, key.x)));
++        let (recovered, new_exact, _, _, _) = analyze(&inputs, &rom, 4096, 100, true).unwrap();
++        assert_eq!(recovered[&key].disposition, "aot_eligible");
++        assert_eq!(new_exact[&(key.pc24, key.m, key.x)], (1, 0));
++        for other in [
++            VariantKey::new(0x009000, 1, 1),
++            VariantKey::new(0x009100, 1, 1),
++        ] {
++            assert_eq!(original[&other].json(), recovered[&other].json());
++        }
++    }
++}
+diff --git a/tools/v2_analyze.py b/tools/v2_analyze.py
+--- a/tools/v2_analyze.py
++++ b/tools/v2_analyze.py
+@@ -74,7 +74,7 @@
+ def build_manifest_native(*, rom_path, cfg_dir, all_cfg_roots=False,
+                           additional_roots=(), executable=None,
+                           max_insns=4096, max_nodes=100_000,
+-                          force_lle=()):
++                          force_lle=(), certify_converged_exits=False):
+     """Run the compiled analyzer and load its stable manifest contract."""
+     executable = ensure_native_analyzer(executable)
+     fd, temporary = tempfile.mkstemp(
+@@ -101,6 +101,8 @@
+     ]
+     if all_cfg_roots:
+         command.append("--all-cfg-roots")
++    if certify_converged_exits:
++        command.append("--certify-converged-exits")
+     root_values = [
+         f"{key.pc24:06X}:{key.m}:{key.x}"
+         for key in sorted(set(additional_roots))
+diff --git a/tools/v2_emit.py b/tools/v2_emit.py
+--- a/tools/v2_emit.py
++++ b/tools/v2_emit.py
+@@ -94,7 +94,8 @@
+                            shard_pc_span: int,
+                            module_id: str = "main",
+                            module_prefix: str | None = None,
+-                           reviewed_root_sha256: str | None = None) -> str:
++                           reviewed_root_sha256: str | None = None,
++                           certify_converged_exits: bool = False) -> str:
+     value = {
+         "format": CACHE_FORMAT_VERSION,
+         "rom": hashlib.sha256(rom).hexdigest(),
+@@ -112,6 +113,8 @@
+         "max_nodes": int(max_nodes),
+         "sharding": [int(shard_threshold_bytes), int(shard_pc_span)],
+     }
++    if certify_converged_exits:
++        value["certify_converged_exits"] = True
+     if reviewed_root_sha256 is not None:
+         value["reviewed_root_sha256"] = reviewed_root_sha256
+     encoded = json.dumps(
+@@ -209,6 +212,8 @@
+              "generated module_namespace.h so this module can be linked "
+              "beside another generated module (content variants). Requires "
+              "a funcs.h beside the cfg files; default: no prefix")
++    parser.add_argument("--certify-converged-exits", action="store_true",
++                        help="recheck unstable exit facts after global convergence; unresolved or conflicting dependencies remain original")
+     parser.add_argument("--no-host-root-scan", action="store_true")
+     parser.add_argument("--disassembly-entry-modes", action="store_true",
+                         help="probe all M/X modes at byte-authoritative declared entries; "
+@@ -376,6 +381,7 @@
+         shard_pc_span=shard_pc_span,
+         module_id=args.module_id, module_prefix=args.module_prefix,
+         reviewed_root_sha256=reviewed.source_sha256 if reviewed else None,
++        certify_converged_exits=args.certify_converged_exits,
+     )
+     cached = _verified_cached_stats(out_dir, analysis_input_digest)
+     if cached is not None and not args.no_link_closure_check:
+@@ -406,7 +412,8 @@
+             force_lle=profile_force_lle,
+             executable=native_path,
+             max_insns=args.max_insns,
+-            max_nodes=args.max_nodes)
++            max_nodes=args.max_nodes,
++            certify_converged_exits=args.certify_converged_exits)
+     except (OSError, RuntimeError, ValueError) as exc:
+         parser.error(f"native analysis failed: {exc}")
+     if native_output:
+diff --git a/tools/sdk_generate.py b/tools/sdk_generate.py
+--- a/tools/sdk_generate.py
++++ b/tools/sdk_generate.py
+@@ -70,6 +70,7 @@
+     profile_manifests: Optional[Sequence[pathlib.Path]] = None,
+     reviewed_root_manifest: Optional[pathlib.Path] = None,
+     faithful_prefixes: bool = False,
++    certify_converged_exits: bool = False,
+     legacy_profile_rom_sha256: Optional[str] = None,
+     analysis_backend: str = "native",
+     expected_crc32: Optional[str] = None,
+@@ -127,6 +128,8 @@
+         emit_args.extend(["--reviewed-root-manifest", str(reviewed_root_manifest)])
+     if faithful_prefixes:
+         emit_args.append("--faithful-prefixes")
++    if certify_converged_exits:
++        emit_args.append("--certify-converged-exits")
+     if cfg_roots:
+         emit_args.append("--cfg-roots")
+     if no_host_root_scan:
+@@ -197,6 +200,7 @@
+         "cfg_roots": bool(cfg_roots),
+         "analysis_backend": analysis_backend,
+         "faithful_prefixes": bool(faithful_prefixes),
++        "certify_converged_exits": bool(certify_converged_exits),
+         "reviewed_roots": reviewed.metadata() if reviewed else None,
+     }
+     reporter.phase("done", pct=1.0, message="Generate complete")
+@@ -265,6 +269,7 @@
+                 _lexical_under(project_root, args.reviewed_root_manifest)
+                 if getattr(args, "reviewed_root_manifest", None) else None),
+             faithful_prefixes=bool(getattr(args, "faithful_prefixes", False)),
++            certify_converged_exits=bool(getattr(args, "certify_converged_exits", False)),
+             legacy_profile_rom_sha256=getattr(args, "legacy_profile_rom_sha256", None),
+             analysis_backend=args.analysis_backend,
+             expected_crc32=args.expected_crc32,
+@@ -343,6 +348,8 @@
+     )
+     generate_parser.add_argument("--reviewed-root-manifest", action=SingleReviewedManifest,
+                                  help="single cfg-dir-contained reviewed analysis-root metadata file")
++    generate_parser.add_argument("--certify-converged-exits", action="store_true",
++                                 help="certify stable final exit facts without overriding unresolved dependencies")
+     generate_parser.add_argument("--faithful-prefixes", action="store_true",
+                                  help="emit proved instruction prefixes; unknown calls remain original")
+     generate_parser.add_argument(
+diff --git a/snesrecomp_cli.py b/snesrecomp_cli.py
+--- a/snesrecomp_cli.py
++++ b/snesrecomp_cli.py
+@@ -152,7 +152,8 @@
+              profile_manifests: list[str] | None = None,
+              legacy_profile_rom_sha256: str | None = None,
+              reviewed_root_manifest: str | None = None,
+-             faithful_prefixes: bool = False) -> None:
++             faithful_prefixes: bool = False,
++             certify_converged_exits: bool = False) -> None:
+     """Generate C from a ROM plus its bank configs. Raises on failure."""
+     resolved = resolve_analyzer(backend)
+     arguments = [
+@@ -179,6 +180,8 @@
+         arguments.extend(["--reviewed-root-manifest", reviewed_root_manifest])
+     if faithful_prefixes:
+         arguments.append("--faithful-prefixes")
++    if certify_converged_exits:
++        arguments.append("--certify-converged-exits")
+     for manifest in profile_manifests or []:
+         arguments.extend(["--profile-manifest", manifest])
+     if legacy_profile_rom_sha256:

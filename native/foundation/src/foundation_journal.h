@@ -72,8 +72,25 @@ static inline unsigned FoundationJournalPriestRoute(unsigned stage, unsigned fla
         global_flags == 0x10 && party == 0 && mode == 1 ? 13 : 0;
 }
 
+/* Original077C FA00 supplies current chapter7 bit80. Original0762
+ * selects the key offer at that bit, then FA02 supplies bit20 before
+ * original00873F inserts item01 WIN-KEY. Flags are current advice only;
+ * possession remains independently mutable. This exact observed Aqutallion
+ * context does not certify bridge operation or permanent quest history. */
+static inline unsigned FoundationJournalBridgeRoute(unsigned stage, unsigned flags,
+                                                     unsigned secondary_flags,
+                                                     unsigned global_flags,
+                                                     unsigned party, unsigned mode) {
+    if (stage != 7 || secondary_flags != 0 || global_flags != 0x10 ||
+        party != 0 || mode != 1) return 0;
+    return flags == 0x80 ? 14 : flags == 0xa0 ? 15 : 0;
+}
+
 static inline unsigned FoundationJournalCurrentLead(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3) return 0;
+    unsigned bridge = FoundationJournalBridgeRoute(ram[0x5372], ram[0x5360],
+        ram[0x5361], ram[0x5365], ram[0x4b6], ram[0x20]);
+    if (bridge) return bridge;
     unsigned priest = FoundationJournalPriestRoute(ram[0x5372], ram[0x5360],
         ram[0x5361], ram[0x5365], ram[0x4b6], ram[0x20]);
     if (priest) return priest;
@@ -202,6 +219,9 @@ static inline unsigned FoundationJournalDestination(unsigned stage, unsigned fla
  * circus pin, nor leave a Decatas marker after the current ticket offer. */
 static inline unsigned FoundationJournalDestinationState(const uint8_t *ram, size_t size) {
     if (!ram || size < 0x53b3) return 0xffff;
+    /* Original bridge dialogue names a region, not a verified map entrance. */
+    if (FoundationJournalBridgeRoute(ram[0x5372], ram[0x5360],
+        ram[0x5361], ram[0x5365], ram[0x4b6], ram[0x20])) return 0xffff;
     /* Original032F names Decatas; the exact chapter7 selector088420 uses
      * town85/088FA1 name03, with original world entrances08AF50/58.
      * This marks the named town, never a guessed temple door coordinate. */

@@ -111,7 +111,36 @@ static int KnownWrappingOrdinaryVehicle(void) {
     }
     return 1;
 }
+/* Separate original chapter-six Kustera world family. Original menu SWAP
+ * and full01C400 selected0887E5/map3 produced this centered single leader.
+ * No NPC, effect, vehicle, travel proxy or other party resource is admitted.
+ * Scene() separately authenticates original ROM, selected stream and PPU view;
+ * existing complete544 packet and periodic raster/age rules remain unchanged. */
+static int KusteraWrappingResource(const Ppu *ppu) {
+    if (!ppu || !g_snes || !g_snes->dma || g_ram[0x4b6] != 0x80 ||
+        g_ram[0x4a9] != 0x0a || g_ram[0x5372] != 6 || R16(0x40e) ||
+        g_ram[0x20] != 1 || g_ram[0x401] != 12 || g_ram[0x407] != 1 ||
+        g_ram[0x400] || g_ram[0x409] || (g_ram[0x5361] & 0x40) ||
+        R16(0x46d) != 0x0e0e || R16(0x46f) != 0x0202 ||
+        R24(0x500) != 0x038758 || R24(0x503) != 0x03ae70 ||
+        R24(0x506) != 0x0a8418 || R24(0x509) != 0x0a96d0 ||
+        R24(0x513) != 0x099518 || R24(0x516) != 0x09a3f2 ||
+        R24(0x537) != 0x098110 || R24(0x55c) != 0x098610 ||
+        g_ram[0x50c] != 0x80 || g_ram[0x50d] ||
+        ppu->bgmode != 9 || PPU_mosaicSize(ppu)>1 || ppu->setini) return 0;
+    for (unsigned i=0; i<8; ++i) if (g_snes->dma->channel[i].hdmaActive) return 0;
+    for (unsigned i=0; i<kParty; ++i) {
+        unsigned at=0x4000+18*i;
+        if (i) { if (g_ram[at]!=255) return 0; }
+        else if (g_ram[at]>3 || R16(at+3)!=0x0050 ||
+                 g_ram[at+1]!=128 || g_ram[at+2]!=112 || g_ram[at+5]) return 0;
+    }
+    for (unsigned i=0; i<kRegular; ++i) if (g_ram[0x4100+25*i]!=255) return 0;
+    return 1;
+}
+
 static int WrappingResource(const Ppu *ppu) {
+    if (KusteraWrappingResource(ppu)) return 1;
     if (!g_ram[0x407]) return 0;
     if (!ppu || !g_snes || !g_snes->dma || R16(0x40e) || g_ram[0x407] != 1 ||
         g_ram[0x400] || g_ram[0x5372] != 17 || (g_ram[0x5361] & 0x40) ||

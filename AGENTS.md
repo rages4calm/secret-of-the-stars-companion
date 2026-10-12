@@ -1,3 +1,33 @@
+# Current continuation - native0.3.7 / Companion0.3.5 (2026-10-12)
+
+Read docs/FOUNDATION-MORGAN-WRAP-2026-10-12.md first. Native artifact
+3dcc39e142ea48fc58ebf6e8c31d02de45f6b70e229099b380045dd11d5cffe4;
+immutable compiled_unqualified receipt d31d899016bc4852d37c33628864af477c82678159d797c69950923867be8a06.
+GUI035 remains eb6876c3b5bdcadfa51686bf7ec59c231d29ab0b89d067c5a3aa85f82d086adc,
+receipt2793fd8c9a0abfb99fae041266faf491b1c9f6cf477743d1b402b212755ff37d.
+Morgan advice uses original current-pack evidence, both pack domains and absence;
+no durable journal history or guessed objective pin is inferred. Chapter6 Kustera
+has four qualified periodic-margin fixes. Preserve original center, collision,
+timing, completed packet identity, mosaic and65 other refusal controls.
+The generic converged-exit analyzer is default-on in four regeneration wrappers;
+the tenth patch uses cache7931b53c4968-0907e3e59c6770f1. Prior nine patches remain exact.
+Generation152 eligible/93 prefix is not execution coverage. Newly admitted ABD0
+initially runs five native instructions before original fallback. ABI/schema/SRAM
+remain unchanged. Actual qualification:459 game checks/26 processes,555 rendering
+checks/18 runs,1108 journal functional checks/46 runs,24 fresh SDK controls,
+GUI85 adoption/52 update-rollback/51 UI controls,10 paced routes and9 modal routes.
+Retain initial oracle/frame-label, fixture and regeneration failures with scopes.
+Fresh authored SDK input has no generated funcs.h; repeat regeneration with that
+header fed back is not qualified. Historical pruned tag2/3 inputs are not replayed;
+actual034 acceptance and newly exercised036-produced inputs are distinct proofs.
+Full native/AOT, natural campaign, full APU equivalence and physical-controller
+coverage remain open. Delivery, installation and publication require separate
+closure receipts. Preserve61 native/24 GUI authored inputs, copied-EXE isolation,
+owner data and5GB steady/10GB transient storage limits. No historical archives.
+Private038 work must not alter this frozen037 source or its receipts.
+
+---
+
 # Current source continuation - native0.3.6 / Companion0.3.5 (2026-10-11)
 
 Read docs/FOUNDATION-ENCOUNTER-RATE-2026-10-11.md first. The new
@@ -17,7 +47,7 @@ compact proof remain; closed redundant binaries are deleted after qualification.
 
 ---
 
-# Current source continuation — native0.3.5 / unchanged Companion0.3.4 (2026-10-11)
+# Current source continuation â€” native0.3.5 / unchanged Companion0.3.4 (2026-10-11)
 
 Read docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md first. Exact native76db66cd /
 immutable compiled_unqualified receipt2ddc658d has61 authored inputs; only
@@ -41,7 +71,7 @@ pairs are separate from full400/campaign/SWAP qualification. Preserve every
 failed report's scope and real compilation receipts. Use copied EXEs and
 original center/culling/collision/pace guards. Full AOT/campaign remains open.
 
-Owner requests RandomEncounterPercent0–100 beside XP/gold next. Default100 and
+Owner requests RandomEncounterPercent0â€“100 beside XP/gold next. Default100 and
 OriginalView100 must preserve original behavior; random suppression must not
 affect scripted/boss battle producers or introduce hidden RNG/history. Keep
 private next proposals out of the frozen035 source until deliberate promotion.
