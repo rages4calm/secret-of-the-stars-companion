@@ -1,3 +1,23 @@
+# Current continuation - native0.4.2 / unchanged Companion0.3.6 (2026-10-12)
+
+Read docs/FOUNDATION-MEMORY-RMW-2026-10-12.md first (under github-repo at root).
+Installed nativea17c7f04 / immutable public compiled_unqualified
+receiptb2bf3ec7; GUI f1bc6792 unchanged. Generic13th patchbc942791 adds
+all24 E0 exact memory INC/DEC/shifts/rotates DP/DPX/ABS/ABSX and accumulator
+INC/DEC. 5-file source binding; cache7931b53c4968-a4be41767ed1b650; cacheformat6/manifest3.
+Actual263 newly native instructions in finite window;24744 completed states/
+clocks exact, save/load exact; separate visible enhanced-wide guide and combat,
+59.9769FPS pacedD3D11/audio pass. Original center/culling/collision/pace,
+masks/callbacks/deadlines/IRQ and serialized structures remain. ABI041/042same.
+62nativeinputs;24GUIunchanged. Owner/play testers verify campaign; implement and
+render grouped features without event-by-event replay gates. Fullnative/AOT and
+broader scene/effect coverage open. Settings/saves/selectors/source mirrors exact.
+NewlargepayloadsTemp; steadyproject5GBcap. Never retry old policy-blocked cleanup
+helpers/elevation/VerifyOnly. No broad archive or campaign matrix. GoalACTIVE.
+Historical blocks retain their own artifact scopes.
+
+---
+
 # Current continuation - native0.4.1 / unchanged Companion0.3.6 (2026-10-12)
 
 Read docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md first (under github-repo

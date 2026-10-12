@@ -53,7 +53,7 @@ The helper checks the ROM identity before generating anything. It creates a
 fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
-The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current twelve-patch key is `7931b53c4968-622935e6df63ce81`. All twelve full ordered hashes remain in the marker and receipt. Keep caches needed by active builds; remove obsolete rebuildable payloads under the project's required-only storage policy.
+The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`; the current thirteen-patch key is `7931b53c4968-a4be41767ed1b650`. All thirteen full ordered hashes remain in the marker and receipt. Keep caches needed by active builds; remove obsolete rebuildable payloads under the project's required-only storage policy.
 
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
@@ -67,15 +67,17 @@ The script checks those pins and applies `patches/runtime-foundation.patch`,
 `patches/runtime-reviewed-roots.patch`, then the separate generic
 `patches/runtime-converged-exits.patch`, followed by the exact single-file
 `patches/runtime-accumulator.patch`, then
-`patches/runtime-native-continuations.patch`.
+`patches/runtime-native-continuations.patch`, then
+`patches/runtime-memory-rmw.patch`.
 Each patch has an independently recorded hash in the cache key and marker; the
 combined resulting source hashes are checked before reusing a checkout. Unexpected
 revisions or edits stop the build without deleting or resetting that checkout.
 
 The eleventh patch admits only decoded, exact one-byte accumulator `ASL`, `LSR`,
 `ROL` and `ROR` instructions with known M/X flags through the existing faithful
-emitter. Memory read/modify/write forms and `INC`/`DEC` remain on the original
-path. Existing original buses, instruction clocks, masks, unknown-mode/call
+emitter. At this predecessor, memory read/modify/write forms and `INC`/`DEC`
+remain on the original path; the thirteenth patch extends them as described below.
+Existing original buses, instruction clocks, masks, unknown-mode/call
 yields and registered pre-opcode callbacks retain their contracts. This extends
 generic default generation; it is not a whole-game AOT or performance claim.
 
@@ -447,3 +449,16 @@ cache format is 6; program manifest remains 3. Read the
 [continuation contract](docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md).
 The frame/session reset hook changes the declared execution ABI; strict copied
 0.4.0-to0.4.1 profile update refuses, while fresh adoption is available.
+
+
+## Native memory instructions (0.4.2)
+
+The thirteenth patch admits the exact supported E0 memory INC/DEC, ASL/LSR and
+ROL/ROR forms plus accumulator INC/DEC. `patches/runtime-memory-rmw.json` binds
+its five exact predecessors and final sources. The builder checks the twelfth
+source set before applying this delta, then checks the final union for compilation
+and reuse. The source cache contains thirteen ordered full patch identities.
+Generated cache format 6, program manifest 3 and the declared execution ABI for
+0.4.1 and 0.4.2 remain unchanged. Full native/AOT and campaign verification are
+separate.
+[Current instruction and rendering scope](docs/FOUNDATION-MEMORY-RMW-2026-10-12.md).

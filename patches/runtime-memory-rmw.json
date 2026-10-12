@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "bc942791aabf6920b40bf942d874e0f1d4461eb04867acf3266a285412042b32",
+  "files": {
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "b9bb785eb85b0c72861f2eda26a1c57529ffae03477ff1e59c2554f70e6e2d0d",
+      "final_sha256": "f260bcdd966e3c502fad7c435ae674e8f876dffff30baf36248f1c6696a20c69",
+      "normalized_final_sha256": "f260bcdd966e3c502fad7c435ae674e8f876dffff30baf36248f1c6696a20c69"
+    },
+    "recompiler/v2/codegen.py": {
+      "predecessor_sha256": "ac0b6d7b6ee0ba6e9782adbe44f9d121533c88ba22b983f880ac1651f44d13b5",
+      "final_sha256": "094092092c608c2511a5129aabe7af547716d7199d594090640108f78e5eab67",
+      "normalized_final_sha256": "094092092c608c2511a5129aabe7af547716d7199d594090640108f78e5eab67"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "837a4a54e31601cd202bdeb495c75bfda6d42651ebddb1f55f24cd48a89200ab",
+      "final_sha256": "7de8ec42fa99793b99e672ebc9f39223c9beaf632270855084808de9554c91a2",
+      "normalized_final_sha256": "7de8ec42fa99793b99e672ebc9f39223c9beaf632270855084808de9554c91a2"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "68e4b73cae2f639ae22e6d5fc3f7d0dc06e748e8c456ef1b672b48ddcc6bdb75",
+      "final_sha256": "b280b3aa8e72d32911728880f92c80611d224151ffc1b0dff9c0f820f1f1290d",
+      "normalized_final_sha256": "b280b3aa8e72d32911728880f92c80611d224151ffc1b0dff9c0f820f1f1290d"
+    },
+    "recompiler/v2/emitter_helpers.py": {
+      "predecessor_sha256": "a8003e7a990410c93b68ba6426ee632854b62d5bbe5f5c93e8a03e372c7d22a0",
+      "final_sha256": "e5ba2a3ec2f3f74ef585c3b6259037dad79f476bb7effc5c647327e4d78dd792",
+      "normalized_final_sha256": "e5ba2a3ec2f3f74ef585c3b6259037dad79f476bb7effc5c647327e4d78dd792"
+    }
+  },
+  "scope": "Exact E0 known-mode memory INC/DEC/ASL/LSR/ROL/ROR DP/DPX/ABS/ABSX and accumulator INC/DEC; single original operand/EA, original transfer order and clock charges. Generic native JSL yields retain the actual callee program bank. No serialized guest fields or gameplay pace change."
+}

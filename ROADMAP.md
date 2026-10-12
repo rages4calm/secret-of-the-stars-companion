@@ -9,7 +9,7 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
-The [native 0.4.1 continuation](docs/FOUNDATION-NATIVE-CONTINUATIONS-2026-10-12.md) resumes certified generated suffixes after exact original returns. The changed-path witness converts 113 previously interpreted instructions with unchanged guest state and clocks. Companion remains 0.3.6. The [0.4.0 story guide](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) contains 42 pages in 14 sections through the ending. Owner and play testers verify campaign directions; developer checks focus on implementation, rendering and reported failures.
+The [native 0.4.2 instruction update](docs/FOUNDATION-MEMORY-RMW-2026-10-12.md) adds all24 supported memory increment/decrement, shift/rotate opcodes and accumulator increment/decrement. Two finite executions retain identical state and clocks with 263 newly native instructions in the sampled window; separate guide/combat rendering and paced audio pass. Companion remains 0.3.6. The [0.4.0 story guide](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) contains 42 pages in 14 sections through the ending. Owner and play testers verify campaign directions; developer checks focus on implementation, rendering and reported failures.
 
 Full native/AOT execution, broader story/party/effect rendering and hardware coverage remain unfinished. Guide coverage does not establish automatic campaign event detection, permanent quest history or new objective pins. Current original execution and guarded renderer fallback remain authoritative.
 

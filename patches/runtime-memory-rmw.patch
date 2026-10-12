@@ -1,0 +1,388 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -34,7 +34,10 @@
+ )
+ from v2.cfg import V2Block, V2CFG, build_cfg  # noqa: E402
+ from v2.lowering import lower  # noqa: E402
+-from v2.codegen import emit_op, _transfer_target_expr  # noqa: E402
++from v2.codegen import (  # noqa: E402
++    emit_op, _transfer_target_expr, faithful_memory_rmw_contract,
++    emit_faithful_memory_rmw, faithful_accumulator_incdec,
++)
+ from v2.naming import (  # noqa: E402
+     default_func_name as _default_func_name,
+     variant_suffix as _variant_suffix,
+@@ -445,7 +448,7 @@
+ 
+ 
+ def _faithful_accumulator_shift(insn) -> bool:
+-    """Admit only exact one-byte accumulator shifts; memory RMW stays original."""
++    """Admit accumulator shifts; memory RMW requires its separate IR proof."""
+     expected = {0x0A: 'ASL', 0x4A: 'LSR', 0x2A: 'ROL', 0x6A: 'ROR'}
+     opcode = getattr(insn, 'opcode', None)
+     return (getattr(insn, 'mode', -1) == _MODE_ACC
+@@ -758,6 +761,7 @@
+ 
+     # Lower every (insn, key) into its IR ops, in block order.
+     block_lines: Dict[DecodeKey, List[str]] = {}
++    native_rmw_cycles: Dict[DecodeKey, int] = {}
+     block_order: List[DecodeKey] = []
+ 
+     # Emit blocks in a stable order: entry first, then DFS over successors.
+@@ -1992,6 +1996,7 @@
+         # this, e.g. L_809F's "fall through to L_80A0" silently became
+         # "fall through to the function epilogue" for any block whose
+         # successor was visited first.
++        _faithful_effect_end = len(lines)
+         if not block_terminated:
+             succs = block.successors
+             blk_pc24 = (bank << 16) | (key.pc & 0xFFFF)
+@@ -2062,10 +2067,28 @@
+             'CLC','SEC','CLD','SED','CLI','SEI','CLV','REP','SEP','NOP','INX','INY','DEX','DEY','TAX','TAY','TXA','TYA','TXS','TSX','TCS','TSC','TCD','TDC','TXY','TYX','XBA',
+             'PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD','PLB','PLP','PEA','PER',
+             'JSR','JSL','RTS','RTL','JMP','JML','BRA','BRL','BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
+-        _unsupported = (_di.mnem not in _supported and not _faithful_accumulator_shift(_di)) or bool(skip_emit_idx) or bool(nlr_info)
++        _rmw_contract = faithful_memory_rmw_contract(_di, pairs[0][1])
++        _acc_incdec = faithful_accumulator_incdec(_di, pairs[0][1])
++        # New arithmetic never promotes code bytes already designated as data
++        # or excluded from native ownership. Existing prefix masks remain hard.
++        _arithmetic_masked = False
++        if _rmw_contract or _acc_incdec:
++            for _byte in range(_di.length):
++                _at = (_di.addr & 0xFF0000) | ((_di.addr + _byte) & 0xFFFF)
++                _arithmetic_masked = _arithmetic_masked or any(
++                    (_at >> 16) in (_mbank, _mbank ^ 0x80) and _lo <= (_at & 0xFFFF) < _hi
++                    for _mbank, _lo, _hi in (data_regions or ()))
++                _arithmetic_masked = _arithmetic_masked or any(
++                    (_lo & 0xFFFF) <= (_at & 0xFFFF) < _hi
++                    for _lo, _hi in (exclude_ranges or ()))
++        _arithmetic_valid = bool((_rmw_contract or _acc_incdec)
++                                 and not _arithmetic_masked and not block_terminated
++                                 and len(block.successors) == 1)
++        _unsupported = (_di.mnem not in _supported and not _faithful_accumulator_shift(_di)
++                        and not _arithmetic_valid) or bool(skip_emit_idx) or bool(nlr_info)
+         _prefix_refusal = ((bank << 16) | (key.pc & 0xFFFF)) in _prefix_stops
+         _unsupported = _unsupported or _prefix_refusal
+-        # Pointer wrapping/page-cross and RMW ordering remain explicit unsupported gates.
++        # Unresolved pointer/stack forms retain their original execution gates.
+         from snes65816 import MODE_STR
+         _mode_id = getattr(_di, 'mode', -1)
+         _mode = MODE_STR.get(_mode_id, 'unknown')
+@@ -2074,6 +2097,14 @@
+         if _unsupported:
+             lines = [f'return interp_tier_dispatch_faithful(cpu, (((uint32)cpu->PB << 16) | 0x{key.pc & 0xffff:04x}u), 0x{((bank<<16)|key.pc):06x}u, _entry_s, _hrv, false, _host_return_pc24); /* precise-mode unsupported: {_di.mnem} {_mode} */']
+         else:
++            if _rmw_contract:
++                # Replace the entire generic Read/Shift/Write effect, including
++                # its separately recomputed EAs and duplicate cycle modifiers.
++                # The original CFG successor/ownership statement stays exact.
++                _effect = emit_faithful_memory_rmw(_di, pairs[0][1])
++                assert _effect is not None and _arithmetic_valid
++                lines = _effect + lines[_faithful_effect_end:]
++                native_rmw_cycles[key] = _rmw_contract[1]
+             import re as _faithful_re
+             _new_lines = []
+             for _ln in lines:
+@@ -2250,6 +2281,10 @@
+         # code-region speed) into cpu->master_cycles, which paces the SPC700.
+         _pairs = block_per_insn_ir.get(key, [])
+         _cyc_const = _block_cycle_const(_pairs)
++        if key in native_rmw_cycles:
++            # RMW helpers own the original +2 M=0 and +1 D.l penalties.
++            # Absolute-X RMW has no read page-cross or index-width surcharge.
++            _cyc_const = native_rmw_cycles[key]
+         _insn = _pairs[0][0]
+         if key.pc in _faithful_poll_pcs:
+             src.append('    if (interp_bridge_in_lle_scheduler()) { RecompStackPopYield();')
+diff --git a/recompiler/v2/codegen.py b/recompiler/v2/codegen.py
+--- a/recompiler/v2/codegen.py
++++ b/recompiler/v2/codegen.py
+@@ -964,6 +964,113 @@
+     lines.extend(f"  {s}" for s in widths.set_nz_no_p("_im", op.width))
+     lines.append("}")
+     return lines
++
++
++def faithful_memory_rmw_contract(insn, ops):
++    """Match exact original-byte RMW forms AND their connected lowered IR.
++
++    The ordinary Read/Shift/Write path recomputes the EA and uses ordinary
++    word-write order. It cannot become faithful merely by admitting an opcode.
++    A matched contract instead uses one original operand snapshot for both
++    bus phases and retains the original per-operation flag ordering.
++    """
++    from snes65816 import DP, DP_X, ABS, ABS_X
++    groups = {
++        'ASL': (0x06, 0x16, 0x0E, 0x1E),
++        'ROL': (0x26, 0x36, 0x2E, 0x3E),
++        'LSR': (0x46, 0x56, 0x4E, 0x5E),
++        'ROR': (0x66, 0x76, 0x6E, 0x7E),
++        'DEC': (0xC6, 0xD6, 0xCE, 0xDE),
++        'INC': (0xE6, 0xF6, 0xEE, 0xFE),
++    }
++    modes = (DP, DP_X, ABS, ABS_X)
++    mode = getattr(insn, 'mode', None)
++    mnem = getattr(insn, 'mnem', None)
++    if (mnem not in groups or mode not in modes
++            or getattr(insn, 'm_flag', None) not in (0, 1)
++            or getattr(insn, 'x_flag', None) not in (0, 1)
++            or getattr(insn, 'data_region_exec', False)):
++        return None
++    index = modes.index(mode)
++    if (getattr(insn, 'opcode', None) != groups[mnem][index]
++            or getattr(insn, 'length', None) != (2 if index < 2 else 3)
++            or type(getattr(insn, 'operand', None)) is not int
++            or not 0 <= insn.operand <= (0xFF if index < 2 else 0xFFFF)):
++        return None
++    seg = SegRef(kind=SegKind.DIRECT if index < 2 else SegKind.ABS_BANK,
++                 offset=insn.operand, index=Reg.X if index in (1, 3) else None)
++    width = 1 if insn.m_flag else 2
++    if mnem in ('INC', 'DEC'):
++        if (len(ops) != 1 or not isinstance(ops[0], IncMem)
++                or ops[0].seg != seg or ops[0].width != width
++                or ops[0].delta != (1 if mnem == 'INC' else -1)):
++            return None
++    else:
++        if len(ops) != 3:
++            return None
++        read, shift, write = ops
++        if (not isinstance(read, Read) or not isinstance(shift, Shift)
++                or not isinstance(write, Write) or read.seg != seg or write.seg != seg
++                or (read.width, shift.width, write.width) != (width, width, width)
++                or shift.op.value != mnem.lower() or shift.src != read.out
++                or write.src != shift.out or read.out == shift.out):
++            return None
++    return ('CPU_AOT_RMW_DP', 'CPU_AOT_RMW_DPX',
++            'CPU_AOT_RMW_ABS', 'CPU_AOT_RMW_ABSX')[index], (5, 6, 6, 7)[index]
++
++
++def emit_faithful_memory_rmw(insn, ops):
++    """Original RMW data/flag phases using a cached runtime operand.
++
++    Helpers retain original read-word claiming/atomic MMIO behavior, reversed
++    result-word writes, actual fetched operands, wrapping and cycle penalties.
++    No effective address expression is evaluated again after a bus callback.
++    """
++    contract = faithful_memory_rmw_contract(insn, ops)
++    if contract is None:
++        return None
++    mode, _base_cycles = contract
++    width = 1 if insn.m_flag else 2
++    ctype = widths.ctype(width)
++    lines = ['{', '  uint16 _rmw_value;',
++             f'  CpuAotRmwOperand _rmw_operand = cpu_aot_rmw_read(cpu, {mode}, &_rmw_value);']
++    if insn.mnem in ('INC', 'DEC'):
++        delta = '+ 1u' if insn.mnem == 'INC' else '- 1u'
++        lines.append(f'  {ctype} _rmw_result = ({ctype})(_rmw_value {delta});')
++        carry = []
++        nz = widths.set_nz_no_p('_rmw_result', width)
++    else:
++        # Reuse the proven IR's width-aware arithmetic while moving N/Z past
++        # the original write phase. ROR publishes carry after that phase too.
++        read, shift, _write = ops
++        lines.append(f'  {ctype} {_v(read.out)} = ({ctype})_rmw_value;')
++        arithmetic = _emit_shift(shift)
++        lines.append('  ' + arithmetic[0])
++        lines.append(f'  {ctype} _rmw_result = {_v(shift.out)};')
++        carry = arithmetic[1:2]
++        nz = arithmetic[2:]
++    if insn.mnem != 'ROR':
++        lines.extend('  ' + line for line in carry)
++    lines.append('  cpu_aot_rmw_write(cpu, &_rmw_operand, (uint16)_rmw_result);')
++    lines.extend('  ' + line for line in nz)
++    if insn.mnem == 'ROR':
++        lines.extend('  ' + line for line in carry)
++    lines.append('}')
++    return lines
++
++
++def faithful_accumulator_incdec(insn, ops):
++    """Accumulator INC/DEC is a register operation, never a memory RMW."""
++    from snes65816 import ACC
++    expected = {0x1A: ('INC', 1), 0x3A: ('DEC', -1)}
++    shape = expected.get(getattr(insn, 'opcode', None))
++    return (shape is not None and getattr(insn, 'mode', None) == ACC
++            and getattr(insn, 'length', None) == 1 and insn.mnem == shape[0]
++            and getattr(insn, 'm_flag', None) in (0, 1)
++            and getattr(insn, 'x_flag', None) in (0, 1)
++            and not getattr(insn, 'data_region_exec', False)
++            and len(ops) == 1 and isinstance(ops[0], IncReg)
++            and ops[0].reg == Reg.A and ops[0].delta == shape[1])
+ 
+ 
+ def _emit_bittest(op: BitTest) -> List[str]:
+@@ -2370,8 +2477,7 @@
+         pm, px = pinned
+         pinned_name = f"{base_name}{_variant_suffix(pm, px)}"
+         if op.long:
+-            # JSL: keep the PB save/restore so the callee runs in its
+-            # target bank but the caller's PB is preserved on return.
++            # JSL: restore the caller bank only on a completed normal return.
+             env = emitter_helpers.pb_save_restore_envelope(
+                 target_bank,
+                 [
+@@ -2395,9 +2501,8 @@
+             "}",
+         ]
+     if op.long:
+-        # JSL: PB save/restore wraps the switch. The propagation
+-        # block sits AFTER the PB restore so the caller's PB is
+-        # correct on the SKIP_N return path.
++        # JSL: leave the callee's actual PB live on nonlocal/yield unwind.
++        # Only a completed normal return restores the paired caller bank.
+         lines = ["{"]
+         lines += _emit_return_frame_push(op)
+         body = [
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -532,6 +532,10 @@
+ static unsigned s_aot_cycles;
+ static uint32_t s_aot_pc;
+ static int s_aot_apu_driving;
++static uint8 s_aot_fetched[4];
++static unsigned s_aot_length;
++static CpuAotRmwOperand s_aot_rmw_operand;
++static bool s_aot_rmw_read, s_aot_rmw_written;
+ unsigned long long g_faithful_aot_steps;
+ unsigned long long g_faithful_aot_prefix_steps;
+ static void private_instruction_trace(CpuState *cpu,uint32 pc,char kind,unsigned cycles,unsigned bus,uint64_t bus_master) {
+@@ -552,11 +556,16 @@
+   for (int i = 0; i < s_pre_opcode_hook_count; ++i)
+     if (s_pre_opcode_hooks[i].pc24 == hook_pc) return false;
+   s_aot_instruction=cpu;s_aot_cycles=cycles;s_aot_pc=((uint32)cpu->PB<<16)|(pc&0xffff);
++  s_aot_length=length;memset(s_aot_fetched,0,sizeof s_aot_fetched);
++  s_aot_rmw_read=false;s_aot_rmw_written=false;
+   s_aot_apu_driving=g_interp_apu_driving;g_interp_apu_driving=1;
+   s_interp_bus_cycles=0;s_interp_bus_master=0;s_interp_bus_timing_active=1;
+   cpu->coprocessor_master_cycles=cpu->master_cycles;
+   cpu_mirrors_to_p(cpu);
+-  for(unsigned i=0;i<length;i++) (void)bridge_bus_read(cpu,((uint32)cpu->PB<<16)|((pc+i)&0xffff));
++  for(unsigned i=0;i<length;i++) {
++    uint8 value=bridge_bus_read(cpu,((uint32)cpu->PB<<16)|((pc+i)&0xffff));
++    if(i<sizeof s_aot_fetched)s_aot_fetched[i]=value;
++  }
+   return true;
+ }
+ void cpu_aot_extra(CpuState *cpu,unsigned n){aot_require(cpu);s_aot_cycles+=n;}
+@@ -567,9 +576,66 @@
+ void cpu_aot_write16(CpuState *cpu,uint8 b,uint16 a,uint16 v){aot_require(cpu);uint32 lo=((uint32)b<<16)|a,hi=((uint32)b<<16)|(uint16)(a+1);if(!bridge_bus_write_word(cpu,lo,hi,v,false)){bridge_bus_write(cpu,lo,(uint8)v);bridge_bus_write(cpu,hi,(uint8)(v>>8));}}
+ void cpu_aot_write16_linear(CpuState *cpu,uint8 b,uint16 a,uint16 v){aot_require(cpu);uint32 lo=((uint32)b<<16)|a,hi=(lo+1)&0xffffffu;if(!bridge_bus_write_word(cpu,lo,hi,v,false)){bridge_bus_write(cpu,lo,(uint8)v);bridge_bus_write(cpu,hi,(uint8)(v>>8));}}
+ void cpu_aot_write16_reverse(CpuState *cpu,uint8 b,uint16 a,uint16 v){aot_require(cpu);bridge_bus_write(cpu,((uint32)b<<16)|(uint16)(a+1),(uint8)(v>>8));bridge_bus_write(cpu,((uint32)b<<16)|a,(uint8)v);}
++/* Original interp816 adrDp/adrDpx/adrAbs/adrAbx(write=true) and readWord.
++ * The descriptor is one-shot within the existing faithful transaction, not
++ * a new bus, guest cache, cycle model or cross-instruction continuation. */
++CpuAotRmwOperand cpu_aot_rmw_read(CpuState *cpu, unsigned mode, uint16 *value) {
++  aot_require(cpu);
++  static const unsigned base[4]={5,6,6,7};
++  static const uint8 form[4]={0x06,0x16,0x0e,0x1e};
++  const uint8 op=s_aot_fetched[0];
++  const uint8 family=op&0xe0;
++  if(!value || mode>CPU_AOT_RMW_ABSX || cpu->emulation || cpu->m_flag>1 ||
++     s_aot_rmw_read || s_aot_cycles!=base[mode] ||
++     s_aot_length!=(mode<=CPU_AOT_RMW_DPX ? 2u : 3u) ||
++     (op&0x1f)!=form[mode] ||
++     !(family==0x00 || family==0x20 || family==0x40 || family==0x60 ||
++       family==0xc0 || family==0xe0)) {
++    fputs("Invalid faithful RMW metadata/transaction\n",stderr);abort();
++  }
++  uint32 address;
++  uint16 operand=s_aot_fetched[1];
++  CpuAotRmwOperand out;
++  memset(&out,0,sizeof out);
++  if(mode<=CPU_AOT_RMW_DPX) {
++    address=(uint16)(cpu->D+operand+(mode==CPU_AOT_RMW_DPX ? cpu->X : 0));
++    out.lo=address;out.hi=(uint16)(address+1u);
++    if(cpu->D&0xffu)cpu_aot_extra(cpu,1);
++  } else {
++    operand|=(uint16)s_aot_fetched[2]<<8;
++    address=(((uint32)cpu->DB<<16)+operand+
++      (mode==CPU_AOT_RMW_ABSX ? cpu->X : 0))&0xffffffu;
++    out.lo=address;out.hi=(address+1u)&0xffffffu;
++  }
++  out.word=cpu->m_flag==0;
++  s_aot_rmw_operand=out;s_aot_rmw_read=true;
++  if(out.word) {
++    cpu_aot_extra(cpu,2);
++    *value=mode<=CPU_AOT_RMW_DPX
++      ? cpu_aot_read16(cpu,0,(uint16)out.lo)
++      : cpu_aot_read16_linear(cpu,(uint8)(out.lo>>16),(uint16)out.lo);
++  } else {
++    *value=cpu_aot_read8(cpu,(uint8)(out.lo>>16),(uint16)out.lo);
++  }
++  return out;
++}
++void cpu_aot_rmw_write(CpuState *cpu, const CpuAotRmwOperand *operand, uint16 value) {
++  aot_require(cpu);
++  if(!operand || !s_aot_rmw_read || s_aot_rmw_written ||
++     operand->lo!=s_aot_rmw_operand.lo || operand->hi!=s_aot_rmw_operand.hi ||
++     operand->word!=s_aot_rmw_operand.word) {
++    fputs("Invalid faithful RMW write descriptor\n",stderr);abort();
++  }
++  if(operand->word)bridge_bus_write(cpu,operand->hi,(uint8)(value>>8));
++  bridge_bus_write(cpu,operand->lo,(uint8)value);
++  s_aot_rmw_written=true;
++}
+ void cpu_aot_commit(CpuState *cpu) {
+   if(!s_aot_instruction)return;
+   aot_require(cpu);
++  if(s_aot_rmw_read && !s_aot_rmw_written) {
++    fputs("Unfinished faithful RMW transaction\n",stderr);abort();
++  }
+   if(s_aot_cycles<s_interp_bus_cycles){fprintf(stderr,"AOT bus exceeds cycles PC=%06X cycles=%u bus=%u\n",s_aot_pc,s_aot_cycles,s_interp_bus_cycles);abort();}
+   unsigned cycles=s_aot_cycles,bus=s_interp_bus_cycles;uint64_t master=s_interp_bus_master;
+   s_interp_bus_timing_active=0;s_aot_instruction=NULL;g_interp_apu_driving=s_aot_apu_driving;
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -837,3 +837,16 @@
+ void cpu_aot_write16(CpuState*,uint8,uint16,uint16);
+ void cpu_aot_write16_linear(CpuState*,uint8,uint16,uint16);
+ void cpu_aot_write16_reverse(CpuState*,uint8,uint16,uint16);
++typedef enum CpuAotRmwMode {
++    CPU_AOT_RMW_DP = 0, CPU_AOT_RMW_DPX = 1,
++    CPU_AOT_RMW_ABS = 2, CPU_AOT_RMW_ABSX = 3
++} CpuAotRmwMode;
++/* One original E0 transaction: operand fetch is cached by begin; EA and M
++ * are evaluated once. Read keeps original MMIO word handling; word result
++ * write is high then low. No dummy write or serialized instruction state. */
++typedef struct CpuAotRmwOperand {
++    uint32 lo, hi;
++    uint8 word;
++} CpuAotRmwOperand;
++CpuAotRmwOperand cpu_aot_rmw_read(CpuState *, unsigned mode, uint16 *value);
++void cpu_aot_rmw_write(CpuState *, const CpuAotRmwOperand *, uint16 value);
+diff --git a/recompiler/v2/emitter_helpers.py b/recompiler/v2/emitter_helpers.py
+--- a/recompiler/v2/emitter_helpers.py
++++ b/recompiler/v2/emitter_helpers.py
+@@ -169,9 +169,10 @@
+     and restore, inner PHK/PLB sequences poison DB to bank $00.
+ 
+     RecompReturn ABI (2026-05-02): callee returns RecompReturn.
+-    NORMAL → continue. SKIP_N → restore PB, then propagate via
+-    `return SKIP_(N-1)`. PB restore MUST run before the propagation
+-    return so the caller's PB is correct on the way out.
++    NORMAL → restore the paired caller's PB and continue. A nonlocal return
++    or scheduler unwind keeps the actual callee PB live while propagating
++    via `return SKIP_(N-1)`. Host-C unwinding must not manufacture an RTL
++    while an authentic guest call frame is still pending.
+ 
+     NB: emit_function.py's per-line scanner auto-injects
+     RecompStackPop() before any line whose stripped text starts with
+@@ -191,7 +192,6 @@
+     return [
+         *bank_enter,
+         *body,
+-        *bank_leave,
+         "if (_r != RECOMP_RETURN_NORMAL) {",
+         "  cpu_trace_event(cpu, 0, CPU_TR_NLR_PROPAGATE, (uint8)_r, 0);",
+         # Mark this exit as SKIP-PROPAGATION so the stack-drift
+@@ -200,6 +200,7 @@
+         "  cpu_trace_mark_nlr_exit(BD_EXIT_KIND_SKIP_PROPAGATION);",
+         "  return (RecompReturn)((int)_r - 1);",
+         "}",
++        *bank_leave,
+     ]
+ 
+ 

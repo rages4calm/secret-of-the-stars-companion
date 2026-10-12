@@ -287,10 +287,25 @@ def main():
                 or sha(continuation_binding)!=provenance.get('native_continuation_source_binding_sha256')
                 or len(names)!=12 or set(names)!=set(binding['files'])
                 or 'validate_continuation_runtime' not in helper
-                or 'ordered-twelve-full-patch-hashes' not in helper):
+                or 'ordered-thirteen-full-patch-hashes' not in helper):
             errors.append('Native continuation patch/source binding differs from the current snapshot.')
     except (OSError,ValueError,KeyError,TypeError) as error:
         errors.append('Native continuation source binding unreadable: '+str(error))
+    rmw=ROOT/'patches/runtime-memory-rmw.patch'
+    rmw_source=ROOT/'patches/runtime-memory-rmw.json'
+    try:
+        binding=json.loads(rmw_source.read_bytes())
+        names=re.findall(r'^diff --git a/(\S+) b/',rmw.read_text(encoding='utf-8'),re.M)
+        if ('patches/runtime-memory-rmw.patch' not in tracked
+                or 'patches/runtime-memory-rmw.json' not in tracked
+                or sha(rmw)!=binding['patch_sha256']
+                or sha(rmw)!=provenance.get('memory_rmw_patch_sha256')
+                or sha(rmw_source)!=provenance.get('memory_rmw_source_binding_sha256')
+                or len(names)!=5 or set(names)!=set(binding['files'])
+                or sha(rmw) not in helper or 'validate_final_runtime' not in helper):
+            errors.append('Memory RMW patch/source binding differs from the current snapshot.')
+    except (OSError,ValueError,KeyError,TypeError) as error:
+        errors.append('Memory RMW source binding unreadable: '+str(error))
     reviewed = ROOT / 'native/foundation/recomp/reviewed-roots.json'
     if ('native/foundation/recomp/reviewed-roots.json' not in tracked
             or sha(reviewed) != provenance.get('reviewed_analysis_roots_sha256')):
