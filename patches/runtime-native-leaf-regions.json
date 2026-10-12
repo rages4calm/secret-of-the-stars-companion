@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "a7a6d68e3e94edd085a254a3c1ec242670289ba1b6cf6051e2d207dae4522b95",
+  "files": {
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "0ecd55dff04dda615e1794bb00f4aae25e714c36034bb09807e18e2dfa689f9c",
+      "normalized_predecessor_sha256": "0ecd55dff04dda615e1794bb00f4aae25e714c36034bb09807e18e2dfa689f9c",
+      "final_sha256": "d611131d12cecb5fa5063ef604299243f6e5210e7916d5f20e83e6ea9b4c9403",
+      "normalized_final_sha256": "d611131d12cecb5fa5063ef604299243f6e5210e7916d5f20e83e6ea9b4c9403"
+    },
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "ce0197ed538e0368aa8d29460e3d335759b132089c834cd2e77f3f87375d6e08",
+      "normalized_predecessor_sha256": "ce0197ed538e0368aa8d29460e3d335759b132089c834cd2e77f3f87375d6e08",
+      "final_sha256": "3c4b6aa69a20493093c3e81a84e8833fece4a5854882821271751f1f471fa11c",
+      "normalized_final_sha256": "3c4b6aa69a20493093c3e81a84e8833fece4a5854882821271751f1f471fa11c"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "0cc5d839a56c0ffabffc4fa710ac9807589c4becfd7cf4b531f4d40d061f9233",
+      "normalized_predecessor_sha256": "0cc5d839a56c0ffabffc4fa710ac9807589c4becfd7cf4b531f4d40d061f9233",
+      "final_sha256": "2f0b42684dd22cb446d0e466db60a5bac85964af7e11a26841975f4196933ab8",
+      "normalized_final_sha256": "2f0b42684dd22cb446d0e466db60a5bac85964af7e11a26841975f4196933ab8"
+    }
+  },
+  "scope": "Source-certified known-E0-PC/M/X stack-neutral instruction regions from existing faithful typed IR. Original scheduler/coroutine/call/stack/return/hook/IRQ/deadline ownership, hard masks and addressing residual fallback remain. Cache8/regionmetadata2; no serialized state change."
+}

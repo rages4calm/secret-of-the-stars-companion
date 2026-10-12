@@ -1,0 +1,125 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2311,13 +2311,24 @@
+     if native_region_collector is not None:
+         from .native_regions import collect
+         for region_key, region_pairs in block_per_insn_ir.items():
+-            if region_key.pc not in _faithful_poll_pcs or len(region_pairs) != 1:
++            if len(region_pairs) != 1:
+                 continue
+             region_insn, region_ops = region_pairs[0]
++            # Every opcode/operand byte retains data and native-exclusion ownership.
++            region_masked = False
++            for region_byte in range(region_insn.length):
++                region_at = (region_insn.addr & 0xFF0000) | ((region_insn.addr + region_byte) & 0xFFFF)
++                region_masked |= any((region_at >> 16) in (rb, rb ^ 0x80) and lo <= (region_at & 0xFFFF) < hi
++                                     for rb, lo, hi in (data_regions or ()))
++                region_masked |= any((lo & 0xFFFF) <= (region_at & 0xFFFF) < hi
++                                     for lo, hi in (exclude_ranges or ()))
++            if region_masked:
++                continue
+             if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
+                 continue
+             region = collect(rom, region_key, region_insn, region_ops,
+-                             _block_cycle_const(region_pairs))
++                             native_rmw_cycles.get(region_key, _block_cycle_const(region_pairs)),
++                             block_lines[region_key])
+             if region is not None:
+                 native_region_collector.append(region)
+     # Defensive trailing return so a missing terminator doesn't fall off
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -7,33 +7,42 @@
+ READS={'LDA','LDX','LDY','BIT','CMP','CPX','CPY'}
+ BRANCHES={'BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'}
+ 
+-def collect(rom,key,insn,ops,cycles):
++def collect(rom,key,insn,ops,cycles,faithful_lines=None):
++    # These rows are scheduler-owned instruction bodies, never callable entries.
++    # Existing CFG decoding/mode propagation and precise-mode refusal certify them.
+     if key.m not in (0,1) or key.x not in (0,1) or insn.data_region_exec:
+         return None
+-    if not (insn.mnem in READS and insn.mode==ABS or insn.mnem in BRANCHES):
++    stack_neutral={'LDA','LDX','LDY','STA','STX','STY','STZ','ADC','SBC','AND','ORA','EOR','CMP','CPX','CPY','BIT',
++        'CLC','SEC','CLD','SED','CLI','SEI','CLV','REP','SEP','NOP','INX','INY','DEX','DEY','TAX','TAY','TXA','TYA',
++        'TXY','TYX','XBA','ASL','LSR','ROL','ROR','INC','DEC','TSB','TRB','BRA','BRL','JMP'}|BRANCHES
++    from snes65816 import ABS as abs_mode
++    if insn.mnem not in stack_neutral or insn.mnem=='JMP' and insn.mode!=abs_mode:
+         return None
+-    if insn.mnem in BRANCHES and (len(ops)!=1 or not isinstance(ops[0],CondBranch)):
+-        return None
++    if faithful_lines is None:return None
++    # Existing backend records (dp),Y page-cross as a residual; keep it original.
++    from snes65816 import INDIR_Y
++    if insn.mode==INDIR_Y:return None
+     pc=insn.addr&0xffffff
+     if pc&0xffff<0x8000 or pc>>16 in (0x7e,0x7f):return None
+-    body=[];next_pc=(pc+insn.length)&0xffff
+-    for op in ops:
+-        if isinstance(op,CondBranch):
+-            body.append(f'if ({_reg(op.flag)} == {int(op.take_if)}) {{ *next_pc = {insn.operand&0xffff}u; cpu_aot_extra(cpu,1); }}')
+-        else:
+-            lines=emit_op(op,pc)
+-            if any('unsupported' in line or 'return' in line for line in lines):return None
+-            body.extend(lines)
+-    code='\n'.join(body).replace('cpu_read16_linear(', 'cpu_aot_read16_linear(').replace('cpu_read16(', 'cpu_aot_read16(').replace('cpu_read8(', 'cpu_aot_read8(')
++    code='\n'.join(faithful_lines)
++    # No return, guest-stack mutation, host invocation or unresolved transition.
++    if any(token in code for token in ('return','interp_','Recomp','_entry_s','_hrv','_pending_skip','cpu_aot_prefix','cpu->S','cpu->PB =')):
++        return None
++    destinations=re.findall(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',code)
++    if not destinations:return None
++    label=f'_region_done_{pc&0x7fffff:06x}_{key.m}{key.x}'
++    code=code.replace('cpu_aot_commit(cpu);','')
++    code=re.sub(r'goto L_([0-9A-Fa-f]{4})_M[01]X[01];',lambda m:f'*next_pc=0x{m[1]}u; goto {label};',code)
++    if re.search(r'\bgoto\s+(?!'+label+r'\b)',code):return None
+     names={}
+-    def local(match):
+-        return names.setdefault(match[0],f'_region_v{len(names)}')
+-    code=re.sub(r'_(?:v\d+|tc\d+_\d+)\b',local,code)
++    def local(match):return names.setdefault(match[0],f'_region_v{len(names)}')
++    code=re.sub(r'_(?:v\d+|tc\d+_\d+|t\d+)\b',local,code)
++    code+=f'\n{label}: ;'
+     offset=rom_offset(pc>>16,pc&0xffff)
+-    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':next_pc,'body':code,'mnemonic':insn.mnem}
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':(pc+insn.length)&0xffff,'body':code,'mnemonic':insn.mnem}
+ 
+ def emit(rows,module_prefix=None):
+-    header='#include "cpu_state.h"\n#include "program_module.h"\n#include <stdlib.h>\n'
++    header='#include "cpu_state.h"\n#include "program_module.h"\n#include "cpu_trace.h"\n#include <stdlib.h>\n'
+     if module_prefix:header+='#include "module_namespace.h"\n'
+     out=[header,'extern SnesProgramModule g_program_module;', 'bool cpu_native_region_step(CpuState *cpu,uint32 pc24,uint8 mx,uint16 *next_pc) {',
+          '  static int enabled=-1; if(enabled<0) {const char *e=getenv("SNESRECOMP_DISABLE_NATIVE_REGIONS");enabled=!(e&&e[0]&&e[0]!=\'0\');}',
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 7
++CACHE_FORMAT_VERSION = 8
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1321,7 +1321,8 @@
+                           for pc in getattr(cfg, 'force_lle', ())}
+         unique_regions = {}
+         for region in all_regions:
+-            if region['pc24'] in forced_regions:
++            if any(((region['pc24'] & 0xFF0000) | ((region['pc24']+byte)&0xFFFF)) in forced_regions
++                   for byte in range(region['length'])):
+                 continue
+             rk = (region['pc24'], region['m'], region['x'])
+             if rk in unique_regions and unique_regions[rk] != region:
+@@ -1331,7 +1332,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':1, 'kind':'source_cfg_poll_leaf',
++                         json.dumps({'format_version':2, 'kind':'source_cfg_stack_neutral_instruction',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+         write_if_changed(

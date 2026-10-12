@@ -1,3 +1,30 @@
+# Current continuation — native0.4.9 / unchanged Companion0.3.6 (2026-10-12)
+
+Read github-repo/docs/FOUNDATION-NATIVE-DESCRIPTOR-REGIONS-2026-10-12.md
+and local/evidence/continuation049-20261012/plan.json and closure-report.json.
+Installed native 454a8429; immutable compiled_unqualified receipt
+bbdfc75c; GUI f1bc6792 unchanged.16 ordered patches/63native/24GUI;
+cache8/regionmetadata2/manifest3;21outputs/5,325generated mode rows are generation
+counts. Existing faithful IR stack-neutral source-certified instruction bodies
+run inside original scheduler; masks/exclusions/forced-original/callbacks/
+deadlines/IRQ/progress/resume/call/stack/return ownership remain. No new roots
+or certificates; runner/serialized state/declared ABI unchanged. Three finite
+24,744 boundaries exact;20,493native/4,251original. Actual B8 descriptor/VRAM
+10,985native plus1originalRTL; registered8414hook stays original4,097reads.
+60actual parkedrender controls/21stationarykeyboard/indexedpad controls pass;
+253/478 independent margincolors exact, originalcenter/guest/PPU exact.
+Source-derived copied loader prerequisites/offsets staged honestly; frame6
+heldoffset originalterrainguard fallback retainednegative. Full42Guide/25Current,
+finerleads/maps/configuredcontrols/QoL retained.300frameD3D11/audio59.965FPS,
+steady counters0. Owner/playtesters verifycampaign; complete native/AOT remains
+unfinished. Next callback-completed native scheduler handoff is private work,
+no ownership/mask/root relaxation. Rootalone owns lifecycle/build/install/
+manifests/delivery. Goal ACTIVE. LargeoutputsTemp049; steady5GBcap.
+Never retry knownpolicyblockedcleanup; fixedmanualCMD is owner-run only.
+Historical receipts retain exactscopes.
+
+---
+
 # Current continuation — native0.4.8 / unchanged Companion0.3.6 (2026-10-12)
 
 Read github-repo/docs/FOUNDATION-NATIVE-REGIONS-PARKED-OFFSETS-2026-10-12.md

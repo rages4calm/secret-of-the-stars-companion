@@ -1,6 +1,6 @@
 {
   "snapshot_date": "2026-10-12",
-  "native_version": "0.4.8",
+  "native_version": "0.4.9",
   "companion_version": "0.3.6",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
@@ -51,5 +51,8 @@
   "memory_bits_scope": "Exact native E0 known-mode TSB/TRB direct-page and absolute instructions; original cached operand/EA, pre-write Z flag, reversed word-write order and clock charges. Existing masks/callback/deadline/IRQ/continuation contracts and serialized state remain unchanged.",
   "native_regions_patch_sha256": "a156a53a238d18d75841561122a399618d1b1130e692728c2aede630395ba053",
   "native_regions_source_binding_sha256": "7756b2d03021e379c4f54b7c102452025a87447f231e03fcad0dc107ceec3f91",
-  "native_regions_scope": "Source-certified CFG poll leaves execute genuine generated IR bodies inside original preopcode scheduler. Exact E0 M/X/PC; read/conditional branch only; masks/hooks/unknown modes retain original. Transient next-PC output; no serialized state changes. Cache7; program manifest3; native regions metadata1."
+  "native_regions_scope": "Source-certified CFG poll leaves execute genuine generated IR bodies inside original preopcode scheduler. Exact E0 M/X/PC; read/conditional branch only; masks/hooks/unknown modes retain original. Transient next-PC output; no serialized state changes. Cache7; program manifest3; native regions metadata1.",
+  "native_leaf_regions_patch_sha256": "a7a6d68e3e94edd085a254a3c1ec242670289ba1b6cf6051e2d207dae4522b95",
+  "native_leaf_regions_source_binding_sha256": "0deb13e01fa610c402c266610896c6ae2effde9e3ec3898772e9c10c6c4a556b",
+  "native_leaf_regions_scope": "Source-certified known-E0-PC/M/X stack-neutral instruction regions from existing faithful typed IR. Original scheduler/coroutine/call/stack/return/hook/IRQ/deadline ownership, hard masks and addressing residual fallback remain. Cache8/regionmetadata2; no serialized state change."
 }

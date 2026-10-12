@@ -9,6 +9,8 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
+The [native 0.4.9 descriptor instruction update](docs/FOUNDATION-NATIVE-DESCRIPTOR-REGIONS-2026-10-12.md) advances source-certified generated instruction execution inside original scheduling. Full native/AOT conversion remains unfinished.
+
 The [native 0.4.8 native-region/parked-offset update](docs/FOUNDATION-NATIVE-REGIONS-PARKED-OFFSETS-2026-10-12.md) converts original scheduler-owned poll instructions and extends exact parked sprite offset rendering. Full native/AOT conversion remains unfinished.
 
 The [native 0.4.7 Current/native-bit update](docs/FOUNDATION-CURRENT-JOURNAL-NATIVE-BITS-2026-10-12.md) supplies dedicated automatic advice for all original chapters while preserving finer current-state leads and the full Guide. Exact TSB/TRB memory-bit execution expands faithful native coverage; full native/AOT remains open.

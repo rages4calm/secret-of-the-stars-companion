@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest development: native 0.4.8 / Companion 0.3.6.** Original scheduler-owned generated poll instructions and parked sprite offsets expand native execution and widescreen rendering. Full Guide/Current and QoL remain. [Current scope](docs/FOUNDATION-NATIVE-REGIONS-PARKED-OFFSETS-2026-10-12.md). Complete native/AOT execution remains unfinished.
+**Latest development: native 0.4.9 / Companion 0.3.6.** Source-certified descriptor/VRAM instruction bodies advance native execution inside original scheduling. Full Guide/Current, wider rendering and QoL remain. [Current scope](docs/FOUNDATION-NATIVE-DESCRIPTOR-REGIONS-2026-10-12.md). Complete native/AOT execution remains unfinished.
 
 **Discord:** chrono.trigger
 
@@ -14,7 +14,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.4.8 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.4.9 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The journal has two views: **Current** offers automatic chapter advice and finer current-state leads for your checkpoint, and **Guide** lets you browse the full story walkthrough. Its suggested starting section follows the original current chapter; it does not automatically recognize every quest step or record completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
 
@@ -97,7 +97,7 @@ Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in
 
 ## Verification and remaining work
 
-The installed **native 0.4.8 / unchanged Companion 0.3.6** passes focused native scheduler, parked sprite pixel, keyboard/virtual-controller and finite D3D11/audio checks. [Scope and fallback](docs/FOUNDATION-NATIVE-REGIONS-PARKED-OFFSETS-2026-10-12.md). Campaign verification belongs to the owner and play testers.
+The installed **native 0.4.9 / unchanged Companion 0.3.6** passes focused native descriptor execution, parked sprite pixel, keyboard/virtual-controller and finite D3D11/audio checks. [Scope and fallback](docs/FOUNDATION-NATIVE-DESCRIPTOR-REGIONS-2026-10-12.md). Campaign verification belongs to the owner and play testers.
 
 The full guide draws on credited written walkthroughs; automatic Current chapter reminders retain the finer source-backed opening-through-Sidon leads. The map keeps its independent automatic destinations and now supports explicit guide-town choices. Current possession is not permanent quest history, and browsing a later page does not mark anything complete. Owner and play testers verify the campaign and report corrections.
 

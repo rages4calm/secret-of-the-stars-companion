@@ -97,6 +97,25 @@ def validate_memory_bits_patch(path):
         raise RuntimeError('Memory bits patch identity/scope changed; preserve build.')
     return names
 
+LEAF_REGIONS_BINDING=ROOT/'patches/runtime-native-leaf-regions.json'
+LEAF_REGIONS_PATCH_SHA256='a7a6d68e3e94edd085a254a3c1ec242670289ba1b6cf6051e2d207dae4522b95'
+def leaf_regions_binding():
+    value=json.loads(LEAF_REGIONS_BINDING.read_bytes())
+    if value.get('patch_sha256')!=LEAF_REGIONS_PATCH_SHA256 or not isinstance(value.get('files'),dict) or len(value['files'])!=3:
+        raise RuntimeError('Native leaf region three-file source binding missing/stale.')
+    predecessors=native_regions_binding()['files']
+    for name,record in value['files'].items():
+        if name not in predecessors or record.get('predecessor_sha256')!=predecessors[name]['final_sha256']:
+            raise RuntimeError('Native leaf region predecessor lineage differs: '+name)
+    return value
+
+def validate_leaf_regions_patch(path):
+    binding=leaf_regions_binding()
+    names=re.findall(r'^diff --git a/(\S+) b/',Path(path).read_text(encoding='utf-8'),re.M)
+    if sha(Path(path))!=binding['patch_sha256'] or len(names)!=3 or set(names)!=set(binding['files']):
+        raise RuntimeError('Native leaf region patch identity/scope changed; preserve build.')
+    return names
+
 def native_regions_binding():
     value=json.loads(NATIVE_REGIONS_BINDING.read_bytes())
     if value.get('patch_sha256')!=NATIVE_REGIONS_PATCH_SHA256 or not isinstance(value.get('files'),dict) or len(value['files'])!=6:
@@ -116,12 +135,13 @@ def validate_native_regions_patch(path):
         raise RuntimeError('Native region patch identity/scope changed; preserve build.')
     return names
 
-def validate_final_runtime(runtime,normalize=False,memory_bits=True,native_regions=True):
+def validate_final_runtime(runtime,normalize=False,memory_bits=True,native_regions=True,leaf_regions=True):
     # Earlier patches remain frozen. The final delta replaces only its exact
     # predecessors; unaffected continuation inputs retain their final binding.
     files={**continuation_binding()['files'],**rmw_binding()['files']}
     if memory_bits:files.update(memory_bits_binding()['files'])
     if native_regions:files.update(native_regions_binding()['files'])
+    if native_regions and leaf_regions:files.update(leaf_regions_binding()['files'])
     for name,record in files.items():
         path=runtime/name;reject_links(path);raw=path.read_bytes()
         normalized=raw.replace(b'\r\n',b'\n')
@@ -143,10 +163,10 @@ def runtime_source_accounting(runtime,patch_names,new_names=()):
 
 def runtime_cache_identity(patch_hashes):
     hashes=list(patch_hashes)
-    if len(hashes)!=15 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
-        raise ValueError('Runtime cache requires exactly fifteen ordered full patch hashes')
+    if len(hashes)!=16 or any(not isinstance(d,str)or (re.fullmatch('[0-9a-f]{64}',d)is None or d=='0'*64) for d in hashes):
+        raise ValueError('Runtime cache requires exactly sixteen ordered full patch hashes')
     combined=hashlib.sha256(('\n'.join(hashes)+'\n').encode('ascii')).hexdigest()
-    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-fifteen-full-patch-hashes',
+    return {'runtime_pin':RUNTIME_PIN,'algorithm':'sha256-newline-terminated-ordered-sixteen-full-patch-hashes',
       'ordered_patch_sha256':hashes,'combined_patch_sha256':combined,'directory_key':RUNTIME_PIN[:12]+'-'+combined[:16]}
 
 def check_cache_marker_identity(marker,identity):
@@ -559,7 +579,7 @@ def main():
     p.add_argument('--no-converged-exits',dest='certify_converged_exits',action='store_false',help='Diagnostic: retain original exit-fact quarantine without final re-certification')
     p.add_argument('--no-reviewed-roots',dest='reviewed_roots',action='store_false',help='Diagnostic: omit reviewed authored analysis seeds; retain baseline CFG roots')
     p.add_argument('--emit-proven-prefixes',action='store_true',help='Enable the distinct proved aot_prefix disposition via pinned v2_emit --faithful-prefixes; unknown calls continue in original code')
-    p.add_argument('--runtime-cache-dir',type=Path,help='Reuse an explicit pinned runtime cache; fifteen full ordered patch hashes choose a new key, old keys are preserved')
+    p.add_argument('--runtime-cache-dir',type=Path,help='Reuse an explicit pinned runtime cache; sixteen full ordered patch hashes choose a new key, old keys are preserved')
     p.add_argument('--sdl3-dir',type=Path,help='Optional existing SDL3 CMake package; otherwise upstream fetches SDL3')
     p.add_argument('--cmake',default='cmake');p.add_argument('--cc',default='clang');p.add_argument('--cxx',default='clang++')
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
@@ -649,12 +669,15 @@ def main():
     native_regions_patch=out/'runtime-native-regions.patch'
     shutil.copy2(ROOT/'patches/runtime-native-regions.patch',native_regions_patch)
     native_regions_names=validate_native_regions_patch(native_regions_patch)
+    leaf_regions_patch=out/'runtime-native-leaf-regions.patch'
+    shutil.copy2(ROOT/'patches/runtime-native-leaf-regions.patch',leaf_regions_patch)
+    leaf_regions_names=validate_leaf_regions_patch(leaf_regions_patch)
     new_patch_names={'recompiler/v2/faithful_prefix.py','recompiler/v2/reviewed_roots.py','recompiler/v2/native_regions.py'}
     # A new patch gets its own checkout. Previously built or intentionally
     # modified runtimes remain available rather than being reset in place.
     cache_root=args.runtime_cache_dir.absolute() if args.runtime_cache_dir else ROOT/'local/upstream'
     reject_links(cache_root)
-    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch),sha(accumulator_patch),sha(continuation_patch),sha(rmw_patch),sha(memory_bits_patch),sha(native_regions_patch)])
+    cache_identity=runtime_cache_identity([sha(patch),sha(host_patch),sha(faithful_patch),sha(audio_patch),sha(automatic_patch),sha(lifecycle_patch),sha(prefix_patch),sha(hook_boundary_patch),sha(reviewed_patch),sha(converged_patch),sha(accumulator_patch),sha(continuation_patch),sha(rmw_patch),sha(memory_bits_patch),sha(native_regions_patch),sha(leaf_regions_patch)])
     runtime=cache_root/cache_identity['directory_key']
     marker=runtime.parent/(runtime.name+'-patch-receipt.json')
     reject_links(runtime);reject_links(marker)
@@ -666,7 +689,7 @@ def main():
         command(['git','submodule','update','--init','--recursive'],runtime)
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:
         raise RuntimeError('Existing runtime is at another revision; it has been preserved.')
-    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names)|set(accumulator_names)|set(continuation_names)|set(rmw_names)|set(memory_bits_names)|set(native_regions_names))
+    patch_names=sorted(set(re.findall(r'^diff --git a/(\S+) b/',patch.read_text(encoding='utf-8'),re.M))|set(host_names)|set(faithful_names)|set(audio_names)|set(automatic_names)|set(lifecycle_names)|set(prefix_names)|set(hook_boundary_names)|set(reviewed_names)|set(converged_names)|set(accumulator_names)|set(continuation_names)|set(rmw_names)|set(memory_bits_names)|set(native_regions_names)|set(leaf_regions_names))
     if marker.exists():
         receipt=json.loads(marker.read_text(encoding='utf-8'))
         check_cache_marker_identity(receipt,cache_identity)
@@ -682,6 +705,8 @@ def main():
             raise RuntimeError('Memory bits marker missing/stale; preserve cache.')
         if receipt.get('native_regions_patch_sha256')!=sha(native_regions_patch):
             raise RuntimeError('Native regions marker missing/stale; preserve cache.')
+        if receipt.get('native_leaf_regions_patch_sha256')!=sha(leaf_regions_patch):
+            raise RuntimeError('Native leaf regions marker missing/stale; preserve cache.')
         accumulator_lineage=receipt['runtime_accumulator_source_lineage']
         if (receipt.get('runtime_pin')!=RUNTIME_PIN or receipt['patch_sha256']!=sha(patch) or receipt.get('host_navigation_patch_sha256')!=sha(host_patch)
                 or receipt.get('faithful_instruction_patch_sha256')!=sha(faithful_patch)
@@ -743,6 +768,14 @@ def main():
             raw=path.read_bytes()
             if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
         command(['git','apply','--check',native_regions_patch],runtime);command(['git','apply',native_regions_patch],runtime)
+        validate_final_runtime(runtime,normalize=True,leaf_regions=False)
+        for name,record in leaf_regions_binding()['files'].items():
+            path=runtime/name;reject_links(path)
+            if sha(path)!=record['predecessor_sha256']:
+                raise RuntimeError('Native leaf region predecessor differs: '+name)
+            raw=path.read_bytes()
+            if b'\r\n' in raw:path.write_bytes(raw.replace(b'\r\n',b'\n'))
+        command(['git','apply','--check',leaf_regions_patch],runtime);command(['git','apply',leaf_regions_patch],runtime)
         validate_final_runtime(runtime,normalize=True)
         runtime_source_accounting(runtime,patch_names,new_patch_names)
         write_runtime_marker(marker,{'runtime_pin':RUNTIME_PIN,'patch_sha256':sha(patch),
@@ -762,6 +795,7 @@ def main():
           'memory_rmw_patch_sha256':sha(rmw_patch),
           'memory_bits_patch_sha256':sha(memory_bits_patch),
           'native_regions_patch_sha256':sha(native_regions_patch),
+          'native_leaf_regions_patch_sha256':sha(leaf_regions_patch),
           'new_patched_sources':sorted(new_patch_names),
           'patched_sources':{n:sha(runtime/n) for n in patch_names}})
     validate_final_runtime(runtime)
@@ -791,7 +825,7 @@ def main():
     automatic_manifest=json.loads(automatic_manifest_path.read_text(encoding='utf-8'))
     generated_cache=project/'src/gen/.snesrecomp-cache.json'
     reject_links(generated_cache);generated_metadata=json.loads(generated_cache.read_bytes())
-    if generated_metadata.get('format_version')!=7 or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
+    if generated_metadata.get('format_version')!=8 or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
         raise RuntimeError('Target generated cache/module identity mismatch; preserve build.')
     for name,digest in generated_metadata.get('outputs',{}).items():
         if Path(name).is_absolute()or'..'in Path(name).parts:raise RuntimeError('Target generated output escapes build; preserve build.')
@@ -801,7 +835,7 @@ def main():
     region_source_path=project/'src/gen/native_regions_v2.c'
     reject_links(region_metadata_path);reject_links(region_source_path)
     region_metadata=json.loads(region_metadata_path.read_bytes())
-    if region_metadata.get('format_version')!=1 or region_metadata.get('kind')!='source_cfg_poll_leaf' or region_metadata.get('rom_sha256')!=expected or not isinstance(region_metadata.get('regions'),list):
+    if region_metadata.get('format_version')!=2 or region_metadata.get('kind')!='source_cfg_stack_neutral_instruction' or region_metadata.get('rom_sha256')!=expected or not isinstance(region_metadata.get('regions'),list):
         raise RuntimeError('Target native-region metadata identity mismatch; preserve build.')
     if generated_metadata.get('outputs',{}).get('native_regions.json')!=sha(region_metadata_path) or generated_metadata.get('outputs',{}).get('native_regions_v2.c')!=sha(region_source_path):
         raise RuntimeError('Target native-region output/cache mismatch; preserve build.')
@@ -887,11 +921,14 @@ def main():
       'memory_rmw_scope':rmw_binding()['scope'],
       'memory_bits_patch_sha256':sha(memory_bits_patch),
       'native_regions_patch_sha256':sha(native_regions_patch),
+          'native_leaf_regions_patch_sha256':sha(leaf_regions_patch),
       'memory_bits_source_binding_sha256':sha(MEMORY_BITS_BINDING),
       'memory_bits_scope':memory_bits_binding()['scope'],
       'native_regions_source_binding_sha256':sha(NATIVE_REGIONS_BINDING),
       'native_regions_scope':native_regions_binding()['scope'],
-      'native_region_generation':{'cache_format':7,'metadata_format':1,'source_cfg_leaf_rows':len(region_metadata['regions']),'metadata_sha256':sha(region_metadata_path),'source_sha256':sha(region_source_path),'diagnostic_disable':'SNESRECOMP_DISABLE_NATIVE_REGIONS=1','execution_qualified':False},
+      'native_leaf_regions_source_binding_sha256':sha(LEAF_REGIONS_BINDING),
+      'native_leaf_regions_scope':leaf_regions_binding()['scope'],
+      'native_region_generation':{'cache_format':8,'metadata_format':2,'source_cfg_leaf_rows':len(region_metadata['regions']),'metadata_sha256':sha(region_metadata_path),'source_sha256':sha(region_source_path),'diagnostic_disable':'SNESRECOMP_DISABLE_NATIVE_REGIONS=1','execution_qualified':False},
       'runtime_accumulator_patch_sha256':sha(accumulator_patch),'runtime_accumulator_emitter_sha256':ACCUMULATOR_EMITTER_SHA256,'runtime_accumulator_source_review':{'offline_unit_report_sha256':ACCUMULATOR_UNIT_SHA256,'scope':'Pinned reviewed offline instruction/source proof; public Setup does not consume private fixtures or infer actual-artifact gameplay qualification.'},
       'runtime_accumulator_source_lineage':accumulator_lineage,
       'runtime_accumulator_patch_scope':'Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies. MemoryRMW/INC/DEC/refusals and original buses/timing/ABI remain.',
