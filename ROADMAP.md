@@ -9,6 +9,8 @@ automatic generation through normal Setup. Complete native/AOT execution
 remains a major unfinished task; authored presentation and guidance features
 have their own bounded coverage.
 
+The [native 0.4.4 effect rendering update](docs/FOUNDATION-VARIABLE-EFFECT-WIDESCREEN-2026-10-12.md) adds a bounded original variable-effect path in the widescreen margins. Original descriptors resolve the pieces; completed packet and displayed-resource checks own the added pixels. Unsupported anchors, offsets and layouts retain fallback.
+
 The [native 0.4.3 presentation bundle](docs/FOUNDATION-GUIDE-TRACKING-WIDESCREEN-2026-10-12.md) implements guide town tracking, broader ordinary wrapped-map actor rendering and an original invulnerability display. Human testers verify campaign behavior; focused developer checks cover implementation and rendering.
 
 The [native 0.4.2 instruction update](docs/FOUNDATION-MEMORY-RMW-2026-10-12.md) adds all24 supported memory increment/decrement, shift/rotate opcodes and accumulator increment/decrement. Two finite executions retain identical state and clocks with 263 newly native instructions in the sampled window; separate guide/combat rendering and paced audio pass. Companion remains 0.3.6. The [0.4.0 story guide](docs/FOUNDATION-STORY-GUIDE-2026-10-12.md) contains 42 pages in 14 sections through the ending. Owner and play testers verify campaign directions; developer checks focus on implementation, rendering and reported failures.
@@ -67,7 +69,7 @@ staged execution. Experimental build receipts stay refused by normal Setup.
 
 The full written story guide is implemented: 42 pages / 14 sections from David and the first StarCrest through the final battle and ending. It includes separate-party prerequisites, town settlers, warehouse transfers, Kustera shrine components and cooperative final mazes. Select switches Current / Guide; the configured directional game buttons browse pages and sections, and Game B closes. J / left-stick click remains the configurable journal opener.
 
-The suggested section uses original current chapter 0-24, with selected earlier starting pages. This is a navigation aid, not precise automatic event detection. Browsing does not write guest progression, add a map marker or remember future completion after rollback. Current fine advice retains the original source/state predicates already verified in the [Kaja/Bonzley continuation](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md). Read the [guide sources and coverage limits](docs/JOURNAL-GUIDE-SOURCES.md).
+The suggested section uses original current chapter 0-24, with selected earlier starting pages. This is a navigation aid, not precise automatic event detection. Browsing does not write guest progression or remember future completion after rollback. Game X separately selects a named guide town for the map. Current fine advice retains the original source/state predicates already verified in the [Kaja/Bonzley continuation](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md). Read the [guide sources and coverage limits](docs/JOURNAL-GUIDE-SOURCES.md).
 
 The owner and play testers verify campaign directions. Implement useful corrections from their reports without making exhaustive developer campaign replay a prerequisite for each content change. Additional automatic event-specific advice and objective pins still require original source/state evidence; possession, current party and permanent completion remain distinct. Durable quest history is future work and would need defined reset/load/rewind semantics.
 

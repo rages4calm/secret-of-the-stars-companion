@@ -1,6 +1,6 @@
 # Secret of the Stars: PC feature gallery
 
-Six actual captures: four retain their native **0.2.5** / Companion **0.3.1** scope, the navigation map is from native **0.2.7**, and the updated Enhancements page is Companion **0.3.5** using native **0.3.6**. These show additions to the original SNES release: wider scenery, a battle HP sidebar, quest guidance, adjustable rewards, travel and random encounters, and configurable PC/controller hotkeys.
+Six actual captures: world/battle images retain native **0.2.5** and Hotkeys Companion **0.3.1** scope; the full story guide and navigation map are fresh native **0.4.4** 1080p window captures; Enhancements is Companion **0.3.5** using native **0.3.6**. These show additions to the original SNES release: wider scenery, a battle HP sidebar, full story guidance and guide-town tracking, adjustable rewards/travel/encounters, and configurable PC/controller hotkeys.
 
 This is an early playable foundation. Complete native/AOT game execution and full-campaign widescreen coverage remain unfinished. Gameplay captures use isolated development checkpoints; launcher captures show example settings. Original artwork belongs to the game's rightsholders; no extracted art pack or game data is distributed here.
 
@@ -16,11 +16,11 @@ A true 400-pixel scene shows terrain and an original parked vehicle beyond the o
 
 The optional native battle sidebar displays enemy HP and health bars beside the original battle view. Hide or show it with your assigned keyboard/controller action in Companion Hotkeys. The redundant HUD-key footer has been removed.
 
-## Quest directions while the game runs
+## Full story guide and town tracking
 
-![Actual quest directions while the game runs](screenshots/quest-journal.png)
+<img src="screenshots/quest-journal.png" alt="Story guide with Old Hill selected" width="1200">
 
-The journal shows an objective, route advice and current progress from verified original dialogue and flags. This Mayor/Ringo clue was executed through the original event after a staged chapter prerequisite. Further chapters and permanent quest history remain in development.
+Browse 42 pages in 14 sections through the ending. This page explains bringing Cody home; Game X has selected Old Hill for the map. Current advice remains a separate view. Page selection does not mark a quest complete. This is an actual 1920×1080 native0.4.4 window capture from an isolated staged developer checkpoint, converted without resizing. Campaign directions are being checked by the owner and play testers.
 
 ## Choose your own pace
 
@@ -36,17 +36,17 @@ Assign fullscreen, HUD, journal, movement boost, checkpoints and more to keyboar
 
 [Build from your own ROM](../BUILDING.md) · [Current encounter implementation and validation limits](FOUNDATION-ENCOUNTER-RATE-2026-10-11.md) · [Capture hashes and provenance](screenshots/captures.json).
 
-## Position, towns and a verified destination
+## Position, towns and your selected destination
 
-<img src="screenshots/navigation-map.png" alt="Navigation map" width="1200">
+<img src="screenshots/navigation-map.png" alt="Navigation map tracking Old Hill" width="1200">
 
-This is an actual 1920×1080 screenshot from the game's final GPU output, with
-enhanced pixels and widescreen enabled. Gold marks your position, cyan marks original town entrances, and the optional
-pink destination blinks. The legend text matches those marker colors. This is
-actual native0.2.7 output from a copied original
-Morgan payment/world-return route with staged prerequisites. The terrain,
-position and Decatas marker are checked independently against original data.
-Local maps show current-area terrain and position. Assigned Map bindings and the
-objective toggle live in Companion. The world, battle, journal and Hotkeys images
-retain their native0.2.5/Companion0.3.1 capture scope; the Enhancements image is
-the actual newer Companion0.3.5 page with native0.3.6.
+Actual 1920×1080 final GPU output, with enhanced pixels and widescreen enabled.
+Gold marks your position, cyan marks original town entrances, and the pink
+marker blinks at Old Hill after selecting it with Game X in Guide. The legend
+matches those colors. The point comes from the original town entrance data;
+this is a player choice, independent of automatic quest advice.
+
+Local maps show current-area terrain and position. Assign the Map action and
+toggle objectives in Companion. This frame uses an isolated developer checkpoint
+with staged prerequisites; it is not a natural campaign run. BMP-to-PNG
+conversion preserves the captured pixels with no screenshot resizing.

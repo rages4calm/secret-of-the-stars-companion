@@ -1,6 +1,6 @@
 {
   "snapshot_date": "2026-10-12",
-  "native_version": "0.4.3",
+  "native_version": "0.4.4",
   "companion_version": "0.3.6",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",

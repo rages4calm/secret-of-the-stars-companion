@@ -1,3 +1,23 @@
+# Current continuation - native0.4.4 / unchanged Companion0.3.6 (2026-10-12)
+
+Read docs/FOUNDATION-VARIABLE-EFFECT-WIDESCREEN-2026-10-12.md first (under github-repo at root).
+Installed native 596e7f95; immutable compiled_unqualified
+receipt edf345e7; GUI f1bc6792 unchanged. Bounded original DC15/DCF7
+variable-effect pieces now join the completed544 packet/DMA/displayed raster
+and current VRAM/CGRAM margin compositor. Original center, pace, activation,
+collision and descriptors remain original. Mode0E ordinary family is independent
+of capture readiness; capture/draw still requires authentic context/prefix/packet.
+Preserve signed native X; new rawX255..327 only anchor0..255; zero0471/0473,
+4096visits/256pieces/112emitted caps; offsets/ambiguous anchors/layouts fallback.
+Prior ordinary/world/vehicle routes and043 guide-town tracking remain.
+13runtimepatches/62nativeinputs/24GUIinputs; executionABI unchanged.
+Owner/play testers verify campaign; focused implementation/render/input/audio
+checks only. No exhaustive campaign gate. Large outputs Temp, steady5GBcap.
+Never retry old policy-blocked cleanup, elevation or alternate-tool bypass.
+Historical blocks retain their own artifact scopes. Root alone owns goal tools.
+
+---
+
 # Current continuation - native0.4.3 / unchanged Companion0.3.6 (2026-10-12)
 
 Read docs/FOUNDATION-GUIDE-TRACKING-WIDESCREEN-2026-10-12.md first (under github-repo at root).

@@ -66,6 +66,21 @@ void FoundationHotkeysInit(void) {
 void FoundationHotkeysBeforeFrame(void) {
     if (!test_mode) return;
     unsigned f = ++test_frame;
+    /* Optional finite capture through the existing native screenshot action.
+     * The isolated profile binds F1 and selects the OpenGL screenshot backend;
+     * this records the actual window output, without resizing a small image. */
+    const char *shot = getenv("SNESRECOMP_FOUNDATION_SCREENSHOT_AT");
+    unsigned at = shot ? (unsigned)strtoul(shot, NULL, 10) : 0;
+    if ((test_mode & 1) && at && at < 1000000 && (f == at || f == at + 1)) {
+        SDL_Event event = {0};
+        event.type = f == at ? SDL_KEYDOWN : SDL_KEYUP;
+#if SNESRECOMP_SDL3
+        event.key.key = SDLK_F1;
+#else
+        event.key.keysym.sym = SDLK_F1;
+#endif
+        SDL_PushEvent(&event);
+    }
     if ((test_mode & 2) && f == 1) {
 #if SNESRECOMP_SDL3
         SDL_VirtualJoystickDesc desc;

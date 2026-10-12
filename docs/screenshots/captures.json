@@ -1,5 +1,5 @@
 {
-  "scope": "Six actual owner-requested documentation captures. Four025/031 captures retain historical scope; the map is actual native027 final1920x1080 GPU output; Enhancements is actual Companion035 on native036. No mockups or replacement artwork.",
+  "scope": "Six actual owner-requested documentation captures. World/battle/Hotkeys retain025/031 scope; guide and map are genuine native044 final1920x1080 window captures; Enhancements is Companion035/native036. No mockups, resized screenshots or replacement artwork.",
   "captures": {
     "docs/screenshots/widescreen-world.png": {
       "title": "Wider world, including original vehicles",
@@ -24,15 +24,18 @@
       "caption": "The optional native battle sidebar displays enemy HP and health bars beside the original battle view. Hide or show it with your assigned keyboard/controller action in Companion Hotkeys. The redundant HUD-key footer has been removed."
     },
     "docs/screenshots/quest-journal.png": {
-      "title": "Quest directions while the game runs",
-      "sha256": "7821dcfab0b3c4443ab063c63fa35a1007f4236766d3eacd25c3258672a81325",
+      "title": "Full story guide with town tracking",
+      "sha256": "bd7734be39fb9226d2623cd79c508bc3ee9c8690aa8a54767243953d174585d0",
       "dimensions": [
-        1200,
-        672
+        1920,
+        1080
       ],
-      "application_version": "native0.2.5",
-      "application_sha256": "2e107b94ae23c0f5d3e45369c967a3c2cef8bb65b01aa23d753af0832adb56ea",
-      "caption": "The journal shows an objective, route advice and current progress from verified original dialogue and flags. This Mayor/Ringo clue was executed through the original event after a staged chapter prerequisite. Further chapters and permanent quest history remain in development."
+      "application_version": "native0.4.4",
+      "application_sha256": "596e7f952d2051ceca5830227c0660783cff1bfe57a73b1d04eae511a05ea679",
+      "source_receipt_sha256": "edf345e745208a96deeea4b5e68d1fd78b39c88803b87a1da58255a57c55b138",
+      "caption": "Actual native0.4.4 final1920x1080 OpenGL window capture with enhanced pixels and widescreen. The 42-page story guide is on Bring Cody Home, with Old Hill manually tracked using configured Game X. Browsing does not infer quest completion. The checkpoint has explicitly staged chapter/empty-special-layer prerequisites; this is developer rendering, not a natural campaign playthrough. BMP-to-PNG conversion preserves every captured RGB pixel, with no resizing or reconstructed artwork.",
+      "capture_proof": "local/evidence/continuation044-20261012/window-capture-report.json",
+      "capture_proof_sha256": "1185e31f6bb7004379103cd911aebf727455863765866b0f2dc225cb5790aa02"
     },
     "docs/screenshots/companion-enhancements.png": {
       "title": "Choose your own pace",
@@ -47,7 +50,7 @@
       "native_version": "0.3.6",
       "native_sha256": "b9ebdf8920e6a39e47235f82b1e0f848a49875ffacfccec5a54f0a78163a1cbd",
       "native_source_receipt_sha256": "98f3759c6c2ab9ff8d32c7dbf4b7a5e4134569a8a9401652aa4c2200a1e331bb",
-      "caption": "Separate XP and gold modifiers range from 100% to 1000%; held ordinary movement boost ranges from 100% to 300%. Companion 0.3.5 adds a 0–100% ordinary random encounter modifier for native 0.3.6: default 100 keeps the original check and 0 disables qualified random battles, while scripted battles remain enabled. Reduced values scale integer threshold bins, not an exact campaign fight frequency. These are example settings from an isolated profile (275% XP, 350% gold, 250% movement); random encounters are shown at the original 100%.",
+      "caption": "Separate XP and gold modifiers range from 100% to 1000%; held ordinary movement boost ranges from 100% to 300%. Companion 0.3.5 adds a 0\u2013100% ordinary random encounter modifier for native 0.3.6: default 100 keeps the original check and 0 disables qualified random battles, while scripted battles remain enabled. Reduced values scale integer threshold bins, not an exact campaign fight frequency. These are example settings from an isolated profile (275% XP, 350% gold, 250% movement); random encounters are shown at the original 100%.",
       "capture_proof": "local/evidence/encounter-rate-20261011/companion-tests/y/isolated-ui-current/report.json",
       "capture_proof_sha256": "d44430353ca71755eff4abc87114fe48c4feaff40d97825357427e2715dd8edb",
       "capture_scope": "Actual Windows Forms capture, copied1:1 with no resizing or reconstruction; other five images retain their historical versions."
@@ -64,18 +67,18 @@
       "caption": "Assign fullscreen, HUD, journal, movement boost, checkpoints and more to keyboard/controller actions. Fast-forward supports hold or toggle. These are example custom bindings; game-button mapping has its own Controls page."
     },
     "docs/screenshots/navigation-map.png": {
-      "title": "Position, towns and a verified next destination",
-      "sha256": "3abd8313f0a37753d8d907c3e7fdd3c08089ecdd8bd8d75c08b7c9ca42645f9a",
+      "title": "Position, towns and your selected guide destination",
+      "sha256": "1d887b3fc3b7884e9cc0de2dd16bf8aea2c122ef13c8aae8e72838c5c2e49382",
       "dimensions": [
         1920,
         1080
       ],
-      "application_version": "native0.2.7",
-      "application_sha256": "3ed0364374f670679f82aebb1d70bc92acc837ba34de7afeadfd8273ef5bf87a",
-      "caption": "Actual native0.2.7 OpenGL screenshot of the final1920x1080 game output, with EnhancedPixels and widescreen enabled. The optional map uses original selected world terrain, gold position/cyan towns, and an optional pink blinking verified destination. This frame catches the blink hidden. Legend text matches the marker colors. Copied original Morgan payment/world-return development checkpoint with staged prerequisites; not a natural full-campaign playthrough. PNG conversion preserves every GPU-captured RGB pixel; no screenshot resizing or reconstructed artwork.",
-      "source_receipt_sha256": "9bf48b56fe4a2d544fd4800128b64687d2c004a0f575a5611eb8c4f567cf4385",
-      "capture_proof": "local/evidence/github-map-display-20261011/enhanced-capture-proof.json",
-      "capture_proof_sha256": "0a81e4333884809eeb8cebc5df1ddb842a10664ca2f40fda8cead6432542166b"
+      "application_version": "native0.4.4",
+      "application_sha256": "596e7f952d2051ceca5830227c0660783cff1bfe57a73b1d04eae511a05ea679",
+      "source_receipt_sha256": "edf345e745208a96deeea4b5e68d1fd78b39c88803b87a1da58255a57c55b138",
+      "caption": "Actual native0.4.4 final1920x1080 OpenGL window capture with enhanced pixels and widescreen. Gold shows your position, cyan shows original town entrances, and Old Hill blinks pink as a player-selected guide destination resolved from original entrance identity. The legend matches the marker colors. This is an isolated developer checkpoint with explicit staged prerequisites, not natural progression or automatic quest completion. BMP-to-PNG conversion preserves every GPU-captured RGB pixel; no screenshot resizing or reconstructed artwork.",
+      "capture_proof": "local/evidence/continuation044-20261012/window-capture-report.json",
+      "capture_proof_sha256": "1185e31f6bb7004379103cd911aebf727455863765866b0f2dc225cb5790aa02"
     }
   }
 }

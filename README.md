@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest development: native 0.4.3 / Companion 0.3.6.** Track a town from the story guide with Game X, then find its blinking pink map marker. Ordinary wrapped-map party/NPC rendering now uses shared producer contracts instead of named scene rosters; the battle panel shows IMMUNE for original invulnerable HP. [Implementation and controls](docs/FOUNDATION-GUIDE-TRACKING-WIDESCREEN-2026-10-12.md). The full 42-page guide covers the ending. Complete native/AOT execution remains unfinished.
+**Latest development: native 0.4.4 / Companion 0.3.6.** Original field effects now have a guarded widescreen drawing path alongside ordinary parties and NPCs. Track a town from the full story guide with Game X and find its blinking pink map marker. [Current rendering scope](docs/FOUNDATION-VARIABLE-EFFECT-WIDESCREEN-2026-10-12.md). Complete native/AOT execution remains unfinished.
 
 **Discord:** chrono.trigger
 
@@ -14,7 +14,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.4.3 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.4.4 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The journal has two views: **Current** offers advice for your checkpoint, and **Guide** lets you browse the full story walkthrough. Its suggested starting section follows the original current chapter; it does not automatically recognize every quest step or record completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
 
@@ -32,13 +32,13 @@ These are actual captures of features added for this PC project. **[View all six
 
 *Toggleable enemy HP information alongside the battle view.*
 
-![Quest journal with verified Mayor and Ringo route advice](docs/screenshots/quest-journal.png)
+![Full story guide with a player-selected town](docs/screenshots/quest-journal.png)
 
-*Quest directions and current progress while the game runs.*
+*Browse the full story guide and track a named town while the game runs.*
 
-<img src="docs/screenshots/navigation-map.png" alt="Navigation map with your position, towns and a blinking verified destination" width="1200">
+<img src="docs/screenshots/navigation-map.png" alt="Navigation map with your position, towns and a blinking guide-selected destination" width="1200">
 
-*Captured from the running game at 1080p with enhanced pixels and widescreen enabled. Gold shows your position, cyan marks towns, and the optional pink marker blinks at a verified next destination.*
+*Captured from the running game at 1080p with enhanced pixels and widescreen enabled. Gold shows your position, cyan marks towns, and the pink marker blinks at the town selected from the guide.*
 
 The gameplay images use isolated development checkpoints. Widescreen is optional and uses the original view where a scene is not qualified; the manually browsable story guide now covers the ending, while automatic event advice remains bounded. Upscaling preserves original artwork. See the gallery for exact capture scope and example launcher settings.
 
@@ -54,7 +54,7 @@ The preceding [0.3.5 continuation](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md) 
 | Companion launcher | ROM validation, source-build progress/cancellation, isolated profile updates/rollback, explicit title/selected-copy resume and protected settings edits; downloadable ROM-free WIP launcher/source package | Requires your owned ROM and Windows development tools to build the native game |
 | Enhanced pixels | Independently selectable Scale2x presentation, exact window sizes, pixel shape and fullscreen output | Upscaling preserves original artwork; it is not a replacement HD world pack |
 | Widescreen scenery | Stable 400-pixel canvas, selected original primary/secondary map resources, title panorama and sixteen authored battle-side layouts using original cells | Original 256-pixel center stays exact; selected overworld edge crossings retain terrain margins; unsupported states retain centered imagery and side bars |
-| Widescreen actors | Ordinary party, regular/reserved packets, guarded driving/parked and selected compound vehicle rosters, and selected later world-map actors, plus a shared ordinary wrapped-map family across compatible parties and NPC rosters | Original allocation, packet and art checks authenticate supported contexts; broader party/effect/vehicle contexts remain open |
+| Widescreen actors | Ordinary party, regular/reserved packets, guarded driving/parked and selected compound vehicle rosters, and selected later world-map actors, plus a shared ordinary wrapped-map family across compatible parties and NPC rosters, with bounded original variable effects | Original allocation, packet and art checks authenticate supported contexts; ambiguous anchors, offsets and incompatible layouts retain fallback |
 | Controls | Editable keyboard/controller game buttons and hotkeys, twenty checkpoint bindings, fullscreen and reachable HUD/journal/rewind controls | Broader physical-controller testing remains open |
 | Menu and battle QoL | Optional faster field menus and toggleable HP bars with a widescreen battle sidebar | The HP panel is an authored enhancement, not a bundled ROM hack |
 | Rewards and travel | Independently adjustable 1–10× battle XP/gold; bindable 1–3× field movement boost; 0–100% ordinary random encounter modifier; hold/toggle fast-forward | Movement and encounters use guarded original seams; unsupported contexts retain original behavior and scripted battles stay enabled |
@@ -97,7 +97,7 @@ Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in
 
 ## Verification and remaining work
 
-The installed **native 0.4.3 / unchanged Companion 0.3.6** passes focused compilation, guide input/reset, town resolution, visible enhanced-wide guide/map/battle/world composition and finite GPU/audio checks. [Current scope](docs/FOUNDATION-GUIDE-TRACKING-WIDESCREEN-2026-10-12.md). Campaign verification belongs to the owner and play testers.
+The installed **native 0.4.4 / unchanged Companion 0.3.6** passes focused compilation, original effect-producer integration, visible guide/battle/world composition and finite GPU/audio checks. [Current scope](docs/FOUNDATION-VARIABLE-EFFECT-WIDESCREEN-2026-10-12.md). Campaign verification belongs to the owner and play testers.
 
 The full guide draws on credited written walkthroughs; fine automatic advice remains the existing verified opening-through-Sidon work. The map keeps its independent automatic destinations and now supports explicit guide-town choices. Current possession is not permanent quest history, and browsing a later page does not mark anything complete. Owner and play testers verify the campaign and report corrections.
 

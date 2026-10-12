@@ -21,7 +21,19 @@
 extern Snes *g_snes;
 extern Ppu *g_ppu;
 enum { kParty = 5, kRegular = 19, kAppendRegular = 17, kActors = kParty + kRegular,
-       kPieces = kActors * 4, kPacketBytes = 544 };
+       kPieces = kActors * 4, kPacketBytes = 544, kEffectVisits = 4096,
+       kEffectPieces = 256, kEffectEmitted = 112, kDrawPieces = kPieces + kEffectPieces + 2 };
+typedef struct EffectPiece {
+    int16_t x, y;
+    uint16_t word, slot, ordinal;
+    uint8_t size, high;
+} EffectPiece;
+typedef struct VariableEffects {
+    EffectPiece pieces[kEffectPieces];
+    unsigned count, visits, emitted, prefix_count;
+    uint8_t resource[48];
+    int valid, closed;
+} VariableEffects;
 typedef struct Actor {
     uint16_t world_x, world_y, base, words[4];
     int16_t screen_x, screen_y;
@@ -31,6 +43,7 @@ typedef struct Actor {
 typedef struct Packet {
     Actor actors[kActors];
     LargeReplay large;
+    VariableEffects effects;
     uint8_t bytes[kPacketBytes];
     uint32_t seen, expected, epoch, producer_frame;
     unsigned count;
@@ -39,18 +52,19 @@ typedef struct Packet {
     int camera_x, camera_y, valid;
 } Packet;
 static Packet producing, queued, transfer, displayed;
+static VariableEffects effect_capture;
 static int configured, enabled, initialized, installed, identity, sequence, sequence_done, party_done;
 static int transfer_valid;
 static unsigned generation, next_epoch, frame_pieces, frame_pixels, total_captured, total_packets;
 static unsigned total_pieces, total_pixels, rejects;
-static unsigned long long probe_hits[9], probe_dma_start, probe_dma_complete;
-static const uint32_t probe_pcs[9] = {0x01d8b1,0x01d917,0x01d989,0x01db68,0x01d988,0x01da56,0x01dab6,0x01db2c,0x01de29};
-static uint64_t drawn_piece_bits[2];
+static unsigned long long probe_hits[12], probe_dma_start, probe_dma_complete;
+static const uint32_t probe_pcs[12] = {0x01d8b1,0x01d917,0x01d989,0x01db68,0x01d988,0x01da56,0x01dab6,0x01db2c,0x01de29,0x01dc15,0x01dcf7,0x01dd84};
+static uint64_t drawn_piece_bits[(kDrawPieces + 63) / 64];
 static const uint8_t *bound_rom;
 static size_t bound_size;
 static FILE *trace;
-static PpuExtraObject objects[kPieces + 2];
-static uint16_t colors[kPieces + 2][256];
+static PpuExtraObject objects[kDrawPieces];
+static uint16_t colors[kDrawPieces][256];
 static uint16_t large_colors[2][256];
 static const uint8_t clean_hash[32] = {
     0x7d,0xa4,0xa3,0xcf,0xa5,0xde,0x4b,0xb4,0x72,0x2a,0x6e,0x2a,0x42,0xc2,0x6a,0xae,
@@ -213,6 +227,23 @@ static int InactiveSpecialLayer(void) {
     return 1;
 }
 
+/* Variable DC15 effects share ordinary mode0E; this admission is independent
+ * of capture readiness. Large/travel producers keep their separate contracts.
+ * A displayed packet, not live4300 flags, owns the actual effect list. */
+static int VariableRoster(void) {
+    if (g_ram[0x401] != 14 || g_ram[0x409]) return 0;
+    for (unsigned i=0;i<kActors;++i) {
+        unsigned party=i<kParty;
+        unsigned at=party?0x4000+i*18:0x4100+(i-kParty)*25;
+        if (g_ram[at]==255) continue;
+        unsigned base=R16(at+(party?3:5));
+        unsigned gfx=base+g_ram[at]*2+(party?(g_ram[at+10]>>7):(g_ram[0x475]>>7));
+        if (g_ram[at]>3 || base==0xb0 || (gfx>=0xa0 && gfx<0xb0) ||
+            gfx >= (0xd800-0x9800)/8) return 0;
+    }
+    return 1;
+}
+
 /* Ordinary DAxx producers share the selected primary map's periods. Scene()
  * authenticates that selection and the entire completed OAM packet below;
  * chapter, town, party leader and NPC identities are not rendering contracts.
@@ -224,7 +255,7 @@ static int OrdinaryWrappingResource(const Ppu *ppu) {
      * and specialized allocations; the new path fills unsupported families. */
     if (WrappingResource(ppu)) return 0;
     if (!ppu || !g_snes || !g_snes->dma || g_ram[0x407] != 1 ||
-        g_ram[0x409] || (g_ram[0x401] != 12 && !InactiveSpecialLayer()) || R16(0x471) || R16(0x473) ||
+        g_ram[0x409] || (g_ram[0x401] != 12 && !VariableRoster()) || R16(0x471) || R16(0x473) ||
         ppu->obsel != 3 || PPU_objPriority(ppu) ||
         ppu->bgmode != 9 || PPU_mosaicSize(ppu) > 1 || ppu->setini) return 0;
     unsigned px = g_ram[0x46d] * 256u, py = g_ram[0x46e] * 256u;
@@ -329,11 +360,14 @@ static void Row(const char *event, const Packet *packet, const CpuState *cpu, in
     int periodic=FoundationWideActorsPeriodicRaster(g_ppu,&raster_x,&raster_y);
     fprintf(trace,",%d,%d,%u,%u,%d",g_ppu?g_ppu->m7matrix[6]:-1,
         g_ppu?g_ppu->m7matrix[7]:-1,R16(0x2ad),R16(0x2af),periodic);
+    fprintf(trace,",%d,%u,%u,%u,%u",packet->effects.valid,
+        packet->effects.visits,packet->effects.count,packet->effects.emitted,packet->effects.prefix_count);
     fputc('\n', trace);
     fflush(trace);
 }
 
 void FoundationWideActorsReset(void) {
+    memset(&effect_capture, 0, sizeof(effect_capture));
     memset(&producing, 0, sizeof(producing));
     memset(&queued, 0, sizeof(queued));
     memset(&transfer, 0, sizeof(transfer));
@@ -357,7 +391,7 @@ int FoundationWideActorsEnabled(void) { return enabled; }
 static int Scene(const Ppu *ppu) {
     return identity && ppu && FoundationFieldSceneEligible(ppu) && ppu->obsel == 3 &&
         !PPU_objPriority(ppu) &&
-        (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu)) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
+        (g_ram[0x401] == 12 || InactiveSpecialLayer() || SettledLabBlankPrefix(ppu) || VariableRoster()) && (!g_ram[0x407] || WrappingResource(ppu) || LocalWrappingResource(ppu)) &&
         !R16(0x471) && !R16(0x473);
 }
 
@@ -380,6 +414,12 @@ static void Resource(const Ppu *ppu, uint8_t key[48]) {
     key[40] = SettledLabSeven() ? 0x71 : 0;
     key[41] = SettledLabBlankPrefix(ppu);
     key[42] = InactiveSpecialLayer() ? 0xe0 : 0;
+    if (VariableRoster()) {
+        /* Active flags and special prefix length are producer metadata, not
+         * loaded graphics identity. The prior displayed packet remains valid
+         * while the original builds a successor with different effects. */
+        key[40]=key[41]=key[42]=0; key[43]=1;
+    }
 }
 
 static int SameResource(const Ppu *ppu, const Packet *packet) {
@@ -387,6 +427,12 @@ static int SameResource(const Ppu *ppu, const Packet *packet) {
     if (!ppu) return 0;
     Resource(ppu, key);
     return !memcmp(key, packet->resource, sizeof(key));
+}
+static int EffectResourceMatches(const Ppu *ppu, const VariableEffects *effect) {
+    uint8_t key[48];
+    if (!ppu) return 0;
+    Resource(ppu,key);
+    return !memcmp(key,effect->resource,sizeof(key));
 }
 
 void FoundationWideActorsBeforeFrame(void) {
@@ -399,8 +445,9 @@ void FoundationWideActorsBeforeFrame(void) {
             identity = !memcmp(hash, clean_hash, sizeof(hash)) && LargeBindRom(g_rom, size);
         }
     }
-    if ((sequence || queued.valid || transfer_valid || displayed.valid) &&
-        (!Scene(g_ppu) || (sequence && !SameResource(g_ppu, &producing)) ||
+    if ((effect_capture.valid || sequence || queued.valid || transfer_valid || displayed.valid) &&
+        (!Scene(g_ppu) || (effect_capture.valid && !EffectResourceMatches(g_ppu,&effect_capture)) ||
+         (sequence && !SameResource(g_ppu, &producing)) ||
          (queued.valid && !SameResource(g_ppu, &queued)) ||
          (transfer_valid && !SameResource(g_ppu, &transfer)) ||
          (displayed.valid && !SameResource(g_ppu, &displayed)))) {
@@ -408,6 +455,7 @@ void FoundationWideActorsBeforeFrame(void) {
         Row("reject_scene", &displayed, NULL, 0);
         memset(&producing, 0, sizeof(producing)); memset(&queued, 0, sizeof(queued));
         memset(&transfer, 0, sizeof(transfer)); memset(&displayed, 0, sizeof(displayed));
+        memset(&effect_capture, 0, sizeof(effect_capture));
         sequence = sequence_done = party_done = transfer_valid = 0; ++generation;
     }
 }
@@ -423,6 +471,102 @@ static void Reject(const char *why, const CpuState *cpu) {
     ++rejects; sequence = sequence_done = party_done = 0;
     producing.valid = queued.valid = 0;
     Row(why, &producing, cpu, 0);
+}
+
+static void RejectEffect(const char *why, const CpuState *cpu) {
+    effect_capture.valid=effect_capture.closed=0;
+    Reject(why,cpu);
+}
+
+static int EffectCursor(const VariableEffects *effect, int padded) {
+    unsigned n=padded?effect->prefix_count:effect->emitted;
+    return n<=kEffectEmitted && R16(0x46b)==0x30+4*n &&
+        g_ram[0x0e24]==0x10+n && R16(0x0e26)==0x203+n/4;
+}
+
+/* All resolved pieces were already visited by the original interpreter. Only
+ * the next fixed word is read here; no F0..FF descriptor language is replayed.
+ * Y wraps as an8-bit register before the original consecutive long word read. */
+static int EffectWord(unsigned pointer, unsigned y, uint16_t *word) {
+    unsigned at=pointer+((y+1)&255);
+    if (!word || (pointer>>16)!=15 || (pointer&0xffff)<0x8000 ||
+        (at>>16)!=15 || (at&0xffff)<0x8000 || (at&0xffff)==0xffff ||
+        !g_rom || bound_size!=1572864) return 0;
+    unsigned offset=(at>>16)*0x8000+(at&0x7fff);
+    if (offset+1>=bound_size) return 0;
+    *word=g_rom[offset]|(unsigned)g_rom[offset+1]<<8;
+    return 1;
+}
+
+static void EffectCapturePiece(const CpuState *cpu) {
+    unsigned raw_x=R16(0x0e03),raw_y=R16(0x0e00),record=g_ram[0x0e15];
+    if (!effect_capture.valid || effect_capture.closed ||
+        !Context(cpu,0x01d85b,1) || !EffectResourceMatches(g_ppu,&effect_capture) ||
+        !VariableRoster() || record>=8 || !g_ram[0x4300+21*record] ||
+        R24(0x0e1c)!=0x7e4300+21*record || cpu->A!=raw_x || cpu->Y>255 ||
+        !g_ram[0x0e02] || g_ram[0x0e02]>=240 ||
+        !(raw_y<0xef || raw_y>=0x1f1) || !EffectCursor(&effect_capture,0) ||
+        effect_capture.visits>=kEffectVisits) {
+        RejectEffect("reject_effect_piece_context",cpu); return;
+    }
+    uint16_t word;
+    if (!EffectWord(R24(0x0e1f),cpu->Y,&word)) {
+        RejectEffect("reject_effect_word",cpu); return;
+    }
+    word|=R16(0x0e3c);
+    if (g_ram[0x0e22]&128) word^=0x4000;
+    unsigned ordinal=++effect_capture.visits;
+    int emitted=raw_x!=0x100 && (raw_x<0xff || raw_x>=0x1f1);
+    int adjacent=!emitted && raw_x>=255 && raw_x<328;
+    if (adjacent && R16(0x0e16)>255) {
+        RejectEffect("reject_effect_anchor",cpu); return;
+    }
+    if (!emitted && !adjacent) return;
+    if (effect_capture.count>=kEffectPieces ||
+        (emitted && effect_capture.emitted>=kEffectEmitted)) {
+        RejectEffect("reject_effect_capacity",cpu); return;
+    }
+    unsigned packed_x=raw_x&511,packed_y=raw_y&255;
+    EffectPiece *piece=&effect_capture.pieces[effect_capture.count++];
+    *piece=(EffectPiece){.x=adjacent?(int)raw_x:(packed_x>=256?(int)packed_x-512:(int)packed_x),
+        .y=packed_y>=240?(int)packed_y-256:(int)packed_y,
+        .word=word,.slot=emitted?12+effect_capture.emitted:0xffff,
+        .ordinal=ordinal,.size=(g_ram[0x0e23]&128)?16:8,
+        .high=((raw_x>>8)&1)|((g_ram[0x0e23]>>7)<<1)};
+    if (emitted) ++effect_capture.emitted;
+}
+
+/* All original emitted slots must agree, including size/X-high pairs.
+ * Padding deliberately leaves tile words stale, so it validates XY/high only. */
+static int EffectPrefixMatches(const VariableEffects *effect, const uint8_t *bytes) {
+    if (!effect || !bytes || !effect->valid || !effect->closed ||
+        effect->emitted>kEffectEmitted || effect->prefix_count>kEffectEmitted ||
+        effect->prefix_count!=((effect->emitted+3)&~3u) || effect->count>kEffectPieces ||
+        effect->visits>kEffectVisits || effect->count>effect->visits) return 0;
+    unsigned emitted=0,ordinal=0;
+    for (unsigned i=0;i<effect->count;++i) {
+        const EffectPiece *piece=&effect->pieces[i];
+        if (piece->ordinal<=ordinal || piece->ordinal>effect->visits ||
+            (piece->size!=8 && piece->size!=16) || piece->high>3) return 0;
+        ordinal=piece->ordinal;
+        if (piece->slot==0xffff) continue;
+        unsigned slot=piece->slot,at=4*slot;
+        if (slot!=12+emitted++ || slot>=12+effect->emitted || bytes[at]!=(piece->x&255) ||
+            bytes[at+1]!=(piece->y&255) || (bytes[at+2]|(unsigned)bytes[at+3]<<8)!=piece->word ||
+            ((bytes[512+slot/4]>>(2*(slot%4)))&3)!=piece->high) return 0;
+    }
+    if (emitted!=effect->emitted) return 0;
+    for (unsigned slot=12+effect->emitted;slot<12+effect->prefix_count;++slot)
+        if (bytes[4*slot]!=0x80 || bytes[4*slot+1]!=0xf0 ||
+            ((bytes[512+slot/4]>>(2*(slot%4)))&3)!=1) return 0;
+    return 1;
+}
+
+static int EffectPrefixUnchanged(const Packet *packet) {
+    unsigned end=(12+packet->effects.prefix_count)*4;
+    return EffectPrefixMatches(&packet->effects,g_ram+0x2200) &&
+        !memcmp(packet->bytes+48,g_ram+0x2230,end-48) &&
+        !memcmp(packet->bytes+515,g_ram+0x2403,packet->effects.prefix_count/4);
 }
 
 static LargeView LargeInput(const Ppu *ppu) {
@@ -448,8 +592,29 @@ static int KnownTravelProxy(unsigned index) {
 }
 
 static void Observe(CpuState *cpu, uint32_t pc) {
-    for (unsigned i=0;i<9;++i) if (probe_pcs[i]==pc) ++probe_hits[i];
+    for (unsigned i=0;i<12;++i) if (probe_pcs[i]==pc) ++probe_hits[i];
     if ((!enabled && !trace) || !identity) return;
+    if (pc==0x01dc15) {
+        memset(&effect_capture,0,sizeof(effect_capture));
+        if (!VariableRoster()) return; /* Preserve separate old producers. */
+        effect_capture.valid=Context(cpu,0x01d85b,0) && R16(0x46b)==0x30 &&
+            g_ram[0x0e24]==0x10 && R16(0x0e26)==0x203 &&
+            R16(0x0e34)==0x10 && R16(0x0e38)==0x201;
+        if (g_ppu) Resource(g_ppu,effect_capture.resource);
+        if (!effect_capture.valid) RejectEffect("reject_effect_begin",cpu);
+        return;
+    }
+    if (pc==0x01dcf7) { if (effect_capture.valid) EffectCapturePiece(cpu); return; }
+    if (pc==0x01dd84) {
+        if (!effect_capture.valid) return;
+        if (effect_capture.closed || !Context(cpu,0x01d85b,0) ||
+            !EffectResourceMatches(g_ppu,&effect_capture) || !EffectCursor(&effect_capture,0)) {
+            RejectEffect("reject_effect_close",cpu); return;
+        }
+        effect_capture.prefix_count=(effect_capture.emitted+3)&~3u;
+        effect_capture.closed=1;
+        return;
+    }
     if (pc == 0x01d8b1) {
         memset(&producing, 0, sizeof(producing)); sequence_done = party_done = 0;
         producing.epoch = ++next_epoch; producing.producer_frame = snes_frame_counter;
@@ -459,7 +624,15 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         producing.start_slot = 12;
         producing.mask = g_ram[0x400] ? 0xefff : 0xffff;
         unsigned prefix = SettledLabBlankPrefix(g_ppu);
-        if (prefix) {
+        if (VariableRoster()) {
+            sequence=sequence && effect_capture.valid && effect_capture.closed &&
+                EffectResourceMatches(g_ppu,&effect_capture) && EffectCursor(&effect_capture,1) &&
+                EffectPrefixMatches(&effect_capture,g_ram+0x2200);
+            producing.effects=effect_capture;
+            prefix=effect_capture.prefix_count;
+            memcpy(producing.bytes,g_ram+0x2200,kPacketBytes);
+            memset(&effect_capture,0,sizeof(effect_capture));
+        } else if (prefix) {
             for (unsigned slot=12;slot<19;++slot) {
                 unsigned at=0x2200+slot*4;
                 unsigned high=(g_ram[0x2400+slot/4]>>(slot%4*2))&3;
@@ -559,7 +732,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
             (producing.seen & 31u) != (producing.expected & 31u)) {
             Reject("reject_party_sequence", cpu); return;
         }
-        unsigned slot = 12 + producing.resource[41];
+        unsigned slot = 12 + (producing.effects.valid?producing.effects.prefix_count:producing.resource[41]);
         for (unsigned index = 0; index < kParty; ++index) {
             const Actor *actor = &producing.actors[index];
             if (actor->present && !actor->travel_proxy &&
@@ -603,7 +776,7 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         Row("capture", &producing, cpu, 1);
     } else if (pc == 0x01db2c) {
         if (!Context(cpu, 0x01d86f, 0) || g_ram[0x0e14] != 19 ||
-            producing.seen != producing.expected || !producing.count) {
+            producing.seen != producing.expected || (!producing.count && !producing.effects.count)) {
             Reject("reject_sequence", cpu); return;
         }
         sequence_done = 1; Row("sequence_end", &producing, cpu, 1);
@@ -611,7 +784,10 @@ static void Observe(CpuState *cpu, uint32_t pc) {
         if (!sequence_done || !Context(cpu, 0x01d873, 0)) {
             Reject("reject_staging", cpu); return;
         }
-        unsigned slot = 12 + producing.resource[41];
+        if (producing.effects.valid && !EffectPrefixUnchanged(&producing)) {
+            Reject("reject_effect_staging",cpu); return;
+        }
+        unsigned slot = 12 + (producing.effects.valid?producing.effects.prefix_count:producing.resource[41]);
         for (unsigned index = 0; index < kParty + kAppendRegular; ++index) {
             Actor *actor = &producing.actors[index];
             if (index == kParty && slot != producing.start_slot) { Reject("reject_party_regular_cursor", cpu); return; }
@@ -734,7 +910,7 @@ void FoundationWideActorsInit(void) {
     enabled = env ? !strcmp(env, "1") : configured;
     const char *path = getenv("SNESRECOMP_FOUNDATION_ACTORS_TRACE");
     if (path) trace = fopen(path, "w");
-    if (trace) fputs("event,frame,generation,epoch,packet_valid,cached_actors,seen_mask,side_pieces,side_pixels,target_record,target_flags,target_phase,target_descriptor,target_x,target_y,cpu_d,cpu_db,cpu_m,cpu_x,packet_match,producer_frame,scene,start_slot,mask,rotation,party_count,party_seen,party_end_slot,party0_descriptor,party0_x,party0_y,party0_phase,packet_camera_x,packet_camera_y,regular0_descriptor,regular0_phase,regular1_descriptor,regular1_phase,packet_sha256,raster_x,raster_y,live_camera_x,live_camera_y,periodic_match\n", trace);
+    if (trace) fputs("event,frame,generation,epoch,packet_valid,cached_actors,seen_mask,side_pieces,side_pixels,target_record,target_flags,target_phase,target_descriptor,target_x,target_y,cpu_d,cpu_db,cpu_m,cpu_x,packet_match,producer_frame,scene,start_slot,mask,rotation,party_count,party_seen,party_end_slot,party0_descriptor,party0_x,party0_y,party0_phase,packet_camera_x,packet_camera_y,regular0_descriptor,regular0_phase,regular1_descriptor,regular1_phase,packet_sha256,raster_x,raster_y,live_camera_x,live_camera_y,periodic_match,effect_valid,effect_visits,effect_pieces,effect_emitted,effect_prefix\n", trace);
     if (enabled || trace) {
         installed = interp_bridge_add_pre_opcode_hook(0x01d8b1, Observe) &&
             interp_bridge_add_pre_opcode_hook(0x01d917, Observe) &&
@@ -744,7 +920,10 @@ void FoundationWideActorsInit(void) {
             interp_bridge_add_pre_opcode_hook(0x01da56, Observe) &&
             interp_bridge_add_pre_opcode_hook(0x01dab6, Observe) &&
             interp_bridge_add_pre_opcode_hook(0x01db2c, Observe) &&
-            interp_bridge_add_pre_opcode_hook(0x01de29, Observe);
+            interp_bridge_add_pre_opcode_hook(0x01de29, Observe) &&
+            interp_bridge_add_pre_opcode_hook(0x01dc15, Observe) &&
+            interp_bridge_add_pre_opcode_hook(0x01dcf7, Observe) &&
+            interp_bridge_add_pre_opcode_hook(0x01dd84, Observe);
         if (installed) dma_set_transfer_notify_hook(NotifyDma);
         else enabled = 0;
     }
@@ -845,6 +1024,7 @@ int FoundationWideActorsPeriodicRaster(const Ppu *source, int *world_x, int *wor
 
 unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *picture) {
     if (!enabled || !displayed.valid || !source || !picture || source == picture || line < 1 || line > 224 ||
+        displayed.effects.count>kEffectPieces ||
         !Scene(source) || !SameResource(source, &displayed) || !PacketMatches(source, displayed.bytes)) return 0;
     int cx = displayed.camera_x + ((source->hScroll[0] - (displayed.camera_x & 1023) + 512) & 1023) - 512;
     int cy = displayed.camera_y + ((source->vScroll[0] - (displayed.camera_y & 1023) + 512) & 1023) - 512;
@@ -879,6 +1059,38 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
         }
     }
     unsigned count = 0;
+    /* These are already original screen coordinates. Camera/raster deltas
+     * belong to ordinary world actors below, never to variable effects. */
+    for (unsigned i=0;i<displayed.effects.count;++i) {
+        const EffectPiece *piece=&displayed.effects.pieces[i];
+        int x=piece->x,y=piece->y,size=piece->size;
+        if ((int)line-1<y || (int)line-1>=y+size || x>=328 || x+size<=-72 ||
+            (x>=0 && x+size<=256)) continue;
+        uint16_t word=piece->word;
+        unsigned palette=128+16*((word>>9)&7);
+        unsigned base=(word&256)?PPU_objTileAdr2(source):PPU_objTileAdr1(source);
+        const uint16_t *vram=source->renderVram?source->renderVram:source->vram;
+        for (unsigned row=0;row<(unsigned)size;++row) for (unsigned col=0;col<(unsigned)size;++col) {
+            unsigned sy=(word&0x8000)?(unsigned)size-1-row:row;
+            unsigned sx=(word&0x4000)?(unsigned)size-1-col:col;
+            unsigned tile=(((word&255)>>4)+(sy>>3))*16+(((word&15)+(sx>>3))&15);
+            unsigned at=(base+tile*16+(sy&7))&0x7fff;
+            uint32_t planes=vram[at]|(uint32_t)vram[(at+8)&0x7fff]<<16;
+            unsigned bit=7-(sx&7);
+            unsigned pixel=((planes>>bit)&1)|((planes>>(bit+7))&2)|
+                ((planes>>(bit+14))&4)|((planes>>(bit+21))&8);
+            colors[count][row*size+col]=pixel?0x8000|(source->cgram[palette+pixel]&0x7fff):0;
+        }
+        objects[count]=(PpuExtraObject){.x=x,.y=y,.width=size,.height=size,.stride=size,
+            .priority=(word>>12)&3,.math=!!(word&0x0800),.oamSlot=12,
+            .order=piece->ordinal,.pixels=colors[count]};
+        ++count;
+        unsigned bits_index=kPieces+2+i;
+        uint64_t bit=(uint64_t)1<<(bits_index&63);
+        if (!(drawn_piece_bits[bits_index>>6]&bit)) {
+            drawn_piece_bits[bits_index>>6]|=bit; ++frame_pieces; ++total_pieces;
+        }
+    }
     for (unsigned index = 0; index < kActors; ++index) {
         const Actor *actor = &displayed.actors[index];
         /* The checked A8 shadow is entirely in the original center. Its
@@ -913,12 +1125,18 @@ unsigned FoundationWideActorsPrepareLine(const Ppu *source, unsigned line, Ppu *
             }
             unsigned virtual_slot = index >= kParty + kAppendRegular ?
                 4 + (index - kParty - kAppendRegular) * 4 + part : 12 + bits_index;
+            unsigned virtual_order=virtual_slot+1;
+            if (displayed.effects.valid && index<kParty+kAppendRegular) {
+                /* Effect source ordinals include culled visits. Append actors
+                 * follow the entire effect group without virtual-slot overflow. */
+                virtual_slot=12; virtual_order=kEffectVisits+1+bits_index;
+            }
             objects[count] = (PpuExtraObject){ .x = x, .y = y, .width = 8, .height = 8, .stride = 8,
                 .priority = (word >> 12) & 3, .math = (word & 0x0800) != 0,
                 /* Private OAM is empty; virtual slots preserve constructor
                  * order even for culled records. Rotation is guarded off. */
                 .oamSlot = virtual_slot,
-                .order = virtual_slot + 1, .pixels = colors[count] };
+                .order = virtual_order, .pixels = colors[count] };
             ++count;
             uint64_t bit = (uint64_t)1 << (bits_index & 63);
             if (!(drawn_piece_bits[bits_index >> 6] & bit)) {
@@ -959,7 +1177,7 @@ void FoundationWideActorsDrawResult(unsigned pixels) { frame_pixels += pixels; t
 void FoundationWideActorsEndDraw(void) { Row("frame", &displayed, NULL, displayed.valid); }
 
 void FoundationWideActorsShutdown(void) {
-    for (unsigned i=0;i<9;++i) fprintf(stderr,"[b0_live_probe] pc=%06X hits=%llu\n",probe_pcs[i],probe_hits[i]);
+    for (unsigned i=0;i<12;++i) fprintf(stderr,"[b0_live_probe] pc=%06X hits=%llu\n",probe_pcs[i],probe_hits[i]);
     fprintf(stderr,"[b0_live_probe] dma_start=%llu dma_complete=%llu\n",probe_dma_start,probe_dma_complete);
     fprintf(stderr, "[foundation_wide_actors] captured=%u packets=%u side_pieces=%u side_pixels=%u rejects=%u resets=%u\n",
             total_captured, total_packets, total_pieces, total_pixels, rejects, generation);
