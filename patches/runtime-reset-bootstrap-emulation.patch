@@ -1,0 +1,218 @@
+diff --git a/recompiler/v2/native_bootstrap.py b/recompiler/v2/native_bootstrap.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/native_bootstrap.py
+@@ -0,0 +1,53 @@
++"""Three source-declared reset E1 steps; no ordinary emulation admission."""
++from snes65816 import rom_offset,decode_insn,IMP,IMM
++from snes_cycles import instr_cpu_cycles
++from .ir import SetFlag,Reg,RepFlags,XCE
++from .lowering import lower
++
++
++def derive(rom,parsed):
++    cfgs=[cfg for bank,path,cfg in parsed if bank==0 and cfg.bank==0 and cfg.auto_vectors]
++    if len(cfgs)!=1:raise ValueError('bootstrap requires exactly one declared bank00 auto_vectors owner')
++    cfg=cfgs[0];vo=rom_offset(0,0xfffc)
++    if vo<0 or vo+2>len(rom):raise ValueError('bootstrap reset vector is not materialized')
++    vector=rom[vo:vo+2];entry=int.from_bytes(vector,'little')
++    declared=[r for r in cfg.entries if r.start==entry and r.entry_m==1 and r.entry_x==1]
++    if len(declared)!=1 or entry<0x8000 or entry>0xfffb:raise ValueError('bootstrap reset vector requires its existing source-declared M1X1 entry')
++    masks=[r for bank,path,c in parsed for r in c.data_regions]+[(bank,lo,hi)for bank,path,c in parsed for lo,hi in c.authority_data]
++    forced={r&0x7fffff for bank,path,c in parsed for r in c.force_lle}
++    rows=[];pc=entry
++    for mnemonic,opcode,mode,length in [('SEI',0x78,IMP,1),('REP',0xc2,IMM,2),('XCE',0xfb,IMP,1)]:
++        off=rom_offset(0,pc)
++        if off<0 or off+length>len(rom):raise ValueError('bootstrap instruction is not materialized')
++        i=decode_insn(rom,off,pc,0,1,1)
++        if i is None or(i.mnem,i.opcode,i.mode,i.length)!=(mnemonic,opcode,mode,length):raise ValueError('bootstrap original instruction sequence differs')
++        i.m_flag=i.x_flag=1;ops=lower(i,value_factory=lambda:None)
++        expected=[SetFlag(Reg.I,1)]if mnemonic=='SEI'else[RepFlags(9)]if mnemonic=='REP'else[XCE()]
++        if ops!=expected or mnemonic=='REP'and i.operand!=9:raise ValueError('bootstrap independent typed operation differs')
++        for at in range(pc,pc+length):
++            if at in forced or any(0 in(b,b^128)and lo<=at<hi for b,lo,hi in masks)or any(lo<=at<hi for lo,hi in cfg.exclude_ranges):raise ValueError('bootstrap original byte is masked')
++        raw=rom[off:off+length].hex();body=''
++        if mnemonic=='SEI':body='cpu->_flag_I=1;cpu_mirrors_to_p(cpu);'
++        elif mnemonic=='REP':body='cpu_mirrors_to_p(cpu);cpu->P&=(uint8)~9u;cpu_p_to_mirrors(cpu);cpu->m_flag=1;cpu->x_flag=1;cpu->S=(uint16)((cpu->S&0x00ffu)|0x0100u);cpu->X&=0x00ffu;cpu->Y&=0x00ffu;cpu_mirrors_to_p(cpu);'
++        else:body='uint8 _bootstrap_e=cpu->emulation;cpu->emulation=cpu->_flag_C?1:0;cpu->_flag_C=_bootstrap_e?1:0;if(cpu->emulation){cpu->m_flag=1;cpu->x_flag=1;cpu->S=(uint16)((cpu->S&0x00ffu)|0x0100u);}if(cpu->x_flag){cpu->X&=0x00ffu;cpu->Y&=0x00ffu;}cpu_mirrors_to_p(cpu);cpu_p_to_mirrors(cpu);'
++        body+='*next_pc=((uint32)cpu->PB<<16)|0x%04xu;'%(pc+length)
++        rows.append({'pc24':pc,'e':1,'m':1,'x':1,'bytes':raw,'length':length,'cycles':instr_cpu_cycles(opcode,m=1,x=1,e=1),'mnemonic':mnemonic,'body':body,'contract':'source-reset-e1-bootstrap-step-v1'})
++        pc+=length
++    recipe={'entry':entry,'source_declared_name':declared[0].name,'vector_pc':0xfffc,'vector_bytes':vector.hex(),'prefix_pc':entry,'prefix_bytes':''.join(r['bytes']for r in rows),'successor':pc,'rows':rows,'source_contract':'declared-reset-vector-three-step-e1-bootstrap-v1','exit_e':'dynamic_live_C_after_source_REP09','ordinary_roots_added':False}
++    return recipe
++
++
++def emit_bootstrap(recipe):
++    rows=recipe['rows'];out=['#include "snes/snes.h"','#include "snes/cart.h"','extern Snes *g_snes;','extern SnesProgramModule g_program_module;','bool cpu_native_region_step(CpuState*,uint32,uint8,uint32*);','bool cpu_source_reset_bootstrap_match(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles,const uint8 *expected){',' if(!cpu||!expected||cpu->emulation!=1||cpu->m_flag!=1||cpu->x_flag!=1||cpu->PB!=0||!g_snes||!g_snes->cart)return false;',' const SnesProgramModule *active=snes_program_module_active();if(active&&active!=&g_program_module)return false;',' switch(pc){']
++    for r in rows:
++        arr=','.join(str(b)+'u'for b in bytes.fromhex(r['bytes']))
++        out.append(' case %su:{const uint8 bytes[]={%s};if(length!=%su||cycles!=%su)return false;for(unsigned n=0;n<length;n++)if(expected[n]!=bytes[n])return false;break;}'%(r['pc24'],arr,r['length'],r['cycles']))
++    out+=[' default:return false;}']
++    for pc,data in [(recipe['vector_pc'],recipe['vector_bytes']),(recipe['prefix_pc'],recipe['prefix_bytes'])]:
++        arr=','.join(str(b)+'u'for b in bytes.fromhex(data));out.append(' {const uint8 bytes[]={%s};for(unsigned n=0;n<sizeof bytes;n++){const uint8*p=cart_getRomPtr(g_snes->cart,0,(uint16)(%su+n));if(!p||*p!=bytes[n])return false;}}'%(arr,pc))
++    out+=[' return true;}','static bool cpu_source_reset_bootstrap_step(CpuState *cpu,uint32 pc,uint8 mx,uint32 *next_pc){',' if(mx!=3u)return false;switch(pc){']
++    for r in rows:
++        arr=','.join(str(b)+'u'for b in bytes.fromhex(r['bytes']))
++        out.append(' case %su:{const uint8 expected[]={%s};if(!cpu_source_reset_bootstrap_match(cpu,pc,%su,%su,expected)||!cpu_aot_begin_scheduler_region(cpu,pc,%su,%su,expected,cpu_native_region_step))return false;%s cpu_aot_commit(cpu);return true;}'%(r['pc24'],arr,r['length'],r['cycles'],r['length'],r['cycles'],r['body']))
++    out+=[' default:return false;}}','']
++    return '\n'.join(out)
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -337,15 +337,23 @@
+     offset=rom_offset(pc>>16,pc&0xffff)
+     return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':(pc+insn.length)&0xffff,'body':code,'mnemonic':insn.mnem}
+ 
+-def emit(rows,module_prefix=None):
++def emit(rows,module_prefix=None,bootstrap=None):
+     header='#include "cpu_state.h"\n#include "program_module.h"\n#include "cpu_trace.h"\n#include <stdlib.h>\n'
+     if module_prefix:header+='#include "module_namespace.h"\n'
++    if bootstrap is not None:
++        from .native_bootstrap import emit_bootstrap
++        header+=emit_bootstrap(bootstrap)
++    else:
++        header+='bool cpu_source_reset_bootstrap_match(CpuState *c,uint32 p,unsigned l,unsigned y,const uint8 *b){(void)c;(void)p;(void)l;(void)y;(void)b;return false;}\n'
+     out=[header,'extern SnesProgramModule g_program_module;', 'bool cpu_native_region_step(CpuState *cpu,uint32 pc24,uint8 mx,uint32 *next_pc) {',
+          '  static int enabled=-1; if(enabled<0) {const char *e=getenv("SNESRECOMP_DISABLE_NATIVE_REGIONS");enabled=!(e&&e[0]&&e[0]!=\'0\');}',
+          '  const SnesProgramModule *active=snes_program_module_active();',
+          '  if(!enabled || !cpu || !next_pc || cpu->emulation || cpu->m_flag>1 || cpu->x_flag>1 || mx!=((cpu->m_flag<<1)|cpu->x_flag) || (active && active!=&g_program_module)) return false;',
+          '  if ((((uint32)cpu->PB<<16)|(pc24&0xffff)) != pc24) return false;',
+          '  switch (((pc24&0x7fffffu)<<2)|mx) {']
++    if bootstrap is not None:
++        out[5]=out[5].replace('cpu->emulation || ','')
++        out.insert(7,'  if(cpu->emulation) return cpu_source_reset_bootstrap_step(cpu,pc24,mx,next_pc);')
+     for row in sorted(rows,key=lambda r:(r['pc24'],r['m'],r['x'])):
+         case=(row['pc24']<<2)|(row['m']<<1)|row['x']
+         out.extend([f'    case {case}u: {{ /* {row["pc24"]:06x} M{row["m"]}X{row["x"]} {row["mnemonic"]}; ROM {row["bytes"]} */',
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 28
++CACHE_FORMAT_VERSION = 29
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1350,10 +1350,15 @@
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+         write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':5,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
++        from .native_bootstrap import derive as derive_reset_bootstrap
++        try:
++            reset_bootstrap=derive_reset_bootstrap(rom,parsed)
++        except ValueError:
++            reset_bootstrap=None # Other reset shapes retain their original route.
+         write_if_changed(staging / 'native_regions_v2.c',
+-                         emit_native_regions(regions, module_prefix))
++                         emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':14, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':15, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'direct_call_prefix':bool(enable_native_call_prefix),
+@@ -1363,6 +1368,7 @@
+                                      'interrupt_return_contract':'source-native-e0-interrupt-return-v1',
+                                      'carry_emulation_exchange_contract':'source-native-e0-carry-emulation-exchange-v1',
+                                      'blockmove_contract':'source-native-e0-blockmove-one-byte-v1',
++                                     'reset_bootstrap':reset_bootstrap,
+                                      'stack_indirect_y_contract':'native-e0-source-cached-stack-indirect-y-v1',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -851,6 +851,7 @@
+ uint16 cpu_aot_get_indirect_control_operand(CpuState *cpu,uint32 pc24,uint8 opcode);
+ uint16 cpu_aot_get_blockmove_operand(CpuState *cpu,uint32 pc24,uint8 opcode);
+ 
++bool cpu_source_reset_bootstrap_match(CpuState*, uint32, unsigned, unsigned, const uint8*);
+ bool cpu_aot_begin_scheduler_region(CpuState*, uint32, unsigned, unsigned, const uint8*, bool (*)(CpuState*, uint32, uint8, uint32*));
+ RecompReturn interp_tier_dispatch_faithful(CpuState*,uint32,uint32,uint16,uint8,bool,uint32);
+ void cpu_aot_extra(CpuState*, unsigned);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -597,7 +597,26 @@
+   if(s_aot_instruction!=cpu || !s_interp_bus_timing_active) {fputs("Invalid AOT transaction\n",stderr);abort();}
+ }
+ void interp_bridge_source_redirect_reset(void);
++/* Synchronous source-verified E1 reset allowance; no saved/host owner token. */
++typedef struct {
++  CpuState *cpu;
++  uint32 pc;
++  unsigned length, cycles;
++} ResetBootstrapBegin;
++static ResetBootstrapBegin s_reset_bootstrap_begin;
++
++static bool scheduler_region_begin(CpuState *cpu,uint32 pc,unsigned length,
++    unsigned cycles,bool reset_bootstrap) {
++  s_reset_bootstrap_begin = (ResetBootstrapBegin){0};
++  if (reset_bootstrap)
++    s_reset_bootstrap_begin = (ResetBootstrapBegin){cpu,pc,length,cycles};
++  const bool begun = cpu_aot_begin(cpu,pc,length,cycles);
++  s_reset_bootstrap_begin = (ResetBootstrapBegin){0};
++  return begun;
++}
++
+ void cpu_native_region_reset(void) {
++  s_reset_bootstrap_begin = (ResetBootstrapBegin){0};
+   interp_bridge_source_redirect_reset();
+   s_scheduler_region_scope = (SchedulerRegionScope){0};
+   s_scheduler_hook_handoff = (SchedulerHookHandoff){0};
+@@ -609,6 +628,7 @@
+ bool cpu_aot_begin_scheduler_region(CpuState *cpu, uint32 pc, unsigned length,
+     unsigned cycles, const uint8 *expected,
+     bool (*dispatch)(CpuState *, uint32, uint8, uint32 *)) {
++  s_reset_bootstrap_begin = (ResetBootstrapBegin){0};
+   const SchedulerRegionScope scope = s_scheduler_region_scope;
+   s_scheduler_region_scope = (SchedulerRegionScope){0}; /* consume before any fetch */
+   if (!cpu || !expected || !length || length > 4 || !dispatch ||
+@@ -622,6 +642,10 @@
+       scope.state_generation != RtlStateGeneration() ||
+       scope.host_frame != snes_frame_counter || g_watchdog_tripped ||
+       s_pre_opcode_callback_cpu) return false;
++  extern bool cpu_native_region_step(CpuState *,uint32,uint8,uint32 *);
++  const bool reset_bootstrap = cpu->emulation && dispatch == cpu_native_region_step &&
++      cpu_source_reset_bootstrap_match(cpu,pc,length,cycles,expected);
++  if (cpu->emulation && !reset_bootstrap) return false;
+   const uint32_t key = ((((uint32_t)cpu->PB) << 16) | (pc & 0xffffu)) & 0x7fffffu;
+   bool hooked = false;
+   for (int i = 0; i < s_pre_opcode_hook_count; ++i)
+@@ -636,7 +660,7 @@
+       if (!rom || *rom != expected[byte]) return false;
+     }
+   }
+-  if (!hooked && !s_scheduler_hook_handoff.observed_hooks) return cpu_aot_begin(cpu, pc, length, cycles);
++  if (!hooked && !s_scheduler_hook_handoff.observed_hooks) return scheduler_region_begin(cpu, pc, length, cycles, reset_bootstrap);
+   const SchedulerHookHandoff handoff = s_scheduler_hook_handoff;
+   s_scheduler_hook_handoff.cpu = NULL; /* attempt consumes the handoff */
+   if (s_scheduler_hook_epoch_exhausted || g_watchdog_tripped || s_pre_opcode_callback_cpu || handoff.cpu != cpu ||
+@@ -657,7 +681,7 @@
+   const uint32_t previous_pc = s_scheduler_hook_begin_pc;
+   s_scheduler_hook_begin_cpu = cpu;
+   s_scheduler_hook_begin_pc = key;
+-  const bool begun = cpu_aot_begin(cpu, pc, length, cycles);
++  const bool begun = scheduler_region_begin(cpu, pc, length, cycles, reset_bootstrap);
+   s_scheduler_hook_begin_cpu = (CpuState *)previous_cpu;
+   s_scheduler_hook_begin_pc = previous_pc;
+   return begun;
+@@ -671,8 +695,14 @@
+ static void task_original_native_attempt(void);
+ static void task_original_step_committed_cpu(CpuState *,uint32);
+ bool cpu_aot_begin(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles) {
++  const ResetBootstrapBegin bootstrap = s_reset_bootstrap_begin;
++  s_reset_bootstrap_begin = (ResetBootstrapBegin){0}; /* take before any callback/refusal */
++  const bool reset_bootstrap = cpu && cpu->emulation==1 && cpu->m_flag==1 &&
++      cpu->x_flag==1 && cpu->PB==0 && bootstrap.cpu==cpu && bootstrap.pc==pc &&
++      bootstrap.length==length && bootstrap.cycles==cycles &&
++      (((uint32)cpu->PB<<16)|(pc&0xffffu))==pc;
+   task_original_native_attempt();
+-  if(!cpu || cpu->emulation || s_aot_instruction || s_native_instruction_cpu || s_interp_bus_timing_active || !cycles || !length) return false;
++  if(!cpu || (cpu->emulation && !reset_bootstrap) || s_aot_instruction || s_native_instruction_cpu || s_interp_bus_timing_active || !cycles || !length) return false;
+   /* Ordinary AOT entries always refuse registered hook PCs. A scheduler
+    * region wrapper authorizes only its own immediate, source-verified begin. */
+   const uint32_t hook_pc = (((uint32_t)cpu->PB << 16) | (pc & 0xffffu)) & 0x7fffffu;

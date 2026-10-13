@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "cfb88676320da4f5ae5f1144e5814a307ecc70c689ed48ba13dc6d6964859dc7",
+  "predecessor_patch_sha256": "49127b9014e96faa4d2cc50d1515bc29d4f5d6d78c81e48201ff89caedfaa368",
+  "predecessor_binding_sha256": "216ba88dcc9d792fb10c050e66f3090d0bff0249187d8a1f6d4254b9055db4d8",
+  "files": {
+    "runner/src/desktop/host_main.c": {
+      "predecessor_sha256": "dbb220e68e5a2b72d054e30886811bd0965a729dd7334ffdfb5037a65bd35596",
+      "final_sha256": "0911b4338fe3f4d86ef34702f21d2961a276dbe819bfac545918bc323acbad1e",
+      "normalized_final_sha256": "0911b4338fe3f4d86ef34702f21d2961a276dbe819bfac545918bc323acbad1e"
+    },
+    "runner/src/common_rtl.c": {
+      "predecessor_sha256": "eae14d7fda5f7cf2d61173294e02bd195aaeeb2572d84f6548287365f67c0263",
+      "final_sha256": "78ace937167d354a54f2b18bd0f0d2cbd5a901a08b34c58c773dfb812a129abb",
+      "normalized_final_sha256": "78ace937167d354a54f2b18bd0f0d2cbd5a901a08b34c58c773dfb812a129abb"
+    },
+    "runner/src/common_rtl.h": {
+      "predecessor_sha256": "f6efb33932de8c1adf8d23b1313d3d3af79fc17f30d2e634240e05750d0d6ad8",
+      "final_sha256": "b58d9599aca246f72ba0fe03c338bac28bda36bb113bf93e785e92dd33205f3e",
+      "normalized_final_sha256": "b58d9599aca246f72ba0fe03c338bac28bda36bb113bf93e785e92dd33205f3e"
+    }
+  },
+  "cache_format": 32,
+  "normal_metadata": 17,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "host_output_delivery_only": true,
+  "guest_struct_layouts_changed": false,
+  "source_proposal_sha256": "9661aca20b5b8949022257adad84f49280696e4969d00bff9fbcfdc7eb681d20"
+}

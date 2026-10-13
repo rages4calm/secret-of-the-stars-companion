@@ -1,3 +1,9 @@
+# Current validation scope — native0.5.3 / Companion0.3.6
+
+[Current source and artifact scope](FOUNDATION-TURBO-BATTLE-NATIVE-2026-10-13.md) describes fresh build10, separate finite rendering/output checks, preserved failure evidence, strict ABI rules and unresolved coldboot residual. Compilation receipts stay immutable compiled_unqualified. Prior artifacts retain their own scope; full native/AOT is unfinished.
+
+---
+
 # Current validation scope — native 0.5.1 / unchanged Companion 0.3.6
 
 The [current source and artifact scope](FOUNDATION-NATIVE-TRAVEL-CONTINUATIONS-2026-10-12.md)

@@ -144,7 +144,15 @@ int FoundationBattleWideEligible(const Ppu *ppu) {
         ppu->setini || ppu->obsel != 3 || ppu->bgTileAdr != 0x0400 ||
         ppu->bgXsc[0] != 0x49 || ppu->bgXsc[1] != 0x59 || ppu->bgXsc[2] != 0x51 ||
         ppu->screenEnabled[0] != 0x17 || ppu->screenEnabled[1] ||
-        ppu->windowsel != 0x10011 || ppu->screenWindowed[0] != 0x17 ||
+        /* The original 8212..822E NMI shadow writer also produces settled
+         * windowsel210011/TMW13. Their difference from10011/17 concerns
+         * OBJ/color windows and BG3, never BG2. Only BG2 contributes margins;
+         * keep its exact original nibble/window bit and all color-math guards.
+         * Both BG2 window enable bits remain off (nibble1), so even inverted
+         * or displaced window edges cannot clip these authored BG2 joins. */
+        (ppu->windowsel & 0xf0u) != 0x10u ||
+        (ppu->screenWindowed[0] & 2u) != 2u ||
+        (ppu->screenWindowed[0] & ~0x1fu) ||
         ppu->screenWindowed[1] || ppu->cgadsub || ppu->cgwsel ||
         ppu->hScroll[1] || ppu->vScroll[1]) return 0;
     /* Match every used background character chunk against the original

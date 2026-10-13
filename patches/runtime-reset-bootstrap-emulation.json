@@ -1,0 +1,39 @@
+{
+  "patch_sha256": "6edc8dfe64015c9c896382627708cfb41db0b6ae5b8e3a6e55b62a1080dc1df9",
+  "predecessor_patch_sha256": "0a1b15776666a61e2bbedd653fa658298314a2004869963d718061605d092570",
+  "predecessor_binding_sha256": "6711b5cfcfdff92c5603784123fcaf16e48f47c7d34cf52f625aea1626567512",
+  "files": {
+    "recompiler/v2/native_bootstrap.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "cd1f8eeaaf60f4ed6aea28537072d2dd73a3a40190cc25da89be7d2d2fff904e",
+      "normalized_final_sha256": "cd1f8eeaaf60f4ed6aea28537072d2dd73a3a40190cc25da89be7d2d2fff904e"
+    },
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "aaff68576c5ab16294510c1c5a262d592ab6da6743b57316b62a8d6e432a89ca",
+      "final_sha256": "7490a607f2a5a4189760489b1bc36887f9b214aabb4fe60c5ae560599fbeafd5",
+      "normalized_final_sha256": "7490a607f2a5a4189760489b1bc36887f9b214aabb4fe60c5ae560599fbeafd5"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "36ac0f94b5a0d090d412c64f4895bab2ba5ebe156452cf6b89460fed366bab0f",
+      "final_sha256": "d435a3535d814c64c9d7177bf40c925f1caf35614422528ac4c1488a1d07c736",
+      "normalized_final_sha256": "d435a3535d814c64c9d7177bf40c925f1caf35614422528ac4c1488a1d07c736"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "9275215c3d7ea83915f329f7a461258fafed29bde8efcb584420e0b905eb5983",
+      "final_sha256": "de1e74163434e8d28ec35bc178f2cb492825c907f91b2fd2ec5f200886d91605",
+      "normalized_final_sha256": "de1e74163434e8d28ec35bc178f2cb492825c907f91b2fd2ec5f200886d91605"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "eb0f6c46cc748508afd55ff773f5fcf2c0dc7f2ad1f3e644b9e878b01ba9b1ba",
+      "final_sha256": "e5a8748a0749e689bed6847cad634b72831968d584e981f1e02f2c9ebdcfe9f9",
+      "normalized_final_sha256": "e5a8748a0749e689bed6847cad634b72831968d584e981f1e02f2c9ebdcfe9f9"
+    }
+  },
+  "scope": "Three separately source-declared E1 reset instructions; exact mapped vector/prefix and one-use synchronous scheduler begin; existing E0 source rows and original callback/clock gates retained. Unsupported shapes refuse.",
+  "cache_format": 29,
+  "normal_metadata": 15,
+  "task_metadata": 5,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

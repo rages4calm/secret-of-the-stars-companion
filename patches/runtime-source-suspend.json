@@ -1,0 +1,105 @@
+{
+  "patch_sha256": "d833d7dc406ea9d4eb7c93c85af212522782d800ca2f1991ab1aa21e387eb1f4",
+  "predecessor_patch_sha256": "b665988c08e87e23bb07da2cf9e7b0d40fcb61a10372fa1d933d2c0aaf851e08",
+  "predecessor_binding_sha256": "cb526acc78c3c26fad6e24fed58c6b6771325dfa1478e693dbb1d7372cb0bfc7",
+  "files": {
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "b270cd84f1bd4f6a79f44bd85d3395c5171bdfbe0ca5123b8162df6ec99b8d8b",
+      "final_sha256": "50161bb482d48142965b0d89904182c39deb53fcb691c551e27a2ff0153714a8",
+      "normalized_final_sha256": "50161bb482d48142965b0d89904182c39deb53fcb691c551e27a2ff0153714a8"
+    },
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": "86287dd750c55e5c4186f9d8db493c77ed745756b9a987f4fada411989af7281",
+      "final_sha256": "15955242bd2a3452c06f00fd247ce43b244d43536fcfc930475c8d2b5e3b4778",
+      "normalized_final_sha256": "15955242bd2a3452c06f00fd247ce43b244d43536fcfc930475c8d2b5e3b4778"
+    },
+    "recompiler/v2/task_suspend.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "f54b00247537c201c7aced6dcd45201df2f01cde48d1a65a4bd7e598f0d81406",
+      "normalized_final_sha256": "f54b00247537c201c7aced6dcd45201df2f01cde48d1a65a4bd7e598f0d81406"
+    },
+    "runner/src/common_rtl.c": {
+      "predecessor_sha256": "c5a41ffe13dbda21098050e9ab840bf769ce7b8130c4bd062581c98a898ef038",
+      "final_sha256": "eae14d7fda5f7cf2d61173294e02bd195aaeeb2572d84f6548287365f67c0263",
+      "normalized_final_sha256": "eae14d7fda5f7cf2d61173294e02bd195aaeeb2572d84f6548287365f67c0263"
+    },
+    "runner/src/cpu_state.c": {
+      "predecessor_sha256": "69d32e2ac9af6dc83bbd81d3bf6acd075ce187b586ed1a103d828ac18fa8d4d1",
+      "final_sha256": "b476f962b5e06bcf2b8622198909f536659bcdce3f89c9d656315fe6feb481b9",
+      "normalized_final_sha256": "b476f962b5e06bcf2b8622198909f536659bcdce3f89c9d656315fe6feb481b9"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "de1e74163434e8d28ec35bc178f2cb492825c907f91b2fd2ec5f200886d91605",
+      "final_sha256": "4c9b94c0e3bd82d339c1f903037939daf618b8547acde6546c916b12771379c2",
+      "normalized_final_sha256": "4c9b94c0e3bd82d339c1f903037939daf618b8547acde6546c916b12771379c2"
+    },
+    "runner/src/snes/bridge_task_call.inc": {
+      "predecessor_sha256": "ccbf03aed3331775bd91810b739de4251e1b3e95ee33023b60f21cc52f3e1317",
+      "final_sha256": "18db5362a7d595c9ed598a70d87057668c6a79419b3fe4c588575994a9e4f3a9",
+      "normalized_final_sha256": "18db5362a7d595c9ed598a70d87057668c6a79419b3fe4c588575994a9e4f3a9"
+    },
+    "runner/src/snes/bridge_task_original_runtime.inc": {
+      "predecessor_sha256": "2d59efae458a30a4ccfc14f4a284cf05796c90df89410a86fd3b038a481e2968",
+      "final_sha256": "7c107128c2a533aa34aa65fa1bfd0ee1e01e7aa73ffaed2a14ea3017e47aa115",
+      "normalized_final_sha256": "7c107128c2a533aa34aa65fa1bfd0ee1e01e7aa73ffaed2a14ea3017e47aa115"
+    },
+    "runner/src/snes/bridge_task_suspend.inc": {
+      "predecessor_sha256": null,
+      "final_sha256": "99981407a894b6909432ecf1ae539efc41fd937e1fcb0b40a87be659a5c71235",
+      "normalized_final_sha256": "d2c7aa39ffdedb078fbbfb2102ad4ff293fa733b304e82a933de0f3e40d06a63"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "e5a8748a0749e689bed6847cad634b72831968d584e981f1e02f2c9ebdcfe9f9",
+      "final_sha256": "cff087e8b7a08c6aa55d72c57430f80ed3d70f2488d6652e405997b979ebe6bd",
+      "normalized_final_sha256": "5bd2fc353a1167b5cd0bd471bb9df51fd19700f2d1aad0552efee812649b7f19"
+    },
+    "runner/src/snes/snes.c": {
+      "predecessor_sha256": "38911cfb0328c5c5203b5c9b80093276552dc1f8d313ad40a6eb2ad88fc514c4",
+      "final_sha256": "0fe26e05b86cca210e8b6bebd26bee14a5fc565829727cd7c4fb30ae93b25e6e",
+      "normalized_final_sha256": "0fe26e05b86cca210e8b6bebd26bee14a5fc565829727cd7c4fb30ae93b25e6e"
+    },
+    "runner/src/task_resume_contract.inc": {
+      "predecessor_sha256": "7a80505f4a153037bb3dcad20f704103d81edc8cfa278bb163a7b6f84dda9c88",
+      "final_sha256": "c7e7168f763b879b096b7f54d219e3946819582ef8866342750e514ff6a5d57e",
+      "normalized_final_sha256": "c7e7168f763b879b096b7f54d219e3946819582ef8866342750e514ff6a5d57e"
+    },
+    "runner/src/task_suspend_lineage.h": {
+      "predecessor_sha256": null,
+      "final_sha256": "239b459b1411b7883a1fbd8841f0c3a50ed3d49bc4a2bb14d7c23508c790e53e",
+      "normalized_final_sha256": "239b459b1411b7883a1fbd8841f0c3a50ed3d49bc4a2bb14d7c23508c790e53e"
+    },
+    "runner/src/task_suspend_lineage.inc": {
+      "predecessor_sha256": null,
+      "final_sha256": "e6b00537b177a7fc39e596bfb1153f61d761fcbde600d960078b3c5c6f331aa0",
+      "normalized_final_sha256": "e6b00537b177a7fc39e596bfb1153f61d761fcbde600d960078b3c5c6f331aa0"
+    },
+    "recompiler/v2/native_regions.py": {
+      "predecessor_sha256": "7490a607f2a5a4189760489b1bc36887f9b214aabb4fe60c5ae560599fbeafd5",
+      "final_sha256": "07ce98187e9cf12446f2cbc32bfb0b293dd76d8c38641011f394d4cd2b478cfd",
+      "normalized_final_sha256": "07ce98187e9cf12446f2cbc32bfb0b293dd76d8c38641011f394d4cd2b478cfd"
+    },
+    "recompiler/v2/source_redirect.py": {
+      "predecessor_sha256": "4f17f9b04ddebbd961557dc1b42287403d6ce3dee0247c4786d5b853eaf68f80",
+      "final_sha256": "0cf7e875b02d4053b295a99f9fc5ad1a8a3c685e3b11cfe389a3a5a96b5c6f25",
+      "normalized_final_sha256": "0cf7e875b02d4053b295a99f9fc5ad1a8a3c685e3b11cfe389a3a5a96b5c6f25"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "35925bef93b8bbe72227a77623c9b2dfba20a88e5b5bc79a3be1da4bac1a8f12",
+      "final_sha256": "84a1b8f6dd7c6c5faf084d2ee3a0bbbd3f564e0c72d7ecda5691f57baf3bedc8",
+      "normalized_final_sha256": "84a1b8f6dd7c6c5faf084d2ee3a0bbbd3f564e0c72d7ecda5691f57baf3bedc8"
+    }
+  },
+  "scope": "Causal original E070/E01B guest-slot suspension; fresh original receiving publication; no old host owner replay or ordinary-root changes.",
+  "cache_format": 31,
+  "normal_metadata": 16,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "bootstrap_single_TU_owner": true,
+  "corrections": {
+    "101_actual_native_FF03_SAVE_envelope": "8027ce8d552bde0f72abc866eba5c683f07edf6478d950711f4658ac07bc9a77",
+    "102_discarded_collector_scope": "d8c72d5413dcbe1370d0f9624cbde4ddebd4b84d8d9e29e593ab3f0e4edcaa0f",
+    "103_sealed_original_interrupt_history": "61ee17f5793d791c55b2b18f16e7f0bfba30739cdab9ec6dbcddec6604c48248"
+  }
+}

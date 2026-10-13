@@ -1,3 +1,9 @@
+# Current authored continuation — native0.5.3 / Companion0.3.6 (2026-10-13)
+
+Read docs/FOUNDATION-TURBO-BATTLE-NATIVE-2026-10-13.md. Fresh public-helper build10 1d4b36f5 / immutable compiled_unqualified receipt c2c91dd4, ABI a852efdd. 42 ordered patches; cache32/normal17/task6/redirect1; 9615/235/3 reset rows are generation only. Host turbo and original BG2 battle margins retain original guest/center ownership. Source-profile ABI update from052 must refuse; fresh adoption separate. Prior private9 native proof remains scoped to that artifact, no repeat old matrices. Full native/AOT unfinished; owner/play testers campaign. Root alone lifecycle/helper/build/install/publication. Protected saves and required-only5GB storage; no blocked cleanup retry. Historical entries below retain their scope.
+
+---
+
 # Current continuation — native0.5.0 / unchanged Companion0.3.6 (2026-10-12)
 
 Read github-repo/docs/FOUNDATION-NATIVE-HOOK-TRAVEL-OFFSETS-2026-10-12.md

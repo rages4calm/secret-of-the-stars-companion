@@ -4,6 +4,7 @@
 #include "foundation_state.h"
 #include "foundation_wide.h"
 #include "common_rtl.h"
+#include "cpu_state.h"
 #include "beam_frame_driver.h"
 #include "snes/saveload.h"
 #include "snes/snes.h"
@@ -48,6 +49,9 @@ void FoundationStateSave(SaveLoadInfo *sli) {
 }
 
 void FoundationStateLoad(SaveLoadInfo *sli, uint32_t version) {
+  /* Extra-state reads, including failed reads, cannot retain task ancestry.
+   * The common load entry also cancels it before any guest-memory mutation. */
+  cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_LOAD_BEGIN);
   (void)version;
   uint32_t header[2] = {0}, position[2] = {0};
   loaded_valid = false;

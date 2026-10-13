@@ -50,8 +50,9 @@ extern Snes *g_snes;
 
 void GameRunOneFrame(void)
 {
-    /* No transient native activation survives a host field or watchdog. */
-    cpu_continuation_reset();
+    /* Host activations end at the field boundary. Only sealed original task
+     * suspensions may survive after their guest-slot lifetime is validated. */
+    cpu_continuation_reset_reason(CPU_SOURCE_SUSPEND_HOST_FRAME);
     /* RtlSetPadState updates both the serial/automatic joypad producer and
      * its current-state mirror. Guest logic and sound continue normally. */
     RtlSetPadState(0, FoundationJournalFilterInput(g_snes->input1_currentState));
@@ -70,7 +71,7 @@ void GameDrawPpuFrame(void)
 
 void GameSessionReset(void)
 {
-    cpu_continuation_reset();
+    cpu_continuation_reset_reason(CPU_SOURCE_SUSPEND_SESSION);
     /* Rematch / soft-return: clear anything that must not survive a new
      * session. recomp-ai-rules/NETPLAY.md §3 — sticky state that "has always
      * been fine" is the usual desync culprit, because single-player never

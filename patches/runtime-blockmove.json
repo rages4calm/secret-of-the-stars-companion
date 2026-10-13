@@ -1,0 +1,39 @@
+{
+  "patch_sha256": "0a1b15776666a61e2bbedd653fa658298314a2004869963d718061605d092570",
+  "predecessor_patch_sha256": "629f510383cd70654d8a43fefe5eec30918a42ee8c7bdbb5343280ebe48a8075",
+  "predecessor_binding_sha256": "a7b94a2a879b6c19e432fc4b896e6159c286f47ee0541a71baf623422175e7b5",
+  "files": {
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "14a448aafb5fcb52a67396661fb7d600a32aee1cb10de29d4a646c693450a82d",
+      "final_sha256": "26b47ee93ef8f8b0cd508d0808600dd266c2e0fcbe0f0ede36ca8c947ce06370",
+      "normalized_final_sha256": "26b47ee93ef8f8b0cd508d0808600dd266c2e0fcbe0f0ede36ca8c947ce06370"
+    },
+    "recompiler/v2/native_blockmove.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "d818122494970bc798ae14cfca462bc89a6774ea3e04319c1d612c9b333c5f4c",
+      "normalized_final_sha256": "d818122494970bc798ae14cfca462bc89a6774ea3e04319c1d612c9b333c5f4c"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "6c6f22c079242d4e1687cbd6ad73396c105bfc4e95ecbb2822c7b9f1ecd6a7f0",
+      "final_sha256": "36ac0f94b5a0d090d412c64f4895bab2ba5ebe156452cf6b89460fed366bab0f",
+      "normalized_final_sha256": "36ac0f94b5a0d090d412c64f4895bab2ba5ebe156452cf6b89460fed366bab0f"
+    },
+    "runner/src/cpu_state.h": {
+      "predecessor_sha256": "26934836f10ed754adc652133a58138919ba55c496105344372c11ae06942815",
+      "final_sha256": "9275215c3d7ea83915f329f7a461258fafed29bde8efcb584420e0b905eb5983",
+      "normalized_final_sha256": "9275215c3d7ea83915f329f7a461258fafed29bde8efcb584420e0b905eb5983"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "b992018fabb4d84cd393ff6dde275872e1cef69d7d17040eeb99098404bb724a",
+      "final_sha256": "eb0f6c46cc748508afd55ff773f5fcf2c0dc7f2ad1f3e644b9e878b01ba9b1ba",
+      "normalized_final_sha256": "eb0f6c46cc748508afd55ff773f5fcf2c0dc7f2ad1f3e644b9e878b01ba9b1ba"
+    }
+  },
+  "scope": "Source-derived E0 MVN/MVP one byte per architectural instruction, original scheduler owns repeats; readonly original fetched operands. Current source roots add0rows; component-only execution capability.",
+  "cache_format": 28,
+  "normal_metadata": 14,
+  "task_metadata": 5,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

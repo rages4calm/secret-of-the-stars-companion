@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "49127b9014e96faa4d2cc50d1515bc29d4f5d6d78c81e48201ff89caedfaa368",
+  "predecessor_patch_sha256": "d833d7dc406ea9d4eb7c93c85af212522782d800ca2f1991ab1aa21e387eb1f4",
+  "predecessor_binding_sha256": "7c547ed65e281fae59b304f5f93fed78259f80c5b8630139f2f28993c708b9b3",
+  "files": {
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "75a461fff2212e7f89dd58cdb86146859e67d988f4440cfb536dd12903356d42",
+      "normalized_final_sha256": "75a461fff2212e7f89dd58cdb86146859e67d988f4440cfb536dd12903356d42"
+    },
+    "recompiler/v2/architecture_ff20_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "8ac8aae53f2474dff814fa46b05ea9ca7b0e6668d662459283ff2a881e8dd0df",
+      "normalized_final_sha256": "8ac8aae53f2474dff814fa46b05ea9ca7b0e6668d662459283ff2a881e8dd0df"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "50161bb482d48142965b0d89904182c39deb53fcb691c551e27a2ff0153714a8",
+      "final_sha256": "743bda2e565a99af8f176df27c9caf52b23531629bcddf4cccbfdaa62dc643d2",
+      "normalized_final_sha256": "743bda2e565a99af8f176df27c9caf52b23531629bcddf4cccbfdaa62dc643d2"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "cff087e8b7a08c6aa55d72c57430f80ed3d70f2488d6652e405997b979ebe6bd",
+      "final_sha256": "3ec5d2680477f35d2dbde49472011cc1664179672f75973ae2433fb85917d5c3",
+      "normalized_final_sha256": "3ec5d2680477f35d2dbde49472011cc1664179672f75973ae2433fb85917d5c3"
+    }
+  },
+  "cache_format": 32,
+  "normal_metadata": 17,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "a7a0091a8bba4188da4cec356c8b3c138e806a9fc26e18808f84d570a37a87e4",
+  "task_history_publication_unchanged": true,
+  "uniform_lf_final_sources": true
+}

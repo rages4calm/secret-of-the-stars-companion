@@ -1,0 +1,183 @@
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -0,0 +1,76 @@
++"""Independent source-owned instruction union; never callable roots/exit facts."""
++from snes65816 import decode_insn,rom_offset
++from .architecture_ff20_sources import derive as derive_ff20
++
++ARCHITECTURE_CONTRACT='source-reviewed-independent-instruction-union-v1'
++FIELDS=('pc24','m','x','length','cycles','bytes','next_pc','body','mnemonic')
++
++def _key(row):return tuple(row[k]for k in ('pc24','m','x'))
++def _mask(parsed,pc,length):
++    for bank,_path,cfg in parsed:
++        spans=list(cfg.data_regions)+[(cfg.bank,a,b)for a,b in cfg.authority_data+cfg.exclude_ranges]
++        hle={((cfg.bank<<16)|p)&0x7fffff for p in set(cfg.hle_func)|set(cfg.hle_spc_upload)}
++        forced={p&0x7fffff for p in cfg.force_lle}
++        for n in range(length):
++            at=(pc&0xff0000)|((pc+n)&65535)
++            if at&0x7fffff in forced|hle:return True
++            if any(at>>16 in(b,b^128)and lo<=at&65535<hi for b,lo,hi in spans):return True
++    return False
++
++def _independent(rom,parsed,row):
++    pc,m,x=_key(row);length=row['length']
++    if m not in(0,1)or x not in(0,1)or not 0<length<=4 or pc>>16 in(0x7e,0x7f)or pc&65535<0x8000 or (pc&65535)+length>65536:return False
++    if _mask(parsed,pc,length):return False
++    off=rom_offset(pc>>16,pc&65535)
++    if off<0 or off+length>len(rom)or rom[off:off+length].hex()!=row['bytes']:return False
++    insn=decode_insn(rom,off,pc&65535,pc>>16,m,x)
++    if not insn or insn.length!=length or insn.mnem!=row['mnemonic']or insn.data_region_exec:return False
++    # Rows originate only from current source decoder + typed faithful collectors;
++    # no generated/external JSON body may create a certificate at runtime.
++    code=row['body']
++    if any(t in code for t in ('RecompReturn','interp_','_entry_s','_hrv','host_return_valid','cpu_aot_prefix','precise-mode unsupported:')):return False
++    if insn.mnem in('RTS','RTL','RTI'):return False
++    if insn.mnem in('JSR','JSL'):
++        if not row.get('original_scheduler_call')or row.get('contract')!='source-direct-call-architectural-prefix-v1':return False
++        if _mask(parsed,row['next_pc'],1):return False
++    return True
++
++def merge_source_union(rom,parsed,ordinary,sources):
++    """Only source derivation factories below supply candidate faithful bodies."""
++    output={_key(r):r for r in ordinary};summary=[]
++    for origin,candidates in sources:
++        added=[];reused=[];refused=[]
++        for source in candidates:
++            row=dict(source)
++            if row.pop('causal_suspended_child',False):
++                if row.pop('contract',None)!='native-e0-causal-suspended-child-v1':raise ValueError('child source instruction tag')
++            key=_key(row)
++            if not _independent(rom,parsed,row):refused.append(list(key));continue
++            if key in output:
++                if any(output[key].get(k)!=row.get(k)for k in FIELDS):raise ValueError('independent architectural body conflict '+repr(key))
++                reused.append(list(key));continue
++            output[key]=row;added.append(list(key))
++        summary.append({'origin':origin,'source_rows':len(candidates),'added':added,'reused':reused,'refused':refused})
++    return [output[k]for k in sorted(output)],{'contract':ARCHITECTURE_CONTRACT,'sources':summary,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False}
++
++def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True):
++    # Existing reviewed child derivation retained its seven source-known BRA
++    # bodies in the causal table. Union only the independently architecture-safe
++    # bodies; its source slot/host/publication recipe remains untouched.
++    child=[r for r in task_rows if r.get('causal_suspended_child')]
++    family=(task_recipe or {}).get('suspended_child')
++    if child and(not family or any(r['mnemonic']!='BRA'for r in child)):
++        raise ValueError('reviewed child architecture boundary')
++    ff20=derive_ff20(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
++    return merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows'])])
++
++
++def emit_membership(metadata,module_prefix=None):
++    if module_prefix:return ''
++    keys=sorted({tuple(k)for source in metadata['sources']for field in ('added','reused')for k in source[field]})
++    out=['bool cpu_source_architecture_member(uint32 pc,uint8 mx){',
++         '  if(mx>3u || pc>0xffffffu)return false;',
++         '  switch(((pc&0x7fffffu)<<2)|mx){']
++    out.extend(f'    case {(pc<<2)|(m<<1)|x}u:return true;'for pc,m,x in keys)
++    out.extend(['    default:return false;','  }','}',''])
++    return '\n'.join(out)
+diff --git a/recompiler/v2/architecture_ff20_sources.py b/recompiler/v2/architecture_ff20_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_ff20_sources.py
+@@ -0,0 +1,48 @@
++"""Reviewed original FF20 table-derived architectural starts; no runtime authority."""
++from snes65816 import rom_offset
++from .decoder import decode_function
++from .emit_function import emit_function
++
++# This is the source-reviewed call/table schema, not runtime selector values.
++SCHEMA=((0x01f4b9,0x01f4bb,0x01f4bf,7),(0x01f4cd,0x01f4cf,0x01f4d3,3))
++def derive(rom,parsed,*,enable_native_call_prefix=True):
++ raw=lambda p,n:rom[rom_offset(p>>16,p&65535):rom_offset(p>>16,p&65535)+n]
++ spans=[(0x01f4b5,bytes.fromhex('e230a000b7002220ff00')),(0x01f4cd,bytes.fromhex('a5532220ff00')),(0x00ff20,bytes.fromhex('4cd984')),(0x0084d9,bytes.fromhex('088bc23029ff000aaae220a30548abc2208a386303a8b9000038e901008303ab286b'))]
++ for p,b in spans:
++  if raw(p,len(b))!=b:raise ValueError('original FF20 source bytes')
++ cfg={b:c for b,_p,c in parsed}
++ if len(cfg)!=len(parsed):raise ValueError('duplicate source bank')
++ masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
++ def data_masked(pc,n):return any(any((pc>>16)in(b,b^128)and lo<=((pc+j)&65535)<hi for b,lo,hi in masks)for j in range(n))
++ for producer,call,table,count in SCHEMA:
++  if data_masked(producer,2)or data_masked(call,4):raise ValueError('source producer/call data mask')
++  if any(p&65535 in(set(cfg[1].hle_func)|set(cfg[1].hle_spc_upload))for p in (producer,call)):raise ValueError('source producer/call HLE boundary')
++ forced={p&0x7fffff for c in cfg.values()for p in c.force_lle}
++ if not {0xff20,0x84d9}<=forced:raise ValueError('original dispatcher masks')
++ cases=[];rows={};graphs=[]
++ for producer,call,table,count in SCHEMA:
++  tablebytes=raw(table,count*2)
++  if len(tablebytes)!=count*2:raise ValueError('source table bound')
++  spans.append((table,tablebytes))
++  for selector in range(count):
++   target=int.from_bytes(tablebytes[selector*2:selector*2+2],'little')
++   # Exact bank-local original table, no inferred code/data extension.
++   if not 0x8001<=target<=0xffff:raise ValueError('source table target')
++   landing=(call&0xff0000)|target
++   graph=decode_function(rom,1,target,1,1,max_insns=128,data_regions=masks,stop_on_unknown_callee_exit=True)
++   if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or graph.suppressed_indirect_calls or len(graph.insns)>=128:raise ValueError('receiving graph authority')
++   local=[];calls=[]
++   emit_function(rom,1,target,1,1,func_name='DiscardedFF20Prefix',data_regions=masks,exclude_ranges=cfg[1].exclude_ranges,source_task_resume_stops=graph.unknown_callee_exit_sites,native_call_prefix_forced=forced,native_region_collector=local,native_call_prefix_collector=calls if enable_native_call_prefix else None)
++   members={(k.pc,k.m,k.x):di for k,di in graph.insns.items()}
++   keys=[]
++   for row in local+calls:
++    key=tuple(row[k]for k in ('pc24','m','x'));di=members.get(key)
++    if not di or di.insn.mnem in ('RTS','RTL','RTI'):continue
++    if any((((row['pc24']&0xff0000)|((row['pc24']+j)&65535))&0x7fffff)in forced for j in range(row['length'])):continue
++    if row['bytes']!=raw(row['pc24'],row['length']).hex():raise ValueError('independent whole instruction source')
++    row=dict(row)
++    if key in rows and rows[key]!=row:raise ValueError('unequal receiving context body')
++    rows[key]=row;keys.append(list(key))
++   cases.append(dict(producer=producer,call=call,table=table,selector=selector,landing=landing,mx=3))
++   graphs.append(dict(landing=landing,m=1,x=1,rows=keys,unknown_calls=[list(v)for v in sorted(graph.unknown_callee_exit_sites)],return_sites=[[k.pc,k.m,k.x,di.insn.mnem]for k,di in graph.insns.items()if di.insn.mnem in ('RTS','RTL')],closed_exit_summary=False))
++ return dict(cases=cases,rows=[rows[k]for k in sorted(rows)],graphs=graphs,spans=spans,ordinary_roots_added=False,forced_dispatcher_original=True,callee_exit_modes_added=False)
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 31
++CACHE_FORMAT_VERSION = 32
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1351,6 +1351,8 @@
+         regions = [unique_regions[k] for k in sorted(unique_regions)]
+         from .task_resume import append_original_prefixes
+         task_rows,task_recipe=append_original_prefixes(rom,parsed,task_rows,task_recipe,regions)
++        from .architecture_eligibility import extend as extend_architecture_eligibility,emit_membership as emit_architecture_membership
++        regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix)
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+         write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':6,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+@@ -1360,10 +1362,11 @@
+         except ValueError:
+             reset_bootstrap=None # Other reset shapes retain their original route.
+         write_if_changed(staging / 'native_regions_v2.c',
+-                         emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap))
++                         emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':16, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':17, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
++                                     'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'direct_call_prefix':bool(enable_native_call_prefix),
+                                      'mode_successors':bool(enable_native_mode_successors),
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -3091,7 +3091,9 @@
+         task_original_pre_local(cpu,&in,pc_before);
+         const int source_task_dispatch=task_pre_opcode(cpu,pc_before,coverage_mx);
+         const int source_suspend_active=suspend_pre_local(cpu,&in,pc_before);
+-        const int source_suspend_dispatch=source_suspend_active && cpu_source_suspend_task_member(pc_before,coverage_mx);
++        extern bool cpu_source_architecture_member(uint32,uint8);
++        const int source_suspend_dispatch=source_suspend_active && cpu_source_suspend_task_member(pc_before,coverage_mx) &&
++            !cpu_source_architecture_member(pc_before,coverage_mx);
+         unsigned source_original_context;
+         const int source_original_dispatch=!source_task_dispatch&&
+             cpu_source_task_original_context(cpu,pc_before,coverage_mx,&source_original_context)&&

@@ -1,0 +1,78 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2386,6 +2386,13 @@
+                     exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
+                 if region is not None:native_region_collector.append(region)
+                 continue
++            if region_insn.opcode==0xfb:
++                from .native_exchange import collect_exchange
++                region=collect_exchange(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                    exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                if region is not None:native_region_collector.append(region)
++                continue
+             if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
+                 continue
+             from snes65816 import INDIR_Y, STK, STK_IY, LONG
+diff --git a/recompiler/v2/native_exchange.py b/recompiler/v2/native_exchange.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/native_exchange.py
+@@ -0,0 +1,27 @@
++"""Source-owned E0 XCE; original scheduler owns the dynamic E/M/X successor."""
++from snes65816 import IMP, decode_insn, rom_offset
++from snes_cycles import instr_cpu_cycles
++from .ir import XCE
++from .lowering import lower
++
++
++def collect_exchange(rom,key,insn,ops,cycles,*,data_regions=(),exclude_ranges=(),forced=()):
++    if key.m not in (0,1) or key.x not in (0,1) or insn.data_region_exec:return None
++    if getattr(insn,'const_z_fold_unconditional',False) or getattr(insn,'dispatch_entries',None):return None
++    if (insn.mnem,insn.opcode,insn.mode,insn.length)!=('XCE',0xfb,IMP,1):return None
++    pc=insn.addr&0xffffff
++    if key.pc&65535!=pc&65535 or pc&65535<0x8000 or pc>>16 in (0x7e,0x7f):return None
++    if (getattr(insn,'m_flag',None),getattr(insn,'x_flag',None))!=(key.m,key.x):return None
++    if pc&0x7fffff in forced or any(pc>>16 in (b,b^128) and lo<=pc&65535<hi for b,lo,hi in data_regions) or any(lo<=pc&65535<hi for lo,hi in exclude_ranges):return None
++    off=rom_offset(pc>>16,pc&65535)
++    if off<0 or off>=len(rom):return None
++    decoded=decode_insn(rom,off,pc&65535,pc>>16,key.m,key.x)
++    if decoded is None or (decoded.opcode,decoded.mnem,decoded.mode,decoded.operand,decoded.length)!=(insn.opcode,insn.mnem,insn.mode,insn.operand,insn.length):return None
++    decoded.m_flag,decoded.x_flag=key.m,key.x
++    if len(ops)!=1 or not isinstance(ops[0],XCE) or ops!=lower(decoded,value_factory=lambda:None):return None
++    if cycles!=instr_cpu_cycles(insn.opcode,m=key.m,x=key.x,e=0):return None
++    # Original opcodeFB swaps live C/E, then setFlags(getFlags()) normalizes
++    # the status and index/stack state. Neither static exit modes nor the
++    # callable emitter's shorter XCE body can substitute for this operation.
++    body='{ uint8 _xce_e=cpu->emulation; cpu->emulation=cpu->_flag_C?1:0; cpu->_flag_C=_xce_e?1:0;\nif(cpu->emulation){cpu->m_flag=1;cpu->x_flag=1;cpu->S=(uint16)((cpu->S&0x00ffu)|0x0100u); }\nif(cpu->x_flag){cpu->X&=0x00ffu;cpu->Y&=0x00ffu;}\ncpu_mirrors_to_p(cpu);cpu_p_to_mirrors(cpu);\n*next_pc=((uint32)cpu->PB<<16)|0x%04xu; }'%((pc+1)&65535)
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':1,'cycles':cycles,'bytes':rom[off:off+1].hex(),'next_pc':(pc+1)&65535,'body':body,'mnemonic':'XCE','contract':'source-native-e0-carry-emulation-exchange-v1','dynamic_emulation_mode':True,'original_scheduler_mode_successor':True}
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 26
++CACHE_FORMAT_VERSION = 27
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1353,7 +1353,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':12, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':13, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'direct_call_prefix':bool(enable_native_call_prefix),
+@@ -1361,6 +1361,7 @@
+                                      'long_jump_contract':'source-long-jump-architectural-prefix-v1',
+                                      'indirect_control_contract':'source-indirect-control-architectural-v1',
+                                      'interrupt_return_contract':'source-native-e0-interrupt-return-v1',
++                                     'carry_emulation_exchange_contract':'source-native-e0-carry-emulation-exchange-v1',
+                                      'stack_indirect_y_contract':'native-e0-source-cached-stack-indirect-y-v1',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')

@@ -1,0 +1,44 @@
+{
+  "patch_sha256": "b665988c08e87e23bb07da2cf9e7b0d40fcb61a10372fa1d933d2c0aaf851e08",
+  "predecessor_patch_sha256": "6edc8dfe64015c9c896382627708cfb41db0b6ae5b8e3a6e55b62a1080dc1df9",
+  "predecessor_binding_sha256": "f428d6b7e01959c1de0a9b6ad1168754023b15659830b3d48d7dcacff9a6f199",
+  "files": {
+    "recompiler/v2/decoder.py": {
+      "predecessor_sha256": "155edb7da1b0398109d0b00d9ad472f5d9d46e89a79d7f2a713d290db7af708e",
+      "final_sha256": "0bfafb62c43e0da2833d97dc1e4a9bf6911e91ab8eba1f09d068645035bb6f8d",
+      "normalized_final_sha256": "0bfafb62c43e0da2833d97dc1e4a9bf6911e91ab8eba1f09d068645035bb6f8d"
+    },
+    "recompiler/v2/emit_bank.py": {
+      "predecessor_sha256": "003fbdba518e04145fbcde95e05694173915e602ed85df853dc3feb5ff670fe0",
+      "final_sha256": "9167d5362ca31ec702843698ddf959a47308fdf8599252490bc9a36305b1d535",
+      "normalized_final_sha256": "9167d5362ca31ec702843698ddf959a47308fdf8599252490bc9a36305b1d535"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "26b47ee93ef8f8b0cd508d0808600dd266c2e0fcbe0f0ede36ca8c947ce06370",
+      "final_sha256": "35925bef93b8bbe72227a77623c9b2dfba20a88e5b5bc79a3be1da4bac1a8f12",
+      "normalized_final_sha256": "35925bef93b8bbe72227a77623c9b2dfba20a88e5b5bc79a3be1da4bac1a8f12"
+    },
+    "recompiler/v2/native_mode_successors.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "580d7e05f596e7bff2cb99e46ea8f7dd9f54eb5d5d532a12a31b0809a66814a9",
+      "normalized_final_sha256": "580d7e05f596e7bff2cb99e46ea8f7dd9f54eb5d5d532a12a31b0809a66814a9"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "d435a3535d814c64c9d7177bf40c925f1caf35614422528ac4c1488a1d07c736",
+      "final_sha256": "b270cd84f1bd4f6a79f44bd85d3395c5171bdfbe0ca5123b8162df6ec99b8d8b",
+      "normalized_final_sha256": "b270cd84f1bd4f6a79f44bd85d3395c5171bdfbe0ca5123b8162df6ec99b8d8b"
+    },
+    "tools/v2_emit.py": {
+      "predecessor_sha256": "fb7b1a3155618da2fa2f71a6a578fbbb61ae758b88339cde84bafb4d3f354866",
+      "final_sha256": "5862b67d7b01d0bba5741362105cf2648dcaac2498cc2c98453b18d6efebe2de",
+      "normalized_final_sha256": "5862b67d7b01d0bba5741362105cf2648dcaac2498cc2c98453b18d6efebe2de"
+    }
+  },
+  "scope": "Separate live-M/X source-owned instruction variants; callable functions/root facts unchanged; original scheduler owns actual PC and mode.",
+  "cache_format": 30,
+  "normal_metadata": 16,
+  "task_metadata": 5,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

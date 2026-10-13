@@ -1,0 +1,271 @@
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -13,6 +13,7 @@
+  */
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <math.h>
+ #include <string.h>
+ #include <stdint.h>
+ #include <limits.h>
+@@ -250,6 +251,28 @@
+ 
+ static uint8 g_paused, g_turbo, g_cursor = true;
+ static bool g_fast_forward_toggle;
++/* Turbo remains one original guest frame per execution, with bounded host
++ * scheduling and independently timed latest-frame presentation. */
++typedef struct HostTurboCadence { double start,periods; } HostTurboCadence;
++static unsigned g_audio_timeline_epoch;
++static void HostTurboCadenceReset(HostTurboCadence *c,double now) {
++  *c=(HostTurboCadence){now,0};
++}
++static double HostTurboCadenceCompleted(HostTurboCadence *c,double now,double periods,double hz) {
++  c->periods+=periods;
++  double elapsed=now-c->start;
++  if(elapsed<0.05)return 0;
++  double speed=c->periods/(elapsed*hz);
++  HostTurboCadenceReset(c,now);
++  return fmax(0.1,fmin(2.0,speed));
++}
++static void HostTurboSimulationDone(SnesHostClock *c,double now,double periods) {
++  /* No repayment burst, and no extra sleep after a host that cannot meet2x.
++   * Ordinary slow-frame debt policy is intentionally unchanged. */
++  double deadline=c->next_simulation+periods/c->simulation_hz;
++  snes_host_clock_simulation_done(c,now,false,periods);
++  c->next_simulation=fmax(now,deadline);
++}
+ static bool g_legacy_controller_gestures = true;
+ void snesrecomp_desktop_set_legacy_controller_gestures(int enabled) {
+   g_legacy_controller_gestures = enabled != 0;
+@@ -402,7 +425,7 @@
+  * A decoupled presentation or an explicitly disabled frame delay paces
+  * elsewhere and must not also wait on the driver. */
+ static int VSyncInterval(void) {
+-  if (PresentationDecoupled() || g_config.disable_frame_delay) return 0;
++  if (g_turbo || PresentationDecoupled() || g_config.disable_frame_delay) return 0;
+   switch (g_config.vsync) {
+     case kSnesVSync_Off:      return 0;
+     case kSnesVSync_Adaptive: return -1;
+@@ -2177,6 +2200,8 @@
+    * to the guest and is retained. Never acquire SDL's stream lock while
+    * holding the APU mutex. */
+   ApplyAudioDevicePause(true);
++  RtlAudioSetFastForward(false);
++  ++g_audio_timeline_epoch;
+   SDL_LockMutex(g_audio_mutex);
+   g_audiobuffer_end = g_audiobuffer_cur;
+   g_audio_primed = false;
+@@ -2473,6 +2498,26 @@
+   if (g_texture)
+     snesrecomp_sdl_set_texture_linear(g_texture, g_config.linear_filtering);
+ }
++
++static void ApplyTurboPolicy(SnesHostClock *video_clock,bool *video_turbo,
++    unsigned *audio_timeline_epoch,HostTurboCadence *turbo_cadence,
++    double video_now,double presentation_hz) {
++  if (*video_turbo!=!!g_turbo || *audio_timeline_epoch!=g_audio_timeline_epoch) {
++      bool released=*video_turbo && !g_turbo;
++      *video_turbo=!!g_turbo;
++      if(released) { ResetAudioTimeline();SetAudioPaused(g_paused); }
++      *audio_timeline_epoch=g_audio_timeline_epoch;
++      RtlAudioSetFastForward(*video_turbo);
++      RtlAudioSetFastForwardCadence(1.0);
++      HostTurboCadenceReset(turbo_cadence,video_now);
++      snes_host_clock_reset(video_clock,video_now,g_simulation_hz*(*video_turbo?2.0:1.0),*video_turbo?60.0:presentation_hz);
++      if(g_renderer) snesrecomp_sdl_set_render_vsync(g_renderer,VSyncInterval());
++      snesrecomp_opengl_set_vsync(VSyncInterval());
++      if(g_config.output_method==kOutputMethod_OpenGL) SDL_GL_SetSwapInterval(VSyncInterval());
++    }
++}
++
++
+ 
+ static const struct RendererFuncs kSdlRendererFuncs = {
+   &SdlRenderer_Init,
+@@ -3902,6 +3947,10 @@
+   if (presentation_hz <= 0) presentation_hz = g_simulation_hz;
+   snes_host_clock_reset(&video_clock, MonotonicSeconds(), g_simulation_hz, presentation_hz);
+   double next_display_check = 0;
++  bool video_turbo=false;
++  unsigned audio_timeline_epoch=g_audio_timeline_epoch;
++  HostTurboCadence turbo_cadence;
++  HostTurboCadenceReset(&turbo_cadence,MonotonicSeconds());
+ 
+   /* Rewind ring: reads the env overrides and reserves slot headers; the
+    * buffer itself is allocated lazily on the first capture. */
+@@ -4158,22 +4207,29 @@
+      * gets re-presented between simulated frames from the captured field;
+      * everyone else presents once per simulated frame. */
+     bool paced_realtime = !g_turbo && !g_config.disable_frame_delay;
++    bool paced_frame_clock = g_turbo || paced_realtime;
+     bool paced_custom = PresentationDecoupled() && paced_realtime;
+     double video_now = MonotonicSeconds();
++    ApplyTurboPolicy(&video_clock,&video_turbo,&audio_timeline_epoch,
++        &turbo_cadence,video_now,presentation_hz);
+     if (video_now >= next_display_check) {
+       double hz = WantedPresentationHz(DisplayRefresh());
+       if (hz <= 0) hz = g_simulation_hz;
+       if (hz != presentation_hz) {
+-        presentation_hz = video_clock.presentation_hz = hz;
++        presentation_hz = hz;
++        video_clock.presentation_hz = g_turbo ? 60.0 : hz;
+         video_clock.next_presentation = video_now;
+       }
+       next_display_check = video_now + 0.25;
+     }
+     if (g_reset_clock) {
+-      snes_host_clock_reset(&video_clock, video_now, g_simulation_hz, presentation_hz);
++      snes_host_clock_reset(&video_clock, video_now, g_simulation_hz*(g_turbo?2.0:1.0),g_turbo?60.0:presentation_hz);
++      HostTurboCadenceReset(&turbo_cadence,video_now);
++      RtlAudioSetFastForward(g_turbo);
++      RtlAudioSetFastForwardCadence(1.0);
+       g_reset_clock = false;
+     }
+-    if (paced_realtime && !snes_host_clock_simulation_due(&video_clock, MonotonicSeconds())) {
++    if (paced_frame_clock && !snes_host_clock_simulation_due(&video_clock, MonotonicSeconds())) {
+       if (snes_host_clock_presentation_due(&video_clock, MonotonicSeconds())) {
+         if (paced_custom) {
+           double presented_at = MonotonicSeconds();
+@@ -4342,6 +4398,11 @@
+      * iteration that opened a panel consumed a script frame the guest never
+      * saw, and every later scripted press landed a frame early. */
+     inputs |= TickScript();
++    ApplyTurboPolicy(&video_clock,&video_turbo,&audio_timeline_epoch,
++        &turbo_cadence,MonotonicSeconds(),presentation_hz);
++    paced_realtime=!g_turbo && !g_config.disable_frame_delay;
++    paced_frame_clock=g_turbo || paced_realtime;
++    paced_custom=PresentationDecoupled() && paced_realtime;
+     if (g_gameplay_selftest_pad) {
+       static uint32 last_inputs = ~0u;
+       if (inputs != last_inputs) {
+@@ -4358,7 +4419,10 @@
+     double profile_start = ProfileStart();
+     double guest_start = MonotonicSeconds();
+     if (game->before_run_frame) game->before_run_frame();
+-    g_audio_producer_active = paced_realtime && g_audio_device != 0;
++    /* Script zero-frame turbo changes may occur after this loop's pacing gate.
++     * Apply audio state before original guest work; video catches up nextloop. */
++    RtlAudioSetFastForward(g_turbo);
++    g_audio_producer_active = (paced_realtime || g_turbo) && g_audio_device != 0;
+     /* Run-ahead owns the whole frame when it is on: it advances the guest
+      * once and speculates N further, so calling RtlRunFrame as well would
+      * double-advance. It declines (returns 0) during netplay and whenever
+@@ -4403,7 +4467,7 @@
+       host_report_breadcrumb("first frame simulated");
+     else if (frameCtr % 3600 == 0)   /* ~once a minute at 60 fps */
+       host_report_breadcrumb("heartbeat: frame=%u", frameCtr);
+-    g_snes->disableRender = g_turbo && (frameCtr & 0xf) != 0;
++    g_snes->disableRender = false;
+     snes_osd_set_turbo(g_turbo);
+ 
+     profile_start = ProfileStart();
+@@ -4423,7 +4487,12 @@
+               frameCtr, crc32_compute(g_ram, 0x20000), g_cpu.A, g_cpu.X, g_cpu.Y,
+               g_cpu.S, g_cpu.D, g_cpu.DB, g_cpu.PB, g_cpu.P);
+     ProfileEnd(kProfileTrace, profile_start);
+-    if (paced_realtime) {
++    if(g_turbo) {
++      double completed=MonotonicSeconds();
++      double speed=HostTurboCadenceCompleted(&turbo_cadence,completed,RtlLastFramePeriods(),g_simulation_hz);
++      if(speed>0)RtlAudioSetFastForwardCadence(speed);
++      HostTurboSimulationDone(&video_clock,completed,RtlLastFramePeriods());
++    } else if (paced_realtime) {
+       bool keep_debt = game->keep_pacing_debt && game->keep_pacing_debt();
+       snes_host_clock_simulation_done(&video_clock, MonotonicSeconds(), keep_debt,
+                                       RtlLastFramePeriods());
+@@ -4431,10 +4500,10 @@
+     else
+       snes_host_clock_reset(&video_clock, MonotonicSeconds(), g_simulation_hz, presentation_hz);
+     if (!g_snes->disableRender &&
+-        (!paced_custom || snes_host_clock_presentation_due(&video_clock, MonotonicSeconds()) ||
++        ((!g_turbo && !paced_custom) || snes_host_clock_presentation_due(&video_clock, MonotonicSeconds()) ||
+          (run_frames && frameCtr >= run_frames))) {
+       double presented_at = MonotonicSeconds();
+-      g_present_alpha = paced_custom && presentation_hz != g_simulation_hz
++      g_present_alpha = !g_turbo && paced_custom && presentation_hz != g_simulation_hz
+           ? snes_host_clock_alpha(&video_clock, presented_at) : 1;
+       DrawPpuFrameWithPerf();
+       ++presentations;
+diff --git a/runner/src/common_rtl.c b/runner/src/common_rtl.c
+--- a/runner/src/common_rtl.c
++++ b/runner/src/common_rtl.c
+@@ -11,6 +11,7 @@
+ #include <setjmp.h>
+ #include <time.h>
+ #include <stdlib.h>
++#include <math.h>
+ #include <string.h>
+ #include <limits.h>
+ #ifdef _WIN32
+@@ -286,6 +287,8 @@
+ #define RTL_AUDIO_RECOVERY_RAMP 128u
+ #define RTL_AUDIO_TARGET_NATIVES 2136u /* 4 native blocks, ~67 ms cushion */
+ static bool g_audio_fast_forward;
++/* Output delivery tempo only: never changes SPC/DSP guest cycles or registers. */
++static double g_audio_ff_target=1.0,g_audio_ff_speed=1.0;
+ static uint32_t g_audio_recovery_frames;
+ static uint32_t g_audio_recovery_remaining;
+ static int16 g_audio_recovery_anchor_l;
+@@ -487,6 +490,7 @@
+ static void rtl_reset_audio_state(void) {
+   RtlApuLock();
+   g_audio_fast_forward = false;
++  g_audio_ff_target = g_audio_ff_speed = 1.0;
+   rtl_reset_audio_delivery();
+   g_audio_recovery_frames = 0;
+   g_audio_recovery_remaining = 0;
+@@ -2176,6 +2180,7 @@
+   if (!active && !g_audio_fast_forward && g_audio_recovery_frames == 0)
+     return;
+   RtlApuLock();
++  if (!active) g_audio_ff_target = 1.0;
+   if (active && !g_audio_fast_forward) {
+     /* A new fast-forward interval supersedes the prior continuity ramp. */
+     g_audio_recovery_frames = 0;
+@@ -2212,6 +2217,22 @@
+   }
+   g_audio_fast_forward = active;
+   RtlApuUnlock();
++}
++
++/* Host supplies completed guest periods / elapsed walltime, never requested
++ * target alone. The consumer slews between measurements without losing phase. */
++void RtlAudioSetFastForwardCadence(double speed) {
++  if (!isfinite(speed)) speed=1.0;
++  if (speed<0.1) speed=0.1;
++  if (speed>2.0) speed=2.0;
++  RtlApuLock();
++  g_audio_ff_target=g_audio_fast_forward ? speed : 1.0;
++  RtlApuUnlock();
++}
++static double rtl_audio_tempo_step(double current,double target,int frames,double rate) {
++  double change=16.0*(double)frames/rate;
++  if (current<target) return fmin(target,current+change);
++  return fmax(target,current-change);
+ }
+ 
+ /* ---- Native-rate delivery with an occupancy servo ----------------------
+@@ -2349,7 +2370,9 @@
+   if (servo > 1.0 + RTL_AUDIO_SERVO_MAX) servo = 1.0 + RTL_AUDIO_SERVO_MAX;
+   if (servo < 1.0 - RTL_AUDIO_SERVO_MAX) servo = 1.0 - RTL_AUDIO_SERVO_MAX;
+   /* Natives to advance per output frame: the rate ratio, trimmed by the servo. */
+-  double ratio = (RTL_AUDIO_NATIVE_RATE / s_render_output_rate) * servo;
++  g_audio_ff_speed=rtl_audio_tempo_step(g_audio_ff_speed,g_audio_ff_target,frames,s_render_output_rate);
++  double ratio = (RTL_AUDIO_NATIVE_RATE / s_render_output_rate) * servo * g_audio_ff_speed;
++  if(g_audio_fast_forward) ratio=fmin(ratio,2.0*RTL_AUDIO_NATIVE_RATE/s_render_output_rate);
+ 
+   /* Natives spanned by this request, including the carried phase. The last
+    * output frame interpolates between floor(pos) and floor(pos)+1, so one
+diff --git a/runner/src/common_rtl.h b/runner/src/common_rtl.h
+--- a/runner/src/common_rtl.h
++++ b/runner/src/common_rtl.h
+@@ -302,6 +302,8 @@
+  * synchronization is automatic inside RtlRunFrame; clients only supply the
+  * presentation policy needed to discard stale PCM after fast-forward. */
+ void RtlAudioSetFastForward(bool active);
++/* Output-only audible turbo; actual completed guest cadence, clamped to2x. */
++void RtlAudioSetFastForwardCadence(double speed);
+ /* Reset the netplay frame-locked SPC sample accumulator (call on session start). */
+ void RtlNetplayAudioReset(void);
+ bool RtlUploadSpcImageFromDp(CpuState *cpu);

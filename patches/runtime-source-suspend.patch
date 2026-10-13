@@ -1,0 +1,1778 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -493,7 +493,7 @@
+                   entry_s_offset: int = 0, native_region_collector=None,
+                   source_task_resume_stops=None, native_call_prefix_collector=None,
+                   native_call_prefix_forced=(), native_mode_successors=False,
+-                  _native_instruction_members=None) -> str:
++                  _native_instruction_members=None, _native_collector_only=False) -> str:
+     """Emit a complete v2 C function source for one 65816 function.
+ 
+     Pipeline:
+@@ -509,6 +509,14 @@
+     _prefix_expected, _prefix_masks = _FAITHFUL_PREFIX_CONTRACTS.get(
+         ((bank << 16) | (start & 0xFFFF), entry_m, entry_x), (frozenset(), ()))
+     _prefix_stops = frozenset()
++    if _native_collector_only:
++        # Private source derivation discards its C activation. It transfers no
++        # callable-prefix authority, but all original prefix masks still fence
++        # the collected instruction bytes independently of local exit facts.
++        if native_region_collector is None:
++            raise ValueError("collector-only derivation requires instruction collector")
++        data_regions=list(data_regions or ())+list(_prefix_masks)
++        _prefix_expected=frozenset()
+     if _native_instruction_members is not None:
+         # Source/mode instruction analysis only: no owning-prefix proof or
+         # callable output is transferred. Masks remain in the source policy.
+@@ -651,6 +659,7 @@
+         if (not _prefix_stops <= _prefix_expected or
+                 (_prefix_expected & _prefix_decoded) != _prefix_stops):
+             raise ValueError(f"prefix unknown-call contract mismatch at {bank:02X}:{start:04X} M{entry_m}X{entry_x}: expected={sorted(_prefix_expected)} actual={sorted(_prefix_stops)} decoded_expected={sorted(_prefix_expected & _prefix_decoded)} rows={graph.unknown_callee_exit_sites}")
++    if _prefix_expected or _native_collector_only:
+         for decoded in graph.insns.values():
+             insn = decoded.insn
+             pc24 = insn.addr & 0xFFFFFF
+diff --git a/recompiler/v2/native_regions.py b/recompiler/v2/native_regions.py
+--- a/recompiler/v2/native_regions.py
++++ b/recompiler/v2/native_regions.py
+@@ -337,13 +337,13 @@
+     offset=rom_offset(pc>>16,pc&0xffff)
+     return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':insn.length,'cycles':cycles,'bytes':rom[offset:offset+insn.length].hex(),'next_pc':(pc+insn.length)&0xffff,'body':code,'mnemonic':insn.mnem}
+ 
+-def emit(rows,module_prefix=None,bootstrap=None):
++def emit(rows,module_prefix=None,bootstrap=None,bootstrap_owner=True):
+     header='#include "cpu_state.h"\n#include "program_module.h"\n#include "cpu_trace.h"\n#include <stdlib.h>\n'
+     if module_prefix:header+='#include "module_namespace.h"\n'
+     if bootstrap is not None:
+         from .native_bootstrap import emit_bootstrap
+         header+=emit_bootstrap(bootstrap)
+-    else:
++    elif bootstrap_owner:
+         header+='bool cpu_source_reset_bootstrap_match(CpuState *c,uint32 p,unsigned l,unsigned y,const uint8 *b){(void)c;(void)p;(void)l;(void)y;(void)b;return false;}\n'
+     out=[header,'extern SnesProgramModule g_program_module;', 'bool cpu_native_region_step(CpuState *cpu,uint32 pc24,uint8 mx,uint32 *next_pc) {',
+          '  static int enabled=-1; if(enabled<0) {const char *e=getenv("SNESRECOMP_DISABLE_NATIVE_REGIONS");enabled=!(e&&e[0]&&e[0]!=\'0\');}',
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 30
++CACHE_FORMAT_VERSION = 31
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1353,7 +1353,7 @@
+         task_rows,task_recipe=append_original_prefixes(rom,parsed,task_rows,task_recipe,regions)
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+-        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':5,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
++        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':6,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+         from .native_bootstrap import derive as derive_reset_bootstrap
+         try:
+             reset_bootstrap=derive_reset_bootstrap(rom,parsed)
+diff --git a/recompiler/v2/source_redirect.py b/recompiler/v2/source_redirect.py
+--- a/recompiler/v2/source_redirect.py
++++ b/recompiler/v2/source_redirect.py
+@@ -41,7 +41,7 @@
+  return rows,{'entry':0x01d111,'return':0x0084fa,'selector':2,'table':0x01d119,'landing':0x01d176,'decimal':0,'spans':spans,'barrier':0x01d17e}
+ 
+ def emit_source(rows,recipe,module_prefix=None):
+- code=emit(rows,module_prefix).replace('cpu_native_region_step','cpu_source_redirect_region_step')
++ code=emit(rows,module_prefix,bootstrap_owner=False).replace('cpu_native_region_step','cpu_source_redirect_region_step')
+  code=code.replace('extern SnesProgramModule g_program_module;','extern SnesProgramModule g_program_module;\nextern bool cpu_source_redirect_active(CpuState *,uint32,uint8);')
+  code=code.replace('  switch (((pc24&0x7fffffu)<<2)|mx) {','  if(!cpu_source_redirect_active(cpu,pc24,mx))return false;\n  switch (((pc24&0x7fffffu)<<2)|mx) {')
+  code+='\nint cpu_source_redirect_recipe_matches(int (*peek)(void *,uint32,unsigned char *),void *ctx){\n unsigned char b;\n'
+diff --git a/recompiler/v2/task_resume.py b/recompiler/v2/task_resume.py
+--- a/recompiler/v2/task_resume.py
++++ b/recompiler/v2/task_resume.py
+@@ -5,6 +5,7 @@
+ from .emit_function import emit_function
+ from .native_regions import emit
+ from .task_original_calls import derive_original_calls,emit_original_calls
++from .task_suspend import derive_suspend_child,emit_suspend_recipe
+ 
+ def derive_named_case(rom,spec,callee,data,forced,module_prefix=None):
+  if spec!=(0x01e000,0x01e056,0x01e05a,1,0) or module_prefix or callee!=0x00ff03:
+@@ -178,17 +179,22 @@
+  for key in sorted(unique):
+   row=dict(unique[key]);row['contract']='native-e0-original-owned-callee-prefix-v1';row['original_contexts']=members[key];added.append(row)
+  recipe=dict(recipe);recipe['original_prefix_keys']=[{'pc24':r['pc24'],'m':r['m'],'x':r['x'],'contexts':r['original_contexts']}for r in added]
+- return sorted(rows+added,key=lambda r:(r['pc24'],r['m'],r['x'])),recipe
++ rows=sorted(rows+added,key=lambda r:(r['pc24'],r['m'],r['x']))
++ child_rows,child=derive_suspend_child(rom,parsed,recipe,normal_rows,rows)
++ recipe['suspended_child']=child
++ return sorted(rows+child_rows,key=lambda r:(r['pc24'],r['m'],r['x'])),recipe
+ 
+ def emit_source(rows,recipe,module_prefix=None):
+- code=emit(rows,module_prefix).replace('cpu_native_region_step','cpu_source_task_region_step')
++ code=emit(rows,module_prefix,bootstrap_owner=False).replace('cpu_native_region_step','cpu_source_task_region_step')
+  code=code.replace('extern SnesProgramModule g_program_module;','extern SnesProgramModule g_program_module;\n#include "task_resume_contract.h"\nextern bool cpu_source_task_resume_active(CpuState *,uint32,uint8);')
+  # Each case preserves its own authority namespace. Contextual rows cannot
+  # borrow selected-resume publication, nor authorize unrelated task rows.
+  for row in rows:
+   case=(row['pc24']<<2)|(row['m']<<1)|row['x']
+   marker=f'    case {case}u: {{'
+-  if 'original_contexts'in row:
++  if row.get('causal_suspended_child'):
++   guard='if(!cpu_source_suspend_region_active(cpu,pc24,mx)) return false;'
++  elif 'original_contexts'in row:
+    members=' || '.join(f'context=={n}u'for n in row['original_contexts'])
+    guard='unsigned context; if(!cpu_source_task_original_context(cpu,pc24,mx,&context) || !('+members+')) return false;'
+   else:guard='if(!cpu_source_task_resume_active(cpu,pc24,mx)) return false;'
+@@ -215,4 +221,5 @@
+    members=' || '.join(f'context=={n}u'for n in row['original_contexts'])
+    code+=f"case {(row['pc24']<<2)|(row['m']*2+row['x'])}u:return {members};\n"
+  code+='default:return false;} }\n'
+- return code+emit_original_calls(recipe)
++ code=code.replace('extern bool cpu_source_task_resume_active(CpuState *,uint32,uint8);','extern bool cpu_source_task_resume_active(CpuState *,uint32,uint8);\nextern bool cpu_source_suspend_region_active(CpuState *,uint32,uint8);')
++ return code+emit_original_calls(recipe)+emit_suspend_recipe(recipe.get('suspended_child')if recipe else None,recipe)
+diff --git a/recompiler/v2/task_suspend.py b/recompiler/v2/task_suspend.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/task_suspend.py
+@@ -0,0 +1,89 @@
++"""Causal child-slot source rows; never an ordinary FF03 exit summary."""
++from snes65816 import rom_offset
++from .decoder import decode_function
++from .emit_function import emit_function
++
++def derive_suspend_child(rom, parsed, recipe, normal_rows, prior_rows):
++ if not recipe or not any(c['callsite']==0x1e056 for c in recipe['cases']):return [],None
++ data=[r for _,_,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _,_,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++ forced={p&0x7fffff for _,_,c in parsed for p in c.force_lle}
++ raw=lambda p,n:rom[rom_offset(p>>16,p&65535):rom_offset(p>>16,p&65535)+n]
++ if raw(0x1e070,4)!=bytes.fromhex('221be001'):raise ValueError('child causal call source changed')
++ # LOCAL selected-edge source model only. Actual producer + fresh receiving
++ # publication is mandatory at each edge; this map is not exported to normal
++ # decoding, callee summaries, callable entries or masks.
++ edges={(0xff03,1,1):(1,1)}
++ graph=decode_function(rom,1,0xe01b,1,0,max_insns=1024,data_regions=data,callee_exit_mx=edges,stop_on_unknown_callee_exit=True)
++ if graph.unknown_callee_exit_sites or graph.unresolved_indirects:raise ValueError('unclosed source child')
++ source={};cases=[];spans=[];architecture=[]
++ for k,d in graph.insns.items():
++  i=d.insn;p=i.addr
++  if p>>16!=1 or (p&65535)+i.length>65536:raise ValueError('child bank/wrap')
++  if any((p+n)&0x7fffff in forced or any((p>>16)in(b,b^128)and lo<=((p+n)&65535)<hi for b,lo,hi in data)for n in range(i.length)):raise ValueError('child masked source')
++  if getattr(i,'const_z_fold_unconditional',False):raise ValueError('child inherited flag branch')
++  if i.mnem=='JSL':
++   if i.operand!=0xff03 or (k.m,k.x)!=(1,1) or len(k.p_stack)!=1:raise ValueError('unproven child suspended edge')
++   cases.append({'callsite':p,'landing':p+4,'p_mask':48,'p_value':48})
++  elif i.mnem in ('JSR','RTS','RTI','XCE','TCS','TXS','MVN','MVP'):raise ValueError('child ownership barrier')
++  if i.mnem=='RTL' and k.p_stack:raise ValueError('unbalanced child return')
++  key=(p,k.m,k.x)
++  if key in source and source[key].insn!=i:raise ValueError('context-dependent child instruction')
++  source[key]=d;spans.append((p,raw(p,i.length)))
++  nm,nx=k.m,k.x
++  if i.mnem=='REP':nm=0 if i.operand&32 else nm;nx=0 if i.operand&16 else nx
++  if i.mnem=='SEP':nm=1 if i.operand&32 else nm;nx=1 if i.operand&16 else nx
++  if i.mnem=='PLP':
++   if len(k.p_stack)!=1:raise ValueError('child scratch P authority missing')
++   nm,nx=k.p_stack[-1]
++  branch=(p&0xff0000)|i.operand if i.mnem in ('BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS','BRA','BRL','JMP')else 0
++  architecture.append({'pc':p,'fall':p+i.length,'branch':branch,'target':i.operand if i.mnem=='JSL'else 0,'m':k.m,'x':k.x,'next_m':nm,'next_x':nx,'length':i.length,'bytes':raw(p,i.length).hex()})
++ if len(cases)!=7 or len(source)!=339:raise ValueError('child source graph identity changed')
++ local=[]
++ emit_function(rom,1,0xe01b,1,0,func_name='CausalChildSourceDerivation',data_regions=data,
++  exclude_ranges=[(p&65535,(p&65535)+1)for p in forced if p>>16==1],callee_exit_mx=edges,native_region_collector=local,_native_collector_only=True)
++ existing={(r['pc24'],r['m'],r['x'])for r in normal_rows+prior_rows};rows=[];all_rows=[]
++ for r in local:
++  k=(r['pc24'],r['m'],r['x']);d=source.get(k)
++  if d is None:raise ValueError('child collector outside graph')
++  if r['mnemonic']in('JSR','JSL'):continue
++  if r['bytes']!=raw(d.insn.addr,d.insn.length).hex():raise ValueError('child body bytes mismatch')
++  r=dict(r);r['contract']='native-e0-causal-suspended-child-v1';r['causal_suspended_child']=True
++  all_rows.append(r)
++  if k not in existing:rows.append(r)
++ pre=decode_function(rom,1,0xe05a,1,0,max_insns=128,data_regions=data,stop_on_unknown_callee_exit=True)
++ parent=[]
++ for k,d in pre.insns.items():
++  i=d.insn;p=i.addr
++  if not 0x1e05a<=p<=0x1e070:continue
++  if getattr(i,'const_z_fold_unconditional',False):raise ValueError('parent inherited branch')
++  nm,nx=k.m,k.x
++  if i.mnem=='REP':nm=0 if i.operand&32 else nm;nx=0 if i.operand&16 else nx
++  if i.mnem=='SEP':nm=1 if i.operand&32 else nm;nx=1 if i.operand&16 else nx
++  parent.append({'pc':p,'fall':p+i.length,'branch':(p&0xff0000)|i.operand if i.mnem in ('BEQ','BNE','BCC','BCS','BRA','JMP')else 0,'target':i.operand if i.mnem=='JSL'else 0,'m':k.m,'x':k.x,'next_m':nm,'next_x':nx,'length':i.length,'bytes':raw(p,i.length).hex()})
++ if len(parent)!=11:raise ValueError('parent source boundary changed')
++ return rows,{'entry':[0x1e01b,1,0],'parent_call':0x1e070,'parent_landing':0x1e074,'cases':sorted(cases,key=lambda c:c['callsite']),
++  'source_rows':339,'spans':[{'pc24':pc,'bytes':b.hex()}for pc,b in sorted(set(spans))], 'native_members':sorted(set((r['pc24'],r['m'],r['x'])for r in all_rows)),
++  'architecture':sorted(architecture,key=lambda r:(r['pc'],r['m'],r['x'])), 'parent_architecture':sorted(parent,key=lambda r:(r['pc'],r['m'],r['x'])),
++  'task_members':[(r['pc24'],r['m'],r['x'])for r in rows],
++  'added_rows':len(rows),'ordinary_ff03_summary':False,'requires_causal_guest_slot':True}
++
++def emit_suspend_recipe(family, recipe):
++ if not family:return '\nconst TaskResumeRecipe g_native_suspend_task_recipe={0};\n'
++ c=family['cases'];code='\nstatic const TaskResumeSourceCase s_native_suspend_cases[]={'+','.join('{'+','.join(str(v)+'u'for v in (r['callsite'],r['landing'],r['p_mask'],r['p_value']))+'}'for r in c)+'};\n'
++ code+='const TaskResumeRecipe g_native_suspend_task_recipe={'+','.join(str(v)+'u'for v in (recipe['select'],recipe['return'],recipe['callee'],1,16,18,12,4,1,11))+',s_native_suspend_cases,7u};\n'
++ code+='bool cpu_source_suspend_native_member(uint32 pc,uint8 mx){switch((pc<<2)|mx){\n'
++ for pc,m,x in family['native_members']:code+=f'case {(pc<<2)|(m<<1)|x}u:return true;\n'
++ code+='default:return false;}}\nbool cpu_source_suspend_task_member(uint32 pc,uint8 mx){switch((pc<<2)|mx){\n'
++ for pc,m,x in family['task_members']:code+=f'case {(pc<<2)|(m<<1)|x}u:return true;\n'
++ code+='default:return false;}}\n#include "task_original_call_contract.h"\n'
++ code+='static const TaskOriginalInstruction s_native_suspend_rows[]={\n'
++ for r in family['architecture']:
++  raw=list(bytes.fromhex(r['bytes']));raw +=[0]*(4-len(raw))
++  code+=' {'+','.join(str(r[k])+'u'for k in ('pc','fall','branch','target','m','x','next_m','next_x','length'))+',{'+','.join(str(v)+'u'for v in raw)+'}},\n'
++ code+='};\nconst TaskOriginalInstruction *cpu_source_suspend_row(uint32 pc,uint8 mx){unsigned lo=0,hi=339;uint32 key=(pc<<2)|mx;while(lo<hi){unsigned mid=lo+(hi-lo)/2;const TaskOriginalInstruction *r=s_native_suspend_rows+mid;uint32 k=(r->pc<<2)|(r->m<<1)|r->x;if(k<key)lo=mid+1;else hi=mid;}if(lo==339)return NULL;const TaskOriginalInstruction *r=s_native_suspend_rows+lo;return ((r->pc<<2)|(r->m<<1)|r->x)==key?r:NULL;}\n'
++ code+='static const TaskOriginalInstruction s_native_suspend_parent_rows[]={\n'
++ for r in family['parent_architecture']:
++  raw=list(bytes.fromhex(r['bytes']));raw +=[0]*(4-len(raw))
++  code+=' {'+','.join(str(r[k])+'u'for k in ('pc','fall','branch','target','m','x','next_m','next_x','length'))+',{'+','.join(str(v)+'u'for v in raw)+'}},\n'
++ code+='};\nconst TaskOriginalInstruction *cpu_source_suspend_parent_row(uint32 pc,uint8 mx){for(unsigned n=0;n<11;n++){const TaskOriginalInstruction *r=s_native_suspend_parent_rows+n;if(r->pc==pc&&r->m*2u+r->x==mx)return r;}return NULL;}\n'
++ return code
+diff --git a/runner/src/common_rtl.c b/runner/src/common_rtl.c
+--- a/runner/src/common_rtl.c
++++ b/runner/src/common_rtl.c
+@@ -958,6 +958,7 @@
+ }
+ 
+ bool RtlLoadSnapshot(const char *filename) {
++  cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_LOAD_BEGIN);
+   if (g_rtl_game_info && g_rtl_game_info->snapshot_allowed &&
+       !g_rtl_game_info->snapshot_allowed()) return false;
+   FILE *f = fopen(filename, "rb");
+@@ -1067,6 +1068,7 @@
+ }
+ 
+ bool RtlLoadSnapshotFromMemory(const void *data, size_t size) {
++  cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_LOAD_BEGIN);
+   if (g_rtl_game_info && g_rtl_game_info->snapshot_allowed &&
+       !g_rtl_game_info->snapshot_allowed()) return false;
+   const char *guard=g_rtl_game_info && g_rtl_game_info->snapshot_guard_identity
+diff --git a/runner/src/cpu_state.c b/runner/src/cpu_state.c
+--- a/runner/src/cpu_state.c
++++ b/runner/src/cpu_state.c
+@@ -551,6 +551,7 @@
+ void cpu_write8(CpuState *cpu, uint8 bank, uint16 addr, uint8 v) {
+     interp_bridge_source_call_bus_transaction(cpu,bank,addr,1u);
+     const int source_call_off = cpu_wram_offset(bank, addr);
++    const uint64 source_suspend_transaction=source_call_off<0?0:cpu_source_suspend_write_begin(cpu,(uint32)source_call_off,v);
+     const uint64_t source_call_transaction = source_call_off < 0 ? 0 :
+         interp_bridge_source_call_write_begin(cpu,(uint32_t)source_call_off,v);
+     if (g_snes && g_snes->cart)
+@@ -565,6 +566,7 @@
+     if (off >= 0) {
+         uint8 old = cpu->ram[off];
+         cpu->ram[off] = v;
++        cpu_source_suspend_wram_written(cpu->ram,(uint32)off,v,source_suspend_transaction);
+         interp_bridge_source_call_wram_written(cpu->ram,(uint32_t)off,v,source_call_transaction);
+         /* Optional title hook for game-specific stage-window tracking. */
+         if (g_stage_window_store_hook) {
+@@ -657,9 +659,13 @@
+     if (off >= 0 && off + 1 < 0x20000) {
+         uint16 old = (uint16)cpu->ram[off]
+                    | ((uint16)cpu->ram[off + 1] << 8);
++        const uint64 stlo=cpu_source_suspend_write_begin(cpu,(uint32)off,(uint8)v);
+         cpu->ram[off]     = (uint8)(v & 0xFF);
++        cpu_source_suspend_wram_written(cpu->ram,(uint32)off,(uint8)v,stlo);
+         interp_bridge_source_call_wram_written(cpu->ram,(uint32_t)off,(uint8)v,0);
++        const uint64 sthi=cpu_source_suspend_write_begin(cpu,(uint32)off+1u,(uint8)(v>>8));
+         cpu->ram[off + 1] = (uint8)(v >> 8);
++        cpu_source_suspend_wram_written(cpu->ram,(uint32)off+1u,(uint8)(v>>8),sthi);
+         interp_bridge_source_call_wram_written(cpu->ram,(uint32_t)off+1u,(uint8)(v>>8),0);
+         cpu->open_bus = (uint8)(v >> 8);
+         if (g_stage_window_store_hook) {
+@@ -1458,7 +1464,8 @@
+ static unsigned s_native_continuation_depth;
+ extern int snes_frame_counter;
+ 
+-void cpu_continuation_reset(void) {
++void cpu_continuation_reset_reason(CpuSourceSuspendResetReason reason) {
++    cpu_source_suspend_reset(reason);
+     interp_bridge_source_task_reset();
+     extern void interp_bridge_source_redirect_reset(void);
+     interp_bridge_source_redirect_reset();
+@@ -1466,6 +1473,7 @@
+     memset(s_native_continuations, 0, sizeof s_native_continuations);
+     s_native_continuation_depth = 0;
+ }
++void cpu_continuation_reset(void){cpu_continuation_reset_reason(CPU_SOURCE_SUSPEND_SESSION);}
+ static NativeContinuationInvocation *continuation_current(void) {
+     if (!s_native_continuation_depth) return NULL;
+     NativeContinuationInvocation *c = &s_native_continuations[s_native_continuation_depth - 1];
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -696,7 +696,23 @@
+ int cpu_publish_continuation_return(CpuState *, uint16 entry_s, uint16 pre_s,
+                                     uint32 popped_pc, uint8 frame_size);
+ /* Host boundary cleanup (frame/reset/restore/watchdog), never guest state. */
++/* Additive public cpu_state.h declarations; no serialized CpuState fields. */
++typedef enum {
++ CPU_SOURCE_SUSPEND_HOST_FRAME=0,
++ CPU_SOURCE_SUSPEND_SESSION,
++ CPU_SOURCE_SUSPEND_LOAD_BEGIN,
++ CPU_SOURCE_SUSPEND_WATCHDOG,
++ CPU_SOURCE_SUSPEND_MODULE,
++ CPU_SOURCE_SUSPEND_SOURCE_MUTATION,
++ CPU_SOURCE_SUSPEND_HOOK_REGISTRY,
++ CPU_SOURCE_SUSPEND_UNKNOWN_WRAM
++} CpuSourceSuspendResetReason;
++void cpu_source_suspend_reset(CpuSourceSuspendResetReason reason);
++void cpu_continuation_reset_reason(CpuSourceSuspendResetReason reason);
++
+ void cpu_continuation_reset(void);
++uint64 cpu_source_suspend_write_begin(CpuState *,uint32,uint8);
++void cpu_source_suspend_wram_written(const void *,uint32,uint8,uint64);
+ 
+ /* Read-only exact-AOT probe used by interpreter bounce and RTS rewriting.
+  * A known LLE-only row intentionally returns false. */
+diff --git a/runner/src/snes/bridge_task_call.inc b/runner/src/snes/bridge_task_call.inc
+--- a/runner/src/snes/bridge_task_call.inc
++++ b/runner/src/snes/bridge_task_call.inc
+@@ -167,6 +167,7 @@
+  s_task_original_interp_cpu=NULL;s_task_original_interp=NULL;s_task_original_interp_source=0;
+ }
+ void interp_bridge_source_call_raw_mutation(void){
++ cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_UNKNOWN_WRAM);
+  if(task_original_runtime_allowed())task_original_runtime_reset();
+ }
+ uint64_t interp_bridge_source_call_write_begin(CpuState *c,uint32_t at,uint8_t value){
+diff --git a/runner/src/snes/bridge_task_original_runtime.inc b/runner/src/snes/bridge_task_original_runtime.inc
+--- a/runner/src/snes/bridge_task_original_runtime.inc
++++ b/runner/src/snes/bridge_task_original_runtime.inc
+@@ -124,6 +124,7 @@
+ }
+ void cpu_source_call_return_stage(CpuState *c,uint32 source,unsigned opcode,
+  uint16 before_s,uint8 lo,uint8 hi,uint8 bank,uint32 rpc){
++ if(s_suspend_execution && s_suspend_call==3){TaskResumeState v=task_cpu_view(c,rpc);suspend_pop_actual(c,source,opcode,before_s,lo,hi,bank,rpc,&v);}
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  TaskResumeState v=task_cpu_view(c,rpc);
+  task_original_pop_capture(c,&v,source,opcode,before_s,lo,hi,bank,rpc);
+@@ -149,6 +150,7 @@
+ }
+ void interp_bridge_source_call_interp_pop(Interp816 *in,uint32 source,unsigned opcode,
+  uint16 before_s,uint16 word,uint8 bank){
++ if(in==s_suspend_interp && s_suspend_execution && s_suspend_call==3){TaskResumeState v=task_local_view(s_suspend_cpu,in,((uint32)in->k<<16)|in->pc);suspend_pop_actual(s_suspend_cpu,source,opcode,before_s,(uint8)word,(uint8)(word>>8),bank,v.pc,&v);}
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  CpuState *c=s_task_original_interp_cpu;
+  if(!c||in!=s_task_original_interp||source!=s_task_original_interp_source){task_original_runtime_reset();return;}
+@@ -235,6 +237,7 @@
+  x->inflight=1;
+ }
+ void interp_bridge_source_call_interp_fetched(Interp816 *in,uint32 source,uint32 target,unsigned frame){
++ if(in==s_suspend_interp)suspend_fetched(s_suspend_cpu,source,target,frame);
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  TaskOriginalExecution *x=&s_task_original_exec;TaskOriginalCall *p=&s_task_original_call;
+  CpuState *c=s_task_original_interp_cpu;TaskOriginalEpoch e=task_original_current_epoch(c);
+@@ -322,6 +325,7 @@
+ /* This records the actually resolved original paired fp immediately before its
+  * actual invocation. NORMAL/lexical PC cannot create a pop or arrival receipt. */
+ void cpu_source_call_paired_enter(CpuState *c,uint32 target,uint8 frame,uintptr_t fp){
++ suspend_paired_enter(c,target,frame,fp);
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  TaskOriginalCall *p=&s_task_original_call;TaskResumeState v=task_cpu_view(c,target);
+  if(s_task_original_invocation_serial==UINT64_MAX)s_task_original_invocation_exhausted=true;
+@@ -338,6 +342,7 @@
+   .serial=++s_task_original_invocation_serial};
+ }
+ void cpu_source_call_paired_exit(CpuState *c,uint32 target,uint8 frame,uintptr_t fp,int result){
++ suspend_paired_exit(c,target,frame,fp);
+  (void)result; /* Original caller classifies this; it is never positive evidence. */
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  if(s_task_original_invocation.fp!=fp||s_task_original_invocation.target!=target||
+@@ -375,6 +380,7 @@
+ }
+ 
+ void cpu_source_call_fp_entry(CpuState *c,uint32 source,unsigned m,unsigned x,uintptr_t fp){
++ suspend_fp_entry(c,source,m,x,fp);
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  TaskOriginalInvocation *f=&s_task_original_invocation;TaskResumeState v=task_cpu_view(c,source);
+  unsigned mx=((v.p>>5)&1u)*2u+((v.p>>4)&1u);
+@@ -400,6 +406,10 @@
+  memset(f,0,sizeof *f);--s_task_original_invocation_count;
+ }
+ void cpu_source_call_native_push(CpuState *c,uint32 source,unsigned frame){
++ if(s_suspend_execution && (s_suspend_call==1 || s_suspend_call==2)){
++  if(s_aot_instruction!=c||s_aot_pc!=source||s_aot_length!=(frame==3u?4u:3u)){cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_SOURCE_MUTATION);}
++  else {CpuAotDirectCallOperands actual;cpu_aot_get_direct_call_operands(c,source,frame==3u?4u:3u,&actual);suspend_fetched(c,source,actual.target_pc24,frame);}
++ }
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  TaskOriginalExecution *x=&s_task_original_exec;TaskOriginalCall *p=&s_task_original_call;
+  TaskResumeState v=task_cpu_view(c,source);TaskOriginalEpoch e=task_original_current_epoch(c);
+@@ -424,6 +434,7 @@
+  * clock charge is introduced. Pure composed callbacks cannot perform a bus
+  * transaction; source-certified guest instructions cannot touch devices. */
+ void interp_bridge_source_call_bus_transaction(CpuState *c,uint8 bank,uint16 addr,unsigned width){
++ suspend_bus_transaction(c,bank,addr,width);
+  if(!task_original_runtime_allowed()||!s_task_original_call.phase)return;
+  if(c!=(CpuState *)s_task_original_call.epoch.cpu||s_pre_opcode_callback_cpu){
+   task_original_runtime_reset();return;
+diff --git a/runner/src/snes/bridge_task_suspend.inc b/runner/src/snes/bridge_task_suspend.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/snes/bridge_task_suspend.inc
+@@ -0,0 +1,355 @@
++/* Causal guest-slot lifetime is distinct from every host admission epoch. */
++#include "../task_suspend_lineage.h"
++#include "../task_suspend_lineage.inc"
++__attribute__((weak)) const TaskResumeRecipe g_native_suspend_task_recipe={0};
++__attribute__((weak)) const TaskOriginalInstruction *cpu_source_suspend_row(uint32 pc,uint8 mx){(void)pc;(void)mx;return NULL;}
++__attribute__((weak)) bool cpu_source_suspend_native_member(uint32 pc,uint8 mx){(void)pc;(void)mx;return false;}
++__attribute__((weak)) bool cpu_source_suspend_task_member(uint32 pc,uint8 mx){(void)pc;(void)mx;return false;}
++__attribute__((weak)) const TaskOriginalInstruction *cpu_source_suspend_parent_row(uint32 pc,uint8 mx){(void)pc;(void)mx;return NULL;}
++static TaskSuspendLineage s_suspend_slot;
++static TaskResumeSnapshot s_suspend_proof;
++static CpuState *s_suspend_cpu;
++static TaskResumeState s_suspend_before;
++static const TaskOriginalInstruction *s_suspend_row;
++static uint64 s_suspend_lifetime=1,s_suspend_next_instance,s_suspend_instance;
++static unsigned s_suspend_call,s_suspend_execution,s_suspend_pop_valid;
++static uint32 s_suspend_source,s_suspend_pop_pc;
++static uint8 s_suspend_pop_bytes[3];
++static TaskResumeState s_suspend_pop_state;
++static uintptr_t s_suspend_paired_fp;
++static uint32 s_suspend_paired_target;
++static uint8 s_suspend_paired_m,s_suspend_paired_x;
++static unsigned s_suspend_paired_entered,s_suspend_paired_returned,s_suspend_callable_step;
++static uint64 s_suspend_paired_instance,s_suspend_paired_commits;
++static uint64 s_suspend_write_next,s_suspend_write_token;
++static uint32 s_suspend_write_at;
++static uint8 s_suspend_write_value;
++static uint64 s_suspend_hook_instance,s_suspend_hook_write,s_suspend_hook_read;
++static TaskResumeState s_suspend_hook_before;
++static uint8 s_suspend_hook_bus;
++/* This scope preserves only sealed guest history, never an interrupt admission. */
++static uint64 s_suspend_irq_serial,s_suspend_irq_instance;
++static CpuState *s_suspend_irq_cpu;
++static TaskSlotLifetime s_suspend_irq_life;
++static uint16 s_suspend_irq_s;
++static unsigned s_suspend_irq_rti;
++static TaskSlotLifetime suspend_life(CpuState *c){
++ const SnesProgramModule *m=snes_program_module_active();if(!m)m=&g_program_module;
++ return (TaskSlotLifetime){(uintptr_t)c,(uintptr_t)m,c?(uintptr_t)c->ram:0,
++ RtlStateGeneration(),s_suspend_lifetime,s_pre_opcode_hook_generation};
++}
++static void suspend_cancel(void){task_slot_cancel(&s_suspend_slot);task_resume_reset(&s_suspend_proof);
++ s_suspend_instance=0;s_suspend_execution=0;s_suspend_call=0;s_suspend_pop_valid=0;
++ s_suspend_write_token=0;s_suspend_hook_instance=0;s_suspend_row=NULL;
++ s_suspend_paired_fp=0;s_suspend_paired_target=0;s_suspend_paired_m=0;s_suspend_paired_x=0;s_suspend_paired_entered=0;s_suspend_paired_returned=0;s_suspend_callable_step=0;s_suspend_paired_instance=0;s_suspend_paired_commits=0;s_suspend_irq_instance=0;s_suspend_irq_cpu=NULL;s_suspend_irq_rti=0;}
++void cpu_source_suspend_reset(CpuSourceSuspendResetReason reason){
++ if(reason==CPU_SOURCE_SUSPEND_HOST_FRAME&&!s_suspend_irq_instance){TaskSlotLifetime life=suspend_life(s_suspend_cpu);
++  task_slot_host_frame(&s_suspend_slot,&life);task_resume_reset(&s_suspend_proof);
++  s_suspend_instance=0;s_suspend_execution=0;s_suspend_call=0;s_suspend_pop_valid=0;
++  s_suspend_write_token=0;s_suspend_hook_instance=0;s_suspend_row=NULL;
++  s_suspend_paired_fp=0;s_suspend_paired_target=0;s_suspend_paired_m=0;s_suspend_paired_x=0;s_suspend_paired_entered=0;s_suspend_paired_returned=0;s_suspend_callable_step=0;s_suspend_paired_instance=0;s_suspend_paired_commits=0;return;}
++ suspend_cancel();if(s_suspend_lifetime!=UINT64_MAX)++s_suspend_lifetime;
++}
++/* Entered only by the original architectural interrupt wrappers. No source scan. */
++static uint64 suspend_interrupt_enter(CpuState *c){
++ if(s_suspend_irq_instance){suspend_cancel();return 0;}
++ if(!s_suspend_slot.phase)return 0;
++ TaskSlotLifetime life=suspend_life(c);
++ if(s_suspend_slot.phase!=TASK_SLOT_SUSPENDED||s_suspend_slot.step_live||
++  s_suspend_execution||s_suspend_write_token||s_suspend_hook_instance||s_suspend_paired_fp||
++  s_pre_opcode_callback_cpu||s_aot_instruction||g_watchdog_tripped||!c||c->emulation||
++  c!=s_suspend_cpu||c->S>0xfffbu||!slot_life(&s_suspend_slot.lifetime,&life)||
++  s_suspend_irq_serial==UINT64_MAX){suspend_cancel();return 0;}
++ s_suspend_irq_instance=++s_suspend_irq_serial;s_suspend_irq_cpu=c;
++ s_suspend_irq_life=life;s_suspend_irq_s=c->S;s_suspend_irq_rti=0;
++ return s_suspend_irq_instance;
++}
++/* Called only after actual RTI pop, original synchronization and APU flush. */
++static void suspend_interrupt_rti(CpuState *c,const Interp816 *in){
++ if(!s_suspend_irq_instance)return;
++ TaskSlotLifetime life=suspend_life(c);
++ if(c!=s_suspend_irq_cpu||s_suspend_irq_rti||in->e||in->sp!=(uint16)(s_suspend_irq_s+4u)||
++  s_suspend_slot.phase!=TASK_SLOT_SUSPENDED||s_suspend_slot.step_live||
++  s_suspend_execution||s_suspend_write_token||s_suspend_hook_instance||
++  !slot_life(&s_suspend_irq_life,&life)||g_watchdog_tripped||
++  interp_bridge_lle_master_deadline_reached(c)){suspend_cancel();return;}
++ s_suspend_irq_rti=1;
++}
++static void suspend_interrupt_leave(CpuState *c,uint64 instance){
++ if(!instance)return;
++ TaskSlotLifetime life=suspend_life(c);
++ if(instance!=s_suspend_irq_instance||c!=s_suspend_irq_cpu||!s_suspend_irq_rti||
++  !slot_life(&s_suspend_irq_life,&life)||s_suspend_slot.phase!=TASK_SLOT_SUSPENDED||
++  g_watchdog_tripped||interp_bridge_lle_master_deadline_reached(c)){suspend_cancel();return;}
++ s_suspend_irq_instance=0;s_suspend_irq_cpu=NULL;s_suspend_irq_rti=0;
++}
++static int suspend_allowed(CpuState *c,const TaskResumeState *v){
++ return task_original_runtime_allowed()&&s_suspend_lifetime!=UINT64_MAX&&c&&c==s_suspend_cpu&&
++ v->module==(uintptr_t)&g_program_module&&s_interp_owner_is_scheduler&&s_lle_sched_depth>0&&
++ !v->e&&!g_watchdog_tripped&&!s_pre_opcode_callback_cpu&&
++ !(g_snes&&g_snes->inIrq&&!(v->p&CPU_P_I))&&
++ !interp_bridge_lle_master_deadline_reached(c)&&
++ cpu_source_call_effective_dispatch_matches(g_program_module.dispatch,g_program_module.dispatch_count,
++ g_program_module.guards,g_program_module.guard_count);
++}
++static int suspend_source_matches(CpuState *c,const TaskOriginalInstruction *r){
++ if(!r||!r->length||r->length>4)return 0;uint8 b;
++ for(unsigned n=0;n<r->length;n++)if(!task_peek(c,r->pc+n,&b)||b!=r->bytes[n])return 0;
++ return 1;
++}
++static int suspend_producer_source_matches(CpuState *c,uint32 pc,uint8 mx){
++ static const uint8 bytes[]={0x08,0xc2,0x10,0xda,0x5a,0x0b,0x8b,0x4b,0xab,0xae,1,0,0xe2,0x20,0x9d,0x11,0,0xa9,1,0x9d,0x10,0,0xc2,0x20,0x3b,0x9d,0x12,0,0x4c,1,0x84};
++ unsigned off,len,mode;
++ switch(pc){
++ case 0xff03:{uint8 b;return mx==3&&task_peek(c,pc,&b)&&b==0x4c&&task_peek(c,pc+1,&b)&&b==0x61&&task_peek(c,pc+2,&b)&&b==0x84;}
++ case 0x8461:off=0;len=1;mode=3;break;case 0x8462:off=1;len=2;mode=3;break;
++ case 0x8464:off=3;len=1;mode=2;break;case 0x8465:off=4;len=1;mode=2;break;
++ case 0x8466:off=5;len=1;mode=2;break;case 0x8467:off=6;len=1;mode=2;break;
++ case 0x8468:off=7;len=1;mode=2;break;case 0x8469:off=8;len=1;mode=2;break;
++ case 0x846a:off=9;len=3;mode=2;break;case 0x846d:off=12;len=2;mode=2;break;
++ case 0x846f:off=14;len=3;mode=2;break;case 0x8472:off=17;len=2;mode=2;break;
++ case 0x8474:off=19;len=3;mode=2;break;case 0x8477:off=22;len=2;mode=2;break;
++ case 0x8479:off=24;len=1;mode=0;break;case 0x847a:off=25;len=3;mode=0;break;
++ default:return 0;
++ }
++ if(mx!=mode)return 0;uint8 b;for(unsigned n=0;n<len;n++)if(!task_peek(c,pc+n,&b)||b!=bytes[off+n])return 0;return 1;
++}
++static int suspend_receiver_source_matches(CpuState *c,uint32 pc,uint8 mx){
++ static const uint8 bytes[]={0x8e,1,0,0xc2,0x20,0xbd,0x12,0,0x1b,0xab,0x2b,0x7a,0xfa,0x28,0x6b};
++ unsigned off,len,mode;
++ switch(pc){case 0x8421:off=0;len=3;mode=2;break;case 0x8424:off=3;len=2;mode=2;break;
++ case 0x8426:off=5;len=3;mode=0;break;case 0x8429:off=8;len=1;mode=0;break;
++ case 0x842a:off=9;len=1;mode=0;break;case 0x842b:off=10;len=1;mode=0;break;
++ case 0x842c:off=11;len=1;mode=0;break;case 0x842d:off=12;len=1;mode=0;break;
++ case 0x842e:off=13;len=1;mode=0;break;case 0x842f:off=14;len=1;mode=3;break;
++ case 0x83fc:{uint8 b;return mx==2&&task_peek(c,pc,&b)&&b==0xde&&task_peek(c,pc+1,&b)&&b==0x11&&task_peek(c,pc+2,&b)&&b==0;}
++ default:return 0;}
++ if(mx!=mode)return 0;uint8 b;for(unsigned n=0;n<len;n++)if(!task_peek(c,pc+n,&b)||b!=bytes[off+n])return 0;return 1;
++}
++/* Called after original task_pre_opcode, before old unsupported-call resets. */
++static int suspend_pre_local(CpuState *c,const Interp816 *in,uint32 source){
++ if(s_suspend_irq_instance)return 0;
++ if(!s_suspend_slot.phase&&!(s_task_active.published&&s_task_active.handoff&&s_task_active.actual_landing==0x1e05au&&source==0x1e05au))return 0;
++ if(s_suspend_paired_fp&&s_suspend_paired_returned){suspend_cancel();return 0;}
++ TaskResumeState v=task_local_view(c,in,source);TaskSlotLifetime life=suspend_life(c);
++ if(!s_suspend_slot.phase&&s_task_active.published&&s_task_active.handoff&&s_task_active.actual_landing==0x1e05au&&source==0x1e05au){
++  if(s_suspend_next_instance==UINT64_MAX)return 0;s_suspend_cpu=c;
++  task_slot_selected_origin(&s_suspend_slot,&s_task_active,&life,++s_suspend_next_instance);
++ }else if(s_suspend_slot.phase==TASK_SLOT_SAVE){
++  if(source!=s_suspend_slot.actual.pc||!suspend_producer_source_matches(c,source,(in->mf<<1)|in->xf)){suspend_cancel();return 0;}
++ }else if(s_suspend_slot.phase==TASK_SLOT_SELECTED){
++  if(source!=s_suspend_slot.actual.pc||!suspend_receiver_source_matches(c,source,(in->mf<<1)|in->xf)){suspend_cancel();return 0;}
++ }else if(s_suspend_slot.phase==TASK_SLOT_SUSPENDED&&(source==0x83fc||(source>=0x8421&&source<=0x8429))){
++  if(!suspend_receiver_source_matches(c,source,(in->mf<<1)|in->xf)){suspend_cancel();return 0;}
++ }
++ if(!s_suspend_slot.phase)return 0;
++ if(!suspend_allowed(c,&v)||s_suspend_execution||s_suspend_next_instance==UINT64_MAX){suspend_cancel();return 0;}
++ s_suspend_before=v;s_suspend_source=source;s_suspend_instance=++s_suspend_next_instance;
++ s_suspend_call=0;s_suspend_pop_valid=0;s_suspend_row=NULL;
++ if(s_suspend_slot.phase==TASK_SLOT_PREFIX){
++  if(source==0x1e070u)s_suspend_call=1;
++  else {s_suspend_row=cpu_source_suspend_parent_row(source,(in->mf<<1)|in->xf);
++   if(!suspend_source_matches(c,s_suspend_row)){suspend_cancel();return 0;}}
++ }else if(s_suspend_slot.phase==TASK_SLOT_CHILD){
++  s_suspend_row=cpu_source_suspend_row(source,(in->mf<<1)|in->xf);
++  if(!suspend_source_matches(c,s_suspend_row)){suspend_cancel();return 0;}
++  if(s_suspend_row->bytes[0]==0x22u)s_suspend_call=2;
++  else if(s_suspend_row->bytes[0]==0x6bu)s_suspend_call=3;
++ }
++ if(!s_suspend_call&&!task_slot_instruction_begin(&s_suspend_slot,&life,&v,source,s_suspend_instance))return 0;
++ s_suspend_execution=1;return 1;
++}
++bool cpu_source_suspend_region_active(CpuState *c,uint32 pc,uint8 mx){
++ if(s_suspend_irq_instance||!s_suspend_execution||s_suspend_slot.phase!=TASK_SLOT_CHILD||s_suspend_source!=pc||
++  !s_suspend_row||mx!=(s_suspend_row->m*2u+s_suspend_row->x))return false;
++ TaskResumeState v=task_cpu_view(c,pc);return suspend_allowed(c,&v)&&
++ slot_arch(&v,&s_suspend_before)&&slot_epoch(&v,&s_suspend_before)&&
++ suspend_source_matches(c,s_suspend_row)&&cpu_source_suspend_native_member(pc,mx);
++}
++static void suspend_fetched(CpuState *c,uint32 source,uint32 target,unsigned frame){
++ if(!s_suspend_slot.phase||!s_suspend_execution)return;
++ TaskSlotLifetime life=suspend_life(c);
++ if(c!=s_suspend_cpu||source!=s_suspend_source||!s_suspend_instance||s_pre_opcode_callback_cpu){suspend_cancel();return;}
++ if(s_suspend_call==1)task_slot_call_prepare(&s_suspend_slot,&s_suspend_slot.parent,&s_suspend_before,&life,source,target,frame,s_suspend_instance);
++ else if(s_suspend_call==2){uint8 lo,hi;
++  if(!task_peek(c,1,&lo)||!task_peek(c,2,&hi)){suspend_cancel();return;}
++  task_slot_suspend_prepare(&s_suspend_slot,&s_suspend_before,&life,source,target,frame,s_suspend_instance,(uint16)(lo|((uint16)hi<<8)));
++ }else suspend_cancel();
++}
++/* Every returned token identifies one real byte store, never a word replay. */
++uint64 cpu_source_suspend_write_begin(CpuState *c,uint32 at,uint8 value){
++ if(!s_suspend_slot.phase)return 0;
++ if(c!=s_suspend_cpu||!s_suspend_execution||!s_suspend_instance){if(slot_protected(&s_suspend_slot,at))suspend_cancel();return 0;}
++ if(s_suspend_write_token||s_pre_opcode_callback_cpu||s_suspend_write_next==UINT64_MAX){suspend_cancel();return 0;}
++ s_suspend_write_at=at;s_suspend_write_value=value;s_suspend_write_token=++s_suspend_write_next;return s_suspend_write_token;
++}
++void cpu_source_suspend_wram_written(const void *ram,uint32 at,uint8 value,uint64 token){
++ if(!s_suspend_slot.phase)return;
++ if(!token||token!=s_suspend_write_token||ram!=(void*)s_suspend_slot.lifetime.ram||at!=s_suspend_write_at||value!=s_suspend_write_value){
++  if(slot_protected(&s_suspend_slot,at))suspend_cancel();return;}
++ s_suspend_write_token=0;
++ task_slot_observe_write(&s_suspend_slot,s_suspend_source,s_suspend_instance,at,value);
++}
++static void suspend_pop_actual(CpuState *c,uint32 source,unsigned opcode,uint16 before_s,
++ uint8 lo,uint8 hi,uint8 bank,uint32 rpc,const TaskResumeState *after){
++ if(!s_suspend_slot.phase||s_suspend_slot.phase==TASK_SLOT_SUSPENDED)return;
++ if(s_suspend_call!=3||!s_suspend_execution||s_suspend_pop_valid||c!=s_suspend_cpu||
++ source!=s_suspend_source||opcode!=0x6bu||before_s!=s_suspend_before.s||!s_suspend_row||s_suspend_row->bytes[0]!=0x6bu){suspend_cancel();return;}
++ s_suspend_pop_bytes[0]=lo;s_suspend_pop_bytes[1]=hi;s_suspend_pop_bytes[2]=bank;
++ s_suspend_pop_pc=rpc;s_suspend_pop_state=*after;s_suspend_pop_valid=1;
++}
++static void suspend_committed_local(CpuState *c,const Interp816 *in,uint32 source){
++ if(!s_suspend_execution||source!=s_suspend_source)return;
++ TaskResumeState v=task_local_view(c,in,((uint32)in->k<<16)|in->pc);
++ if(s_suspend_write_token||c!=s_suspend_cpu||!slot_epoch(&s_suspend_before,&v)){suspend_cancel();return;}
++ if(s_suspend_call==1)task_slot_call_committed(&s_suspend_slot,&v);
++ else if(s_suspend_call==2)task_slot_suspend_call_committed(&s_suspend_slot,&v);
++ else if(s_suspend_call==3){
++  if(!s_suspend_pop_valid||!slot_arch(&v,&s_suspend_pop_state)){suspend_cancel();return;}
++  task_slot_return_pop(&s_suspend_slot,&s_suspend_before,&v,s_suspend_pop_bytes[0],s_suspend_pop_bytes[1],s_suspend_pop_bytes[2],s_suspend_pop_pc);
++ }else if(s_suspend_slot.phase==TASK_SLOT_SAVE)task_slot_producer_committed(&s_suspend_slot,source,&s_suspend_before,&v);
++ else if(s_suspend_row)task_slot_step_committed(&s_suspend_slot,s_suspend_row,&s_suspend_before,&v);
++ else {task_slot_instruction_end(&s_suspend_slot,s_suspend_instance);if(s_suspend_slot.phase==TASK_SLOT_SELECTED)s_suspend_slot.actual=v;}
++ s_suspend_execution=0;s_suspend_instance=0;s_suspend_pop_valid=0;s_suspend_row=NULL;
++}
++static void suspend_selected_commit(CpuState *c,uint32 source,const TaskResumeState *v){
++ if(s_suspend_irq_instance)return;
++ if(!s_suspend_slot.phase)return;TaskSlotLifetime life=suspend_life(c);
++ if(source==g_native_suspend_task_recipe.select_pc&&s_suspend_slot.phase==TASK_SLOT_SUSPENDED){
++  if(task_resume_selected(&s_suspend_proof,&g_native_suspend_task_recipe,source,v,task_peek,c))
++   {if(task_slot_selected(&s_suspend_slot,&s_suspend_proof,&life))s_suspend_slot.actual=*v;}else suspend_cancel();
++ }else if(source==g_native_suspend_task_recipe.return_pc&&s_suspend_slot.phase==TASK_SLOT_SELECTED){
++  if(task_resume_publish(&s_suspend_proof,source,v,task_peek,c))
++   task_slot_published(&s_suspend_slot,&s_suspend_proof,&life);else suspend_cancel();
++ }
++}
++/* Invoke only at the ORIGINAL accepted same-scheduler parent branch, after
++ * watermark/nonlocal and actual popped-return decisions, never on NORMAL. */
++static void suspend_parent_retained_local(CpuState *c,const Interp816 *in,uint32 actual){
++ if(s_suspend_irq_instance)return;
++ if(!s_suspend_slot.phase)return;TaskResumeState v=task_local_view(c,in,actual);
++ if(s_suspend_slot.phase==TASK_SLOT_PUBLISHED){
++  if(task_resume_handoff(&s_suspend_proof,g_native_suspend_task_recipe.return_pc,TASK_OWNER_POPPED_RETURN,&s_suspend_slot.actual,&v))
++   task_slot_owner_published(&s_suspend_slot,&s_suspend_proof,&v);else suspend_cancel();
++ }else if(s_suspend_slot.phase==TASK_SLOT_RETURN){
++  if(s_suspend_next_instance==UINT64_MAX){suspend_cancel();return;}
++  TaskSlotParentPublication p={s_suspend_slot.serial,++s_suspend_next_instance,0x1e070u,0x1e074u,TASK_SLOT_PARENT_RETAINED,s_suspend_slot.actual,v};
++  uint32 landing;task_slot_parent_published(&s_suspend_slot,&p,&landing);
++ }
++}
++static void suspend_hook_before_local(CpuState *c,const Interp816 *in,uint32 pc,uint64 instance){
++ if(!s_suspend_slot.phase)return;
++ if(s_suspend_hook_instance||!instance||s_suspend_execution){suspend_cancel();return;}
++ s_suspend_hook_instance=instance;s_suspend_hook_before=task_local_view(c,in,pc);
++ s_suspend_hook_write=g_interp_bridge_write_epoch;s_suspend_hook_read=s_interp_volatile_read_epoch;s_suspend_hook_bus=c->open_bus;
++}
++static void suspend_hook_chain_local(CpuState *c,const Interp816 *in,uint32 pc,uint64 instance,int completed){
++ if(!s_suspend_slot.phase||!s_suspend_hook_instance)return;
++ TaskResumeState v=task_local_view(c,in,pc);TaskSlotLifetime life=suspend_life(c);
++ if(!completed||instance!=s_suspend_hook_instance||!slot_life(&s_suspend_slot.lifetime,&life)||
++ !slot_arch(&v,&s_suspend_hook_before)||!slot_epoch(&v,&s_suspend_hook_before)||
++ g_interp_bridge_write_epoch!=s_suspend_hook_write||s_interp_volatile_read_epoch!=s_suspend_hook_read||c->open_bus!=s_suspend_hook_bus)suspend_cancel();
++ s_suspend_hook_instance=0;
++}
++static void suspend_bus_transaction(CpuState *c,uint8 bank,uint16 addr,unsigned width){
++ if(!s_suspend_slot.phase)return;
++ if(c!=s_suspend_cpu||s_pre_opcode_callback_cpu||s_suspend_write_token){suspend_cancel();return;}
++ if(s_suspend_slot.phase==TASK_SLOT_SUSPENDED)return;
++ if(bank<0x40u||(bank>=0x80u&&bank<0xc0u))for(unsigned n=0;n<width;n++){
++  uint16 a=(uint16)(addr+n);if(a>=0x2000u&&a<0x6000u){suspend_cancel();return;}}
++}
++static void suspend_paired_enter(CpuState *c,uint32 target,uint8 frame,uintptr_t fp){
++ unsigned child=s_suspend_slot.phase==TASK_SLOT_CHILD;
++ unsigned producer=s_suspend_slot.phase==TASK_SLOT_SAVE;
++ if(!child&&!producer)return;
++ TaskResumeState v=task_cpu_view(c,target);
++ uint32 expected=child?0x1e01bu:0xff03u;unsigned m=1,x=child?0:1;
++ if(s_suspend_execution||s_suspend_paired_fp||target!=expected||frame!=3u||!fp||
++ s_suspend_slot.actual.pc!=expected||((v.p>>5)&1)!=m||((v.p>>4)&1)!=x||
++ !slot_arch(&s_suspend_slot.actual,&v)||!slot_epoch(&s_suspend_slot.actual,&v)||
++ !suspend_allowed(c,&v)||s_suspend_next_instance==UINT64_MAX){suspend_cancel();return;}
++ /* SAVE can enter only after the actual child JSL commit has consumed its
++  * fetched target and all three original byte pushes. No source-only fp arm. */
++ s_suspend_paired_fp=fp;s_suspend_paired_target=expected;s_suspend_paired_m=m;s_suspend_paired_x=x;
++ s_suspend_paired_instance=++s_suspend_next_instance;
++ s_suspend_paired_entered=0;s_suspend_paired_returned=0;s_suspend_paired_commits=0;
++}
++static void suspend_fp_entry(CpuState *c,uint32 pc,unsigned m,unsigned x,uintptr_t fp){
++ if(!s_suspend_paired_fp)return;
++ TaskResumeState v=task_cpu_view(c,pc);
++ if(s_suspend_paired_entered||fp!=s_suspend_paired_fp||pc!=s_suspend_paired_target||m!=s_suspend_paired_m||x!=s_suspend_paired_x||
++ !s_suspend_paired_instance||!slot_arch(&s_suspend_slot.actual,&v)||!slot_epoch(&s_suspend_slot.actual,&v)||!suspend_allowed(c,&v)){suspend_cancel();return;}
++ s_suspend_paired_entered=1;
++}
++static void suspend_paired_exit(CpuState *c,uint32 target,uint8 frame,uintptr_t fp){
++ if(!s_suspend_paired_fp)return;
++ if(c!=s_suspend_cpu||target!=s_suspend_paired_target||frame!=3||fp!=s_suspend_paired_fp||
++ !s_suspend_paired_entered||s_suspend_paired_returned||s_suspend_execution){suspend_cancel();return;}
++ /* Returned/NORMAL is never an arrival or pop proof. The original owning
++  * branch must independently consume this exact invocation below. */
++ s_suspend_paired_returned=1;
++}
++static void suspend_internal_landing(CpuState *c,const Interp816 *in,uint32 pc){
++ if(!s_suspend_paired_fp)return;
++ TaskResumeState v=task_local_view(c,in,pc);TaskSlotLifetime life=suspend_life(c);
++ unsigned child=s_suspend_paired_target==0x1e01bu&&s_suspend_slot.phase==TASK_SLOT_CHILD;
++ unsigned sealed=s_suspend_paired_target==0xff03u&&s_suspend_slot.phase==TASK_SLOT_SUSPENDED;
++ if(!s_suspend_paired_returned||!s_suspend_paired_entered||!s_suspend_paired_commits||
++ s_suspend_execution||(!child&&!sealed)||!suspend_allowed(c,&v)||
++ (child&&(!slot_arch(&s_suspend_slot.actual,&v)||!slot_epoch(&s_suspend_slot.actual,&v)))||
++ (sealed&&(!slot_life(&s_suspend_slot.lifetime,&life)||s_suspend_slot.step_live))){suspend_cancel();return;}
++ /* A completed FF03 producer has already sealed the original guest record.
++  * Its subsequent scheduler prefix has no active caller admission. The
++  * ORIGINAL accepted same-owner LLE branch only retires this exact fp
++  * envelope; it neither publishes a return nor restores a host epoch. */
++ s_suspend_paired_fp=0;s_suspend_paired_target=0;s_suspend_paired_m=0;s_suspend_paired_x=0;
++ s_suspend_paired_entered=0;s_suspend_paired_returned=0;s_suspend_paired_instance=0;s_suspend_paired_commits=0;
++}
++static void suspend_native_attempt(CpuState *c){
++ if(s_suspend_slot.phase&&s_suspend_execution&&s_aot_instruction&&c==s_suspend_cpu)suspend_cancel();
++}
++/* A callable step is witnessed only inside the actual selected paired fp.
++ * Ordinary scheduler regions already have their own prearmed transaction. */
++static void suspend_callable_begin(CpuState *c,uint32 pc){
++ if(!s_suspend_paired_fp||s_suspend_execution)return;
++ /* Once sealed, the unrelated original scheduler prefix has no active
++  * child/source admission. Protected raw writes still invalidate it. */
++ if(s_suspend_paired_target==0xff03u&&s_suspend_slot.phase==TASK_SLOT_SUSPENDED)return;
++ TaskResumeState v=task_cpu_view(c,pc);TaskSlotLifetime life=suspend_life(c);
++ unsigned child=s_suspend_paired_target==0x1e01bu&&s_suspend_slot.phase==TASK_SLOT_CHILD;
++ unsigned producer=s_suspend_paired_target==0xff03u&&s_suspend_slot.phase==TASK_SLOT_SAVE;
++ if(!s_suspend_paired_entered||s_suspend_paired_returned||s_suspend_next_instance==UINT64_MAX||
++ (!child&&!producer)||!slot_arch(&s_suspend_slot.actual,&v)||!slot_epoch(&s_suspend_slot.actual,&v)||!suspend_allowed(c,&v)){suspend_cancel();return;}
++ const TaskOriginalInstruction *r=child?cpu_source_suspend_row(pc,(c->m_flag<<1)|c->x_flag):NULL;
++ if((child&&!suspend_source_matches(c,r))||(producer&&!suspend_producer_source_matches(c,pc,(c->m_flag<<1)|c->x_flag))){suspend_cancel();return;}
++ s_suspend_before=v;s_suspend_source=pc;s_suspend_row=r;s_suspend_call=r?(r->bytes[0]==0x22?2u:r->bytes[0]==0x6b?3u:0u):0u;
++ s_suspend_instance=++s_suspend_next_instance;s_suspend_pop_valid=0;
++ if(!s_suspend_call&&!task_slot_instruction_begin(&s_suspend_slot,&life,&v,pc,s_suspend_instance))return;
++ s_suspend_execution=1;s_suspend_callable_step=1;
++}
++static uint32 suspend_actual_next(void){
++ if(!s_suspend_row){switch(s_suspend_source){
++  case 0xff03:return 0x8461;case 0x8461:return 0x8462;case 0x8462:return 0x8464;
++  case 0x8464:return 0x8465;case 0x8465:return 0x8466;case 0x8466:return 0x8467;
++  case 0x8467:return 0x8468;case 0x8468:return 0x8469;case 0x8469:return 0x846a;
++  case 0x846a:return 0x846d;case 0x846d:return 0x846f;case 0x846f:return 0x8472;
++  case 0x8472:return 0x8474;case 0x8474:return 0x8477;case 0x8477:return 0x8479;
++  case 0x8479:return 0x847a;case 0x847a:return 0x847d;default:return UINT32_MAX;}}
++ const TaskOriginalInstruction *r=s_suspend_row;uint8 op=r->bytes[0],p=s_suspend_before.p;int take=0;
++ switch(op){case 0x10:take=!(p&0x80);break;case 0x30:take=!!(p&0x80);break;
++ case 0x50:take=!(p&0x40);break;case 0x70:take=!!(p&0x40);break;
++ case 0x90:take=!(p&1);break;case 0xb0:take=!!(p&1);break;
++ case 0xd0:take=!(p&2);break;case 0xf0:take=!!(p&2);break;
++ case 0x80:case 0x82:case 0x4c:case 0x5c:take=1;break;default:break;}
++ if(s_suspend_call==2)return r->target;
++ if(s_suspend_call==3)return s_suspend_pop_pc;
++ return take?r->branch:r->fall;
++}
++static void suspend_callable_commit(CpuState *c,uint32 source){
++ if(!s_suspend_callable_step)return;
++ if(!s_suspend_execution||source!=s_suspend_source||!s_suspend_paired_fp||
++ !s_suspend_paired_entered||s_suspend_paired_returned||(!s_suspend_row&&s_suspend_slot.phase!=TASK_SLOT_SAVE)||s_suspend_paired_commits==UINT64_MAX){suspend_cancel();return;}
++ uint32 next=suspend_actual_next();if(next==UINT32_MAX){suspend_cancel();return;}Interp816 in;sync_cpu_to_interp(c,&in);in.k=(uint8)(next>>16);in.pc=(uint16)next;
++ suspend_committed_local(c,&in,source);s_suspend_callable_step=0;
++ if(s_suspend_slot.phase)s_suspend_paired_commits++;
++}
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -1,5 +1,5 @@
+ /*
+- * interp_bridge.c — interp816 <-> AOT bridge. See interp_bridge.h and
++ * interp_bridge.c â€” interp816 <-> AOT bridge. See interp_bridge.h and
+  * docs/MULTI_TIER.md.
+  */
+ #include <stdio.h>
+@@ -17,10 +17,10 @@
+ #include "sdd1.h"
+ #include "debug_server.h"
+ #include "common_rtl.h"
+-#include "cosim.h"  /* cosim_insn — instruction-granular lockstep (no-op unless SNES_COSIM) */
+-#include "common_cpu_infra.h"  /* cpu_take_tailcall_return_context — swallow a stale
++#include "cosim.h"  /* cosim_insn â€” instruction-granular lockstep (no-op unless SNES_COSIM) */
++#include "common_cpu_infra.h"  /* cpu_take_tailcall_return_context â€” swallow a stale
+                                 * tail-armed context on the LLE yield unwind */
+-#include "ppu_dma_trace.h"      /* ppudma_note_interrupt — per-frame tally */
++#include "ppu_dma_trace.h"      /* ppudma_note_interrupt â€” per-frame tally */
+ 
+ /* Guest-time-anchored APU (Rockman X JP gate #3 / audio pacing): the interp
+  * tier advances the SPC per interpreted opcode by guest master cycles, exactly
+@@ -29,12 +29,12 @@
+  * run; the recomp's compiled steady-state paces the SPC on APU-port touches +
+  * the wall-clock audio thread, but interpreted boot code hits neither before the
+  * poll, so the SPC stayed frozen (co-sim: A outPorts=0000 vs B outPorts=AABB).
+- * Scoped to the interp tier — the compiled path never enters here. */
++ * Scoped to the interp tier â€” the compiled path never enters here. */
+ extern Snes *g_snes;
+-extern uint64_t g_apu_last_sync_master;   /* common_rtl.c — keep synced so a bounce's accurate-mode delta excludes interp opcodes */
+-extern int g_interp_apu_driving;          /* common_rtl.c — suppresses the per-touch synthetic catch-up while set */
++extern uint64_t g_apu_last_sync_master;   /* common_rtl.c â€” keep synced so a bounce's accurate-mode delta excludes interp opcodes */
++extern int g_interp_apu_driving;          /* common_rtl.c â€” suppresses the per-touch synthetic catch-up while set */
+ #ifdef SNES_COSIM
+-extern int cosim_apu_shared_clock(void);  /* common_rtl.c — SNES_COSIM_APU_SHARED touch-only APU pacing */
++extern int cosim_apu_shared_clock(void);  /* common_rtl.c â€” SNES_COSIM_APU_SHARED touch-only APU pacing */
+ #endif
+ void RtlApuLock(void);                    /* real mutex in the windowed runner (audio thread also cycles the SPC); no-op in headless/cosim */
+ void RtlApuUnlock(void);
+@@ -44,8 +44,8 @@
+  * RtlApuLock + snes_catchupApu once per opcode. In the windowed build that
+  * mutex is contended by the audio thread's bulk SPC bursts, and the per-opcode
+  * acquire/catchup collapsed interp-heavy frames ~250x (USA rich-cfg LLE live:
+- * 0.25 fps vs 63 fps with audio off — the "chug"). Batch instead: accumulate
+- * master cycles locally and convert at (a) any APU-port bus access — BEFORE
++ * 0.25 fps vs 63 fps with audio off â€” the "chug"). Batch instead: accumulate
++ * master cycles locally and convert at (a) any APU-port bus access â€” BEFORE
+  * the access, so every port read/write still sees the SPC exactly as current
+  * as the per-opcode scheme gave it, (b) every ~4096 master cycles (~190 SPC
+  * cycles, well under one output sample quantum), (c) every bridge exit and
+@@ -95,7 +95,7 @@
+         /* Skip snes_catchupApu (legacy relative catch-up) to avoid
+          * double-counting with the absolute guest-clock sync below.
+          * But we MUST still call rtl_sync_apu_to_cpu_locked() to advance
+-         * the SPC to the current guest time — otherwise port writes queued
++         * the SPC to the current guest time â€” otherwise port writes queued
+          * by RtlApuWrite are never drained and the SPC never processes them.
+          * Star Ocean's name-entry music transfer writes data to $2140-$2143
+          * and polls for a response; without this sync the SPC is frozen. */
+@@ -139,7 +139,7 @@
+     return enabled;
+ }
+ 
+-/* ── memory bus shim ───────────────────────────────────────────────────────
++/* â”€â”€ memory bus shim â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  * The interpreter's `mem` is the CpuState*; route every access through the
+  * same AOT HLE bus the compiled code uses, so the interpreter sees identical
+  * WRAM / MMIO / SRAM / ROM. One memory map, zero divergence. */
+@@ -307,14 +307,14 @@
+ 
+ /* Word bus (interp816 read_word/write_word): claim a CONTIGUOUS pair that
+  * lands in the HW-register window and perform it through the same
+- * width-preserving AOT bus the compiled code uses (cpu_read16/cpu_write16 →
++ * width-preserving AOT bus the compiled code uses (cpu_read16/cpu_write16 â†’
+  * ReadRegWord/WriteRegWord). Root cause this closes: a guest 16-bit store to
+  * $2140 (kick lo, data hi) executed as two byte writes releases the APU lock
+  * between the bytes, so the audio thread can run the SPC hundreds of samples
+- * with the kick applied but the data stale — the driver latches garbage and
++ * with the kick applied but the data stale â€” the driver latches garbage and
+  * the upload/command handshake wedges (the USA rich-cfg LLE live wedge/garble;
+  * nondeterministic because it races the callback). On silicon the two bus
+- * cycles sit inside one SPC cycle — atomic. WriteRegWord's hi-then-lo APU
++ * cycles sit inside one SPC cycle â€” atomic. WriteRegWord's hi-then-lo APU
+  * order restores that atomicity; ReadRegWord's snapshot likewise fixes torn
+  * 16-bit $2140 polls. Non-HW / wrapping / RMW-reversed pairs fall back to the
+  * exact byte-pair behavior. */
+@@ -360,7 +360,7 @@
+ static bool bridge_bus_write_word(void *mem, uint32_t adrl, uint32_t adrh,
+                                   uint16_t val, bool reversed) {
+     /* reversed = RMW write-back (high byte first on hardware); keep those on
+-     * the faithful byte path — WriteRegWord would flip non-APU order. */
++     * the faithful byte path â€” WriteRegWord would flip non-APU order. */
+     if (reversed || !bridge_hw_word(adrl, adrh)) return false;
+     bridge_timing_bus(adrl);
+     bridge_timing_bus(adrh);
+@@ -395,10 +395,10 @@
+ }
+ #endif
+ 
+-/* ── register/flag sync ────────────────────────────────────────────────────
++/* â”€â”€ register/flag sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  * interp816 carries flags as discrete bools + an `e` (emulation) bit; CpuState
+  * carries packed P + per-bit mirrors + m/x/emulation. Map both directions.
+- * PC has no CpuState home (control flow is host-C calls) — it is interp-only
++ * PC has no CpuState home (control flow is host-C calls) â€” it is interp-only
+  * and set explicitly by the run loop, never synced. */
+ static void sync_cpu_to_interp(const CpuState *c, Interp816 *in) {
+     in->a  = c->A;  in->x = c->X;  in->y = c->Y;
+@@ -694,6 +694,9 @@
+ static void task_original_pre_cpu(CpuState *,uint32);
+ static void task_original_native_attempt(void);
+ static void task_original_step_committed_cpu(CpuState *,uint32);
++static void suspend_native_attempt(CpuState *);
++static void suspend_callable_begin(CpuState *,uint32);
++static void suspend_callable_commit(CpuState *,uint32);
+ bool cpu_aot_begin(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles) {
+   const ResetBootstrapBegin bootstrap = s_reset_bootstrap_begin;
+   s_reset_bootstrap_begin = (ResetBootstrapBegin){0}; /* take before any callback/refusal */
+@@ -701,6 +704,7 @@
+       cpu->x_flag==1 && cpu->PB==0 && bootstrap.cpu==cpu && bootstrap.pc==pc &&
+       bootstrap.length==length && bootstrap.cycles==cycles &&
+       (((uint32)cpu->PB<<16)|(pc&0xffffu))==pc;
++  suspend_native_attempt(cpu);
+   task_original_native_attempt();
+   if(!cpu || (cpu->emulation && !reset_bootstrap) || s_aot_instruction || s_native_instruction_cpu || s_interp_bus_timing_active || !cycles || !length) return false;
+   /* Ordinary AOT entries always refuse registered hook PCs. A scheduler
+@@ -712,6 +716,7 @@
+       return false;
+   task_call_pre_cpu(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
+   task_original_pre_cpu(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
++  suspend_callable_begin(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
+   s_aot_instruction=cpu;s_aot_cycles=cycles;s_aot_pc=((uint32)cpu->PB<<16)|(pc&0xffff);
+   s_aot_length=length;memset(s_aot_fetched,0,sizeof s_aot_fetched);
+   s_aot_rmw_read=false;s_aot_rmw_written=false;
+@@ -852,6 +857,7 @@
+   task_call_committed_cpu(cpu,s_aot_pc);
+   task_original_return_committed_cpu(cpu,s_aot_pc);
+   task_original_step_committed_cpu(cpu,s_aot_pc);
++  suspend_callable_commit(cpu,s_aot_pc);
+   private_instruction_trace(cpu,s_aot_pc,'g',cycles,bus,master);
+   static int init=0,lo=-1,hi=-1;extern int snes_frame_counter;
+   if(!init){const char *e=getenv("PRIVATE_FAITHFUL_TRACE");init=1;if(e)sscanf(e,"%d-%d",&lo,&hi);}
+@@ -895,6 +901,7 @@
+     s_pre_opcode_hooks[s_pre_opcode_hook_count].hook=hook;
+     ++s_pre_opcode_hook_count;
+     scheduler_hook_epoch_advance(&s_pre_opcode_hook_generation);
++    cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_HOOK_REGISTRY);
+     return true;
+ }
+ 
+@@ -903,6 +910,7 @@
+     if (!hook) {
+         s_pre_opcode_hook_count = 0;
+         scheduler_hook_epoch_advance(&s_pre_opcode_hook_generation);
++    cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_HOOK_REGISTRY);
+         return;
+     }
+     const uint32_t key = pc24 & 0x7FFFFFu;
+@@ -910,6 +918,7 @@
+         if (s_pre_opcode_hooks[i].pc24 == key) {
+             s_pre_opcode_hooks[i].hook = hook;
+             scheduler_hook_epoch_advance(&s_pre_opcode_hook_generation);
++    cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_HOOK_REGISTRY);
+             return;
+         }
+     }
+@@ -918,6 +927,7 @@
+         s_pre_opcode_hooks[s_pre_opcode_hook_count].hook = hook;
+         s_pre_opcode_hook_count++;
+         scheduler_hook_epoch_advance(&s_pre_opcode_hook_generation);
++    cpu_source_suspend_reset(CPU_SOURCE_SUSPEND_HOOK_REGISTRY);
+     } else {
+         static int warned;
+         if (!warned) {
+@@ -940,7 +950,7 @@
+  * (Production hardening may route an unexpected BRK to a contained stop.) */
+ int interp816_opcode_hook(uint32_t addr) { (void)addr; return 0; }
+ 
+-/* ── Fiber-free LLE yield unwind (docs/LLE_SCHEDULER.md) ───────────────────
++/* â”€â”€ Fiber-free LLE yield unwind (docs/LLE_SCHEDULER.md) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  * The guest yield primitives of a cooperative scheduler are coroutine
+  * switches: they consume the caller's return frame and BRA back into the
+  * scheduler loop without ever returning. A compiled task body bounced from
+@@ -948,7 +958,7 @@
+  * paired-call chain. The game's LLE-aware yield stub arms this pending
+  * unwind instead and returns the LLE sentinel; every emitted callsite
+  * propagates it (`return _r - 1`) until the scheduler frame's bounce site
+- * consumes it and resumes INTERPRETING at the primitive's real ROM entry —
++ * consumes it and resumes INTERPRETING at the primitive's real ROM entry â€”
+  * the interpreter then executes the actual coroutine switch byte-exact.
+  * Nested non-scheduler bridge frames (tier-2 gap runs) end on the unwind and
+  * their tier helpers re-emit the sentinel, so the unwind crosses interleaved
+@@ -1043,8 +1053,18 @@
+ static int      s_interp_owner_is_scheduler = 0;
+ static void task_original_runtime_reset(void);
+ #include "bridge_task_helpers.inc"
++static const Interp816 *s_suspend_interp;
++static CpuState *s_suspend_cpu;
++static unsigned s_suspend_execution,s_suspend_call;
++static void suspend_bus_transaction(CpuState *,uint8,uint16,unsigned);
++static void suspend_fetched(CpuState *,uint32,uint32,unsigned);
++static void suspend_pop_actual(CpuState *,uint32,unsigned,uint16,uint8,uint8,uint8,uint32,const TaskResumeState *);
++static void suspend_paired_enter(CpuState *,uint32,uint8,uintptr_t);
++static void suspend_fp_entry(CpuState *,uint32,unsigned,unsigned,uintptr_t);
++static void suspend_paired_exit(CpuState *,uint32,uint8,uintptr_t);
+ #include "bridge_task_call.inc"
+ #include "bridge_redirect_helpers.inc"
++#include "bridge_task_suspend.inc"
+ 
+ /* Has a post-return S crossed above the owning interpreter frame's exit
+  * watermark, into a compiled ancestor? Never true for a scheduler owner.
+@@ -1134,7 +1154,7 @@
+                    sizeof key, interp_file_target_cmp) != NULL;
+ }
+ 
+-/* ── Always-on LLE resume-PC ring ──────────────────────────────────────
++/* â”€â”€ Always-on LLE resume-PC ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  * There is ONE resume PC (s_lle_resume_pc24) and one pending unwind PC
+  * (s_lle_unwind_pc24), and more than a dozen sites that write them. When a
+  * poll deep inside a routine yields, the PC it records can be overwritten by
+@@ -1265,7 +1285,7 @@
+     lle_resume_set(pc, INTERP_RESUME_SITE_EXTERNAL, 0);
+ }
+ 
+-/* ── rollback state (see interp_bridge.h) ─────────────────────────────── */
++/* â”€â”€ rollback state (see interp_bridge.h) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+ 
+ typedef struct {
+     uint32_t magic;
+@@ -1398,7 +1418,7 @@
+     /* DIAGNOSTIC (SNESRECOMP_TRAP_YIELD=<lo>-<hi> hex pc24 range): print every
+      * LLE yield unwind whose resume PC falls in the range, with the live guest
+      * S and the function that yielded. A yield mid-body returns the unwind
+-     * sentinel, which every caller propagates as `return _r - 1` — so a yield
++     * sentinel, which every caller propagates as `return _r - 1` â€” so a yield
+      * deep in a call chain makes each ancestor exit without its epilogue. This
+      * names the originating block. Env-gated, zero cost when unset. */
+     {
+@@ -1513,9 +1533,9 @@
+  * default comes from SNESRECOMP_LLE_BOUNCE_DEFAULT so an immature variant
+  * can ship interpret-everything while its cfg is enriched (Rockman X JP:
+  * its auto-discovered compiled bodies have never passed a fixes pass, and
+- * the bounced-vs-interpreted differential splits wholesale at cp2 — bounce
++ * the bounced-vs-interpreted differential splits wholesale at cp2 â€” bounce
+  * stays off there until the tier-2 loop matures the cfg). Rich validated
+- * cfgs default ON — compiled task bodies are the point. The env is also the
++ * cfgs default ON â€” compiled task bodies are the point. The env is also the
+  * co-sim differential lever: bounced (=1) vs interpreted (=0) must be
+  * guest-state bit-exact; any persistent split is a recompiler bug. */
+ #ifndef SNESRECOMP_LLE_BOUNCE_DEFAULT
+@@ -1566,13 +1586,13 @@
+ }
+ 
+ /* Safety cap: a coverage gap must never wedge the host in an unbounded loop.
+- * A real self-contained routine is thousands–tens-of-thousands of steps; a
+- * bail means the interpreted routine didn't terminate (an infinite loop —
++ * A real self-contained routine is thousandsâ€“tens-of-thousands of steps; a
++ * bail means the interpreted routine didn't terminate (an infinite loop â€”
+  * e.g. a garbage indirect target from upstream-corrupted state, as the
+  * $0FE8B7 / JMP ($0012)=$FFFF investigation showed). Default 2M is well clear
+  * of any real routine while keeping a bail's freeze short; tunable via
+  * SNESRECOMP_INTERP_STEP_CAP. (A proper fix detects the tight repeating-PC
+- * loop and bails early — future work.) */
++ * loop and bails early â€” future work.) */
+ static long interp_step_cap(void) {
+     static long v = 0;
+     if (v == 0) {
+@@ -1608,12 +1628,12 @@
+     }
+ }
+ 
+-/* ── Always-on global interp step ring ─────────────────────────────────
+- * The per-run head[]/ring[] above are stack locals — invisible to a
++/* â”€â”€ Always-on global interp step ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
++ * The per-run head[]/ring[] above are stack locals â€” invisible to a
+  * post-mortem or halt fired mid-run. This ring records EVERY interpreted
+  * step (pc, op, sp, frame) continuously so a late observer can read the
+  * interpreter's recent control flow backward (ring-buffer doctrine: no
+- * arm-then-capture). 8192 entries ≈ several frames of pure-interp code. */
++ * arm-then-capture). 8192 entries â‰ˆ several frames of pure-interp code. */
+ #define ITRACE_RECENT_LEN 8192
+ typedef struct { uint32_t pc; int32_t frame; uint16_t sp; uint8_t op; uint8_t pad; } ITraceRecentEnt;
+ static ITraceRecentEnt g_itrace_recent[ITRACE_RECENT_LEN];
+@@ -1633,7 +1653,7 @@
+     }
+ }
+ 
+-/* ── Always-on interpreter control-flow edge ring ──────────────────────
++/* â”€â”€ Always-on interpreter control-flow edge ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  * The step ring above answers "what ran last", which stops being useful the
+  * moment the guest spins: 8192 steps of a two-instruction poll leave nothing
+  * of the path that reached it, and a bail or halt reports only the spin.
+@@ -1775,7 +1795,7 @@
+ }
+ 
+ /* Install the ring dump as cpu_state.c's halt-path hook (explicit hook, not
+- * a PE weak symbol — see cpu_state.c). Runs at image load.
++ * a PE weak symbol â€” see cpu_state.c). Runs at image load.
+  *
+  * __attribute__((constructor)) is a GCC/Clang extension; MSVC rejects it
+  * outright ("syntax error: missing ')' before '('"), which broke every target
+@@ -1802,11 +1822,11 @@
+     g_interp_recent_dump_hook = interp_bridge_dump_recent;
+ }
+ 
+-/* Tier-2 coverage table (definitions below, § gap manifest): shared by the
++/* Tier-2 coverage table (definitions below, Â§ gap manifest): shared by the
+  * tier-down entries AND the in-bridge gap recorders in the core loop. */
+ enum { TIER2_KIND_DISPATCH = 0, TIER2_KIND_INDIRECT_GOTO = 1,
+        TIER2_KIND_BANK_MISS = 2,
+-       /* In-bridge sightings (recorded as observations — they are observations,
++       /* In-bridge sightings (recorded as observations â€” they are observations,
+         * not bounded runs): a JSR/JSL/JSR(abs,X) whose target has no compiled
+         * variant for the live (m,x) (the interp runs it inline), and an
+         * indirect JMP/JML landing with no compiled variant (JMP arrivals are
+@@ -1821,11 +1841,11 @@
+ 
+ /* Core: interpret from entry_pc24 until an RTS/RTL leaves cpu->S strictly
+  * above `s_exit` (the routine returned to its caller). `s_exit` is the FRAME
+- * BASE to unwind to — for a tail-dispatch / PEA+JMP re-interpret it is the
++ * BASE to unwind to â€” for a tail-dispatch / PEA+JMP re-interpret it is the
+  * enclosing function's _entry_s, NOT the current cpu->S (a PEA may have pushed
+  * a return below entry, and the target's RTS-to-PEA must NOT end the bridge). */
+ /* yield_pc != 0 selects "cooperative-loop" mode: the interpreted routine is an
+- * infinite loop (e.g. MMX's $8099 task scheduler) that never returns — it only
++ * infinite loop (e.g. MMX's $8099 task scheduler) that never returns â€” it only
+  * yields when it reaches yield_pc with the vblank flag at yield_flag_addr
+  * cleared (0), i.e. it is about to block waiting for the next NMI. In this mode
+  * the return-past-entry watermark exit is DISABLED, because such loops reset
+@@ -1943,7 +1963,7 @@
+                                  const uint32_t *stop_pcs, int n_stop,
+                                  int stop_on_rti) {
+     const int auto_quiescent = yield_pc == 0xFFFFFFFEu;
+-    /* Local interpreter context → nesting (an AOT bounce that itself traps and
++    /* Local interpreter context â†’ nesting (an AOT bounce that itself traps and
+      * re-enters the bridge) gets its own frame; no shared mutable interp. */
+     Interp816 in;
+     memset(&in, 0, sizeof in);
+@@ -2233,7 +2253,7 @@
+         /* --- Star Ocean vblank-spin fast-forward ---
+          * The game has several copies of the same beam-wait routine: the
+          * main loop ($C8:F40F/F414/F425/F42A), battle engine ($CC:0538/3D/4E/53),
+-         * title screen ($CA:6D13/18), intro ($C2:0B51/57 � LDA-long 0xAF),
++         * title screen ($CA:6D13/18), intro ($C2:0B51/57 ï¿½ LDA-long 0xAF),
+          * text screens ($C2:DB39/3E), and text zone ($C6:18D1/D6).
+          * Each pair is LDA $4212 + branch: BMI = vblank-end wait (vPos 225..261),
+          * BPL = vblank-start wait (vPos 1..224). The reads advance nothing
+@@ -2254,22 +2274,22 @@
+                * $CA/$C2:0B51/$C6 which DO carry real work and stay out. */
+               || pc_before == 0xC2DB39u || pc_before == 0xC2DB3Eu
+               /* FASE 2b step 2 (20260828): title wait $CA:6D13/18 tried
+-               * individually — validate A/B before keeping. */
++               * individually â€” validate A/B before keeping. */
+               || pc_before == 0xCA6D13u || pc_before == 0xCA6D18u
+               /* FASE 2b step 3 (20260828): text-zone $C6:18D1/D6 tried
+-               * individually (intro $C2:0B51/57 REVERTED — diverges f284:
++               * individually (intro $C2:0B51/57 REVERTED â€” diverges f284:
+                * its vblank spin is pure but NOT frame-last; FF from mid-
+                * field (v=138) shifts the phase of the title task's real
+                * work (writewatch: $01E5 writers ca6d13->ca6d16, ca6430->
+-               * ca642f). Left LLE; see HANDOFF §4.8). */
++               * ca642f). Left LLE; see HANDOFF Â§4.8). */
+               || pc_before == 0xC618D1u || pc_before == 0xC618D6u
+-              /* Intro $C2:0B51/57 (LDA-long 0xAF) — validated 20260828 (§4.9):
++              /* Intro $C2:0B51/57 (LDA-long 0xAF) â€” validated 20260828 (Â§4.9):
+                * its spin iteration costs 48 master cycles, not the 42 of the
+                * LDA-abs spins, so it needs the step=48 target rounding below.
+                * A/B 3050 frames bit-exact. */
+               || pc_before == 0xC20B51u || pc_before == 0xC20B57u
+               /* Field copy of the vblank wait at $C2:0B82/87 (LDA abs
+-               * $4212; BMI/BPL, step 42 — same family as C8/CC/DB/6D/18).
++               * $4212; BMI/BPL, step 42 â€” same family as C8/CC/DB/6D/18).
+                * Added 20260830: game ground-truth profile showed this spin
+                * at ~57% of the field's interpreted opcodes (PC-watch:
+                * $C20B87/$C20B8A), with NO guard covering it. */
+@@ -2457,6 +2477,7 @@
+                 if (s_pre_opcode_hooks[hi].pc24 == key) {
+                     if (!hook_matched) {
+                         scheduler_callback_instance = scheduler_callback_instance_begin();
++                        suspend_hook_before_local(cpu,&in,pc_before,scheduler_callback_instance);
+                         task_original_hook_before_local(cpu,&in,pc_before,scheduler_callback_instance);
+                     }
+                     hook_matched = true;
+@@ -2501,6 +2522,7 @@
+                 scheduler_hook_entry_state == RtlStateGeneration() && scheduler_hook_entry_frame == snes_frame_counter &&
+                 !s_pre_opcode_callback_cpu && (((uint32_t)in.k << 16) | in.pc) == pc_before;
+             scheduler_hooks_generation = s_pre_opcode_hook_generation;
++            suspend_hook_chain_local(cpu,&in,pc_before,scheduler_callback_instance,scheduler_hooks_completed);
+             task_original_hook_chain_local(cpu,&in,pc_before,scheduler_callback_instance,scheduler_hooks_completed);
+         }
+         /* Opt-in control-flow tripwire: game code normally executes from the
+@@ -2545,7 +2567,7 @@
+          * a LoROM scheduler loop re-enters $8099 in whichever of the $00/$80
+          * mirror banks the last transfer left in K. MMX's boot walk lands the
+          * loop back in bank $00 while yield_pc is given as $80:80A1, so an exact
+-         * compare never matches — the interp spins the vblank wait to the step
++         * compare never matches â€” the interp spins the vblank wait to the step
+          * cap and bails (JP boot froze here at Task0 state=3). */
+         const int _cooperative_poll = s_poll_gate &&
+             ((yield_pc && !auto_quiescent) ||
+@@ -2752,7 +2774,7 @@
+         /* Stop-PC intercept (task-resume mode): JMP/BRA arrival at a PC whose
+          * real asm is incompatible with interpretation (fiber-HLE'd machinery
+          * like MMX's task-die $80F8). Run its registered HLE body instead and
+-         * treat the task frame as ended. JSR arrivals never get here — they
++         * treat the task frame as ended. JSR arrivals never get here â€” they
+          * bounce via the paired-call path below. Compared bank-mirrored. */
+         if (n_stop) {
+             const uint32_t pc_norm = pc_before & 0x7FFFFF;
+@@ -2907,7 +2929,7 @@
+             }
+         }
+         /* Focused mode-switch trace (SNESRECOMP_XCE_TRACE=1): every interpreted
+-         * XCE with pc/frame/e-before — localizes which guest routine leaves the
++         * XCE with pc/frame/e-before â€” localizes which guest routine leaves the
+          * frame in emulation mode when an A/B run splits on the E flag. */
+         {
+             static int _xt = -1;
+@@ -2984,7 +3006,7 @@
+          * WRAM $7E/$7F; a PB in $40-$7D or $C0-$FF means a control transfer
+          * handed us a corrupted target (e.g. an RTL that popped a garbage
+          * return-frame bank byte). Trap the FIRST such step and dump the
+-         * recent ring — the transfer that produced it is the last few lines.
++         * recent ring â€” the transfer that produced it is the last few lines.
+          * Env-gated so it costs nothing in normal runs. */
+         {
+             static int _tbp = -1;
+@@ -2998,7 +3020,7 @@
+                     extern int snes_frame_counter;
+                     fprintf(stderr,
+                         "[trap-badpb] interp entered PB=$%02X at pc=$%06X "
+-                        "op=$%02X frame=%d sp=$%04X — corrupted control transfer\n",
++                        "op=$%02X frame=%d sp=$%04X â€” corrupted control transfer\n",
+                         _pbnk, (unsigned)pc_before, op, snes_frame_counter,
+                         (unsigned)in.sp);
+                     /* Step history at the trap: this run's entry path
+@@ -3068,11 +3090,13 @@
+         task_original_arm_local(cpu,&in,pc_before);
+         task_original_pre_local(cpu,&in,pc_before);
+         const int source_task_dispatch=task_pre_opcode(cpu,pc_before,coverage_mx);
++        const int source_suspend_active=suspend_pre_local(cpu,&in,pc_before);
++        const int source_suspend_dispatch=source_suspend_active && cpu_source_suspend_task_member(pc_before,coverage_mx);
+         unsigned source_original_context;
+         const int source_original_dispatch=!source_task_dispatch&&
+             cpu_source_task_original_context(cpu,pc_before,coverage_mx,&source_original_context)&&
+             cpu_source_task_original_prefix_member(pc_before,coverage_mx,source_original_context);
+-        if(source_task_dispatch||source_original_dispatch)region_dispatch=cpu_source_task_region_step;
++        if(source_task_dispatch||source_original_dispatch||source_suspend_dispatch)region_dispatch=cpu_source_task_region_step;
+         const int source_redirect_dispatch=!source_task_dispatch&&!source_original_dispatch&&redirect_pre_opcode(cpu,pc_before,coverage_mx);
+         if(source_redirect_dispatch)region_dispatch=cpu_source_redirect_region_step;
+         const SchedulerHookHandoff previous_handoff = s_scheduler_hook_handoff;
+@@ -3120,7 +3144,9 @@
+             s_interp_bus_timing_active = 1;
+             task_call_pre_local(cpu,&in,pc_before);
+             task_original_interp_scope(cpu,&in,pc_before);
++            s_suspend_interp=&in;
+             _cyc = interp816_runOpcode(&in);
++            s_suspend_interp=NULL;
+             s_task_original_interp_cpu=NULL;s_task_original_interp=NULL;s_task_original_interp_source=0;
+         }
+         if(source_redirect_dispatch)redirect_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed);
+@@ -3162,6 +3188,8 @@
+             { CpuState observed=*cpu;sync_interp_to_cpu(&in,&observed);
+               private_instruction_trace(&observed,pc_before,'i',(unsigned)_cyc,s_interp_bus_cycles,s_interp_bus_master); }
+         } /* Generated body already committed original bus/clocks and g trace. */
++        suspend_committed_local(cpu,&in,pc_before);
++        if(s_suspend_slot.phase){TaskResumeState v=task_local_view(cpu,&in,((uint32)in.k<<16)|in.pc);suspend_selected_commit(cpu,pc_before,&v);}
+         task_call_committed_local(cpu,pc_before,&in,((uint32)in.k<<16)|in.pc);
+         task_original_return_committed_local(cpu,&in,pc_before);
+         if(!region_completed)task_original_step_committed_local(cpu,&in,pc_before);
+@@ -3203,7 +3231,7 @@
+          * that STZ $4200 / install a temp NMI hook / STA $4200=$81 / WAI
+          * restore the old hook before the custom NMI can run (Metal Warriors
+          * LucasArts logo at $00:B7A3). Resume PC is the instruction after WAI.
+-         * Only yield from scheduler/quiescent runs — never from a host
++         * Only yield from scheduler/quiescent runs â€” never from a host
+          * interrupt handler (stop_on_rti), where nested delivery isn't set up. */
+         if (in.waiting) {
+             in.waiting = false;
+@@ -3225,19 +3253,20 @@
+         if (stop_on_rti && op == 0x40) {
+             sync_interp_to_cpu(&in, cpu);
+             bridge_apu_flush(cpu);
++            suspend_interrupt_rti(cpu,&in);
+             return 1;
+         }
+ 
+         /* Resolved-landing capture (Phase 2 manifest): the PC reached after
+          * the FIRST opcode. When entered at an indirect JMP/JML (the
+          * unresolved-IndirectGoto tier-down), this is the dynamically resolved
+-         * target — the actual entry to record, not the JMP site. For a direct
++         * target â€” the actual entry to record, not the JMP site. For a direct
+          * dispatch target the caller already knows the entry and ignores it. */
+         if (steps == 0 && out_landing)
+             *out_landing = ((uint32_t)in.k << 16) | in.pc;
+ 
+         /* In-bridge goto-gap sighting: an indirect JMP/JML's dynamically
+-         * resolved landing with no compiled variant — task entry points and
++         * resolved landing with no compiled variant â€” task entry points and
+          * jump-table targets a minimal cfg hasn't named yet. JMP arrivals are
+          * never bounced (no return-frame contract), so without this record
+          * they leave no trail at all. JMP (abs)=$6C, JMP (abs,X)=$7C,
+@@ -3258,7 +3287,7 @@
+             const uint32_t target = ((uint32_t)in.k << 16) | in.pc;
+             /* Cooperative-scheduler (yield_pc) mode bounces too (fiber-free
+              * rich-LLE, docs/LLE_SCHEDULER.md): a bounced body that reaches a
+-             * yield primitive no longer corrupts the paired-call stack — its
++             * yield primitive no longer corrupts the paired-call stack â€” its
+              * LLE-aware hle stub arms the yield unwind and the sentinel below
+              * brings control back here, where we resume interpreting the real
+              * coroutine switch. SNESRECOMP_LLE_BOUNCE=0 restores the
+@@ -3273,7 +3302,7 @@
+                  * HOST-RETURN to us (frame popped, S restored to pre-call). We
+                  * then resume interpreting at the return address. Using the
+                  * dispatch ABI (cpu_dispatch_pc, hrv=0) instead would re-dispatch
+-                 * on the popped return addr — and over-pop whenever that addr is
++                 * on the popped return addr â€” and over-pop whenever that addr is
+                  * itself a registered function entry (e.g. $90:EB55 sub_90EB55
+                  * right after HandleChargingBeamGfxAudio's JSR), the Samus-draw
+                  * +2 leak. frame: JSL(0x22)=3, JSR/JSR(abs,X)=2. */
+@@ -3281,15 +3310,15 @@
+                 uint16_t _sp_pre = in.sp;
+                 /* Compiled body paces its own APU (RtlApuRead/Write); un-suppress
+                  * the per-touch catch-up for its duration, then restore the
+-                 * PRE-CALL value (not literal 1 — under the co-sim shared APU
++                 * PRE-CALL value (not literal 1 â€” under the co-sim shared APU
+                  * clock the flag is 0 for the whole bridge run and must stay 0). */
+-                /* Optimization (NOT the turbo-wedge fix — that is the raster-IRQ
++                /* Optimization (NOT the turbo-wedge fix â€” that is the raster-IRQ
+                  * decoupling in the game main loop): bring the SPC roughly current
+                  * for the compiled body without taking the APU lock on every
+                  * bounce. Yield-mode rich-LLE bounces fire thousands of times per
+-                 * frame (scheduler tick → compiled task body → yield → repeat); an
++                 * frame (scheduler tick â†’ compiled task body â†’ yield â†’ repeat); an
+                  * unconditional flush here is RtlApuLock + a real snes_catchupApu
+-                 * against the audio thread EVERY bounce — redundant lock traffic in
++                 * against the audio thread EVERY bounce â€” redundant lock traffic in
+                  * the same contention class as the fixed per-opcode-lock crawl.
+                  * Flush only once the interp has banked ~one output sample of
+                  * pending SPC time (>= 4096 master, the same threshold the periodic
+@@ -3299,7 +3328,7 @@
+                  * accesses still flush unconditionally (bridge_bus_*), so the
+                  * correctness-critical upload/handshake reads stay exact. The
+                  * pending is a static that persists across the bounce, so no SPC
+-                 * time is dropped — only deferred to the next real flush. (No-op
++                 * time is dropped â€” only deferred to the next real flush. (No-op
+                  * under SNES_COSIM_APU_SHARED: pending never accumulates there, so
+                  * the co-sim gates are unaffected.) */
+                 if (s_apu_pending_master >= bridge_bounce_flush_thresh())
+@@ -3369,7 +3398,7 @@
+                              * yield primitive; its stub unwound the host
+                              * stack to here. Consume the request and resume
+                              * interpreting at the primitive's REAL ROM entry
+-                             * — cpu is exactly as the compiled callsite left
++                             * â€” cpu is exactly as the compiled callsite left
+                              * it (JSR frame pushed for JSR-reached
+                              * primitives), so the interpreted coroutine
+                              * switch runs byte-exact. */
+@@ -3384,6 +3413,7 @@
+                             in.k  = (uint8)((s_lle_unwind_pc24 >> 16) & 0xFF);
+                             in.pc = (uint16)(s_lle_unwind_pc24 & 0xFFFF);
+                             task_original_internal_landing(cpu,&in,s_lle_unwind_pc24);
++                            suspend_internal_landing(cpu,&in,s_lle_unwind_pc24);
+                             interp_edge_note(pc_before, s_lle_unwind_pc24,
+                                              INTERP_EDGE_EXTERNAL, op, in.sp);
+                             edge_expect = s_lle_unwind_pc24 & 0xFFFFFFu;
+@@ -3461,16 +3491,17 @@
+                 if (_air == RECOMP_RETURN_NORMAL)
+                     task_call_owner_resume_local(cpu,&in,((uint32)in.k<<16)|in.pc);
+         task_original_parent_retained_local(cpu,&in,((uint32)in.k<<16)|in.pc);
++        suspend_parent_retained_local(cpu,&in,((uint32)in.k<<16)|in.pc);
+                 /* Resume-task mode: a successful bounce is forward progress
+                  * (incl. a bounced yield that just slept a frame on its fiber);
+                  * the cap should only catch interp-side wedges, not bound the
+                  * resumed task's lifetime. */
+                 if (reset_cap_on_bounce) steps = 0;
+             } else {
+-                /* No compiled variant for the live (m,x) → keep interpreting
++                /* No compiled variant for the live (m,x) â†’ keep interpreting
+                  * into the target (coverage-gap path). Recorded independent
+                  * of bounce POLICY (a bounce-off harvest soak must still see
+-                 * gaps) but only for genuine gaps — never for targets that
++                 * gaps) but only for genuine gaps â€” never for targets that
+                  * have a body and merely weren't bounced. */
+                 if (!has_body)
+                     tier2_record(pc_before, target, tier2_entry_mx(cpu),
+@@ -3487,7 +3518,7 @@
+          * RTS/RTL-past-s_enter watermark. Games commonly switch to a private
+          * NMI/IRQ stack (TCS to a higher S) and JSR helpers there; the first
+          * RTS on that stack would look like "returned past entry" and abort
+-         * the handler mid-flight — leaving re-entrancy guards stuck (Metal
++         * the handler mid-flight â€” leaving re-entrancy guards stuck (Metal
+          * Warriors: TSB $12=#$8000, never TRB) and DMA queues unserviced.
+          * Interrupt runs exit only on the architectural RTI below. */
+         if (is_ret && !yield_pc && !stop_on_rti) {
+@@ -3507,6 +3538,7 @@
+         }
+         task_call_owner_resume_local(cpu,&in,((uint32)in.k<<16)|in.pc);
+         task_original_parent_retained_local(cpu,&in,((uint32)in.k<<16)|in.pc);
++        suspend_parent_retained_local(cpu,&in,((uint32)in.k<<16)|in.pc);
+         if (captured_return) {
+             completed_return.landing_pc = ((uint32)in.k << 16) | in.pc;
+             completed_return.after_return_s = in.sp;
+@@ -3517,7 +3549,7 @@
+         }
+     }
+ 
+-    /* Step cap hit — contained bail. Sync so observable state is consistent;
++    /* Step cap hit â€” contained bail. Sync so observable state is consistent;
+      * the caller treats a 0 return as "gap not cleanly resolved". */
+     {
+         static int s_cap_reports;
+@@ -3566,7 +3598,7 @@
+      * CRITICAL: skip this for interrupt handlers (stop_on_rti). If an NMI
+      * or IRQ handler hits the step cap mid-execution, saving its PC as the
+      * resume point causes the main bridge to resume INSIDE the handler on
+-     * the next frame — creating an infinite loop of NMI→step-cap→NMI.
++     * the next frame â€” creating an infinite loop of NMIâ†’step-capâ†’NMI.
+      * Interrupt handlers must complete (RTI) or be discarded entirely;
+      * the caller (so_rtl.c) saves/restores the CPU stack to handle bail. */
+     if (!stop_on_rti)
+@@ -3601,13 +3633,13 @@
+ }
+ 
+ 
+-/* ── interpreter attribution scope ────────────────────────────────────────
++/* â”€â”€ interpreter attribution scope â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  *
+  * Every bridge run pushes a synthesized name (interp@$XXXXXX, the entry PC)
+  * onto the recomp call stack and installs it as g_last_recomp_func for the
+  * run's duration. The debug server's write rings (VramTraceEntry.func/stack,
+  * OamWriteEntry.func) copy those at write time, so without this an
+- * interpreted write is attributed to the stale enclosing AOT frame — or, in
++ * interpreted write is attributed to the stale enclosing AOT frame â€” or, in
+  * a whole-program-LLE port, to nothing at all. The entry PC is the useful
+  * identity: it is the exact guest continuation being interpreted, which may
+  * be inside a function. This scope is not a compiled return target. Nested
+@@ -3617,7 +3649,7 @@
+  *
+  * Names are interned in a fixed open-addressed table: RecompStackPush keeps
+  * the pointer, not a copy, so it must outlive the run. On table overflow a
+- * shared static name is returned rather than evicting — attribution degrades
++ * shared static name is returned rather than evicting â€” attribution degrades
+  * to "some interpreted code", never to a dangling pointer.
+  */
+ extern const char *g_last_recomp_func; /* common_cpu_infra.c */
+@@ -3648,7 +3680,7 @@
+ 
+ /* Wrapper: mark the interp tier as APU-driving for the whole run (nesting-safe
+  * save/restore) so rtl_accumulate_apu_catchup skips the per-touch synthetic
+- * estimate — the core advances the SPC per opcode instead. */
++ * estimate â€” the core advances the SPC per opcode instead. */
+ static int interp_bridge_run_ex2(CpuState *cpu, uint32_t entry_pc24,
+                                  uint16_t s_exit, uint32_t *out_landing,
+                                  uint32_t *out_return_pc,
+@@ -3742,7 +3774,7 @@
+ 
+ /* Save-state task resume: interpret a suspended task from its recorded yield
+  * return address (an arbitrary mid-function guest PC) with a caller-supplied
+- * base-stack watermark. Calls bounce to compiled bodies via the paired ABI —
++ * base-stack watermark. Calls bounce to compiled bodies via the paired ABI â€”
+  * including the yield HLEs, which suspend the hosting fiber exactly like the
+  * compiled path. Returns 1 when the task's top-level RTS unwinds past
+  * task_base_s (task finished), 0 on a step-cap wedge bail. The cap resets on
+@@ -3757,7 +3789,7 @@
+ /* Faithful LLE of an infinite cooperative-scheduler loop: run the real guest
+  * scheduler under interp816 from entry_pc24, dispatching its tasks (which bounce
+  * to compiled bodies via the paired ABI), and yield after one frame's slot walk
+- * — when the loop reaches yield_pc (its vblank-wait spin) with the flag at
++ * â€” when the loop reaches yield_pc (its vblank-wait spin) with the flag at
+  * flag_addr cleared. Replaces a hand-written C scheduler HLE with the actual
+  * ROM code. Returns 1 on clean yield, 0 on step-cap bail. */
+ int interp_bridge_run_scheduler(CpuState *cpu, uint32_t entry_pc24,
+@@ -3790,15 +3822,18 @@
+ }
+ 
+ int interp_bridge_run_interrupt(CpuState *cpu, uint32_t entry_pc24) {
++    const uint64 suspend_irq=suspend_interrupt_enter(cpu);
+     /* Always-on per-frame tally. This is the single choke point every host
+      * runs an architectural interrupt handler through, so counting here
+      * cannot miss a delivery the way a per-host hook would. */
+     ppudma_note_interrupt(g_snes && g_snes->inNmi);
+-    return interp_bridge_run_ex2(cpu, entry_pc24, cpu->S, NULL, NULL,
++    const int result=interp_bridge_run_ex2(cpu, entry_pc24, cpu->S, NULL, NULL,
+                                  0, 0, 0, 0, NULL, 0, 1);
+-}
+-
+-/* ── tier-down entry (called from generated indirect-dispatch defaults) ───── */
++    suspend_interrupt_leave(cpu,suspend_irq);
++    return result;
++}
++
++/* â”€â”€ tier-down entry (called from generated indirect-dispatch defaults) â”€â”€â”€â”€â”€ */
+ 
+ extern int snes_frame_counter;
+ 
+@@ -3860,16 +3895,16 @@
+ static const char *tier2_mx_str(uint8_t mx);
+ static const char *tier2_kind_str(uint8_t k);
+ 
+-/* ── RAM-resident routine discovery (static-coverage burn-down) ────────────
++/* â”€â”€ RAM-resident routine discovery (static-coverage burn-down) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  * A tier-2 target in a RAM bank ($7E/$7F) is code the game built/copied into
+- * RAM at runtime — it is not in ROM, so the static analyzer never sees it and
++ * RAM at runtime â€” it is not in ROM, so the static analyzer never sees it and
+  * it can only run via the interpreter. We snapshot every such routine here so
+  * an offline pass can declare it per-game and AOT-compile the *actual bytes*
+  * (faithful literal recompilation of RAM code, guarded by a runtime byte-match;
+  * NOT a semantic HLE reimplementation). Deduped by entry PC.
+  *
+  * Faithfulness gate: on the first sightings we re-hash the live bytes; any
+- * change flags the routine `nondeterministic` — meaning a snapshot is NOT safe
++ * change flags the routine `nondeterministic` â€” meaning a snapshot is NOT safe
+  * to hardcode and it must stay on the interpreter. A deterministic routine
+  * (e.g. SMW OAMResetRoutine, an unrolled OAM clear built from constants) is
+  * safe to promote. Always-on and bounded; an overflow counter never lies. */
+@@ -4082,6 +4117,7 @@
+ 
+ RecompReturn interp_tier_dispatch_interrupt(CpuState *cpu,
+                                             uint32_t target_pc24) {
++    const uint64 suspend_irq=suspend_interrupt_enter(cpu);
+     cpu_interrupt_context_enter();
+     interp_tier_note(target_pc24);
+     const uint8_t mx = tier2_entry_mx(cpu);
+@@ -4097,6 +4133,7 @@
+         : RECOMP_RETURN_NORMAL;
+     (void)interp_run_propagated_return(ok, &result);
+     cpu_interrupt_context_leave();
++    suspend_interrupt_leave(cpu,suspend_irq);
+     return result;
+ }
+ 
+@@ -4398,7 +4435,7 @@
+     return cpu_unresolved_abandon_balanced(cpu, addr_pc24, entry_s, hrv);
+ }
+ 
+-/* ── manifest serializers ──────────────────────────────────────────────────*/
++/* â”€â”€ manifest serializers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€*/
+ 
+ static const char *tier2_mx_str(uint8_t mx) {
+     switch (mx & 3) {
+diff --git a/runner/src/snes/snes.c b/runner/src/snes/snes.c
+--- a/runner/src/snes/snes.c
++++ b/runner/src/snes/snes.c
+@@ -88,6 +88,8 @@
+                                         const char *via) {
+   /* Covers 2180 (including DMA), direct7E/F and low-bank mirrors once. */
+   extern void interp_bridge_source_call_wram_written(const void *,uint32_t,uint8_t,uint64_t);
++  extern void cpu_source_suspend_wram_written(const void *,uint32_t,uint8_t,uint64_t);
++  cpu_source_suspend_wram_written(ram_identity,ram_off,value,0);
+   interp_bridge_source_call_wram_written(ram_identity,ram_off,value,0);
+   if (s_wram_write_log_hook)
+     s_wram_write_log_hook(ram_off, value, via);
+diff --git a/runner/src/task_resume_contract.inc b/runner/src/task_resume_contract.inc
+--- a/runner/src/task_resume_contract.inc
++++ b/runner/src/task_resume_contract.inc
+@@ -33,7 +33,7 @@
+  for(unsigned n=0;n<r->case_count;n++) {
+    const TaskResumeSourceCase *c=&r->cases[n];
+    if(c->p_mask!=0x20&&c->p_mask!=0x30)return 0;
+-   if(c->p_value!=0x20||c->landing!=c->callsite+4)return 0;
++   if((c->p_value&~c->p_mask)||(c->p_value&0x20)!=0x20||c->landing!=c->callsite+4)return 0;
+    for(unsigned j=0;j<n;j++)if(r->cases[j].landing==c->landing)return 0;
+    if(landing!=c->landing)continue;
+    if((frame[7]&c->p_mask)!=c->p_value)return 0;
+diff --git a/runner/src/task_suspend_lineage.h b/runner/src/task_suspend_lineage.h
+new file mode 100644
+--- /dev/null
++++ b/runner/src/task_suspend_lineage.h
+@@ -0,0 +1,61 @@
++#ifndef TASK_SUSPEND_LINEAGE_H
++#define TASK_SUSPEND_LINEAGE_H
++#include "task_original_call_contract.h"
++/* This guest-slot receipt is external to serialized Cpu/Snes tails. It never
++ * restores an old host owner or permits execution without fresh publication. */
++typedef struct {
++ uintptr_t cpu,module,ram;
++ uint64_t state,lifecycle,hooks;
++} TaskSlotLifetime;
++enum { TASK_SLOT_EMPTY,TASK_SLOT_PREFIX,TASK_SLOT_CALL_PUSH,TASK_SLOT_CHILD,TASK_SLOT_SAVE,
++ TASK_SLOT_SUSPENDED,TASK_SLOT_SELECTED,TASK_SLOT_PUBLISHED,TASK_SLOT_RETURN };
++typedef struct {
++ TaskSlotLifetime lifetime;
++ uint64_t serial,serial_next,step_instance,last_instance;
++ TaskResumeSnapshot parent,receiving;
++ TaskResumeState before,actual;
++ uint16_t parent_s,saved_s,index;
++ uint32_t suspend_site,scratch_site;
++ uint8_t frame[11],parent_frame[3],delay,phase,write_index,step_live;
++ uint8_t parent_pop[3],pop_valid,scratch_p,scratch_live,scratch_written;
++} TaskSuspendLineage;
++void task_slot_cancel(TaskSuspendLineage *);
++int task_slot_selected_origin(TaskSuspendLineage *,const TaskResumeSnapshot *,
++ const TaskSlotLifetime *,uint64_t);
++void task_slot_host_frame(TaskSuspendLineage *,const TaskSlotLifetime *);
++/* Both operands and writes come from original committed transactions. */
++int task_slot_call_prepare(TaskSuspendLineage *,const TaskResumeSnapshot *,
++ const TaskResumeState *,const TaskSlotLifetime *,uint32_t,uint32_t,unsigned,uint64_t);
++void task_slot_observe_write(TaskSuspendLineage *,uint32_t,uint64_t,uint32_t,uint8_t);
++int task_slot_call_committed(TaskSuspendLineage *,const TaskResumeState *);
++int task_slot_suspend_prepare(TaskSuspendLineage *,const TaskResumeState *,
++ const TaskSlotLifetime *,uint32_t,uint32_t,unsigned,uint64_t,uint16_t);
++int task_slot_save_committed(TaskSuspendLineage *,const TaskResumeState *);
++int task_slot_suspend_call_committed(TaskSuspendLineage *,const TaskResumeState *);
++int task_slot_producer_committed(TaskSuspendLineage *,uint32_t,const TaskResumeState *,const TaskResumeState *);
++/* The adapter issues each producer instruction instance before its original
++ * transaction; nested/mismatched instances cancel, never gain a write permit. */
++int task_slot_instruction_begin(TaskSuspendLineage *,const TaskSlotLifetime *,
++ const TaskResumeState *,uint32_t,uint64_t);
++void task_slot_instruction_end(TaskSuspendLineage *,uint64_t);
++int task_slot_selected(TaskSuspendLineage *,const TaskResumeSnapshot *,
++ const TaskSlotLifetime *);
++int task_slot_published(TaskSuspendLineage *,const TaskResumeSnapshot *,
++ const TaskSlotLifetime *);
++int task_slot_owner_published(TaskSuspendLineage *,const TaskResumeSnapshot *,const TaskResumeState *);
++int task_slot_step_committed(TaskSuspendLineage *,const TaskOriginalInstruction *,
++ const TaskResumeState *,const TaskResumeState *);
++int task_slot_return_pop(TaskSuspendLineage *,const TaskResumeState *,
++ const TaskResumeState *,uint8_t,uint8_t,uint8_t,uint32_t);
++enum { TASK_SLOT_PARENT_RETAINED=1,TASK_SLOT_PARENT_POPPED=2,TASK_SLOT_PARENT_REWRITTEN=3 };
++/* Issued only inside the actual original accepted-parent handler after its
++ * watermark/nonlocal/paired decision. NORMAL/PC or a core boolean cannot issue
++ * this receipt. Reading it does not consume an existing native token. */
++typedef struct {
++ uint64_t slot_serial,original_instance;
++ uint32_t source_call,actual_pop_pc;
++ unsigned chosen_route;
++ TaskResumeState from,to;
++} TaskSlotParentPublication;
++int task_slot_parent_published(TaskSuspendLineage *,const TaskSlotParentPublication *,uint32_t *);
++#endif
+diff --git a/runner/src/task_suspend_lineage.inc b/runner/src/task_suspend_lineage.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/task_suspend_lineage.inc
+@@ -0,0 +1,177 @@
++#include "task_suspend_lineage.h"
++#include <string.h>
++static int slot_life(const TaskSlotLifetime *a,const TaskSlotLifetime *b){
++ return a&&b&&a->cpu&&a->module&&a->ram&&a->cpu==b->cpu&&a->module==b->module&&a->ram==b->ram&&a->state==b->state&&a->lifecycle==b->lifecycle&&a->hooks==b->hooks;
++}
++static int slot_arch(const TaskResumeState *a,const TaskResumeState *b){
++ return a->cpu==b->cpu&&a->module==b->module&&a->pc==b->pc&&a->s==b->s&&a->a==b->a&&a->x==b->x&&a->y==b->y&&a->d==b->d&&a->p==b->p&&a->db==b->db&&a->e==b->e;
++}
++static int slot_epoch(const TaskResumeState *a,const TaskResumeState *b){
++ return a->cpu==b->cpu&&a->module==b->module&&a->generation==b->generation&&a->frame==b->frame&&a->owner==b->owner&&a->owner_epoch==b->owner_epoch;
++}
++void task_slot_cancel(TaskSuspendLineage *s){if(!s)return;uint64_t n=s->serial_next,last=s->last_instance;memset(s,0,sizeof *s);s->serial_next=n;s->last_instance=last;}
++void task_slot_host_frame(TaskSuspendLineage *s,const TaskSlotLifetime *life){
++ if(!s)return;
++ /* Only sealed original guest slots survive host-frame turnover. Prepared or
++  * active host transactions still reset. Serial identity never rolls back. */
++ if(s->phase!=TASK_SLOT_SUSPENDED||s->step_live||!slot_life(&s->lifetime,life))task_slot_cancel(s);
++}
++static int slot_bad(TaskSuspendLineage *s){task_slot_cancel(s);return 0;}
++int task_slot_call_prepare(TaskSuspendLineage *s,const TaskResumeSnapshot *p,const TaskResumeState *v,const TaskSlotLifetime *life,uint32_t source,uint32_t target,unsigned frame,uint64_t instance){
++ if(!s||!p||!v||!life)return 0;
++ if(s->phase!=TASK_SLOT_PREFIX||(!instance||instance<=s->last_instance)||s->serial_next==UINT64_MAX||!p->published||p->pending||!p->recipe||p->actual_landing!=0x1e05au||!slot_arch(&p->actual,v)||!slot_epoch(&p->actual,v)||v->pc!=source||source!=0x1e070u||target!=0x1e01bu||frame!=3||v->e||(v->p&0x30)!=0x20||v->s<0x40||v->s>0x1fff||v->s!=p->saved_s+11||life->cpu!=v->cpu||life->module!=v->module||life->state!=v->generation)return slot_bad(s);
++ s->lifetime=*life;s->parent=*p;s->before=*v;s->actual=*v;s->parent_s=v->s;s->index=p->index;s->serial=++s->serial_next;s->phase=TASK_SLOT_CALL_PUSH;s->step_live=1;s->step_instance=instance;s->last_instance=instance;
++ s->parent_frame[0]=0x73;s->parent_frame[1]=0xe0;s->parent_frame[2]=1;return 1;
++}
++static int slot_protected(const TaskSuspendLineage *s,uint32_t a){
++ if(a>=s->parent_s-2u&&a<=s->parent_s)return 1;
++ if(s->scratch_live&&a==s->parent_s-3u)return 1;
++ if((s->phase>=TASK_SLOT_SAVE)&&a>s->saved_s&&a<=s->saved_s+11u)return 1;
++ if(s->phase&&(a==0x10u+s->index||a==0x11u+s->index||a==0x12u+s->index||a==0x13u+s->index))return 1;
++ return 0;
++}
++void task_slot_observe_write(TaskSuspendLineage *s,uint32_t source,uint64_t instance,uint32_t offset,uint8_t value){
++ if(!s||!s->phase)return;
++ if(s->phase==TASK_SLOT_CALL_PUSH){
++  unsigned n=s->write_index;
++  if(!s->step_live||instance!=s->step_instance||source!=0x1e070u||n>=3||offset!=s->parent_s-n||value!=s->parent_frame[2-n]){if(slot_protected(s,offset))task_slot_cancel(s);return;}
++  s->write_index++;return;
++ }
++ if(s->phase==TASK_SLOT_CHILD&&s->step_live&&source==s->actual.pc&&instance==s->step_instance&&!s->scratch_live&&!s->scratch_written&&offset==s->parent_s-3u&&value==s->actual.p){
++  switch(source){case 127009u:case 127195u:case 127123u:case 127410u:case 127338u:case 127627u:case 127555u:s->scratch_written=1;s->scratch_p=value;s->scratch_site=source;return;default:break;}
++ }
++ if(s->phase==TASK_SLOT_SAVE){
++  unsigned n=s->write_index;uint32_t expected_source=0,at=0;uint8_t b=0;
++  static const uint16_t push_sources[11]={0,0,0,0x8461,0x8464,0x8464,0x8465,0x8465,0x8466,0x8466,0x8467};
++  if(n<11){expected_source=n<3?s->suspend_site:push_sources[n];at=s->before.s-n;b=s->frame[10-n];}
++  else if(n==11){expected_source=0x846f;at=0x11u+s->index;b=s->delay;}
++  else if(n==12){expected_source=0x8474;at=0x10u+s->index;b=1;}
++  else if(n==13||n==14){expected_source=0x847a;at=0x12u+s->index+n-13;b=(uint8_t)(s->saved_s>>((n-13)*8));}
++  if(n<15&&s->step_live&&instance==s->step_instance&&source==expected_source&&offset==at&&value==b){s->write_index++;return;}
++ }
++ if(s->phase==TASK_SLOT_SUSPENDED&&source==0x83fcu&&s->step_live&&instance==s->step_instance&&s->before.pc==source&&s->before.x==s->index&&s->before.db==0&&!s->before.e&&(s->before.p&0x30)==0x20&&offset==0x11u+s->index&&s->write_index==0&&value==(uint8_t)(s->delay-1u)){
++  s->delay=value;s->write_index=1;return;
++ }
++ if(slot_protected(s,offset))task_slot_cancel(s);
++}
++int task_slot_call_committed(TaskSuspendLineage *s,const TaskResumeState *v){
++ if(!s||!v)return 0;
++ if(s->phase!=TASK_SLOT_CALL_PUSH||!s->step_live||s->write_index!=3||!slot_epoch(&s->before,v)||v->pc!=0x1e01bu||v->s!=s->parent_s-3||v->a!=s->before.a||v->x!=s->before.x||v->y!=s->before.y||v->d!=s->before.d||v->p!=s->before.p||v->db!=s->before.db||v->e)return slot_bad(s);
++ s->actual=*v;s->phase=TASK_SLOT_CHILD;s->step_live=0;return 1;
++}
++static int slot_suspend_site(uint32_t p){switch(p){case 127023u:case 127209u:case 127137u:case 127424u:case 127352u:case 127641u:case 127569u:return 1;default:return 0;}}
++int task_slot_suspend_prepare(TaskSuspendLineage *s,const TaskResumeState *v,const TaskSlotLifetime *life,uint32_t source,uint32_t target,unsigned frame,uint64_t instance,uint16_t index){
++ if(!s||!v)return 0;
++ if(s->phase!=TASK_SLOT_CHILD||s->step_live||!s->scratch_live||!slot_arch(&s->actual,v)||!slot_epoch(&s->actual,v)||!slot_life(&s->lifetime,life)||(!instance||instance<=s->last_instance)||!slot_suspend_site(source)||v->pc!=source||target!=0xff03||frame!=3||v->e||(v->p&0x30)!=0x30||v->s!=s->parent_s-4||v->s<0x40||v->s>0x1fff||index!=s->index||index>=48||index%4||v->cpu!=s->lifetime.cpu||v->module!=s->lifetime.module||v->generation!=s->lifetime.state)return slot_bad(s);
++ s->before=*v;s->actual=*v;s->suspend_site=source;s->saved_s=v->s-11;s->delay=(uint8_t)v->a;s->write_index=0;s->phase=TASK_SLOT_SAVE;s->step_live=1;s->step_instance=instance;s->last_instance=instance;
++ uint16_t ret=(uint16_t)(source+3u);uint8_t *f=s->frame;
++ f[0]=v->db;f[1]=(uint8_t)v->d;f[2]=(uint8_t)(v->d>>8);f[3]=(uint8_t)v->y;f[4]=(uint8_t)(v->y>>8);f[5]=(uint8_t)v->x;f[6]=(uint8_t)(v->x>>8);f[7]=v->p;f[8]=(uint8_t)ret;f[9]=(uint8_t)(ret>>8);f[10]=(uint8_t)(source>>16);return 1;
++}
++int task_slot_instruction_begin(TaskSuspendLineage *s,const TaskSlotLifetime *life,const TaskResumeState *v,uint32_t source,uint64_t instance){
++ if(!s||!v)return 0;
++ if(!s->phase)return 0;
++ if(s->step_live||!slot_life(&s->lifetime,life)||(!instance||instance<=s->last_instance)||source!=v->pc||v->e||v->cpu!=life->cpu||v->module!=life->module||v->generation!=life->state)return slot_bad(s);
++ if((s->phase==TASK_SLOT_PREFIX||s->phase==TASK_SLOT_CHILD||s->phase==TASK_SLOT_SAVE)&&(!slot_arch(&s->actual,v)||!slot_epoch(&s->actual,v)))return slot_bad(s);
++ s->step_live=1;s->step_instance=instance;s->last_instance=instance;s->actual=*v;
++ if(s->phase==TASK_SLOT_SUSPENDED){s->before=*v;s->write_index=0;}
++ return 1;
++}
++void task_slot_instruction_end(TaskSuspendLineage *s,uint64_t instance){if(s&&s->phase){if(!s->step_live||instance!=s->step_instance)task_slot_cancel(s);else{s->step_live=0;s->step_instance=0;}}}
++int task_slot_save_committed(TaskSuspendLineage *s,const TaskResumeState *v){
++ if(!s||!v)return 0;
++ if(s->phase!=TASK_SLOT_SAVE||s->write_index!=15||v->pc!=0x847du||v->s!=s->saved_s||v->a!=s->saved_s||v->x!=s->index||v->e||v->cpu!=s->lifetime.cpu||v->module!=s->lifetime.module||v->generation!=s->lifetime.state)return slot_bad(s);
++ s->actual=*v;s->phase=TASK_SLOT_SUSPENDED;s->step_live=0;s->step_instance=0;return 1;
++}
++int task_slot_suspend_call_committed(TaskSuspendLineage *s,const TaskResumeState *v){
++ if(!s||!v)return 0;
++ if(s->phase!=TASK_SLOT_SAVE||!s->step_live||s->write_index!=3||v->pc!=0xff03u||v->s!=s->before.s-3u||!slot_epoch(&s->before,v)||v->a!=s->before.a||v->x!=s->before.x||v->y!=s->before.y||v->d!=s->before.d||v->p!=s->before.p||v->db!=s->before.db||v->e)return slot_bad(s);
++ s->actual=*v;s->step_live=0;s->step_instance=0;return 1;
++}
++int task_slot_producer_committed(TaskSuspendLineage *s,uint32_t source,const TaskResumeState *before,const TaskResumeState *after){
++ if(!s||!before||!after)return 0;
++ uint32_t next=0;int delta=0;
++ switch(source){
++ case 0xff03:next=0x8461;break;
++ case 0x8461:next=0x8462;delta=-1;break;
++ case 0x8462:next=0x8464;break;
++ case 0x8464:next=0x8465;delta=-2;break;
++ case 0x8465:next=0x8466;delta=-2;break;
++ case 0x8466:next=0x8467;delta=-2;break;
++ case 0x8467:next=0x8468;delta=-1;break;
++ case 0x8468:next=0x8469;delta=-1;break;
++ case 0x8469:next=0x846a;delta=1;break;
++ case 0x846a:next=0x846d;break;
++ case 0x846d:next=0x846f;break;
++ case 0x846f:next=0x8472;break;
++ case 0x8472:next=0x8474;break;
++ case 0x8474:next=0x8477;break;
++ case 0x8477:next=0x8479;break;
++ case 0x8479:next=0x847a;break;
++ case 0x847a:next=0x847d;break;
++ default:return slot_bad(s);
++ }
++ if(s->phase!=TASK_SLOT_SAVE||!s->step_live||source!=before->pc||!slot_arch(&s->actual,before)||!slot_epoch(before,after)||after->pc!=next||after->s!=(uint16_t)(before->s+delta)||before->e||after->e)return slot_bad(s);
++ if(source==0x847a)return task_slot_save_committed(s,after);
++ s->actual=*after;s->step_live=0;s->step_instance=0;return 1;
++}
++int task_slot_selected(TaskSuspendLineage *s,const TaskResumeSnapshot *p,const TaskSlotLifetime *life){
++ if(!s||!p)return 0;
++ if(s->phase!=TASK_SLOT_SUSPENDED||s->step_live||!slot_life(&s->lifetime,life)||s->delay||!p->pending||p->published||p->index!=s->index||p->saved_s!=s->saved_s||memcmp(p->bytes,s->frame,11)||p->epoch.cpu!=life->cpu||p->epoch.module!=life->module||p->epoch.generation!=life->state||!p->epoch.owner||!p->epoch.owner_epoch)return slot_bad(s);
++ s->receiving=*p;s->phase=TASK_SLOT_SELECTED;return 1;
++}
++int task_slot_published(TaskSuspendLineage *s,const TaskResumeSnapshot *p,const TaskSlotLifetime *life){
++ if(!s||!p)return 0;
++ if(s->phase!=TASK_SLOT_SELECTED||!slot_life(&s->lifetime,life)||p->pending||!p->published||p->handoff||!slot_epoch(&s->receiving.epoch,&p->epoch)||p->index!=s->index||p->saved_s!=s->saved_s||memcmp(p->bytes,s->frame,11)||p->actual_landing!=s->suspend_site+4u||p->actual_s!=s->saved_s+11u)return slot_bad(s);
++ s->receiving=*p;s->actual=p->actual;s->phase=TASK_SLOT_PUBLISHED;return 1;
++}
++int task_slot_owner_published(TaskSuspendLineage *s,const TaskResumeSnapshot *p,const TaskResumeState *v){
++ if(!s||!p||!v)return 0;
++ /* Existing original task_resume_handoff must already have chosen the fresh
++  * receiving owner. This method cannot manufacture that decision. */
++ if(s->phase!=TASK_SLOT_PUBLISHED||!p->handoff||!p->published||p->pending||p->recipe!=s->receiving.recipe||p->index!=s->index||p->saved_s!=s->saved_s||memcmp(p->bytes,s->frame,11)||!slot_arch(&s->receiving.actual,&p->actual)||!slot_arch(&p->actual,v)||!slot_epoch(&p->actual,v))return slot_bad(s);
++ s->receiving=*p;s->actual=*v;s->phase=TASK_SLOT_CHILD;return 1;
++}
++int task_slot_return_pop(TaskSuspendLineage *s,const TaskResumeState *before,const TaskResumeState *after,uint8_t lo,uint8_t hi,uint8_t bank,uint32_t full_pc){
++ if(!s||!before||!after)return 0;
++ if(s->phase!=TASK_SLOT_CHILD||s->step_live||before->s!=s->parent_s-3||after->s!=s->parent_s||lo!=s->parent_frame[0]||hi!=s->parent_frame[1]||bank!=s->parent_frame[2]||full_pc!=0x1e074u||after->pc!=full_pc||before->e||after->e||!slot_arch(&s->actual,before)||before->a!=after->a||before->x!=after->x||before->y!=after->y||before->d!=after->d||before->p!=after->p||before->db!=after->db||!slot_epoch(before,after)||!slot_epoch(&s->actual,before))return slot_bad(s);
++ s->actual=*after;s->pop_valid=1;s->phase=TASK_SLOT_RETURN;return 1;
++}
++int task_slot_parent_published(TaskSuspendLineage *s,const TaskSlotParentPublication *p,uint32_t *landing){
++ if(!s||!p||!landing)return 0;
++ if(s->phase!=TASK_SLOT_RETURN||!s->pop_valid||p->slot_serial!=s->serial||!p->original_instance||p->original_instance<=s->last_instance||p->source_call!=0x1e070u||p->actual_pop_pc!=0x1e074u||p->chosen_route<TASK_SLOT_PARENT_RETAINED||p->chosen_route>TASK_SLOT_PARENT_REWRITTEN||!slot_arch(&s->actual,&p->from)||!slot_epoch(&s->actual,&p->from)||!slot_arch(&p->from,&p->to)||p->from.generation!=p->to.generation||p->from.frame!=p->to.frame||!p->to.owner||!p->to.owner_epoch)return slot_bad(s);
++ if(p->chosen_route==TASK_SLOT_PARENT_RETAINED&&!slot_epoch(&p->from,&p->to))return slot_bad(s);
++ s->last_instance=p->original_instance;*landing=p->to.pc;task_slot_cancel(s);return 1;
++}
++
++int task_slot_step_committed(TaskSuspendLineage *s,const TaskOriginalInstruction *r,const TaskResumeState *before,const TaskResumeState *after){
++ if(!s||!r||!before||!after)return 0;
++ if((s->phase!=TASK_SLOT_CHILD&&s->phase!=TASK_SLOT_PREFIX)||!s->step_live||!slot_arch(&s->actual,before)||!slot_epoch(before,after)||before->e||after->e||r->pc!=before->pc||r->m!=((before->p>>5)&1)||r->x!=((before->p>>4)&1)||!r->length||r->length>4)return slot_bad(s);
++ uint32_t next=r->fall;uint8_t op=r->bytes[0];int take=0;
++ if(op==0x08){
++  if(s->phase!=TASK_SLOT_CHILD||s->scratch_live||!s->scratch_written||before->s!=s->parent_s-3||after->s!=before->s-1||before->p!=s->scratch_p||after->p!=before->p)return slot_bad(s);
++  s->scratch_live=1;s->scratch_written=0;
++ }else if(op==0x28){
++  if(s->phase!=TASK_SLOT_CHILD||!s->scratch_live||before->s!=s->parent_s-4||after->s!=before->s+1||after->p!=s->scratch_p||after->x!=(before->x&((after->p&0x10)?0xff:0xffff))||after->y!=(before->y&((after->p&0x10)?0xff:0xffff)))return slot_bad(s);
++  s->scratch_live=0;
++ }else if(after->s!=before->s)return slot_bad(s);
++ switch(op){
++ case 0x10:take=!(before->p&0x80);break;case 0x30:take=!!(before->p&0x80);break;
++ case 0x50:take=!(before->p&0x40);break;case 0x70:take=!!(before->p&0x40);break;
++ case 0x90:take=!(before->p&1);break;case 0xb0:take=!!(before->p&1);break;
++ case 0xd0:take=!(before->p&2);break;case 0xf0:take=!!(before->p&2);break;
++ case 0x80:case 0x82:case 0x4c:case 0x5c:take=1;break;
++ case 0x20:case 0x22:case 0x60:case 0x6b:case 0x40:case 0xfb:
++ case 0x1b:case 0x9a:case 0x44:case 0x54:return slot_bad(s);
++ default:break;
++ }
++ if(take)next=r->branch;
++ if(after->pc!=next||r->next_m!=((after->p>>5)&1)||r->next_x!=((after->p>>4)&1))return slot_bad(s);
++ s->actual=*after;if(s->phase==TASK_SLOT_PREFIX)s->parent.actual=*after;s->step_live=0;s->step_instance=0;return 1;
++}
++
++int task_slot_selected_origin(TaskSuspendLineage *s,const TaskResumeSnapshot *p,const TaskSlotLifetime *life,uint64_t instance){
++ if(!s||!p||!life)return 0;
++ if(s->phase||!instance||instance<=s->last_instance||s->serial_next==UINT64_MAX||!p->recipe||!p->published||p->pending||!p->handoff||p->actual_landing!=0x1e05au||p->actual.pc!=0x1e05au||p->actual.e||(p->actual.p&0x30)!=0x20||p->actual.s!=p->saved_s+11u||p->actual.s<0x40||p->actual.s>0x1fff||p->actual.cpu!=life->cpu||p->actual.module!=life->module||p->actual.generation!=life->state||!p->actual.owner||!p->actual.owner_epoch)return slot_bad(s);
++ s->lifetime=*life;s->parent=*p;s->actual=p->actual;s->before=p->actual;s->parent_s=p->actual.s;s->index=p->index;s->phase=TASK_SLOT_PREFIX;s->serial=++s->serial_next;s->last_instance=instance;return 1;
++}
++

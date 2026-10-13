@@ -1,0 +1,131 @@
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2379,6 +2379,13 @@
+                     exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
+                 if region is not None:native_region_collector.append(region)
+                 continue
++            if region_insn.opcode in (0x44,0x54):
++                from .native_blockmove import collect_blockmove
++                region=collect_blockmove(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                    exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                if region is not None:native_region_collector.append(region)
++                continue
+             if region_insn.opcode==0x40:
+                 from .native_interrupt_return import collect_interrupt_return
+                 region=collect_interrupt_return(rom,region_key,region_insn,region_ops,
+diff --git a/recompiler/v2/native_blockmove.py b/recompiler/v2/native_blockmove.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/native_blockmove.py
+@@ -0,0 +1,39 @@
++"""Source-bound E0 MVN/MVP: one byte, original scheduler re-dispatches each iteration."""
++from snes65816 import IMM,decode_insn,rom_offset
++from snes_cycles import instr_cpu_cycles
++from .ir import BlockMove
++from .lowering import lower
++
++
++def collect_blockmove(rom,key,insn,ops,cycles,*,data_regions=(),exclude_ranges=(),forced=()):
++    if key.m not in(0,1)or key.x not in(0,1)or insn.data_region_exec:return None
++    if getattr(insn,'const_z_fold_unconditional',False)or getattr(insn,'dispatch_entries',None):return None
++    opcode={'MVN':0x54,'MVP':0x44}.get(insn.mnem)
++    if opcode is None or(insn.opcode,insn.mode,insn.length)!=(opcode,IMM,3):return None
++    pc=insn.addr&0xffffff
++    if key.pc&65535!=pc&65535 or pc&65535<0x8000 or pc&65535>0xfffd or pc>>16 in(0x7e,0x7f):return None
++    if(getattr(insn,'m_flag',None),getattr(insn,'x_flag',None))!=(key.m,key.x):return None
++    for byte in range(3):
++        at=(pc&0xff0000)|((pc+byte)&65535)
++        if at&0x7fffff in forced or any(at>>16 in(b,b^128)and lo<=at&65535<hi for b,lo,hi in data_regions)or any(lo<=at&65535<hi for lo,hi in exclude_ranges):return None
++    off=rom_offset(pc>>16,pc&65535)
++    if off<0 or off+3>len(rom):return None
++    decoded=decode_insn(rom,off,pc&65535,pc>>16,key.m,key.x)
++    if decoded is None or(decoded.opcode,decoded.mnem,decoded.mode,decoded.operand,decoded.length)!=(insn.opcode,insn.mnem,insn.mode,insn.operand,insn.length):return None
++    decoded.m_flag,decoded.x_flag=key.m,key.x
++    if len(ops)!=1 or ops!=lower(decoded,value_factory=lambda:None):return None
++    op=ops[0]
++    if not isinstance(op,BlockMove)or op.direction!=('mvn'if opcode==0x54 else'mvp'):return None
++    if cycles!=instr_cpu_cycles(opcode,m=key.m,x=key.x,e=0)or cycles!=7:return None
++    delta='+'if opcode==0x54 else'-'
++    # Original interp816 opcode44/54 fetches destination then source; DB is
++    # visible during the source read/destination write. Count and index changes
++    # follow that write. This is exactly one byte, never a host transfer loop.
++    body=('{ uint16 _move_operand=cpu_aot_get_blockmove_operand(cpu,(((uint32)cpu->PB<<16)|0x%04xu),0x%02xu);\n'
++          'uint8 _move_dst=(uint8)_move_operand,_move_src=(uint8)(_move_operand>>8);\n'
++          'cpu->DB=_move_dst; uint8 _move_byte=cpu_aot_read8(cpu,_move_src,cpu->X);\n'
++          'cpu_aot_write8(cpu,_move_dst,cpu->Y,_move_byte);\n'
++          'cpu->A=(uint16)(cpu->A-1); cpu->X=(uint16)(cpu->X%s1); cpu->Y=(uint16)(cpu->Y%s1);\n'
++          '*next_pc=((uint32)cpu->PB<<16)|(cpu->A!=0xffffu?0x%04xu:0x%04xu);\n'
++          'if(cpu->x_flag){cpu->X&=0x00ffu;cpu->Y&=0x00ffu;} }')%(pc&65535,opcode,delta,delta,pc&65535,(pc+3)&65535)
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':3,'cycles':cycles,'bytes':rom[off:off+3].hex(),'next_pc':(pc+3)&65535,'body':body,'mnemonic':insn.mnem,'contract':'source-native-e0-blockmove-one-byte-v1','scheduler_repeated_opcode':True,'transferred_bytes_per_instruction':1}
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 27
++CACHE_FORMAT_VERSION = 28
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1353,7 +1353,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':13, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':14, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'direct_call_prefix':bool(enable_native_call_prefix),
+@@ -1362,6 +1362,7 @@
+                                      'indirect_control_contract':'source-indirect-control-architectural-v1',
+                                      'interrupt_return_contract':'source-native-e0-interrupt-return-v1',
+                                      'carry_emulation_exchange_contract':'source-native-e0-carry-emulation-exchange-v1',
++                                     'blockmove_contract':'source-native-e0-blockmove-one-byte-v1',
+                                      'stack_indirect_y_contract':'native-e0-source-cached-stack-indirect-y-v1',
+                                      'rom_sha256':rom_digest, 'regions':regions},
+                                     indent=2, sort_keys=True) + '\n')
+diff --git a/runner/src/cpu_state.h b/runner/src/cpu_state.h
+--- a/runner/src/cpu_state.h
++++ b/runner/src/cpu_state.h
+@@ -849,6 +849,7 @@
+ void cpu_aot_get_direct_call_operands(CpuState*,uint32,unsigned,CpuAotDirectCallOperands*);
+ uint32 cpu_aot_get_direct_jump_target(CpuState *cpu,uint32 pc24);
+ uint16 cpu_aot_get_indirect_control_operand(CpuState *cpu,uint32 pc24,uint8 opcode);
++uint16 cpu_aot_get_blockmove_operand(CpuState *cpu,uint32 pc24,uint8 opcode);
+ 
+ bool cpu_aot_begin_scheduler_region(CpuState*, uint32, unsigned, unsigned, const uint8*, bool (*)(CpuState*, uint32, uint8, uint32*));
+ RecompReturn interp_tier_dispatch_faithful(CpuState*,uint32,uint32,uint16,uint8,bool,uint32);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -629,7 +629,7 @@
+   /* Direct calls consume actual fetched operands. Verify their source mapping
+    * before any fetch even on the unhooked route; refusal has no bus effects. */
+   if (expected[0] == 0x20u || expected[0] == 0x22u || expected[0] == 0x5cu ||
+-      expected[0] == 0x6cu || expected[0] == 0x7cu || expected[0] == 0xdcu || expected[0] == 0xfcu || expected[0] == 0x40u) {
++      expected[0] == 0x6cu || expected[0] == 0x7cu || expected[0] == 0xdcu || expected[0] == 0xfcu || expected[0] == 0x40u || expected[0] == 0x44u || expected[0] == 0x54u) {
+     if (!g_snes || !g_snes->cart) return false;
+     for (unsigned byte = 0; byte < length; ++byte) {
+       const uint8_t *rom = cart_getRomPtr(g_snes->cart, cpu->PB, (uint16_t)(pc + byte));
+@@ -730,6 +730,17 @@
+      (opcode!=0x6cu && opcode!=0x7cu && opcode!=0xdcu && opcode!=0xfcu) ||
+      (((uint32)cpu->PB<<16)|(pc24&0xffffu))!=pc24) {
+     fputs("Invalid cached indirect control operands\n",stderr);abort();
++  }
++  return ((uint16)s_aot_fetched[2]<<8)|s_aot_fetched[1];
++}
++
++uint16 cpu_aot_get_blockmove_operand(CpuState *cpu,uint32 pc24,uint8 opcode) {
++  aot_require(cpu);
++  /* Readonly already-fetched destination/source bytes; no bus/clocks or authority. */
++  if(s_aot_pc!=pc24 || s_aot_length!=3u || s_aot_fetched[0]!=opcode ||
++     (opcode!=0x44u && opcode!=0x54u) ||
++     (((uint32)cpu->PB<<16)|(pc24&0xffffu))!=pc24) {
++    fputs("Invalid cached blockmove operands\n",stderr);abort();
+   }
+   return ((uint16)s_aot_fetched[2]<<8)|s_aot_fetched[1];
+ }

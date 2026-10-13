@@ -43,7 +43,7 @@ To choose a new native build folder explicitly:
 
 ```powershell
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc" `
-  --output-dir "local/source-builds/native051-fresh"
+  --output-dir "local/source-builds/native053-fresh"
 ```
 
 `--output-dir` must not already exist. The default remains a fresh timestamped
@@ -54,7 +54,7 @@ fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
 The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`.
-The current35-patch key is `7931b53c4968-11180fa6103e7271`. All35 full ordered
+The current42-patch key is `7931b53c4968-f7024d97f1a4c5fe`. All42 full ordered
 hashes remain in the marker and receipt. Fresh builds use the public helper and
 verified runtime/SDL dependencies; changed existing caches are preserved, never
 reset to make a build pass. Keep required active caches and remove closed
@@ -63,7 +63,7 @@ rebuildable outputs under the required-only storage policy.
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
 [`native/foundation/framework_pins.txt`](native/foundation/framework_pins.txt).
-The helper checks both submodule pins and applies all35 individually hashed
+The helper checks both submodule pins and applies all42 individually hashed
 runtime patches in order. The public `patches/` bindings record exact prior and
 final source hashes; each new stage validates its predecessor before applying,
 then validates final sources and source accounting. Unexpected edits or cache
@@ -352,3 +352,5 @@ Earlier051 and private080 receipts retain their own scopes; current checks do
 not rewrite or transfer their qualification. Preserve declared ABI/profile update
 rules. Keep only required donors, receipts and inputs, place bounded large build
 outputs in Temp, and maintain the5GB steady workspace cap.
+
+Native0.5.3 uses declared execution ABI `a852efdd826b5c79ad88ae5f3539faf1a9490aaab2d819f55f28a87ad08b3a9b`. A source-profile update from native0.5.2 with a different declared ABI must refuse; use separate fresh adoption. Never rewrite an old profile inventory to bypass this check. The host turbo API and its verified runtime headers must be supplied together by the public helper. Original-checkpoint compatibility remains separately tested and does not imply source-profile ABI compatibility.

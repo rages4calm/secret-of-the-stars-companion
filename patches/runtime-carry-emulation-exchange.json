@@ -1,0 +1,29 @@
+{
+  "patch_sha256": "629f510383cd70654d8a43fefe5eec30918a42ee8c7bdbb5343280ebe48a8075",
+  "predecessor_patch_sha256": "75926f688cc3dbd6dccc4ce3446976b0f6307f93c212533dae5bb25248d071a1",
+  "predecessor_binding_sha256": "3ba0770eb6d5f13ae1a794bb7365ebe1f06ddb117ff2172786ee40b56efe3f10",
+  "files": {
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "525e81da03f558eea834b9f67aa8c8ceb466e9bd7796825075eb181c2889462a",
+      "final_sha256": "14a448aafb5fcb52a67396661fb7d600a32aee1cb10de29d4a646c693450a82d",
+      "normalized_final_sha256": "14a448aafb5fcb52a67396661fb7d600a32aee1cb10de29d4a646c693450a82d"
+    },
+    "recompiler/v2/native_exchange.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "df538efaa435dc03cca3401ef4789cba9ece52510717629f7e07cda500b44341",
+      "normalized_final_sha256": "df538efaa435dc03cca3401ef4789cba9ece52510717629f7e07cda500b44341"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "0d94ec40b4092e9a9f893a8d8c4b18f46716802a5aecf150766889a7f90d4c93",
+      "final_sha256": "6c6f22c079242d4e1687cbd6ad73396c105bfc4e95ecbb2822c7b9f1ecd6a7f0",
+      "normalized_final_sha256": "6c6f22c079242d4e1687cbd6ad73396c105bfc4e95ecbb2822c7b9f1ecd6a7f0"
+    }
+  },
+  "scope": "Original architectural E0 XCE with dynamic C/E swap and status/index/stack normalization; common E1 fallback and source-byte scheduler gates remain. No new roots or callable body changes.",
+  "cache_format": 27,
+  "normal_metadata": 13,
+  "task_metadata": 5,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false
+}

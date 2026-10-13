@@ -1,0 +1,336 @@
+diff --git a/recompiler/v2/decoder.py b/recompiler/v2/decoder.py
+--- a/recompiler/v2/decoder.py
++++ b/recompiler/v2/decoder.py
+@@ -1901,6 +1901,7 @@
+                      noreturn_jsr_sites: Optional[set] = None,
+                      stop_on_unknown_callee_exit: bool = False,
+                      hle_entry_pcs: Optional[set] = None,
++                     instruction_table_members: Optional[frozenset] = None,
+                     ) -> "FunctionDecodeGraph":
+     """Public cached wrapper around `_decode_function_uncached`.
+ 
+@@ -1927,6 +1928,7 @@
+             noreturn_jsr_sites=noreturn_jsr_sites,
+             stop_on_unknown_callee_exit=stop_on_unknown_callee_exit,
+             hle_entry_pcs=hle_entry_pcs,
++            instruction_table_members=instruction_table_members,
+         )
+ 
+     cache_key = (
+@@ -1944,6 +1946,7 @@
+         _identity(noreturn_jsr_sites),
+         bool(stop_on_unknown_callee_exit),
+         frozenset(pc & 0xFFFF for pc in (hle_entry_pcs or ())),
++        frozenset(instruction_table_members) if instruction_table_members is not None else None,
+     )
+     cached = _DECODE_CACHE.get(cache_key)
+     if cached is not None:
+@@ -1969,6 +1972,7 @@
+         noreturn_jsr_sites=noreturn_jsr_sites,
+         stop_on_unknown_callee_exit=stop_on_unknown_callee_exit,
+         hle_entry_pcs=hle_entry_pcs,
++        instruction_table_members=instruction_table_members,
+     )
+     _DECODE_CACHE[cache_key] = graph
+     return graph
+@@ -1991,6 +1995,7 @@
+                      noreturn_jsr_sites: Optional[set] = None,
+                      stop_on_unknown_callee_exit: bool = False,
+                      hle_entry_pcs: Optional[set] = None,
++                     instruction_table_members: Optional[frozenset] = None,
+                     ) -> FunctionDecodeGraph:
+     """Decode a function starting at (bank, start) with entry (m, x) state.
+ 
+@@ -2075,6 +2080,12 @@
+                 f"function ${addr24(bank, start):06X}"
+             )
+         key, edge_kind, pred_pc = worklist.pop()
++        # Internal instruction-table analysis never imports a second source PC.
++        # Its discarded callable output is not registered or compiled.
++        if instruction_table_members is not None and key.pc not in instruction_table_members:
++            boundary=((bank<<16)|(pred_pc&0xffff),key)
++            if boundary not in graph.boundary_exits:graph.boundary_exits.append(boundary)
++            continue
+         if key in graph.insns:
+             continue
+ 
+diff --git a/recompiler/v2/emit_bank.py b/recompiler/v2/emit_bank.py
+--- a/recompiler/v2/emit_bank.py
++++ b/recompiler/v2/emit_bank.py
+@@ -95,7 +95,8 @@
+               inline_arg_map=None,
+               declared_entry_pcs=None,
+               host_alias_entries=None, native_region_collector=None,
+-              enable_native_call_prefix: bool = False, native_call_prefix_forced=()) -> str:
++              enable_native_call_prefix: bool = False, native_call_prefix_forced=(),
++              enable_native_mode_successors: bool = False) -> str:
+     """Emit one bank's C source.
+ 
+     Args:
+@@ -218,6 +219,7 @@
+             native_region_collector=native_region_collector,
+             native_call_prefix_collector=(native_region_collector if enable_native_call_prefix else None),
+             native_call_prefix_forced=native_call_prefix_forced,
++            native_mode_successors=enable_native_mode_successors,
+             callee_exit_mx=callee_exit_mx,
+             callee_exit_mx_modes=callee_exit_mx_modes,
+             sibling_entry_pcs=sibling_pcs,
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -492,7 +492,8 @@
+                   noreturn_jsr_sites=None,
+                   entry_s_offset: int = 0, native_region_collector=None,
+                   source_task_resume_stops=None, native_call_prefix_collector=None,
+-                  native_call_prefix_forced=()) -> str:
++                  native_call_prefix_forced=(), native_mode_successors=False,
++                  _native_instruction_members=None) -> str:
+     """Emit a complete v2 C function source for one 65816 function.
+ 
+     Pipeline:
+@@ -503,10 +504,15 @@
+             emit_op(op)  → C lines
+         block-end op → goto / fall-through wiring
+     """
++    _mode_successor_arguments = dict(locals())
+     base_func_name = func_name if func_name is not None else _default_func_name(bank, start)
+     _prefix_expected, _prefix_masks = _FAITHFUL_PREFIX_CONTRACTS.get(
+         ((bank << 16) | (start & 0xFFFF), entry_m, entry_x), (frozenset(), ()))
+     _prefix_stops = frozenset()
++    if _native_instruction_members is not None:
++        # Source/mode instruction analysis only: no owning-prefix proof or
++        # callable output is transferred. Masks remain in the source policy.
++        _prefix_expected=frozenset()
+ 
+     # HLE bypass: if cfg declared this function's PC as the SPC upload
+     # entry (`hle_spc_upload <pc>` in the bank cfg), replace the entire
+@@ -624,7 +630,8 @@
+                             noreturn_jsr_sites=noreturn_jsr_sites,
+                             stop_on_unknown_callee_exit=bool(_prefix_expected) or source_task_resume_stops is not None,
+                             hle_entry_pcs=(set(hle_func or ()) |
+-                                           set(hle_spc_upload or ())))
++                                           set(hle_spc_upload or ())),
++                            instruction_table_members=_native_instruction_members)
+     if source_task_resume_stops is not None:
+         actual = frozenset(tuple(row) for row in graph.unknown_callee_exit_sites)
+         if actual != frozenset(tuple(row) for row in source_task_resume_stops):
+@@ -1246,6 +1253,10 @@
+     def _goto_or_return(target: DecodeKey, prefix: str = "",
+                          source_pc24: Optional[int] = None) -> str:
+         label = _label_for(target)
++        if _native_instruction_members is not None:
++            # Symbolic architectural next-PC for existing row extraction only.
++            # This analysis C function is discarded; it is never a host callee.
++            return f"{prefix}goto {label};"
+         if label in local_labels:
+             return f"{prefix}goto {label};"
+         # HLE-replacement check: cfg `exclude_range S E` carves out a
+@@ -2435,6 +2446,11 @@
+     src.append("  RecompStackPop();")
+     src.append("  return RECOMP_RETURN_NORMAL;")
+     src.append("}")
++    if native_mode_successors and _native_instruction_members is None and native_region_collector is not None:
++        from .native_mode_successors import collect_mode_successor_rows
++        _mode_successor_arguments['data_regions']=list(data_regions or ())+list(_prefix_masks)
++        collect_mode_successor_rows(rom,graph,_mode_successor_arguments,emit_function,
++                                   native_region_collector,native_call_prefix_collector)
+     return "\n".join(src) + "\n"
+ 
+ 
+diff --git a/recompiler/v2/native_mode_successors.py b/recompiler/v2/native_mode_successors.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/native_mode_successors.py
+@@ -0,0 +1,77 @@
++"""Instruction-only live-mode alternatives on existing source members, never roots."""
++from collections import deque
++from snes65816 import decode_insn,rom_offset,ABS,LONG
++from .decoder import DecodeKey,_labeled_successors
++from . import decoder
++
++
++def collect_mode_successor_rows(rom,graph,arguments,emit_function,regions,calls):
++    bank=arguments['bank'];members={d.insn.addr&0xffffff for d in graph.insns.values()}
++    covered={((d.insn.addr&0xff0000)|((d.insn.addr+n)&65535)) for d in graph.insns.values() for n in range(d.insn.length)}
++    barriers={d.insn.addr&0xffffff for d in graph.insns.values() if d.insn.data_region_exec or any(getattr(d.insn,v,None)for v in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr'))}
++    # Original source graph boundaries are hard even when two functions abut.
++    siblings={((bank<<16)|(p&65535))for p in(arguments.get('sibling_entry_pcs')or())}
++    hle={((bank<<16)|(p&65535))for p in set(arguments.get('hle_func')or())|set(arguments.get('hle_spc_upload')or())}
++    forced=set(arguments.get('native_call_prefix_forced')or())
++    data=arguments.get('data_regions')or();exclude=arguments.get('exclude_ranges')or()
++    inline=arguments.get('inline_arg_map')
++    if inline is None:inline=decoder._ACTIVE_INLINE_ARG_MAP
++    inline=inline or {}
++    def permitted(ins):
++        pc=ins.addr&0xffffff
++        if pc not in covered or pc in barriers or pc in siblings or pc in hle:return False
++        if any(((pc&0xff0000)|((pc+n)&65535))not in covered for n in range(ins.length)):return False
++        for n in range(ins.length):
++            at=(pc&0xff0000)|((pc+n)&65535)
++            if at&0x7fffff in forced or any(at>>16 in(b,b^128)and lo<=at&65535<hi for b,lo,hi in data)or any(lo<=at&65535<hi for lo,hi in exclude):return False
++        return True
++    def successors(ins,key):
++        unknown=[]
++        normal=_labeled_successors(ins,key,bank,callee_exit_mx=arguments.get('callee_exit_mx'),callee_exit_mx_modes=arguments.get('callee_exit_mx_modes'),rom=rom,inline_arg_map=inline,stop_on_unknown_callee_exit=True,unknown_callee_exit_sites=unknown)
++        dynamic=ins.mnem=='PLP'
++        if unknown:
++            target=((bank<<16)|(ins.operand&65535))if ins.opcode==0x20 else ins.operand&0xffffff
++            dynamic=(ins.opcode in(0x20,0x22)and ins.mode in(ABS,LONG)and not inline.get(target,inline.get(target^0x800000,0)))
++        if dynamic:
++            pc=(ins.addr&0xff0000)|((ins.addr+ins.length)&65535)
++            # No callee exit fact, stack history or return owner is invented.
++            # The table's live-MX scheduler gate decides the real instruction.
++            return [(DecodeKey(pc,m,x,()),'fall')for m in(0,1)for x in(0,1)]
++        return normal
++    pending=deque()
++    for d in graph.insns.values():
++        if d.insn.mnem=='PLP' or d.insn.opcode in(0x20,0x22):
++            if permitted(d.insn):pending.extend(k for k,kind in successors(d.insn,d.key))
++    seen=set();existing={(r['pc24'],r['m'],r['x'])for r in regions}
++    existing_calls={(r['pc24'],r['m'],r['x'])for r in(calls or())}
++    while pending:
++        key=pending.popleft();identity=(key.pc&0x7fffff,key.m,key.x)
++        if identity in seen or key.pc not in covered:continue
++        seen.add(identity)
++        if len(seen)>4096:raise ValueError('mode-successor source-member cap4096')
++        off=rom_offset(bank,key.pc&65535)
++        if off<0 or off>=len(rom):continue
++        ins=decode_insn(rom,off,key.pc&65535,bank,key.m,key.x)
++        if ins is None or not permitted(ins):continue
++        ins.m_flag,ins.x_flag=key.m,key.x;ins.data_region_exec=False
++        # Preserve original source fences/ABI annotations. Barriers above refuse
++        # dispatch/table/terminal sites instead of stripping those annotations.
++        new_regions=[];new_calls=[]
++        if identity not in existing:
++            args=dict(arguments);args.update(start=key.pc&65535,entry_m=key.m,entry_x=key.x,
++                native_region_collector=new_regions,native_call_prefix_collector=new_calls if calls is not None else None,
++                native_mode_successors=False,_native_instruction_members=frozenset({key.pc}),
++                source_task_resume_stops=None,suppressed_collector=None,const_z_fold_collector=None,
++                dispatch_target_suppressed_collector=None,unresolved_indirect_collector=None)
++            # Only this source instruction is decoded/lowered. The returned C
++            # text (including symbolic labels) is discarded and never published.
++            emit_function(rom,bank,args.pop('start'),args.pop('entry_m'),args.pop('entry_x'),**{k:v for k,v in args.items()if k not in('rom','bank')})
++            for row in new_regions:
++                rid=(row['pc24'],row['m'],row['x'])
++                if rid==identity and rid not in existing:
++                    regions.append(row);existing.add(rid)
++            for row in new_calls:
++                rid=(row['pc24'],row['m'],row['x'])
++                if rid==identity and rid not in existing_calls:
++                    calls.append(row);existing_calls.add(rid)
++        pending.extend(k for k,kind in successors(ins,key))
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 29
++CACHE_FORMAT_VERSION = 30
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1000,7 +1000,8 @@
+                     enable_hle: bool, host_alias_entries: Mapping,
+                     shard_threshold_bytes: int, shard_pc_span: int,
+                     module_prefix: str | None = None,
+-                    enable_native_call_prefix: bool = False) -> str:
++                    enable_native_call_prefix: bool = False,
++                    enable_native_mode_successors: bool = False) -> str:
+     nodes = [
+         (key.manifest_key, node.digest, node.disposition.value)
+         for key, node in sorted(manifest.nodes.items())
+@@ -1038,6 +1039,7 @@
+         ),
+         "hle": bool(enable_hle),
+         "native_call_prefix": bool(enable_native_call_prefix),
++        "native_mode_successors": bool(enable_native_mode_successors),
+         "sharding": [int(shard_threshold_bytes), int(shard_pc_span)],
+         "module_prefix": module_prefix or "",
+     })
+@@ -1052,6 +1054,7 @@
+                  callee_exit_mx_modes: Mapping | None = None,
+                  enable_hle: bool = True,
+                  enable_native_call_prefix: bool = False,
++                 enable_native_mode_successors: bool = False,
+                  shard_threshold_bytes: int = 4 * 1024 * 1024,
+                  shard_pc_span: int = 0x0800,
+                  check_link_closure: bool = True,
+@@ -1151,7 +1154,7 @@
+                 bank, manifest, rom_digest, generator_digest, config_digest,
+                 dispatch_helpers, inline_arg_map, enable_hle,
+                 host_alias_entries, shard_threshold_bytes, shard_pc_span,
+-                module_prefix, enable_native_call_prefix)
++                module_prefix, enable_native_call_prefix,enable_native_mode_successors)
+             new_bank_keys[f"{bank:02X}"] = cache_key
+             previous_names = old_bank_outputs.get(f"{bank:02X}", ())
+             reusable_output = bool(previous_names) and all(
+@@ -1242,6 +1245,7 @@
+                              if bank_file_header else None),
+                 native_region_collector=bank_regions,
+                 enable_native_call_prefix=enable_native_call_prefix,
++                enable_native_mode_successors=enable_native_mode_successors,
+                 native_call_prefix_forced={pc & 0x7fffff for _b, _p, q in parsed for pc in getattr(q, "force_lle", ())},
+             )
+             # Continuation suffixes have their own C activations, but are never
+@@ -1358,10 +1362,12 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':15, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':16, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+                                      'direct_call_prefix':bool(enable_native_call_prefix),
++                                     'mode_successors':bool(enable_native_mode_successors),
++                                     'mode_successor_contract':'source-owned-live-mx-instruction-successors-v1',
+                                      'direct_call_contract':'source-direct-call-architectural-prefix-v1',
+                                      'long_jump_contract':'source-long-jump-architectural-prefix-v1',
+                                      'indirect_control_contract':'source-indirect-control-architectural-v1',
+diff --git a/tools/v2_emit.py b/tools/v2_emit.py
+--- a/tools/v2_emit.py
++++ b/tools/v2_emit.py
+@@ -97,7 +97,8 @@
+                            reviewed_root_sha256: str | None = None,
+                            certify_converged_exits: bool = False,
+                            certify_native_continuations: bool = False,
+-                           enable_native_call_prefix: bool = False) -> str:
++                           enable_native_call_prefix: bool = False,
++                           enable_native_mode_successors: bool = False) -> str:
+     value = {
+         "format": CACHE_FORMAT_VERSION,
+         "rom": hashlib.sha256(rom).hexdigest(),
+@@ -111,6 +112,7 @@
+         "analysis_backend": str(analysis_backend),
+         "hle": bool(enable_hle),
+         "native_call_prefix": bool(enable_native_call_prefix),
++        "native_mode_successors": bool(enable_native_mode_successors),
+         "module": [str(module_id), str(module_prefix or "")],
+         "max_insns": int(max_insns),
+         "max_nodes": int(max_nodes),
+@@ -183,6 +185,8 @@
+ def main() -> int:
+     parser = argparse.ArgumentParser(
+         description="manifest-driven LLE-first v2 generation")
++    parser.add_argument("--native-mode-successors", action="store_true",
++                        help="Emit source-owned live-M/X instruction alternatives without callable/root promotion.")
+     parser.add_argument("--native-direct-call-prefix", action="store_true",
+                         help="emit known-mode source-exact JSR(abs)/JSL(long) architectural instruction rows inside the original scheduler; no new roots or callee ownership")
+     parser.add_argument("--rom", required=True)
+@@ -393,6 +397,7 @@
+         certify_converged_exits=args.certify_converged_exits,
+         certify_native_continuations=args.certify_native_continuations,
+         enable_native_call_prefix=args.native_direct_call_prefix,
++        enable_native_mode_successors=args.native_mode_successors,
+     )
+     cached = _verified_cached_stats(out_dir, analysis_input_digest)
+     if cached is not None and not args.no_link_closure_check:
+@@ -454,6 +459,7 @@
+         },
+         enable_hle=not args.no_hle,
+         enable_native_call_prefix=args.native_direct_call_prefix,
++        enable_native_mode_successors=args.native_mode_successors,
+         shard_threshold_bytes=shard_threshold_bytes,
+         shard_pc_span=shard_pc_span,
+         check_link_closure=not args.no_link_closure_check,

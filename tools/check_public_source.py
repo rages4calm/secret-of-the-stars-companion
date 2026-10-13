@@ -228,12 +228,12 @@ def main():
         import importlib.util
         tree=ast.parse((ROOT/'tools/build_public_foundation.py').read_text(encoding='utf8'))
         formats=next(ast.literal_eval(n.value)for n in tree.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=='RUNTIME_GENERATION_FORMATS'for t in n.targets))
-        if formats!={'cache':26,'normal':12,'task':5,'redirect':1}or formats!=provenance.get('current_runtime_generation_formats'):raise ValueError('Current runtime formats differ.')
+        if formats!={'cache':32,'normal':17,'task':6,'redirect':1}or formats!=provenance.get('current_runtime_generation_formats'):raise ValueError('Current runtime formats differ.')
         spec=importlib.util.spec_from_file_location('public_runtime_bindings',ROOT/'tools/build_public_foundation.py')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         bindings=module.runtime_extension_bindings()
-        expected=('runtime-original-call-retention','runtime-long-jump-stack-indirect-y','runtime-indirect-control','runtime-task-original-prefix','runtime-interrupt-return')
-        if tuple(r['name']for r in module.RUNTIME_EXTENSION_SPECS)!=expected or len(bindings)!=5 or provenance.get('current_ordered_runtime_patch_count')!=35:raise ValueError('Current extension sequence differs.')
+        expected=('runtime-original-call-retention', 'runtime-long-jump-stack-indirect-y', 'runtime-indirect-control', 'runtime-task-original-prefix', 'runtime-interrupt-return', 'runtime-carry-emulation-exchange', 'runtime-blockmove', 'runtime-reset-bootstrap-emulation', 'runtime-mode-successors', 'runtime-source-suspend', 'runtime-architecture-eligibility', 'runtime-turbo-cadence')
+        if tuple(r['name']for r in module.RUNTIME_EXTENSION_SPECS)!=expected or len(bindings)!=12 or provenance.get('current_ordered_runtime_patch_count')!=42:raise ValueError('Current extension sequence differs.')
         for name in ('runtime-selected-task-cases','runtime-direct-call-prefix',*expected):
             binding=ROOT/'patches'/(name+'.json');patch=binding.with_suffix('.patch');v=json.loads(binding.read_bytes())
             key=name.removeprefix('runtime-').replace('-','_')
