@@ -1,0 +1,25 @@
+{
+  "patch_sha256": "ee55a567f53c2ae3e8a81755bda7954a3b835d19bad8cc56db84156e243cce45",
+  "predecessor_patch_sha256": "3a85c417735b1bd306249997309ef9bb84edd03d696b5c5d2e9429ced253b8cb",
+  "predecessor_binding_sha256": "1173e66d76c869542ba579fbf9e97824f3e7dd6e9d51a425b45dbced923417b3",
+  "files": {
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "3ec5d2680477f35d2dbde49472011cc1664179672f75973ae2433fb85917d5c3",
+      "final_sha256": "bf5922443253023e4672de8081bc06aa435c66bfc69c56d69f6c660dc37af99b",
+      "normalized_final_sha256": "bf5922443253023e4672de8081bc06aa435c66bfc69c56d69f6c660dc37af99b"
+    },
+    "runner/src/snes/bridge_callable_progress120.inc": {
+      "predecessor_sha256": null,
+      "final_sha256": "3528a1d57df86c145a3358f5dff92f71660e90f385982812c88bc3e1ccec6e85",
+      "normalized_final_sha256": "3528a1d57df86c145a3358f5dff92f71660e90f385982812c88bc3e1ccec6e85"
+    }
+  },
+  "cache_format": 39,
+  "normal_metadata": 24,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "1bcafd9885cf4f34ef50b38bd115d1e5f49a6be5e373eaa9d9bad5b571c79b7d",
+  "scope": "Original scoped synchronous callable invocation borrows actual core auto_quiescent progress refs/owner epochs and actual saved driving flag only through faithful instruction charge/observers/trace/checkpoint. Nested/reentrant quarantine, valid restore; no native admission/masks/roots/guest writes/serialized fields/clock arithmetic/ratio/threshold changes. Actual fractional repair still needs fresh strict qualification."
+}

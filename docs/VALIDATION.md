@@ -1,3 +1,15 @@
+# Current validation — native 0.5.4 / Companion 0.3.6
+
+[Exact artifact scope](FOUNDATION-NATIVE-CALLABLE-PROGRESS-2026-10-14.md) records
+build15 native/coldboot and first rendering/input/audio results. These checks are
+complete and are not repeated. Same-ABI source Update/fresh adoption, copied-source
+GUI Resume and installed legacy Resume pass; owner saves/settings/selectors stay
+exact. Native0.5.4 is installed with unchanged Companion036. Package/publication
+checks are separate. Compilation receipts
+remain immutable `compiled_unqualified`; full native/AOT remains unfinished.
+
+---
+
 # Current validation scope — native0.5.3 / Companion0.3.6
 
 [Current source and artifact scope](FOUNDATION-TURBO-BATTLE-NATIVE-2026-10-13.md) describes fresh build10, separate finite rendering/output checks, preserved failure evidence, strict ABI rules and unresolved coldboot residual. Compilation receipts stay immutable compiled_unqualified. Prior artifacts retain their own scope; full native/AOT is unfinished.

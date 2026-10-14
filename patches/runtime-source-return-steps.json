@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "0e0b689fb492bb1369077fb09161f9bb18f0d1ab1acbefa40c6ffdca977c6bab",
+  "predecessor_patch_sha256": "5486f4d47dc5ccb4cc0bc686d1e044c471d85bc142316c8dcbdf2380b7e77348",
+  "predecessor_binding_sha256": "15f03ed4f721e84ee8c2a8118b6ae2e33c721f0844a4f8369949636159665627",
+  "files": {
+    "recompiler/v2/architecture_return_steps.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "d38dc56f70c06d5519ce9d13cfa87dfab250f6b1ea3ade69c58abfd1adde88ef",
+      "normalized_final_sha256": "d38dc56f70c06d5519ce9d13cfa87dfab250f6b1ea3ade69c58abfd1adde88ef"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "14a32f1f3edddf764a38f7c41bdebc73153c3f74caa2d1fca0a257795b6a710b",
+      "final_sha256": "237c9e814fe46a9e01a477824b0e486c38fc59f56a94c647c62b09cdd67617c0",
+      "normalized_final_sha256": "237c9e814fe46a9e01a477824b0e486c38fc59f56a94c647c62b09cdd67617c0"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "dfe9661e10fcf8ba39d7899edcb46219751285d2674cd14481894caa4226e66d",
+      "final_sha256": "b9b988f3885d3ff3c1ee98dbb56ccdeefb7e7e872948249ad971c07d2fbfff0f",
+      "normalized_final_sha256": "b9b988f3885d3ff3c1ee98dbb56ccdeefb7e7e872948249ad971c07d2fbfff0f"
+    }
+  },
+  "cache_format": 38,
+  "normal_metadata": 23,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "f6ca8cf6ec535e5faf431efe58a8c63d2ab1646adb0c74f6e0dda4d4099266cb",
+  "scope": "Narrow internal source-return barriers, raw noninterrupt Return and canonical existing bank0/S-wrap/fullPC24 pop/stage body. Original pre/post-return capture/clock/owner/rewritten/unwind/IRQ/hook gates remain byte-exact. General unmarked return/RTI ban retained; no new roots, callee exits, host/caller/ancestor ownership or guessed targets."
+}

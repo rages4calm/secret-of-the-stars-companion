@@ -1,0 +1,154 @@
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -844,6 +844,10 @@ void cpu_aot_rmw_write(CpuState *cpu, const CpuAotRmwOperand *operand, uint16 va
+   s_aot_rmw_written=true;
+ }
+ 
++static void callable_progress_committed(CpuState *cpu);
++static int callable_progress_driving_begin(CpuState *cpu);
++static void callable_progress_driving_end(int previous);
++
+ void cpu_aot_commit(CpuState *cpu) {
+   if(!s_aot_instruction)return;
+   aot_require(cpu);
+@@ -853,6 +857,7 @@ void cpu_aot_commit(CpuState *cpu) {
+   if(s_aot_cycles<s_interp_bus_cycles){fprintf(stderr,"AOT bus exceeds cycles PC=%06X cycles=%u bus=%u\n",s_aot_pc,s_aot_cycles,s_interp_bus_cycles);abort();}
+   unsigned cycles=s_aot_cycles,bus=s_interp_bus_cycles;uint64_t master=s_interp_bus_master;
+   s_interp_bus_timing_active=0;s_aot_instruction=NULL;g_interp_apu_driving=s_aot_apu_driving;
++  const int callable_apu_previous=callable_progress_driving_begin(cpu);
+   bridge_charge_instruction(cpu,cycles,bus,master,false);g_faithful_aot_steps++;cpu_mirrors_to_p(cpu);
+   task_call_committed_cpu(cpu,s_aot_pc);
+   task_original_return_committed_cpu(cpu,s_aot_pc);
+@@ -862,6 +867,8 @@ void cpu_aot_commit(CpuState *cpu) {
+   static int init=0,lo=-1,hi=-1;extern int snes_frame_counter;
+   if(!init){const char *e=getenv("PRIVATE_FAITHFUL_TRACE");init=1;if(e)sscanf(e,"%d-%d",&lo,&hi);}
+   if(lo>=0&&snes_frame_counter>=lo&&snes_frame_counter<=hi)fprintf(stderr,"[faithful-auto] f=%d pc=%06X cycles=%u bus=%u bus_master=%llu master_delta=%llu total_master=%llu steps=%llu prefix_steps=%llu S=%04X DB=%02X PB=%02X P=%02X open_bus=%02X\n",snes_frame_counter,s_aot_pc,cycles,bus,(unsigned long long)master,(unsigned long long)(master+(uint64_t)(cycles-bus)*6),(unsigned long long)cpu->master_cycles,g_faithful_aot_steps,g_faithful_aot_prefix_steps,cpu->S,cpu->DB,cpu->PB,cpu->P,cpu->open_bus);
++  callable_progress_committed(cpu); /* after original observers and completed trace */
++  callable_progress_driving_end(callable_apu_previous);
+ }
+ 
+ void cpu_aot_prefix_commit(CpuState *cpu) {
+@@ -1954,6 +1961,8 @@ static void interp_hist_init(void) {
+ }
+ #endif
+ 
++#include "bridge_callable_progress120.inc"
++
+ static int _interp_run_core(CpuState *cpu, uint32_t entry_pc24,
+                                  uint16_t s_exit, uint32_t *out_landing,
+                                  uint32_t *out_return_pc,
+@@ -2809,7 +2818,10 @@ static int _interp_run_core(CpuState *cpu, uint32_t entry_pc24,
+                 s_interp_bounce_owner_depth = s_interp_bridge_depth;
+                 s_lle_next_unwind_is_deadline = 0;
+                 g_interp_wlog_pc24 = 0;
++                BridgeCallableProgress progress_scope=callable_progress_enter(cpu,auto_quiescent,
++                    &progress_write_epoch,&progress_dynamic_epoch,&steps,old_apu);
+                 NativeContinuationResult cr = cpu_dispatch_continuation(cpu, &frame);
++                callable_progress_restore(progress_scope);
+                 s_interp_bounce_owner_depth = old_owner;
+                 s_interp_bounce_recomp_base = old_base;
+                 g_interp_apu_driving = old_apu;
+@@ -3350,7 +3362,10 @@ static int _interp_run_core(CpuState *cpu, uint32_t entry_pc24,
+                 interp_edge_note(pc_before, target, INTERP_EDGE_AOT_CALL, op,
+                                  (uint16_t)_sp_pre);
+                 g_interp_wlog_pc24 = 0;
++                BridgeCallableProgress progress_scope=callable_progress_enter(cpu,auto_quiescent,
++                    &progress_write_epoch,&progress_dynamic_epoch,&steps,_apu_drv);
+                 RecompReturn _air = cpu_dispatch_pc_paired(cpu, target, _fs);
++                callable_progress_restore(progress_scope);
+                 s_interp_bounce_owner_depth = _saved_bounce_owner;
+                 s_interp_bounce_recomp_base = _saved_bounce_base;
+                 g_interp_apu_driving = _apu_drv;
+@@ -3691,6 +3706,7 @@ static int interp_bridge_run_ex2(CpuState *cpu, uint32_t entry_pc24,
+                                  int reset_cap_on_bounce,
+                                  const uint32_t *stop_pcs, int n_stop,
+                                  int stop_on_rti) {
++    BridgeCallableProgress saved_callable_progress=callable_progress_quarantine();
+     int _saved = g_interp_apu_driving;
+ #ifdef SNES_COSIM
+     /* Shared APU clock: leave the flag clear so interpreted HW touches pace
+@@ -3764,6 +3780,7 @@ static int interp_bridge_run_ex2(CpuState *cpu, uint32_t entry_pc24,
+         }
+     }
+     g_interp_apu_driving = _saved;
++    callable_progress_restore(saved_callable_progress);
+     return _r;
+ }
+ 
+diff --git a/runner/src/snes/bridge_callable_progress120.inc b/runner/src/snes/bridge_callable_progress120.inc
+new file mode 100644
+--- /dev/null
++++ b/runner/src/snes/bridge_callable_progress120.inc
+@@ -0,0 +1,71 @@
++/* Callable-only, synchronous original-core progress boundary.
++ * Timing ownership only: never grants native instruction/return admission. */
++typedef struct BridgeCallableProgress {
++    CpuState *cpu;
++    uint64_t *write_epoch, *dynamic_epoch;
++    long *steps;
++    const SnesProgramModule *module;
++    uint64_t owner_serial, state_generation, lifecycle, hook_generation;
++    int depth, frame, owner_scheduler, apu_driving;
++    uint16_t owner_exit_s;
++} BridgeCallableProgress;
++static BridgeCallableProgress s_callable_progress;
++static const SnesProgramModule *callable_progress_module(void) {
++    const SnesProgramModule *m=snes_program_module_active();
++    return m ? m : &g_program_module;
++}
++static bool callable_progress_current(const BridgeCallableProgress *p) {
++    return p->cpu && p->write_epoch && p->dynamic_epoch && p->steps &&
++        s_interp_owner_exit_valid && p->depth==s_interp_bridge_depth &&
++        p->owner_serial==s_task_owner_serial && p->owner_exit_s==s_interp_owner_exit_s &&
++        p->owner_scheduler==s_interp_owner_is_scheduler &&
++        p->frame==snes_frame_counter && p->lifecycle==s_scheduler_hook_lifecycle &&
++        p->hook_generation==s_pre_opcode_hook_generation &&
++        p->state_generation==RtlStateGeneration() && p->module==callable_progress_module();
++}
++/* Borrow the actual original-core flag only for this faithful committed
++ * instruction. The enclosing legacy callable/HLE retains its own flag. */
++static int callable_progress_driving_begin(CpuState *cpu) {
++    const int previous=g_interp_apu_driving;
++    if(s_callable_progress.cpu==cpu && callable_progress_current(&s_callable_progress))
++        g_interp_apu_driving=s_callable_progress.apu_driving;
++    return previous;
++}
++static void callable_progress_driving_end(int previous) {
++    g_interp_apu_driving=previous;
++}
++static BridgeCallableProgress callable_progress_quarantine(void) {
++    BridgeCallableProgress previous=s_callable_progress;
++    s_callable_progress=(BridgeCallableProgress){0};
++    return previous;
++}
++static void callable_progress_restore(BridgeCallableProgress previous) {
++    s_callable_progress=callable_progress_current(&previous)
++        ? previous : (BridgeCallableProgress){0};
++}
++static BridgeCallableProgress callable_progress_enter(CpuState *cpu, bool auto_quiescent,
++        uint64_t *write_epoch, uint64_t *dynamic_epoch, long *steps, int apu_driving) {
++    BridgeCallableProgress previous=callable_progress_quarantine();
++    if(auto_quiescent && cpu && write_epoch && dynamic_epoch && steps &&
++       s_interp_owner_exit_valid && s_task_owner_serial && s_interp_bridge_depth>0) {
++        s_callable_progress=(BridgeCallableProgress){
++            .cpu=cpu,.write_epoch=write_epoch,.dynamic_epoch=dynamic_epoch,.steps=steps,
++            .module=callable_progress_module(),.owner_serial=s_task_owner_serial,
++            .state_generation=RtlStateGeneration(),.lifecycle=s_scheduler_hook_lifecycle,
++            .hook_generation=s_pre_opcode_hook_generation,.depth=s_interp_bridge_depth,
++            .frame=snes_frame_counter,.owner_scheduler=s_interp_owner_is_scheduler,
++            .owner_exit_s=s_interp_owner_exit_s,.apu_driving=apu_driving};
++    }
++    return previous;
++}
++static void callable_progress_committed(CpuState *cpu) {
++    if(!s_callable_progress.cpu || s_callable_progress.cpu!=cpu)return;
++    if(!callable_progress_current(&s_callable_progress)) {
++        s_callable_progress=(BridgeCallableProgress){0};return;
++    }
++    /* Quarantine through the existing flush's callbacks. Its actual epoch
++     * pointers and step counter remain those of the live original core. */
++    BridgeCallableProgress current=callable_progress_quarantine();
++    bridge_progress_checkpoint(cpu,true,current.write_epoch,current.dynamic_epoch,current.steps);
++    callable_progress_restore(current);
++}

@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "5486f4d47dc5ccb4cc0bc686d1e044c471d85bc142316c8dcbdf2380b7e77348",
+  "predecessor_patch_sha256": "65bb7bfed0c31b7b7f03c04441344a1aa9a1e46d55b7416246110ecb38f1f2ac",
+  "predecessor_binding_sha256": "27beaefc7a9dcb997f88c8115a29784e6a3022e7151910d7d9aaae663ee474f7",
+  "files": {
+    "recompiler/v2/architecture_frontier_mode_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "2fa59ef07549dd03aea15743cc8cafd129559564502c0187ea5c351e71c37d84",
+      "normalized_final_sha256": "2fa59ef07549dd03aea15743cc8cafd129559564502c0187ea5c351e71c37d84"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "1751a08c4d01ff0fee4b1a079505b5a4ae45aa1f530e32f5215c7eaa9902d055",
+      "final_sha256": "14a32f1f3edddf764a38f7c41bdebc73153c3f74caa2d1fca0a257795b6a710b",
+      "normalized_final_sha256": "14a32f1f3edddf764a38f7c41bdebc73153c3f74caa2d1fca0a257795b6a710b"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "8723b947389dae6abe9a618da1df1e706a8b887f771953eb213daa64f80499df",
+      "final_sha256": "dfe9661e10fcf8ba39d7899edcb46219751285d2674cd14481894caa4226e66d",
+      "normalized_final_sha256": "dfe9661e10fcf8ba39d7899edcb46219751285d2674cd14481894caa4226e66d"
+    }
+  },
+  "cache_format": 37,
+  "normal_metadata": 22,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "4e5f75280d60ae5043e5954e4c6cb0f50b9f0cbb1384888c1b4a5619ee43198e",
+  "scope": "Internal source-authenticated nested-graph PLP frontier with whole original call/target/barrier certificates and independent actual live-M/X. Reuses original typed stack body; no historical status/exit/root/caller/ancestor/return/scheduler/clock authority added."
+}

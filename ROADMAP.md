@@ -1,5 +1,7 @@
 # Roadmap
 
+The [0.5.4 update](docs/FOUNDATION-NATIVE-CALLABLE-PROGRESS-2026-10-14.md) advances original-owned native call/return execution and callable progress. Full native/AOT conversion remains unfinished; finite exact-artifact checks and delivery stay separate.
+
 The target is a polished, editable Windows PC edition with attractive original
 pixels, true wider scenery/actors, reliable controls/audio and a useful journal.
 The port recompiles original instructions through the pinned whole-program

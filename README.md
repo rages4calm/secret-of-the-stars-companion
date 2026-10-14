@@ -6,7 +6,9 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest development: native 0.5.3 / unchanged Companion 0.3.6.** Smoother fast-forward output, corrected wider battle scenery and further source-owned native instructions. [Current scope](docs/FOUNDATION-TURBO-BATTLE-NATIVE-2026-10-13.md). Complete native/AOT execution remains unfinished.
+**Latest development: native 0.5.4 / unchanged Companion 0.3.6.** Further source-owned native call/return instructions and restored original callable progress checkpoints. [Current scope](docs/FOUNDATION-NATIVE-CALLABLE-PROGRESS-2026-10-14.md). Complete native/AOT execution remains unfinished.
+
+Finite native/coldboot/rendering/input/audio and source-profile checks pass. The installed copied-save Resume route passes; full native/AOT conversion and broader coverage remain unfinished.
 
 **Discord:** chrono.trigger
 
@@ -14,7 +16,7 @@
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.5.3 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.5.4 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The journal has two views: **Current** offers 25 automatic chapter cards with finer current-state leads, and **Guide** lets you browse the full 42-page story walkthrough. Advice recomputes from your current checkpoint; it does not record permanent quest completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
 

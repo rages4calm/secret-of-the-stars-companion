@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "65bb7bfed0c31b7b7f03c04441344a1aa9a1e46d55b7416246110ecb38f1f2ac",
+  "predecessor_patch_sha256": "c3a2205226e3594f163ae6252f26e9433ab6ddb98824600e5b7769592c64e16c",
+  "predecessor_binding_sha256": "76d70ff5f6b58158dff0c945af6c64670f3ed7bc02f4bee0e0c728780b3dbe0e",
+  "files": {
+    "recompiler/v2/architecture_nested_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "7cc207c110fa7ab701e9beef0fed13f41efe88fb73ad6b68c2139db10680d142",
+      "normalized_final_sha256": "7cc207c110fa7ab701e9beef0fed13f41efe88fb73ad6b68c2139db10680d142"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "f4a43a8642ce5b6fcfa9f6db50d37bce167ad50b1d9b1e933090728bf27853c3",
+      "final_sha256": "1751a08c4d01ff0fee4b1a079505b5a4ae45aa1f530e32f5215c7eaa9902d055",
+      "normalized_final_sha256": "1751a08c4d01ff0fee4b1a079505b5a4ae45aa1f530e32f5215c7eaa9902d055"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "0f111e7b7ffa8e1fff33fc4fdbaee683ca709b172d66283c763425c7ac81e2cb",
+      "final_sha256": "8723b947389dae6abe9a618da1df1e706a8b887f771953eb213daa64f80499df",
+      "normalized_final_sha256": "8723b947389dae6abe9a618da1df1e706a8b887f771953eb213daa64f80499df"
+    }
+  },
+  "cache_format": 36,
+  "normal_metadata": 21,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "f282bd4a3ea9437b1706c07e4b930c1a59e5ba5aa44ab0a7e8868a9ea0fe39e6",
+  "scope": "Internally authenticated nested direct-call callee and return-address instruction starts with independent live-M/X bodies. Exact opcode/whole-byte/length/target/mask guards; PLP/RTS/unknown call barriers. No root, exit, caller, ancestor, scheduler or clock authority added."
+}

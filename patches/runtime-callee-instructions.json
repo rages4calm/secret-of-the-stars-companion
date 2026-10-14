@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "9070328b96b9df5c2a32f73c2d927c4ef5467993718d9fc197957740f5efa4c6",
+  "predecessor_patch_sha256": "450ce03ce31486317ad2108cce99a80e6c119ccf3f760f8862bb11baaf4a8fad",
+  "predecessor_binding_sha256": "136906a9a6e78c321870d0cf8bba1c19075a3acde5e04387a500d0dc1c10ce27",
+  "files": {
+    "recompiler/v2/architecture_callee_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "3a74da069e66614309f76761479b5199db4cab06e9894b0d1bb7eda74c7261bd",
+      "normalized_final_sha256": "3a74da069e66614309f76761479b5199db4cab06e9894b0d1bb7eda74c7261bd"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "552a85ff27f0d44c837f52c3522ebccab1b48e4a47c5637354d2dbaa0b888b7d",
+      "final_sha256": "4484d258eb9134d453972fdaabbaeb200d4d6fa10bc7c75fa7264b9fbd09186f",
+      "normalized_final_sha256": "4484d258eb9134d453972fdaabbaeb200d4d6fa10bc7c75fa7264b9fbd09186f"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "165df185cb153647d8e98ef9c92c85304b95b162180728351ec3da022e902a78",
+      "final_sha256": "891934214d3d29522c3c74d33d9c2b5c8f8f66537e0a1c7c91b01dcbf78a598b",
+      "normalized_final_sha256": "891934214d3d29522c3c74d33d9c2b5c8f8f66537e0a1c7c91b01dcbf78a598b"
+    }
+  },
+  "cache_format": 34,
+  "normal_metadata": 19,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "57a1020acf57ab87388979c454c6364b1505534d85ec7e95a4786e5756349522",
+  "scope": "Independent source-owned live-M/X architectural instructions; no new roots, callee exit summaries, original caller/return ownership or scheduler changes."
+}

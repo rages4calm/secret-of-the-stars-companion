@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "450ce03ce31486317ad2108cce99a80e6c119ccf3f760f8862bb11baaf4a8fad",
+  "predecessor_patch_sha256": "cfb88676320da4f5ae5f1144e5814a307ecc70c689ed48ba13dc6d6964859dc7",
+  "predecessor_binding_sha256": "7495d2b5cfb54642b6d53c38e8d6de2d24f440b5f3abaa0b7d5a216caafcd817",
+  "files": {
+    "recompiler/v2/architecture_return_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "2793bd42c9830974add2d32b830aab7f30f5d21f422050c2131b20ff17fdd520",
+      "normalized_final_sha256": "2793bd42c9830974add2d32b830aab7f30f5d21f422050c2131b20ff17fdd520"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "75a461fff2212e7f89dd58cdb86146859e67d988f4440cfb536dd12903356d42",
+      "final_sha256": "552a85ff27f0d44c837f52c3522ebccab1b48e4a47c5637354d2dbaa0b888b7d",
+      "normalized_final_sha256": "552a85ff27f0d44c837f52c3522ebccab1b48e4a47c5637354d2dbaa0b888b7d"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "743bda2e565a99af8f176df27c9caf52b23531629bcddf4cccbfdaa62dc643d2",
+      "final_sha256": "165df185cb153647d8e98ef9c92c85304b95b162180728351ec3da022e902a78",
+      "normalized_final_sha256": "165df185cb153647d8e98ef9c92c85304b95b162180728351ec3da022e902a78"
+    }
+  },
+  "cache_format": 33,
+  "normal_metadata": 18,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "c910130bd2724933352c78148c13be3435e21eae3d088a1c85f4e966bb0322a4",
+  "scope": "Independent source-owned live-M/X architectural instructions; no new roots, callee exit summaries, original caller/return ownership or scheduler changes."
+}

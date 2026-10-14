@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "3a85c417735b1bd306249997309ef9bb84edd03d696b5c5d2e9429ced253b8cb",
+  "predecessor_patch_sha256": "0e0b689fb492bb1369077fb09161f9bb18f0d1ab1acbefa40c6ffdca977c6bab",
+  "predecessor_binding_sha256": "dd0103e5ef9e8136d136726796a04606af63918a083db90012bf0f06e5d87981",
+  "files": {
+    "recompiler/v2/architecture_aftercall_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "11fb511c4db2bc28870237dce15af759d7a7d6f13b02474b9d7551b1401c5b7e",
+      "normalized_final_sha256": "11fb511c4db2bc28870237dce15af759d7a7d6f13b02474b9d7551b1401c5b7e"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "237c9e814fe46a9e01a477824b0e486c38fc59f56a94c647c62b09cdd67617c0",
+      "final_sha256": "d50f7856694dcb69de66ef125dc498319d3f71403f22ca425061ec1aa1093c7d",
+      "normalized_final_sha256": "d50f7856694dcb69de66ef125dc498319d3f71403f22ca425061ec1aa1093c7d"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "b9b988f3885d3ff3c1ee98dbb56ccdeefb7e7e872948249ad971c07d2fbfff0f",
+      "final_sha256": "4d61c6279104fb2ab901f787b7ecabd76fd4e2b7348a05195bad2ce7086acc79",
+      "normalized_final_sha256": "4d61c6279104fb2ab901f787b7ecabd76fd4e2b7348a05195bad2ce7086acc79"
+    }
+  },
+  "cache_format": 39,
+  "normal_metadata": 24,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "123d48633f363d3b5227c82ef54d2938ddee9fa5eb89208149243978b2397354",
+  "scope": "Bounded current source-call after/callee closure with exact original whole-call bytes, independently live E0 M/X, strict unknown-mode/history barriers and existing scoped canonical RTS. Prior factories/CPU/bridge/masks/roots/owner/exit/clock authority unchanged; source rows are not actual qualification."
+}

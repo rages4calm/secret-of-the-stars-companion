@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "c3a2205226e3594f163ae6252f26e9433ab6ddb98824600e5b7769592c64e16c",
+  "predecessor_patch_sha256": "9070328b96b9df5c2a32f73c2d927c4ef5467993718d9fc197957740f5efa4c6",
+  "predecessor_binding_sha256": "131021104fd513c11750348fd4cef24fa28c4472d2c38ab55c97bfe051dbfb70",
+  "files": {
+    "recompiler/v2/architecture_mode_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "825496134597cf22b559cafc852faa7a4a6403dd4957b2c17dd477e3c8fff82e",
+      "normalized_final_sha256": "825496134597cf22b559cafc852faa7a4a6403dd4957b2c17dd477e3c8fff82e"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "4484d258eb9134d453972fdaabbaeb200d4d6fa10bc7c75fa7264b9fbd09186f",
+      "final_sha256": "f4a43a8642ce5b6fcfa9f6db50d37bce167ad50b1d9b1e933090728bf27853c3",
+      "normalized_final_sha256": "f4a43a8642ce5b6fcfa9f6db50d37bce167ad50b1d9b1e933090728bf27853c3"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "891934214d3d29522c3c74d33d9c2b5c8f8f66537e0a1c7c91b01dcbf78a598b",
+      "final_sha256": "0f111e7b7ffa8e1fff33fc4fdbaee683ca709b172d66283c763425c7ac81e2cb",
+      "normalized_final_sha256": "0f111e7b7ffa8e1fff33fc4fdbaee683ca709b172d66283c763425c7ac81e2cb"
+    }
+  },
+  "cache_format": 35,
+  "normal_metadata": 20,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "e0c698d060348830e62fb1533c6f9fca1575d8abbf10e58047b9a6f78c14a65b",
+  "scope": "Source-authenticated PLP and independently live-M/X successor instruction bodies; actual stack P controls mode, no PHP-history, exit, root, caller ownership or common scheduler changes."
+}

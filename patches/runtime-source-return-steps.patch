@@ -1,0 +1,133 @@
+diff --git a/recompiler/v2/architecture_return_steps.py b/recompiler/v2/architecture_return_steps.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_return_steps.py
+@@ -0,0 +1,68 @@
++"""Scoped architectural returns from internal source barrier certificates."""
++import re
++from snes65816 import decode_insn,rom_offset
++from snes_cycles import instr_cpu_cycles
++from .architecture_callee_sources import derive as derive_callees
++from .architecture_mode_sources import derive as derive_modes
++from .architecture_nested_sources import derive as derive_nested
++from .architecture_frontier_mode_sources import derive as derive_frontier_modes
++from .decoder import decode_function
++from .emit_function import emit_function
++from .lowering import lower
++from .ir import Return
++SOURCE_RETURN_CONTRACT='source-e0-scheduler-architectural-return-v1'
++
++def validate_return(rom,parsed,row):
++    """No general return admission: exact original architecture prefix only."""
++    from .architecture_eligibility import _mask
++    if row.get('source_return_contract')!=SOURCE_RETURN_CONTRACT:return False
++    try:
++        pc,m,x=(row[k]for k in('pc24','m','x'));length=row['length']
++        if m not in(0,1)or x not in(0,1)or length!=1 or pc>>16 in(0x7e,0x7f)or pc&65535<0x8000 or _mask(parsed,pc,1):return False
++        off=rom_offset(pc>>16,pc&65535)
++        if off<0 or off>=len(rom):return False
++        ins=decode_insn(rom,off,pc&65535,pc>>16,m,x)
++        if not ins or ins.opcode not in(0x60,0x6b)or ins.mnem not in('RTS','RTL')or ins.length!=1 or row['bytes']!=rom[off:off+1].hex()or row['mnemonic']!=ins.mnem:return False
++        ins.m_flag,ins.x_flag=m,x
++        ops=lower(ins,value_factory=lambda:None)
++        if len(ops)!=1 or not isinstance(ops[0],Return)or ops[0].interrupt or ops[0].source_pc24!=pc or ops[0].long!=(ins.mnem=='RTL'):return False
++        if row['cycles']!=instr_cpu_cycles(ins.opcode,m=m,x=x,e=0)or row['next_pc']!=(pc+1)&65535:return False
++        increment='cpu->S = (uint16)(cpu->S + 1);'
++        exact=['{ uint16 _ret_s = cpu->S;',increment,'uint16 _rpcl = (uint16)cpu_aot_read8(cpu, 0x00, cpu->S);',increment,'uint16 _rpch = (uint16)cpu_aot_read8(cpu, 0x00, cpu->S);']
++        if ins.mnem=='RTL':exact += [increment,'uint8 _rpb = cpu_aot_read8(cpu, 0x00, cpu->S);','cpu->PB = _rpb;']
++        else:exact += ['uint8 _rpb = cpu->PB;']
++        exact += ['uint32 _rpc = (uint32)((((_rpch << 8) | _rpcl) + 1) & 0xFFFFu);','uint32 _rpc24 = ((uint32)_rpb << 16) | _rpc;','*next_pc=_rpc24;',f'cpu_source_call_return_stage(cpu,0x{pc:06x}u,0x{ins.opcode:02x}u,_ret_s,(uint8)_rpcl,(uint8)_rpch,_rpb,_rpc24);','}']
++        clean=lambda value:re.sub(r'\s+','',re.sub(r'/\*.*?\*/','',value,flags=re.S))
++        return clean(row['body'])==clean(''.join(exact))
++    except(KeyError,TypeError,ValueError):return False
++
++def derive(rom,parsed,*,enable_native_call_prefix=True):
++    from .architecture_eligibility import _independent
++    cfg={b:c for b,_p,c in parsed}
++    masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
++    # All views are produced internally by unchanged source factories. These
++    # dictionaries cannot be supplied by external files, flags, or observedPCs.
++    sources=[]
++    for g in derive_callees(rom,parsed,enable_native_call_prefix=True)[1]:sources.append(('source_callee',g,g['barriers']))
++    for g in derive_modes(rom,parsed,enable_native_call_prefix=True)[1]['successors']:sources.append(('source_live_mode',g,g['barriers']))
++    for g in derive_nested(rom,parsed,enable_native_call_prefix=True)[1]['graphs']:sources.append(('source_nested',g,g['barriers']))
++    for g in derive_frontier_modes(rom,parsed,enable_native_call_prefix=True)[1]['successors']:sources.append(('source_frontier_mode',g,g['barriers']))
++    origins=[];starts=set()
++    for kind,g,barriers in sources:
++        for pc,m,x,mnem in barriers:
++            if mnem not in('RTS','RTL'):continue
++            off=rom_offset(pc>>16,pc&65535);ins=decode_insn(rom,off,pc&65535,pc>>16,m,x)
++            if not ins or ins.mnem!=mnem or ins.opcode not in(0x60,0x6b)or ins.length!=1:raise ValueError('authentic source return barrier')
++            starts.add(pc);origins.append({'origin':kind,'source':g,'return_pc':pc,'source_m':m,'source_x':x,'mnemonic':mnem})
++    rows={};refused=[]
++    for pc in sorted(starts):
++        for m,x in((0,0),(0,1),(1,0),(1,1)):
++            local=[];c=cfg[pc>>16]
++            emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedSourceArchitecturalReturn',data_regions=masks,exclude_ranges=c.exclude_ranges,hle_func=c.hle_func,hle_spc_upload=c.hle_spc_upload,source_task_resume_stops=decode_function(rom,pc>>16,pc&65535,m,x,data_regions=masks,stop_on_unknown_callee_exit=True).unknown_callee_exit_sites,native_region_collector=local,_native_collector_only=True)
++            one=[r for r in local if(r['pc24'],r['m'],r['x'])==(pc,m,x)]
++            if not one:refused.append([pc,m,x]);continue
++            if len(one)!=1:raise ValueError('ambiguous source return step')
++            row=dict(one[0]);row['source_return_contract']=SOURCE_RETURN_CONTRACT
++            if not validate_return(rom,parsed,row)or not _independent(rom,parsed,row):refused.append([pc,m,x]);continue
++            rows[(pc,m,x)]=row
++    return [rows[k]for k in sorted(rows)],{'contract':SOURCE_RETURN_CONTRACT,'origins':origins,'source_return_starts':sorted(starts),'refused':refused,'static_return_target_exported':False,'successor_mode_exported':False,'callee_exit_modes_added':False,'caller_owner_added':False}
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -6,6 +6,7 @@
+ from .architecture_mode_sources import derive as derive_modes
+ from .architecture_nested_sources import derive as derive_nested
+ from .architecture_frontier_mode_sources import derive as derive_frontier_modes
++from .architecture_return_steps import derive as derive_return_steps
+ 
+ ARCHITECTURE_CONTRACT='source-reviewed-independent-instruction-union-v1'
+ FIELDS=('pc24','m','x','length','cycles','bytes','next_pc','body','mnemonic')
+@@ -34,7 +35,10 @@
+     # no generated/external JSON body may create a certificate at runtime.
+     code=row['body']
+     if any(t in code for t in ('RecompReturn','interp_','_entry_s','_hrv','host_return_valid','cpu_aot_prefix','precise-mode unsupported:')):return False
+-    if insn.mnem in('RTS','RTL','RTI'):return False
++    if insn.mnem=='RTI':return False
++    if insn.mnem in('RTS','RTL'):
++        from .architecture_return_steps import validate_return
++        return validate_return(rom,parsed,row)
+     if insn.mnem in('JSR','JSL'):
+         if not row.get('original_scheduler_call')or row.get('contract')!='source-direct-call-architectural-prefix-v1':return False
+         if _mask(parsed,row['next_pc'],1):return False
+@@ -72,12 +76,14 @@
+     mode_rows,mode_graphs=derive_modes(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     nested_rows,nested_graphs=derive_nested(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     frontier_mode_rows,frontier_mode_graphs=derive_frontier_modes(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows)])
++    return_step_rows,return_step_graphs=derive_return_steps(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
++    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows)])
+     metadata['return_instruction_graphs']=return_graphs
+     metadata['callee_instruction_graphs']=callee_graphs
+     metadata['mode_instruction_graphs']=mode_graphs
+     metadata['nested_instruction_graphs']=nested_graphs
+     metadata['frontier_mode_instruction_graphs']=frontier_mode_graphs
++    metadata['return_step_graphs']=return_step_graphs
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 37
++CACHE_FORMAT_VERSION = 38
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1364,7 +1364,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':22, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':23, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',

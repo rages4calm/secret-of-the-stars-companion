@@ -1,0 +1,121 @@
+diff --git a/recompiler/v2/architecture_callee_sources.py b/recompiler/v2/architecture_callee_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_callee_sources.py
+@@ -0,0 +1,72 @@
++"""Mode-parameterized source-known direct-callee architectural starts.
++
++Authentic direct-call operands supply callee code starts only. Live scheduler M/X
++selects each body; no callee exit mode, callable root or caller owner is exported.
++"""
++from snes65816 import decode_insn,rom_offset
++from .architecture_return_sources import derive as derive_returns
++from .decoder import decode_function
++from .emit_function import emit_function
++
++# These are decode/host-ownership barriers, not unsupported native architecture.
++# Later generic groups may handle them independently without exporting state.
++BARRIERS={'PLP','RTI','TCS','TXS','XCE','MVN','MVP'}
++
++def derive(rom,parsed,*,enable_native_call_prefix=True):
++    # Authority is produced internally from the reviewed original dispatcher
++    # graph, never supplied by external dictionaries or observed PCs.
++    source_calls=[r for r in derive_returns(rom,parsed,enable_native_call_prefix=True)[0]if r.get("original_scheduler_call")]
++    from .architecture_eligibility import _independent
++    cfg={b:c for b,_p,c in parsed}
++    if len(cfg)!=len(parsed):raise ValueError("duplicate callee source bank")
++    masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
++    forced={p&0x7fffff for c in cfg.values()for p in c.force_lle}
++    rows={};graphs=[]
++    for call in source_calls:
++        if call.get('contract')!='source-direct-call-architectural-prefix-v1'or not call.get('original_scheduler_call'):
++            raise ValueError('callee-start source call authority')
++        pc=call['pc24'];bank=pc>>16
++        off=rom_offset(bank,pc&65535)
++        original=decode_insn(rom,off,pc&65535,bank,call['m'],call['x'])
++        if original is None or original.mnem not in('JSR','JSL') or original.length!=call['length'] or original.mnem!=call['mnemonic'] or rom[off:off+original.length].hex()!=call['bytes']:
++            raise ValueError('callee-start original opcode/length/bytes')
++        target=((bank<<16)|original.operand)if original.mnem=='JSR'else original.operand
++        if target!=call['next_pc']:raise ValueError('callee-start original direct target')
++        bank=target>>16;start=target&65535
++        if call['mnemonic']not in('JSR','JSL')or start>=65536 or bank not in cfg:
++            raise ValueError('callee-start source arithmetic')
++        for m,x in ((0,0),(0,1),(1,0),(1,1)):
++            graph=decode_function(rom,bank,start,m,x,max_insns=128,data_regions=masks,stop_on_unknown_callee_exit=True)
++            if graph.authority_conflict or graph.data_region_exec_pcs or len(graph.insns)>=128:
++                raise ValueError('callee instruction source authority')
++            local=[];calls=[]
++            emit_function(rom,bank,start,m,x,func_name='DiscardedCalleeInstructionSource',data_regions=masks,
++                exclude_ranges=cfg[bank].exclude_ranges,hle_func=cfg[bank].hle_func,hle_spc_upload=cfg[bank].hle_spc_upload,
++                source_task_resume_stops=graph.unknown_callee_exit_sites,native_region_collector=local,
++                native_call_prefix_collector=calls if enable_native_call_prefix else None,native_call_prefix_forced=forced,
++                _native_collector_only=True)
++            supported={(r["pc24"],r["m"],r["x"])for r in local+calls if _independent(rom,parsed,r)}
++            # Never walk beyond PLP or an unsupported/unknown ownership edge.
++            # A graph key is a typed source decode, not a promoted function/root.
++            allowed={};todo=[graph.entry];barriers=[]
++            while todo:
++                key=todo.pop()
++                if key in allowed:continue
++                item=graph.insns.get(key)
++                if not item:continue
++                insn=item.insn
++                if (key.pc,key.m,key.x)not in supported or insn.data_region_exec or insn.mnem in BARRIERS or getattr(insn,'const_z_fold_unconditional',False):
++                    barriers.append([key.pc,key.m,key.x,insn.mnem]);continue
++                allowed[key]=item
++                if insn.mnem not in('JSR','JSL','RTS','RTL'):todo.extend(item.successors)
++            members={(k.pc,k.m,k.x)for k in allowed};keys=[]
++            for row in local+calls:
++                key=tuple(row[k]for k in('pc24','m','x'))
++                if key not in members:continue
++                if row['mnemonic']in('RTS','RTL','RTI'):continue
++                if key in rows and rows[key]!=row:raise ValueError('unequal callee instruction body '+repr(key))
++                rows[key]=row;keys.append(list(key))
++            graphs.append({'source_call':pc,'callee_pc':(bank<<16)|start,'parameter_m':m,'parameter_x':x,
++                'instruction_keys':keys,'barriers':barriers,'unknown_calls':[list(v)for v in sorted(graph.unknown_callee_exit_sites)],
++                'unknown_indirects':len(graph.unresolved_indirects),'callee_exit_modes_added':False,'caller_ownership_added':False})
++    return [rows[k]for k in sorted(rows)],graphs
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -2,6 +2,7 @@
+ from snes65816 import decode_insn,rom_offset
+ from .architecture_ff20_sources import derive as derive_ff20
+ from .architecture_return_sources import derive as derive_returns
++from .architecture_callee_sources import derive as derive_callees
+ 
+ ARCHITECTURE_CONTRACT='source-reviewed-independent-instruction-union-v1'
+ FIELDS=('pc24','m','x','length','cycles','bytes','next_pc','body','mnemonic')
+@@ -64,8 +65,10 @@
+         raise ValueError('reviewed child architecture boundary')
+     ff20=derive_ff20(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     return_rows,return_graphs=derive_returns(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows)])
++    callee_rows,callee_graphs=derive_callees(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
++    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows)])
+     metadata['return_instruction_graphs']=return_graphs
++    metadata['callee_instruction_graphs']=callee_graphs
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 33
++CACHE_FORMAT_VERSION = 34
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1364,7 +1364,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':18, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':19, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
