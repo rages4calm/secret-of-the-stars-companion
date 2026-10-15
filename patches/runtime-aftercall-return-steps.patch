@@ -1,0 +1,20 @@
+diff --git a/recompiler/v2/architecture_return_steps.py b/recompiler/v2/architecture_return_steps.py
+--- a/recompiler/v2/architecture_return_steps.py
++++ b/recompiler/v2/architecture_return_steps.py
+@@ -38,6 +38,8 @@ def validate_return(rom,parsed,row):
+ 
+ def derive(rom,parsed,*,enable_native_call_prefix=True):
+     from .architecture_eligibility import _independent
++    # After-call sources reuse this module's validator; import after module initialization.
++    from .architecture_aftercall_mode_sources import derive as derive_aftercall_modes
+     cfg={b:c for b,_p,c in parsed}
+     masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
+     # All views are produced internally by unchanged source factories. These
+@@ -47,6 +49,7 @@ def derive(rom,parsed,*,enable_native_call_prefix=True):
+     for g in derive_modes(rom,parsed,enable_native_call_prefix=True)[1]['successors']:sources.append(('source_live_mode',g,g['barriers']))
+     for g in derive_nested(rom,parsed,enable_native_call_prefix=True)[1]['graphs']:sources.append(('source_nested',g,g['barriers']))
+     for g in derive_frontier_modes(rom,parsed,enable_native_call_prefix=True)[1]['successors']:sources.append(('source_frontier_mode',g,g['barriers']))
++    for g in derive_aftercall_modes(rom,parsed,enable_native_call_prefix=True)[1]['successors']:sources.append(('source_aftercall_live_mode',g,g['barriers']))
+     origins=[];starts=set()
+     for kind,g,barriers in sources:
+         for pc,m,x,mnem in barriers:

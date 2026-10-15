@@ -1,0 +1,226 @@
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -67,7 +67,7 @@
+         summary.append({'origin':origin,'source_rows':len(candidates),'added':added,'reused':reused,'refused':refused})
+     return [output[k]for k in sorted(output)],{'contract':ARCHITECTURE_CONTRACT,'sources':summary,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False}
+ 
+-def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None):
++def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None,task_instruction_view=None):
+     # Existing reviewed child derivation retained its seven source-known BRA
+     # bodies in the causal table. Union only the independently architecture-safe
+     # bodies; its source slot/host/publication recipe remains untouched.
+@@ -95,7 +95,11 @@
+         from .architecture_architectural_sources import derive as derive_architectural
+         architectural_rows,architectural_graphs=derive_architectural(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+         program_return_rows,program_return_graphs=derive_program_returns(rom,parsed,program_call_stream,return_frontier,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows)])
++    pure_task_rows=[];pure_task_graphs=None
++    if task_instruction_view is not None:
++        from .architecture_task_sources import derive as derive_pure_task
++        pure_task_rows,pure_task_graphs=derive_pure_task(rom,parsed,task_instruction_view,enable_native_call_prefix=enable_native_call_prefix)
++    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows)])
+     metadata['return_instruction_graphs']=return_graphs
+     metadata['callee_instruction_graphs']=callee_graphs
+     metadata['mode_instruction_graphs']=mode_graphs
+@@ -108,6 +112,7 @@
+     metadata['program_mode_graphs']=program_mode_graphs
+     metadata['architectural_frontier_graphs']=architectural_graphs
+     metadata['program_return_graphs']=program_return_graphs
++    metadata['task_architecture_graphs']=pure_task_graphs
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/architecture_task_sources.py b/recompiler/v2/architecture_task_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_task_sources.py
+@@ -0,0 +1,96 @@
++"""Pure CPU steps from opaque actual original selected-task source graphs.
++
++Task frame/caller/exit facts never confer ordinary callable ownership. Bodies
++are independently emitted for their live E0 M/X, not copied from task metadata.
++"""
++import hashlib,json,weakref
++from snes65816 import rom_offset
++from .architecture_emission_policy import _digest,_graph_digest,_decoder_policy_digest
++from .architecture_program_call_sources import _policy_sha
++from .decoder import FunctionDecodeGraph
++from .emit_function import emit_function
++from .program_analysis import ProgramManifest
++_ISSUER=object()
++_ISSUED=weakref.WeakSet()
++PURE_OPS=frozenset({'LDA','LDX','LDY','STA','STX','STY','STZ','ADC','SBC','AND','ORA','EOR','CMP','CPX','CPY','BIT','CLC','SEC','CLD','SED','CLV','REP','SEP','NOP','INX','INY','DEX','DEY','TAX','TAY','TXA','TYA','TXY','TYX','XBA','ASL','LSR','ROL','ROR','INC','DEC','TSB','TRB','BRA','BRL','JMP','BCC','BCS','BEQ','BNE','BMI','BPL','BVC','BVS'})
++CONTRACT='source-task-pure-architecture-v1'
++
++
++def _parsed_digest(parsed):
++    return _digest([(bank,vars(cfg))for bank,_path,cfg in parsed])
++
++
++def _members_digest(members):
++    return _digest([(key,sorted(value))for key,value in sorted(members.items())])
++
++
++class _TaskInstructionView:
++    def __init__(self,issuer,rom,parsed,manifest):
++        if issuer is not _ISSUER or type(manifest)is not ProgramManifest:raise ValueError('actual task instruction issuer/manifest required')
++        _ISSUED.add(self);self._issuer=issuer;self._rom=rom;self._rom_sha=hashlib.sha256(rom).hexdigest();self._parsed=parsed;self._parsed_sha=_parsed_digest(parsed);self._policy=_policy_sha(parsed);self._decoder_sha=_decoder_policy_digest();self._manifest=manifest;self._manifest_sha=_digest(manifest.to_dict())
++        self._graphs={};self._members={};self._refused=[];self._sealed=False;self._used=False;self._member_sha=None;self._refused_sha=None;self._registry_sha=None
++
++    def _validate(self,rom,parsed,manifest=None):
++        if self not in _ISSUED or self._issuer is not _ISSUER or rom is not self._rom or parsed is not self._parsed or hashlib.sha256(rom).hexdigest()!=self._rom_sha or _parsed_digest(parsed)!=self._parsed_sha or _policy_sha(parsed)!=self._policy or _decoder_policy_digest()!=self._decoder_sha or (manifest is not None and manifest is not self._manifest)or _digest(self._manifest.to_dict())!=self._manifest_sha:raise ValueError('foreign/mutated task instruction context')
++        if self._sealed and(_members_digest(self._members)!=self._member_sha or _digest(self._refused)!=self._refused_sha or _digest([(k,id(g),d,r)for k,(g,d,r)in sorted(self._graphs.items())])!=self._registry_sha):raise ValueError('sealed task instruction membership changed')
++        for graph,digest,role in self._graphs.values():
++            if _graph_digest(rom,graph)!=digest:raise ValueError('original task instruction graph changed')
++
++    def _record(self,producer,rom,parsed,graph,row,role):
++        from .task_resume import _TASK_INSTRUCTION_PRODUCER
++        if producer is not _TASK_INSTRUCTION_PRODUCER or self._sealed or self._used:raise ValueError('task instruction producer closed/foreign')
++        self._validate(rom,parsed)
++        if type(graph)is not FunctionDecodeGraph or graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>256:raise ValueError('original task instruction graph authority')
++        if role not in('selected_task_case','named_selected_task_case'):raise ValueError('task instruction owner-special role excluded')
++        key=tuple(row[k]for k in ('pc24','m','x'));pc,m,x=key
++        if m not in(0,1)or x not in(0,1)or row.get('contract')!='native-e0-source-selected-task-resume-v1':raise ValueError('actual selected-task source row required')
++        members=[di for k,di in graph.insns.items()if(k.pc,k.m,k.x)==key]
++        if not members:raise ValueError('task instruction row absent actual graph')
++        ins=members[0].insn
++        if any(di.insn.mnem!=ins.mnem or di.insn.length!=ins.length or di.insn.addr!=pc for di in members):raise ValueError('ambiguous task typed source member')
++        if row['mnemonic']!=ins.mnem or row['length']!=ins.length:raise ValueError('task source opcode/length mismatch')
++        off=rom_offset(pc>>16,pc&65535)
++        if off<0 or off+ins.length>len(rom)or row['bytes']!=rom[off:off+ins.length].hex():raise ValueError('task source wholebyte mismatch')
++        from .architecture_eligibility import _mask
++        if _mask(parsed,pc,ins.length):raise ValueError('task source independent mask')
++        if ins.mnem not in PURE_OPS or any(di.insn.data_region_exec or getattr(di.insn,'const_z_fold_unconditional',False)or any(getattr(di.insn,n,None)for n in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr'))for di in members):
++            self._refused.append({'key':list(key),'reason':'nonpure/folded/dispatch/owner-special original task member'});return
++        self._graphs[id(graph)]=(graph,_graph_digest(rom,graph),role)
++        origin=(graph.entry.pc,graph.entry.m,graph.entry.x,role)
++        self._members.setdefault(key,set()).add(origin)
++
++
++def _new_task_view(rom,parsed,manifest):
++    return _TaskInstructionView(_ISSUER,rom,parsed,manifest)
++
++
++def _record_task_row(view,producer,rom,parsed,graph,row,role):
++    if type(view)is not _TaskInstructionView:raise ValueError('no external task instruction view')
++    view._record(producer,rom,parsed,graph,row,role)
++
++
++def _seal_task_view(view,rom,parsed,manifest):
++    if type(view)is not _TaskInstructionView or view._sealed or view._used:raise ValueError('task source seal reuse/foreign')
++    view._validate(rom,parsed,manifest);view._member_sha=_members_digest(view._members);view._refused_sha=_digest(view._refused);view._registry_sha=_digest([(k,id(g),d,r)for k,(g,d,r)in sorted(view._graphs.items())]);view._sealed=True
++
++
++def derive(rom,parsed,view,*,enable_native_call_prefix=True):
++    if type(view)is not _TaskInstructionView or not view._sealed or view._used:raise ValueError('sealed one-use task instruction view required')
++    view._validate(rom,parsed);view._used=True
++    cfg={b:c for b,_p,c in parsed}
++    if len(cfg)!=len(parsed):raise ValueError('duplicate task architecture bank')
++    masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
++    forced={p&0x7fffff for c in cfg.values()for p in c.force_lle};rows=[];origins=[];refused=list(view._refused)
++    from .architecture_eligibility import _independent
++    for pc,m,x in sorted(view._members):
++        bank=pc>>16;c=cfg.get(bank)
++        if c is None:refused.append({'key':[pc,m,x],'reason':'no original configured task bank'});continue
++        local=[]
++        # A bare single instruction cannot inherit PHP history, task ownership,
++        # source callee exits or a saved selector. Its original faithful body
++        # receives only the current live M/X and original all-byte masks.
++        emit_function(rom,bank,pc&65535,m,x,func_name='DiscardedPureTaskInstruction',data_regions=masks,exclude_ranges=c.exclude_ranges,hle_func=c.hle_func,hle_spc_upload=c.hle_spc_upload,hle_dispatch=c.hle_dispatch,native_call_prefix_forced=forced,native_region_collector=local,_native_instruction_members=frozenset({pc}),_native_collector_only=True)
++        exact=[r for r in local if tuple(r[k]for k in ('pc24','m','x'))==(pc,m,x)]
++        if len(exact)!=1 or exact[0]['mnemonic']not in PURE_OPS or not _independent(rom,parsed,exact[0]):refused.append({'key':[pc,m,x],'reason':'independent single-instruction canonical refusal'});continue
++        row=dict(exact[0]);rows.append(row);origins.append({'key':[pc,m,x],'source_task_graphs':[list(v)for v in sorted(view._members[(pc,m,x)])]})
++    return rows,{'contract':CONTRACT,'source_manifest_sha256':view._manifest_sha,'task_source_member_sha256':view._member_sha,'typed_graphs':len(view._graphs),'origins':origins,'refused':refused,'savedP_history_exported':False,'task_selector_or_owner_exported':False,'callee_exit_modes_added':False,'caller_owner_added':False,'ordinary_roots_added':False,'task_dispatch_priority_changed':False,'external_JSON_rows_accepted':False,'live_E0_MX_per_instruction':True}
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 44
++CACHE_FORMAT_VERSION = 45
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1076,7 +1076,9 @@
+     entries_by_bank, emitted, name_for_pc, cfg_by_bank = build_emission_entries(
+         manifest, parsed, enable_hle=enable_hle)
+     from .task_resume import derive as derive_task_resume
+-    task_rows,task_recipe,task_graphs=derive_task_resume(rom,parsed,module_prefix)
++    from .architecture_task_sources import _new_task_view,_seal_task_view
++    task_instruction_view=_new_task_view(rom,parsed,manifest)
++    task_rows,task_recipe,task_graphs=derive_task_resume(rom,parsed,module_prefix,_instruction_view=task_instruction_view)
+     from .source_redirect import derive as derive_redirect
+     redirect_rows,redirect_recipe=derive_redirect(rom,parsed,manifest,module_prefix)
+     continuations = _native_continuation_rows(manifest)
+@@ -1363,7 +1365,8 @@
+         from .task_resume import append_original_prefixes
+         task_rows,task_recipe=append_original_prefixes(rom,parsed,task_rows,task_recipe,regions)
+         from .architecture_eligibility import extend as extend_architecture_eligibility,emit_membership as emit_architecture_membership
+-        regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal())
++        _seal_task_view(task_instruction_view,rom,parsed,manifest)
++        regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_instruction_view)
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+         write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':6,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+@@ -1375,7 +1378,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':29, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':30, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+diff --git a/recompiler/v2/task_resume.py b/recompiler/v2/task_resume.py
+--- a/recompiler/v2/task_resume.py
++++ b/recompiler/v2/task_resume.py
+@@ -6,8 +6,9 @@
+ from .native_regions import emit
+ from .task_original_calls import derive_original_calls,emit_original_calls
+ from .task_suspend import derive_suspend_child,emit_suspend_recipe
+-
+-def derive_named_case(rom,spec,callee,data,forced,module_prefix=None):
++_TASK_INSTRUCTION_PRODUCER=object()
++
++def derive_named_case(rom,spec,callee,data,forced,module_prefix=None,*,_instruction_view=None,_source_parsed=None):
+  if spec!=(0x01e000,0x01e056,0x01e05a,1,0) or module_prefix or callee!=0x00ff03:
+   raise ValueError('unreviewed named selected-task case')
+  entry,call,landing,m,x=spec
+@@ -48,10 +49,14 @@
+   if key not in allowed or row['mnemonic']in('JSR','JSL','RTS','RTL','TCS','TXS','PLP','PHA','PHX','PHY','PHD','PHB','PHK','PHP','PLA','PLX','PLY','PLD'):continue
+   insn=allowed[key]
+   if row['bytes']!=raw(insn.addr,insn.length).hex():raise ValueError('named selected-task row source mismatch')
+-  row['contract']='native-e0-source-selected-task-resume-v1';rows.append(row)
++  row['contract']='native-e0-source-selected-task-resume-v1'
++  if _instruction_view is not None:
++   from .architecture_task_sources import _record_task_row
++   _record_task_row(_instruction_view,_TASK_INSTRUCTION_PRODUCER,rom,_source_parsed,graph,row,'named_selected_task_case')
++  rows.append(row)
+  return rows,{'callsite':call,'landing':landing,'p_mask':0x30,'p_value':0x20},spans,{'landing':landing,'m':m,'x':x,'decoded_rows':len(internal),'call_barriers':[v for v in graph.unknown_callee_exit_sites if landing<=v[0]<0x01e171],'original_tail_barrier':0x01e171,'external_rows_not_admitted':len(graph.insns)-len(internal)}
+ 
+-def derive(rom,parsed,module_prefix=None):
++def derive(rom,parsed,module_prefix=None,*,_instruction_view=None):
+  specs=[s for _b,_p,c in parsed for s in getattr(c,'source_task_resumes',())]
+  named=[s for _b,_p,c in parsed for s in getattr(c,'source_task_cases',())]
+  if len(named)>1 or named and not specs:raise ValueError('named selected-task recipe count/base refusal')
+@@ -121,11 +126,15 @@
+     key=(row['pc24']&65535,row['m'],row['x']);i=allowed[key]
+     if row['bytes']!=raw(i.addr,i.length).hex():raise ValueError('selected-task row source mismatch')
+     if any(((row['pc24']&0xff0000)|((row['pc24']+j)&65535))&0x7fffff in forced for j in range(row['length'])):continue
+-    row['contract']='native-e0-source-selected-task-resume-v1';rows.append(row)
++    row['contract']='native-e0-source-selected-task-resume-v1'
++    if _instruction_view is not None:
++     from .architecture_task_sources import _record_task_row
++     _record_task_row(_instruction_view,_TASK_INSTRUCTION_PRODUCER,rom,parsed,graph,row,'selected_task_case')
++    rows.append(row)
+    graphs.append({'landing':landing,'m':1,'x':x,'decoded_rows':len(graph.insns),'call_barriers':graph.unknown_callee_exit_sites})
+  cases=[{'callsite':c,'landing':c+4,'p_mask':0x20,'p_value':0x20}for c in (call0,call1)]
+  for spec in named:
+-  new_rows,case,new_spans,new_graph=derive_named_case(rom,spec,callee,data,forced,module_prefix)
++  new_rows,case,new_spans,new_graph=derive_named_case(rom,spec,callee,data,forced,module_prefix,_instruction_view=_instruction_view,_source_parsed=parsed)
+   rows.extend(new_rows);cases.append(case);spans.extend(new_spans);graphs.append(new_graph)
+  unique={}
+  # The four call sites are derived from the already declared FF03 source

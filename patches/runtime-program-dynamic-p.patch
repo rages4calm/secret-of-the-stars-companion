@@ -1,0 +1,150 @@
+diff --git a/recompiler/v2/architecture_program_mode_sources.py b/recompiler/v2/architecture_program_mode_sources.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f5d21e6c2e058d77cc291123796a452048b58c98
+--- /dev/null
++++ b/recompiler/v2/architecture_program_mode_sources.py
+@@ -0,0 +1,95 @@
++"""Internal program-call PLP frontiers, then independent live-mode scheduler steps.
++
++Only the current sealed original typed program-call producer can select these
++boundaries. Popped P is never a static callee exit, saved-history or owner fact.
++"""
++from snes65816 import decode_insn,rom_offset
++from snes_cycles import instr_cpu_cycles
++from .decoder import DecodeKey,decode_function
++from .emit_function import emit_function
++from .lowering import lower
++from .native_regions import collect_stack_control
++BARRIERS={'PLP','RTI','TCS','TXS','XCE','MVN','MVP','RTS','RTL'}
++
++
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++    from .architecture_program_call_sources import derive as derive_program_calls
++    from .architecture_eligibility import _independent,_mask
++    # This factory authenticates the original stream/ROM/parsed/policy identity;
++    # no caller-supplied PC, row, graph metadata or history argument is accepted.
++    cert=derive_program_calls(rom,parsed,stream,enable_native_call_prefix=True)[1]
++    cfg={b:c for b,_p,c in parsed}
++    if len(cfg)!=len(parsed):raise ValueError('duplicate program live-mode bank')
++    masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
++    forced={p&0x7fffff for c in cfg.values()for p in c.force_lle}
++    calls={}
++    for row in cert['calls']:
++        pc=row['pc24'];off=rom_offset(pc>>16,pc&65535)
++        ins=decode_insn(rom,off,pc&65535,pc>>16,row['m'],row['x'])
++        target=((pc&0xff0000)|ins.operand)if ins and ins.mnem=='JSR'else(ins.operand if ins else None)
++        if not ins or ins.mnem not in('JSR','JSL')or ins.length!=row['length']or rom[off:off+ins.length].hex()!=row['bytes']or target!=row['next_pc']:raise ValueError('program PLP original direct call')
++        if (pc&65535)+ins.length>=65536:raise ValueError('program PLP source return wrap')
++        if _mask(parsed,pc,ins.length):continue
++        calls.setdefault(pc,[]).append(row)
++    boundaries=set();origins=[];refused=[]
++    for record in cert['graphs']:
++        if record['parameter_m']not in(0,1)or record['parameter_x']not in(0,1):raise ValueError('program PLP original parameter')
++        selected=[b for b in record['barriers']if b[3]=='PLP']
++        if not selected:continue
++        start=record['source_start'];bank=start>>16
++        if bank not in cfg or _mask(parsed,start,1):continue
++        graph=decode_function(rom,bank,start&65535,record['parameter_m'],record['parameter_x'],max_insns=128,data_regions=masks,stop_on_unknown_callee_exit=True)
++        if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=128:raise ValueError('program PLP original graph authority')
++        for pc,m,x,mnem in selected:
++            if m not in(0,1)or x not in(0,1):raise ValueError('program PLP original boundary mode')
++            members=[di for key,di in graph.insns.items()if(key.pc,key.m,key.x)==(pc,m,x)]
++            # Graph membership may carry local decoder PHP history. We use only
++            # actual opcode membership, never export or restore that history.
++            if not members or any(di.insn.opcode!=0x28 or di.insn.mnem!='PLP'or di.insn.length!=1 or getattr(di.insn,'const_z_fold_unconditional',False)for di in members):raise ValueError('program PLP actual typed graph member')
++            if _mask(parsed,pc,1):continue
++            for callpc in record['source_calls']:
++                sources=calls.get(callpc,[])
++                if not sources:raise ValueError('program PLP lost original call source')
++                expected={r['next_pc']if record['source_kind']=='callee'else((callpc&0xff0000)|((callpc&65535)+r['length']))for r in sources}
++                if record['source_kind']not in('callee','return')or start not in expected:raise ValueError('program PLP original source start')
++                boundaries.add(pc);origins.append({'source_call':callpc,'source_kind':record['source_kind'],'source_start':start,'boundary':pc,'typed_boundary_m':m,'typed_boundary_x':x})
++    rows={};successors=[]
++    for pc in sorted(boundaries):
++        active=False;bank=pc>>16
++        for m,x in((0,0),(0,1),(1,0),(1,1)):
++            off=rom_offset(bank,pc&65535);ins=decode_insn(rom,off,pc&65535,bank,m,x)
++            if not ins or ins.opcode!=0x28 or ins.mnem!='PLP'or ins.length!=1:raise ValueError('program PLP authentic whole opcode')
++            ins.m_flag,ins.x_flag=m,x
++            row=collect_stack_control(rom,DecodeKey(pc,m,x),ins,lower(ins,value_factory=lambda:None),instr_cpu_cycles(ins.opcode,m=m,x=x,e=0))
++            if row and _independent(rom,parsed,row):rows[(pc,m,x)]=row;active=True
++        if not active:continue
++        start=(pc&65535)+1
++        if start>=65536:
++            refused.append({'source_PLP':pc,'reason':'nextPC wrap'});continue
++        for m,x in((0,0),(0,1),(1,0),(1,1)):
++            try:graph=decode_function(rom,bank,start,m,x,max_insns=128,data_regions=masks,stop_on_unknown_callee_exit=True)
++            except RuntimeError as error:
++                if 'v2 decoder exceeded max_insns=128'not in str(error):raise
++                refused.append({'source_PLP':pc,'m':m,'x':x,'reason':'128instruction source bound'});continue
++            if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=128:
++                refused.append({'source_PLP':pc,'m':m,'x':x,'reason':'conflict/data/indirect/128instruction bound'});continue
++            local=[];calls_local=[];c=cfg[bank]
++            emit_function(rom,bank,start,m,x,func_name='DiscardedProgramLiveModeSuccessor',data_regions=masks,exclude_ranges=c.exclude_ranges,hle_func=c.hle_func,hle_spc_upload=c.hle_spc_upload,source_task_resume_stops=graph.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls_local if enable_native_call_prefix else None,native_call_prefix_forced=forced,_native_collector_only=True)
++            candidates=[r for r in local+calls_local if _independent(rom,parsed,r)]
++            supported={tuple(r[k]for k in('pc24','m','x'))for r in candidates};todo=[graph.entry];allowed=set();stops=[]
++            while todo:
++                key=todo.pop()
++                if key in allowed:continue
++                member=graph.insns.get(key)
++                if not member:continue
++                if member.insn.mnem in BARRIERS or (key.pc,key.m,key.x)not in supported or getattr(member.insn,'const_z_fold_unconditional',False):stops.append([key.pc,key.m,key.x,member.insn.mnem]);continue
++                allowed.add(key)
++                if member.insn.mnem not in('JSR','JSL'):todo.extend(member.successors)
++            admitted={(k.pc,k.m,k.x)for k in allowed};keys=[]
++            for row in candidates:
++                key=tuple(row[k]for k in('pc24','m','x'))
++                if key not in admitted:continue
++                if key in rows and rows[key]!=row:raise ValueError('unequal program live-mode body')
++                rows[key]=row;keys.append(list(key))
++            successors.append({'source_PLP':pc,'next_pc':(pc&0xff0000)|start,'parameter_m':m,'parameter_x':x,'instruction_keys':keys,'barriers':stops,'static_restored_mode_asserted':False})
++    return [rows[k]for k in sorted(rows)],{'source_stream':stream.metadata(),'origins':origins,'boundaries':sorted(boundaries),'successors':successors,'refused_source_contexts':refused,'callee_exit_modes_added':False,'caller_owner_added':False,'ordinary_roots_added':False,'restored_P_from_history':False}
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+index cc9cb4a125747e39985a51d46a3d287468080589..9a7eb4077fbe7bc4680d72e4f499cac216345b43 100644
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -81,11 +81,13 @@
+     return_step_rows,return_step_graphs=derive_return_steps(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     aftercall_rows,aftercall_graphs=derive_aftercalls(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     aftercall_mode_rows,aftercall_mode_graphs=derive_aftercall_modes(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+-    program_rows=[];program_graphs=None
++    program_rows=[];program_graphs=None;program_mode_rows=[];program_mode_graphs=None
+     if program_call_stream is not None:
+         from .architecture_program_call_sources import derive as derive_program_calls
+         program_rows,program_graphs=derive_program_calls(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows)])
++        from .architecture_program_mode_sources import derive as derive_program_modes
++        program_mode_rows,program_mode_graphs=derive_program_modes(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
++    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows)])
+     metadata['return_instruction_graphs']=return_graphs
+     metadata['callee_instruction_graphs']=callee_graphs
+     metadata['mode_instruction_graphs']=mode_graphs
+@@ -95,6 +97,7 @@
+     metadata['aftercall_graphs']=aftercall_graphs
+     metadata['aftercall_mode_graphs']=aftercall_mode_graphs
+     metadata['program_call_graphs']=program_graphs
++    metadata['program_mode_graphs']=program_mode_graphs
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 41
++CACHE_FORMAT_VERSION = 42
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1371,7 +1371,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':26, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':27, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',

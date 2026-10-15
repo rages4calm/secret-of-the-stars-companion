@@ -1,0 +1,293 @@
+diff --git a/recompiler/v2/architecture_program_call_sources.py b/recompiler/v2/architecture_program_call_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_program_call_sources.py
+@@ -0,0 +1,145 @@
++"""Internal typed ordinary-call stream to independent bounded receiving/callee steps.
++
++No external PC/row/JSON setter exists. Only emit_function's actual graph member,
++original typed IR and faithful prefix may record a source certificate.
++"""
++import hashlib,json
++from snes65816 import decode_insn,rom_offset
++from .decoder import decode_function,FunctionDecodeGraph
++from .emit_function import emit_function
++from .native_call_prefix import collect_call_prefix
++from .architecture_aftercall_sources import derive as derive_aftercalls
++from .architecture_ff20_sources import derive as derive_ff20
++from .architecture_return_sources import derive as derive_returns
++from .architecture_callee_sources import derive as derive_callees
++from .architecture_nested_sources import derive as derive_nested
++from .architecture_return_steps import SOURCE_RETURN_CONTRACT,validate_return
++BARRIERS={'PLP','RTI','TCS','TXS','XCE','MVN','MVP'}
++MAX_STARTS=512
++MAX_DEPTH=8
++MAX_SOURCE_CALLS=512
++_PRODUCER=object()
++
++def _policy_sha(parsed):
++    value=[(b,sorted(c.data_regions),sorted(c.authority_data),sorted(c.exclude_ranges),sorted(c.force_lle),sorted(c.hle_func.items()),sorted(c.hle_spc_upload.items()))for b,_p,c in parsed]
++    return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
++
++class _ProgramCallStream:
++    def __init__(self,rom,parsed):
++        self._producer=_PRODUCER;self._rom_sha=hashlib.sha256(rom).hexdigest();self._parsed=parsed;self._policy=_policy_sha(parsed)
++        self._sealed=False;self._entries={};self._digest=None
++    def _record(self,rom,key,insn,ops,cycles,lines,graph,**guards):
++        if self._sealed or self._producer is not _PRODUCER:raise ValueError('program source stream closed')
++        if type(graph)is not FunctionDecodeGraph:raise ValueError('actual producer graph required')
++        member=graph.insns.get(key)
++        if member is None or member.insn is not insn:raise ValueError('program source call absent actual typed graph')
++        row=collect_call_prefix(rom,key,insn,ops,cycles,lines,**guards)
++        if row is None:return
++        from .architecture_eligibility import _independent
++        if not _independent(rom,self._parsed,row):return
++        entry=json.dumps(row,sort_keys=True,separators=(',',':'))
++        k=(row['pc24'],row['m'],row['x'])
++        if k in self._entries and self._entries[k]!=entry:raise ValueError('unequal internal source call')
++        self._entries[k]=entry
++        if len(self._entries)>MAX_SOURCE_CALLS:raise ValueError('program source call bound')
++    def seal(self):
++        if self._sealed:raise ValueError('source stream seal reuse')
++        self._sealed=True;self._digest=hashlib.sha256('\n'.join(self._entries[k]for k in sorted(self._entries)).encode()).hexdigest()
++        return self
++    def rows(self,rom,parsed):
++        if self._producer is not _PRODUCER or not self._sealed or self._rom_sha!=hashlib.sha256(rom).hexdigest()or self._parsed is not parsed or self._policy!=_policy_sha(parsed):raise ValueError('original source stream identity')
++        if self._digest!=hashlib.sha256('\n'.join(self._entries[k]for k in sorted(self._entries)).encode()).hexdigest():raise ValueError('source stream mutation')
++        return [json.loads(self._entries[k])for k in sorted(self._entries)]
++    def metadata(self):return {'contract':'internal-program-typed-direct-call-stream-v1','call_mode_rows':len(self._entries),'sha256':self._digest,'external_rows_or_roots_accepted':False}
++
++def _new_program_stream(rom,parsed):return _ProgramCallStream(rom,parsed)
++
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++    if type(stream)is not _ProgramCallStream or stream._producer is not _PRODUCER:raise ValueError('no external program call rows')
++    source_rows=stream.rows(rom,parsed)
++    from .architecture_eligibility import _independent,_mask
++    cfg={b:c for b,_p,c in parsed}
++    if len(cfg)!=len(parsed):raise ValueError('duplicate program call bank')
++    masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
++    forced={p&0x7fffff for c in cfg.values()for p in c.force_lle}
++    # Current certified source starts are excluded from the changed frontier.
++    _,ret_graphs=derive_returns(rom,parsed,enable_native_call_prefix=True)
++    _,callee_graphs=derive_callees(rom,parsed,enable_native_call_prefix=True)
++    _,nested=derive_nested(rom,parsed,enable_native_call_prefix=True)
++    _,after=derive_aftercalls(rom,parsed,enable_native_call_prefix=True)
++    ff=derive_ff20(rom,parsed,enable_native_call_prefix=True)
++    covered={('return',g['return_pc'])for g in ret_graphs}|{('callee',g['callee_pc'])for g in callee_graphs}|{(g['source_kind'],g['source_start'])for g in nested['graphs']+after['graphs']}
++    covered|={('callee',r['next_pc']&0x7fffff)for r in ff['rows']if r.get('original_scheduler_call')}
++    pending={};entry_sources={};depths={};seen=set();calls_seen=set();calls=[];graphs=[];rows={};refused=[];current_depth=-1
++    def enqueue_call(call):
++        if not call.get('original_scheduler_call')or not _independent(rom,parsed,call):return
++        pc=call['pc24'];off=rom_offset(pc>>16,pc&65535);ins=decode_insn(rom,off,pc&65535,pc>>16,call['m'],call['x'])
++        target=((pc&0xff0000)|ins.operand)if ins and ins.mnem=='JSR'else(ins.operand if ins else None)
++        if not ins or ins.mnem not in('JSR','JSL')or ins.length!=call['length']or rom[off:off+ins.length].hex()!=call['bytes']or target!=call['next_pc']:raise ValueError('aftercall whole original direct call')
++        if (pc&65535)+ins.length>=65536:raise ValueError('aftercall returnPCwrap')
++        identity=(pc,ins.length,target)
++        if identity in calls_seen:return
++        calls_seen.add(identity);calls.append({k:call[k]for k in('pc24','m','x','length','bytes','next_pc')})
++        ret=(pc&0xff0000)|((pc&65535)+ins.length)
++        for kind,start in(('callee',target&0x7fffff),('return',ret&0x7fffff)):
++            key=(kind,start)
++            if key in covered or _mask(parsed,start,1):continue
++            entry_sources.setdefault(key,set()).add(pc)
++            depths[key]=min(depths.get(key,MAX_DEPTH+1),current_depth+1)
++            if depths[key]>MAX_DEPTH:
++                refused.append({'source_kind':kind,'source_start':start,'reason':'8edge source depth bound'});continue
++            if key not in seen:pending[key]=entry_sources[key]
++    for r in source_rows:enqueue_call(r)
++    while pending:
++        key=min(pending,key=lambda k:(depths[k],k));origins=pending.pop(key);kind,start=key;current_depth=depths[key]
++        if key in seen:continue
++        seen.add(key)
++        if len(seen)>MAX_STARTS:
++            refused.append({'source_kind':kind,'source_start':start,'reason':'512start source bound'});continue
++        bank=start>>16
++        if bank not in cfg or start&65535<0x8000 or bank in(0x7e,0x7f):
++            refused.append({'source_kind':kind,'source_start':start,'reason':'unconfigured ROM bank/source'});continue
++        for m,x in((0,0),(0,1),(1,0),(1,1)):
++            try:
++                g=decode_function(rom,bank,start&65535,m,x,max_insns=128,data_regions=masks,stop_on_unknown_callee_exit=True)
++            except RuntimeError as error:
++                if 'v2 decoder exceeded max_insns=128'not in str(error):raise
++                refused.append({'source_kind':kind,'source_start':start,'m':m,'x':x,'reason':'128instruction source bound'});continue
++            if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=128:
++                refused.append({'source_kind':kind,'source_start':start,'m':m,'x':x,'reason':'source-authority conflict/data/indirect/128instruction bound'});continue
++            local=[];prefixes=[];c=cfg[bank]
++            # Even diagnostic-disabled generation needs originalcall source
++            # certificates for aftercall starts; call bodies are filteredbelow.
++            emit_function(rom,bank,start&65535,m,x,func_name='DiscardedAfterCallSource',data_regions=masks,exclude_ranges=c.exclude_ranges,hle_func=c.hle_func,hle_spc_upload=c.hle_spc_upload,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=prefixes,native_call_prefix_forced=forced,_native_collector_only=True)
++            members={(k.pc,k.m,k.x):d for k,d in g.insns.items()}
++            candidates=[]
++            for r in local+prefixes:
++                r=dict(r);di=members.get(tuple(r[k]for k in('pc24','m','x')))
++                if not di:continue
++                if di.insn.mnem in('RTS','RTL'):
++                    # New source-owned return barrier, no target/mode/history.
++                    r['source_return_contract']=SOURCE_RETURN_CONTRACT
++                    if not validate_return(rom,parsed,r):continue
++                if _independent(rom,parsed,r):candidates.append(r)
++            supported={tuple(r[k]for k in('pc24','m','x'))for r in candidates};todo=[g.entry];allowed=set();barriers=[]
++            while todo:
++                dk=todo.pop()
++                if dk in allowed:continue
++                di=g.insns.get(dk)
++                if not di:continue
++                if di.insn.data_region_exec or di.insn.mnem in BARRIERS or (dk.pc,dk.m,dk.x)not in supported or getattr(di.insn,'const_z_fold_unconditional',False):barriers.append([dk.pc,dk.m,dk.x,di.insn.mnem]);continue
++                allowed.add(dk)
++                if di.insn.mnem not in('JSR','JSL','RTS','RTL'):todo.extend(di.successors)
++            admitted={(k.pc,k.m,k.x)for k in allowed};keys=[];new_call_keys=[];return_keys=[]
++            for r in candidates:
++                k=tuple(r[v]for v in('pc24','m','x'))
++                if k not in admitted:continue
++                if r.get('original_scheduler_call'):
++                    enqueue_call(r);new_call_keys.append(list(k))
++                    if not enable_native_call_prefix:continue
++                if k in rows and rows[k]!=r:raise ValueError('unequal aftercall independentbody')
++                rows[k]=r;keys.append(list(k))
++                if r.get('source_return_contract'):return_keys.append(list(k))
++            graphs.append({'source_kind':kind,'source_start':start,'source_calls':sorted(origins),'parameter_m':m,'parameter_x':x,'instruction_keys':keys,'new_source_calls':new_call_keys,'source_return_keys':return_keys,'barriers':barriers,'unknown_calls':[list(v)for v in sorted(g.unknown_callee_exit_sites)],'closure_depth':current_depth,'callee_exit_modes_added':False,'caller_owner_added':False,'successor_mode_exported':False})
++    for g in graphs:g['source_calls']=sorted(entry_sources[(g['source_kind'],g['source_start'])])
++    return [rows[k]for k in sorted(rows)],{'calls':calls,'graphs':graphs,'starts_processed':len(seen),'bound':MAX_STARTS,'depth_bound':MAX_DEPTH,'refused_source_contexts':refused,'source_stream':stream.metadata(),'old_source_starts_not_rederived':[[k,p]for k,p in sorted(covered)],'callee_exit_modes_added':False,'caller_owner_added':False,'source_return_contract':SOURCE_RETURN_CONTRACT}
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -64,7 +64,7 @@
+         summary.append({'origin':origin,'source_rows':len(candidates),'added':added,'reused':reused,'refused':refused})
+     return [output[k]for k in sorted(output)],{'contract':ARCHITECTURE_CONTRACT,'sources':summary,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False}
+ 
+-def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True):
++def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None):
+     # Existing reviewed child derivation retained its seven source-known BRA
+     # bodies in the causal table. Union only the independently architecture-safe
+     # bodies; its source slot/host/publication recipe remains untouched.
+@@ -81,7 +81,11 @@
+     return_step_rows,return_step_graphs=derive_return_steps(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     aftercall_rows,aftercall_graphs=derive_aftercalls(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     aftercall_mode_rows,aftercall_mode_graphs=derive_aftercall_modes(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows)])
++    program_rows=[];program_graphs=None
++    if program_call_stream is not None:
++        from .architecture_program_call_sources import derive as derive_program_calls
++        program_rows,program_graphs=derive_program_calls(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
++    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows)])
+     metadata['return_instruction_graphs']=return_graphs
+     metadata['callee_instruction_graphs']=callee_graphs
+     metadata['mode_instruction_graphs']=mode_graphs
+@@ -90,6 +94,7 @@
+     metadata['return_step_graphs']=return_step_graphs
+     metadata['aftercall_graphs']=aftercall_graphs
+     metadata['aftercall_mode_graphs']=aftercall_mode_graphs
++    metadata['program_call_graphs']=program_graphs
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -493,7 +493,7 @@
+                   entry_s_offset: int = 0, native_region_collector=None,
+                   source_task_resume_stops=None, native_call_prefix_collector=None,
+                   native_call_prefix_forced=(), native_mode_successors=False,
+-                  _native_instruction_members=None, _native_collector_only=False) -> str:
++                  _native_instruction_members=None, _native_collector_only=False, _program_call_stream=None) -> str:
+     """Emit a complete v2 C function source for one 65816 function.
+ 
+     Pipeline:
+@@ -2360,7 +2360,7 @@
+                 ln=ln.replace('cpu_aot_commit(cpu)',f'(cpu_aot_commit(cpu), {observer})',1)
+                 original_return_observed=True
+             src.append(f"    {ln}")
+-    if native_region_collector is not None or native_call_prefix_collector is not None:
++    if native_region_collector is not None or native_call_prefix_collector is not None or _program_call_stream is not None:
+         from .native_regions import collect, collect_stack_control, collect_indirect_y, collect_stack_direct, collect_stack_indirect_y, collect_long_jump
+         for region_key, region_pairs in block_per_insn_ir.items():
+             if len(region_pairs) != 1:
+@@ -2376,6 +2376,10 @@
+                                      for lo, hi in (exclude_ranges or ()))
+             if region_masked:
+                 continue
++            if _program_call_stream is not None and region_insn.mnem in ('JSR','JSL'):
++                _program_call_stream._record(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),native_instruction_lines.get(region_key),graph,
++                    data_regions=data_regions or (),exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
+             if native_call_prefix_collector is not None and region_insn.mnem in ('JSR','JSL'):
+                 from .native_call_prefix import collect_call_prefix
+                 call_prefix=collect_call_prefix(rom,region_key,region_insn,region_ops,
+diff --git a/recompiler/v2/emit_bank.py b/recompiler/v2/emit_bank.py
+--- a/recompiler/v2/emit_bank.py
++++ b/recompiler/v2/emit_bank.py
+@@ -94,7 +94,7 @@
+               hle_dispatch=None,
+               inline_arg_map=None,
+               declared_entry_pcs=None,
+-              host_alias_entries=None, native_region_collector=None,
++              host_alias_entries=None, native_region_collector=None, _program_call_stream=None,
+               enable_native_call_prefix: bool = False, native_call_prefix_forced=(),
+               enable_native_mode_successors: bool = False) -> str:
+     """Emit one bank's C source.
+@@ -217,6 +217,7 @@
+             tail_call_target_name=tail_call_target_name,
+             entry_s_offset=entry.entry_s_offset,
+             native_region_collector=native_region_collector,
++            _program_call_stream=_program_call_stream,
+             native_call_prefix_collector=(native_region_collector if enable_native_call_prefix else None),
+             native_call_prefix_forced=native_call_prefix_forced,
+             native_mode_successors=enable_native_mode_successors,
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 40
++CACHE_FORMAT_VERSION = 41
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1106,6 +1106,8 @@
+     old_bank_symbols = old_cache.get("bank_symbols", {})
+     new_bank_symbols = {}
+     new_bank_regions = {}
++    from .architecture_program_call_sources import _new_program_stream
++    program_call_stream=_new_program_stream(rom,parsed)
+     all_regions = []
+     old_bank_regions = old_cache.get("bank_regions", {})
+     old_region_path = pathlib.Path(out_dir) / "native_regions.json"
+@@ -1167,6 +1169,10 @@
+             # namespace; a cache too old to record them must be re-emitted, or
+             # the namespace header would silently omit that bank's symbols.
+             previous_symbols = old_bank_symbols.get(f"{bank:02X}")
++            # Cached row dictionaries cannot issue live typed-graph source receipts.
++            # Re-emit source banks so even incremental generation seals the original
++            # in-memory producer stream; never reconstruct authority from cache JSON.
++            reusable_output = False
+             if (old_bank_keys.get(f"{bank:02X}") == cache_key
+                     and reusable_output and previous_symbols is not None
+                     and f"{bank:02X}" in old_bank_regions
+@@ -1244,6 +1250,7 @@
+                 file_header=(bank_file_header(bank)
+                              if bank_file_header else None),
+                 native_region_collector=bank_regions,
++                _program_call_stream=program_call_stream,
+                 enable_native_call_prefix=enable_native_call_prefix,
+                 enable_native_mode_successors=enable_native_mode_successors,
+                 native_call_prefix_forced={pc & 0x7fffff for _b, _p, q in parsed for pc in getattr(q, "force_lle", ())},
+@@ -1352,7 +1359,7 @@
+         from .task_resume import append_original_prefixes
+         task_rows,task_recipe=append_original_prefixes(rom,parsed,task_rows,task_recipe,regions)
+         from .architecture_eligibility import extend as extend_architecture_eligibility,emit_membership as emit_architecture_membership
+-        regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix)
++        regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal())
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix))
+         write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':6,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows},indent=2,sort_keys=True)+'\n')
+@@ -1364,7 +1371,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':25, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':26, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',

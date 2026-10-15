@@ -1,0 +1,37 @@
+{
+  "patch_sha256": "d29219e692a2b7f4f3050ca1aecaae6d3666ae1b402ab70b62dc15b4d5387aa8",
+  "predecessor_patch_sha256": "9be41b96abd51f81cca9b6bcb2a35fa076e9f544e425d52d517b07cc1f107b16",
+  "predecessor_binding_sha256": "36f31d1030f5e2c2088fad1949cb5d0353f1f7c39caad2a6536dfd8a4d46a5f8",
+  "files": {
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "232647fceaa76798d9bfa9bd80512de94e99a3f66018467d6b677104a143f08d",
+      "final_sha256": "d255aecafa253fbfc172c4234a028ff73663d24c4ffdc685852e885d6b1c59e0",
+      "normalized_final_sha256": "d255aecafa253fbfc172c4234a028ff73663d24c4ffdc685852e885d6b1c59e0"
+    },
+    "recompiler/v2/architecture_task_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "2aa24ea3409d24aab8a8311d8e5dd4c700d5c3133eef4dbcbe8543eee6ece1b8",
+      "normalized_final_sha256": "2aa24ea3409d24aab8a8311d8e5dd4c700d5c3133eef4dbcbe8543eee6ece1b8"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "1c8b8f80ded802c13946f6a6ddb4736512ed12890bc24383df6c24ea62937083",
+      "final_sha256": "7ec0ceb9a7da852b2b0e8e4be598ab1d477802d3812549787ed13ab4e0c6491e",
+      "normalized_final_sha256": "7ec0ceb9a7da852b2b0e8e4be598ab1d477802d3812549787ed13ab4e0c6491e"
+    },
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": "15955242bd2a3452c06f00fd247ce43b244d43536fcfc930475c8d2b5e3b4778",
+      "final_sha256": "dabbc8102aa203baef0bda29e7bbcb211164c8c8e894f2bee7d4b1e8e2b61d09",
+      "normalized_final_sha256": "dabbc8102aa203baef0bda29e7bbcb211164c8c8e894f2bee7d4b1e8e2b61d09"
+    }
+  },
+  "cache_format": 45,
+  "normal_metadata": 30,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "source_proposal_sha256": "2306a21b76e71eda65f9018412c245b5e8e3c978700e11ea0c81aa3b0667f17b",
+  "source_accounting_sha256": "35b59fbf896a28deb0a29596e8ea01b0940ced6682a18eb532873b17a351cfad",
+  "root_review_sha256": "b6f0c62ec69fb3a997efc2cbe7d664cb50188729cb30198f7f72f22d6b314981",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Pure live-MX CPU instructions from actual original selected-task graphs; source sealed registry/member/manifest/ROM/decoder, original ownership/dispatcher/table/math/masks unchanged."
+}

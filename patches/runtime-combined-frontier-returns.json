@@ -1,0 +1,61 @@
+{
+  "patch_sha256": "9be41b96abd51f81cca9b6bcb2a35fa076e9f544e425d52d517b07cc1f107b16",
+  "predecessor_patch_sha256": "7f0f267443396966a0221d56dca551bcba8c395c29c6e22898fd4d83bb39c137",
+  "predecessor_binding_sha256": "367f984ab2fe5d5cf917a0c08d7fcc5f1ced82c6893796d288f326ae3d38f4b7",
+  "files": {
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "bf5922443253023e4672de8081bc06aa435c66bfc69c56d69f6c660dc37af99b",
+      "final_sha256": "64c1f75c43a08456ae730d1b1720a1da04120a3478eb1d6aac45eca245a81bd7",
+      "normalized_final_sha256": "64c1f75c43a08456ae730d1b1720a1da04120a3478eb1d6aac45eca245a81bd7"
+    },
+    "recompiler/v2/architecture_architectural_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "fa23b0d61b12c475d6789f358a1fd5edf54309532bd137dcbe50c2f47265f21d",
+      "normalized_final_sha256": "fa23b0d61b12c475d6789f358a1fd5edf54309532bd137dcbe50c2f47265f21d"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "e55932453b020a8bb11e17a77f031f0c92696eb37e4fa7efc9a5df1e6e387734",
+      "final_sha256": "232647fceaa76798d9bfa9bd80512de94e99a3f66018467d6b677104a143f08d",
+      "normalized_final_sha256": "232647fceaa76798d9bfa9bd80512de94e99a3f66018467d6b677104a143f08d"
+    },
+    "recompiler/v2/architecture_program_call_sources.py": {
+      "predecessor_sha256": "29a0879e453894e22d57a10e06af12efb8e260df71d132c2c5263da3360b0386",
+      "final_sha256": "e074c9ee0a907337cfed5804137c8213a70a9a0e75b4b0217673cd897ec87d4f",
+      "normalized_final_sha256": "e074c9ee0a907337cfed5804137c8213a70a9a0e75b4b0217673cd897ec87d4f"
+    },
+    "recompiler/v2/architecture_program_mode_sources.py": {
+      "predecessor_sha256": "0f4c12f4126fac466678b4f83ba5780bbd24d3ed1ea260c4ddde68767a48b07f",
+      "final_sha256": "fe7562641a05ac075ae956c190f54bfb67bdd49b340b58d30b3376bec768a258",
+      "normalized_final_sha256": "fe7562641a05ac075ae956c190f54bfb67bdd49b340b58d30b3376bec768a258"
+    },
+    "recompiler/v2/architecture_program_return_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "06280afb38c0f96be1d0be7a383afd331d9cbd2121efba1d6394e01503952f4a",
+      "normalized_final_sha256": "06280afb38c0f96be1d0be7a383afd331d9cbd2121efba1d6394e01503952f4a"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "14de30b81978141376e2744d6fe148daa868bc3fe90a8184ee91f6ed5353bea5",
+      "final_sha256": "7aeaa852955b7ffc00227929b951246853e867ca0ad60fe3e7e2ad7416b5fec3",
+      "normalized_final_sha256": "7aeaa852955b7ffc00227929b951246853e867ca0ad60fe3e7e2ad7416b5fec3"
+    },
+    "recompiler/v2/native_reserved_wdm.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "d01d902e6e2e1d976c85a40bb563108f4bf0c6df36d583b9fb93633b1fb6f93d",
+      "normalized_final_sha256": "d01d902e6e2e1d976c85a40bb563108f4bf0c6df36d583b9fb93633b1fb6f93d"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "db53d06b8ea1e24f86e11e4ba5ac3bd1a1ca85c4c54b165e1ac59caaedb2adf1",
+      "final_sha256": "1c8b8f80ded802c13946f6a6ddb4736512ed12890bc24383df6c24ea62937083",
+      "normalized_final_sha256": "1c8b8f80ded802c13946f6a6ddb4736512ed12890bc24383df6c24ea62937083"
+    }
+  },
+  "cache_format": 44,
+  "normal_metadata": 29,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "source_proposal_sha256": "71925e02c778befac6b829a73694a054961bb1793ea38239bff9464342c70a9f",
+  "source_accounting_sha256": "da6c422574d878a1a9fc0f26418975cbe1056e8c7dee798301b108f5c23f68ef",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source architectural TCS/MVP/WDM frontier and graph/member-sealed terminal program-PLP RTS/RTL; actual original producer ON/OFF namespace and original ownership, masks, math, scheduler, bounds and serialized fields retained."
+}

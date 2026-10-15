@@ -6,9 +6,9 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest development: native 0.5.4 / unchanged Companion 0.3.6.** Further source-owned native call/return instructions and restored original callable progress checkpoints. [Current scope](docs/FOUNDATION-NATIVE-CALLABLE-PROGRESS-2026-10-14.md). Complete native/AOT execution remains unfinished.
+**Latest development: native 0.5.5 / unchanged Companion 0.3.6.** More source-owned instructions now execute natively under the original scheduler. [Current scope and exact-build checks](docs/FOUNDATION-NATIVE-EXECUTION-2026-10-15.md). Complete native/AOT execution remains unfinished.
 
-Finite native/coldboot/rendering/input/audio and source-profile checks pass. The installed copied-save Resume route passes; full native/AOT conversion and broader coverage remain unfinished.
+Exact 0.5.5 finite execution, rendering, keyboard/virtual-pad, audio and copied-profile Resume checks pass. The complete Guide, Current advice, maps and existing PC features are retained. These checks do not certify the whole campaign or complete native/AOT conversion.
 
 **Discord:** chrono.trigger
 
@@ -16,7 +16,7 @@ Finite native/coldboot/rendering/input/audio and source-profile checks pass. The
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
 > [!NOTE]
-> **Early development: native foundation 0.5.4 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
+> **Early development: native foundation 0.5.5 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
 The journal has two views: **Current** offers 25 automatic chapter cards with finer current-state leads, and **Guide** lets you browse the full 42-page story walkthrough. Advice recomputes from your current checkpoint; it does not record permanent quest completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
 
@@ -79,7 +79,7 @@ cd secret-of-the-stars-companion
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc"
 ```
 
-The helper fetches the pinned runtime, applies 35 separately checked patches, and uses the standard analyzer/emitter with authored reviewed entry metadata and proved instruction prefixes. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
+The helper fetches the pinned runtime, applies 57 separately checked patches, and uses the standard analyzer/emitter with authored reviewed entry metadata and proved instruction prefixes. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
 
 Build the self-contained launcher with `python tools/build_public_companion.py`, then open `Start Secret of the Stars Companion.cmd` or the generated Companion EXE. Its Setup page validates your ROM and builds/adopts a fresh native profile without private gameplay fixtures. See [BUILDING.md](BUILDING.md). Historical native preview scripts and fixture checkers remain development adapters.
 
@@ -99,11 +99,11 @@ Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in
 
 ## Verification and remaining work
 
-The fresh **native 0.5.2 / unchanged Companion 0.3.6** build has a separate immutable `compiled_unqualified` receipt. Its exact executable passes one stationary 300-frame D3D11/audio route at 60.030 FPS with zero steady audio underflow, missing-frame and audible-drop deltas. Focused native, rendering and input results: three finite runs match all24,744 completed original state/clock/bus/PPU/save-load boundaries; enabled24,706native/38original. Two six-frame staged original-loader effect runs pass61checks with144 independently expected margin pixels at each positive frame. Keyboard/indexed SDL virtual-pad paths pass21checks; root inspected contacts. [Scope and fallback](docs/FOUNDATION-GROUPED-NATIVE-2026-10-12.md). Campaign verification belongs to the owner and play testers.
+The exact **native 0.5.5 / unchanged Companion 0.3.6** candidate matches 116,256 completed original CPU/state/clock/bus/open-bus boundaries, 21 guest components and the full checkpoint. The finite menu route witnesses 37 newly native instruction keys; the retained original reference was reused. Separate exact-build checks pass 144 independently expected margin pixels, 22 configured keyboard/indexed SDL virtual-pad controls and 300 D3D11/audio frames at 60.014 FPS with zero steady underflow, missing-frame or audible-drop deltas. Actual effect and Current advice captures were inspected. [Evidence scope and limits](docs/FOUNDATION-NATIVE-EXECUTION-2026-10-15.md).
 
 The full guide draws on credited written walkthroughs; automatic Current chapter reminders retain the finer source-backed opening-through-Sidon leads. The map keeps its independent automatic destinations and now supports explicit guide-town choices. Current possession is not permanent quest history, and browsing a later page does not mark anything complete. Owner and play testers verify the campaign and report corrections.
 
-A new source build receives its own hash and receipt. Compilation, focused execution, playback, installation and packaging are separate checks; none transfers another executable's qualification. The current build retains the declared execution-state ABI; profile updates still require matching checkpoint/SRAM declarations and the same ABI. Exact current profile results: one isolated050-to051 update through hash-bound unchanged Companion036 production Core methods preserves settings/copied saves, verifies target receipt/executable and retains gameplay-unqualified readiness. This host-method check is separate from the actual installedGUI60-frame title-first launch, which also passes. Both native paths and36new metadata fields match; owner settings/saves/selectors are unchanged. Fresh source adoption remains available. Historical ABI refusals and checkpoint observations retain their own dated scope. See [BUILDING.md](BUILDING.md).
+A new source build receives its own hash and immutable `compiled_unqualified` receipt; separate qualification records carry actual checks. Compilation, execution, playback, installation and packaging remain distinct. The declared execution-state ABI matches 0.5.4, and strict profile compatibility rules remain. Copied source-profile Update/Adopt and actual Companion Resume for 60 frames pass for this candidate with protected owner inputs unchanged. Fresh adoption is separate from updating an existing profile. Earlier coldboot results retain their original artifact scope and are not a 0.5.5 coldboot claim. See [BUILDING.md](BUILDING.md).
 
 Complete native/AOT execution, broader original story/party/effect rendering and hardware coverage remain open. Widescreen retains guarded fallback, and the replacement HD artwork pack is deferred. [Roadmap](ROADMAP.md) · [Validation boundaries](docs/VALIDATION.md). Historical foundation documents keep their dated limits; private development reports and inputs are not published.
 

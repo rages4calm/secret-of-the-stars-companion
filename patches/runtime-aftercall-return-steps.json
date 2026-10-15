@@ -1,0 +1,20 @@
+{
+  "patch_sha256": "6b9b70845fba69f83d767bf9b46589faa4c890925fe2a9cd28b10e322fbe0448",
+  "predecessor_patch_sha256": "60f125101ac09a19597b603b447d94c1a12184489939dd6b4e5bf398962bb086",
+  "predecessor_binding_sha256": "cc4cfefeaf592fae00fe9a4fdbcb44281b8b3400ed610cc16a9a836f6c49485c",
+  "files": {
+    "recompiler/v2/architecture_return_steps.py": {
+      "predecessor_sha256": "d38dc56f70c06d5519ce9d13cfa87dfab250f6b1ea3ade69c58abfd1adde88ef",
+      "final_sha256": "e59af76c43dadf6a7ae6907dab118abd752935d23458c9eadbbc246f65785699",
+      "normalized_final_sha256": "e59af76c43dadf6a7ae6907dab118abd752935d23458c9eadbbc246f65785699"
+    }
+  },
+  "cache_format": 40,
+  "normal_metadata": 25,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "c9f1933d8f3ad61b6db669e223e608fdaa1718dbbc9ac49153a1cb84266301e3",
+  "scope": "Generic internally source-derived aftercall live-mode RTS/RTL barriers through unchanged canonical architectural return validator/body; actual popped target under original scheduler, no adjacency/exit/root/caller ownership added."
+}

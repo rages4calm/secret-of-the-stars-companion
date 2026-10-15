@@ -1,0 +1,40 @@
+{
+  "patch_sha256": "02850a53c3ab8ea3325c47af212fbbfe9227a4288b917799dd640bcc553a3152",
+  "predecessor_patch_sha256": "6b9b70845fba69f83d767bf9b46589faa4c890925fe2a9cd28b10e322fbe0448",
+  "predecessor_binding_sha256": "a9293f1e82cb43b2da71f5d736c7aab1f34a5fb77701a344538629416103fe29",
+  "files": {
+    "recompiler/v2/architecture_program_call_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "ad58edac2c90ee2e4939c60373619bb7dab72799a0da67efc6cd3619656522e6",
+      "normalized_final_sha256": "ad58edac2c90ee2e4939c60373619bb7dab72799a0da67efc6cd3619656522e6"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "a848138e82d0327a1f127ecf2241e166b8c372aa54d35c464854c623b3dea086",
+      "final_sha256": "6dc08e10a20bbc9e16db4b8e00834f453846204895886819197ba275a7413a93",
+      "normalized_final_sha256": "6dc08e10a20bbc9e16db4b8e00834f453846204895886819197ba275a7413a93"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "84a1b8f6dd7c6c5faf084d2ee3a0bbbd3f564e0c72d7ecda5691f57baf3bedc8",
+      "final_sha256": "f86136c91c23660302642f0281c96e1f9c94c366eda3b6f4d652a4746e2368c4",
+      "normalized_final_sha256": "f86136c91c23660302642f0281c96e1f9c94c366eda3b6f4d652a4746e2368c4"
+    },
+    "recompiler/v2/emit_bank.py": {
+      "predecessor_sha256": "9167d5362ca31ec702843698ddf959a47308fdf8599252490bc9a36305b1d535",
+      "final_sha256": "4a000beb76520510f9cfb26a285e1bfd2064ea29da5f2b15e006a2723019ca05",
+      "normalized_final_sha256": "4a000beb76520510f9cfb26a285e1bfd2064ea29da5f2b15e006a2723019ca05"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "e748eeac0ab8adfcec6c2365b9a2df5fd151bb7b8153cd5a1e61905876554616",
+      "final_sha256": "132ac84789126cec1f74dffdea4680432d33ba387d0b02a2b8c3e4b2663287a6",
+      "normalized_final_sha256": "132ac84789126cec1f74dffdea4680432d33ba387d0b02a2b8c3e4b2663287a6"
+    }
+  },
+  "cache_format": 41,
+  "normal_metadata": 26,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "c3d15b459aa8d32d0a7149666d07d9273a1de9bfd00488f607581bf9e81835ae",
+  "scope": "Original ordinary in-memory typed graph call stream, sealed whole-source/canonical call prefix and independent live-MX callee/receiving instruction closure; no roots/exit/caller/task/ancestor authority. Original masks/unknown/indirect/status barriers, common scheduler and canonical fullPC return transactions retained."
+}

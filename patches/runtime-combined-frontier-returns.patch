@@ -1,0 +1,388 @@
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -653,7 +653,7 @@
+   /* Direct calls consume actual fetched operands. Verify their source mapping
+    * before any fetch even on the unhooked route; refusal has no bus effects. */
+   if (expected[0] == 0x20u || expected[0] == 0x22u || expected[0] == 0x5cu ||
+-      expected[0] == 0x6cu || expected[0] == 0x7cu || expected[0] == 0xdcu || expected[0] == 0xfcu || expected[0] == 0x40u || expected[0] == 0x44u || expected[0] == 0x54u) {
++      expected[0] == 0x6cu || expected[0] == 0x7cu || expected[0] == 0xdcu || expected[0] == 0xfcu || expected[0] == 0x40u || expected[0] == 0x44u || expected[0] == 0x54u || expected[0] == 0x42u) {
+     if (!g_snes || !g_snes->cart) return false;
+     for (unsigned byte = 0; byte < length; ++byte) {
+       const uint8_t *rom = cart_getRomPtr(g_snes->cart, cpu->PB, (uint16_t)(pc + byte));
+diff --git a/recompiler/v2/architecture_architectural_sources.py b/recompiler/v2/architecture_architectural_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_architectural_sources.py
+@@ -0,0 +1,96 @@
++"""Architectural stack-transfer/blockmove/reserved frontier from sealed source calls."""
++from snes65816 import decode_insn,rom_offset
++from snes_cycles import instr_cpu_cycles
++from .decoder import DecodeKey,decode_function
++from .emit_function import emit_function
++from .lowering import lower
++from .native_regions import collect_stack_control
++from .native_blockmove import collect_blockmove
++from .native_reserved_wdm import collect_reserved_wdm
++OPS={'TCS':(0x1b,1),'TXS':(0x9a,1),'MVP':(0x44,3),'MVN':(0x54,3),'WDM':(0x42,2)}
++BARRIERS={'PLP','RTI','BRK','COP','WAI','STP','XCE','RTS','RTL'}
++MAX_SUCCESSOR_STARTS=512
++
++def _successor_start_permitted(attempted):
++    if type(attempted)is not int or attempted<1:raise ValueError('unknown successor start counter')
++    return attempted<=MAX_SUCCESSOR_STARTS
++
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++    from .architecture_program_call_sources import derive as derive_program
++    from .architecture_eligibility import _independent,_mask
++    from .architecture_emission_policy import _options
++    # No supplied PC graph/list/JSON receipt is an input. Only the currently
++    # sealed original producer namespace authenticates the source frontier.
++    stream.rows(rom,parsed)
++    cert=derive_program(rom,parsed,stream,enable_native_call_prefix=True)[1]
++    cfg={b:c for b,_path,c in parsed};masks=[s for c in cfg.values()for s in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges];forced={p&0x7fffff for c in cfg.values()for p in c.force_lle}
++    callmap={}
++    for call in cert['calls']:
++        pc=call['pc24'];off=rom_offset(pc>>16,pc&65535);ins=decode_insn(rom,off,pc&65535,pc>>16,call['m'],call['x']);target=(pc&0xff0000)|ins.operand if ins and ins.mnem=='JSR'else(ins.operand if ins else None)
++        if not ins or ins.mnem not in('JSR','JSL')or ins.length!=call['length']or rom[off:off+ins.length].hex()!=call['bytes']or target!=call['next_pc']:raise ValueError('architectural frontier whole original source call')
++        callmap.setdefault(pc,[]).append(call)
++    boundaries={};origins=[];refused=[]
++    for record in cert['graphs']:
++        if record['source_kind']not in('callee','return')or record['parameter_m']not in(0,1)or record['parameter_x']not in(0,1):raise ValueError('architectural frontier unknown source role/mode')
++        selected=[b for b in record['barriers']if b[3]in OPS]
++        if any(b[1]not in(0,1)or b[2]not in(0,1)for b in selected):raise ValueError('architectural frontier unknown barrier mode')
++        if not selected:continue
++        start=record['source_start'];bank=start>>16
++        if _mask(parsed,start,1)or(bank not in cfg and _options(stream,rom,parsed,bank)is None):continue
++        graph=decode_function(rom,bank,start&65535,record['parameter_m'],record['parameter_x'],max_insns=128,data_regions=masks,stop_on_unknown_callee_exit=True)
++        if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=128:raise ValueError('architectural frontier original graph authority')
++        for pc,m,x,mnem in selected:
++            members=[di for key,di in graph.insns.items()if(key.pc,key.m,key.x)==(pc,m,x)]
++            if not members or any((di.insn.opcode,di.insn.length)!=OPS[mnem]or di.insn.data_region_exec or getattr(di.insn,'const_z_fold_unconditional',False)for di in members):raise ValueError('architectural frontier authentic typed barrier')
++            if _mask(parsed,pc,OPS[mnem][1]):continue
++            if pc in boundaries and boundaries[pc]!=mnem:raise ValueError('unequal architectural source barrier')
++            for callpc in record['source_calls']:
++                calls=callmap.get(callpc,[]);expected={((r['next_pc']if record['source_kind']=='callee'else((callpc&0xff0000)|((callpc&65535)+r['length'])))&0x7fffff)for r in calls}
++                if start not in expected:raise ValueError('architectural frontier absent original caller edge')
++                origins.append({'source_call':callpc,'source_kind':record['source_kind'],'source_start':start,'barrier_pc':pc,'mnemonic':mnem,'original_barrier_m':m,'original_barrier_x':x})
++            boundaries[pc]=mnem
++    rows={};successors=[];starts_attempted=0;starts_decoded=0
++    for pc,mnem in sorted(boundaries.items()):
++        bank=pc>>16;length=OPS[mnem][1]
++        for m,x in[(0,0),(0,1),(1,0),(1,1)]:
++            ins=decode_insn(rom,rom_offset(bank,pc&65535),pc&65535,bank,m,x)
++            if not ins or(ins.opcode,ins.mnem,ins.length)!=(OPS[mnem][0],mnem,length):raise ValueError('architectural original whole operation')
++            ins.m_flag,ins.x_flag=m,x;ops=lower(ins,value_factory=lambda:None);cycles=instr_cpu_cycles(ins.opcode,m=m,x=x,e=0);key=DecodeKey(pc,m,x,())
++            if mnem in('TCS','TXS'):row=collect_stack_control(rom,key,ins,ops,cycles)
++            elif mnem in('MVP','MVN'):row=collect_blockmove(rom,key,ins,ops,cycles,data_regions=masks,forced=forced)
++            else:row=collect_reserved_wdm(rom,key,ins,ops,cycles,data_regions=masks,forced=forced)
++            if row and _independent(rom,parsed,row):rows[(pc,m,x)]=row
++        # TCS/TXS change actual S only. Blockmove may repeat this same row;
++        # only its completed iteration arrives at PC+3. Reserved WDM has its
++        # original cached two fetches. None changes M/X or caller ownership.
++        start=(pc&65535)+length
++        if start>=65536:refused.append({'source_barrier':pc,'reason':'nextPC wrap'});continue
++        for m,x in[(0,0),(0,1),(1,0),(1,1)]:
++            starts_attempted+=1
++            if not _successor_start_permitted(starts_attempted):
++                refused.append({'source_barrier':pc,'m':m,'x':x,'reason':'512successor source start bound'});continue
++            starts_decoded+=1
++            try:g=decode_function(rom,bank,start,m,x,max_insns=128,data_regions=masks,stop_on_unknown_callee_exit=True)
++            except RuntimeError as error:
++                if 'max_insns=128'not in str(error):raise
++                refused.append({'source_barrier':pc,'m':m,'x':x,'reason':'128instruction source bound'});continue
++            if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=128:refused.append({'source_barrier':pc,'m':m,'x':x,'reason':'conflict/data/indirect/128instruction bound'});continue
++            c=cfg.get(bank);policy={'exclude_ranges':c.exclude_ranges,'hle_func':c.hle_func,'hle_spc_upload':c.hle_spc_upload}if c is not None else _options(stream,rom,parsed,bank);local=[];calls=[]
++            emit_function(rom,bank,start,m,x,func_name='DiscardedOriginalArchitecturalFrontier',data_regions=masks,exclude_ranges=policy['exclude_ranges'],hle_func=policy['hle_func'],hle_spc_upload=policy['hle_spc_upload'],source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls if enable_native_call_prefix else None,native_call_prefix_forced=forced,_native_collector_only=True)
++            candidates=[r for r in local+calls if _independent(rom,parsed,r)];supported={tuple(r[k]for k in('pc24','m','x'))for r in candidates};pending=[g.entry];allowed=set();stops=[]
++            while pending:
++                key=pending.pop()
++                if key in allowed:continue
++                di=g.insns.get(key)
++                if not di:continue
++                if di.insn.mnem in BARRIERS or(key.pc,key.m,key.x)not in supported or getattr(di.insn,'const_z_fold_unconditional',False):stops.append([key.pc,key.m,key.x,di.insn.mnem]);continue
++                allowed.add(key)
++                if di.insn.mnem not in('JSR','JSL'):pending.extend(di.successors)
++            admitted={(k.pc,k.m,k.x)for k in allowed};keys=[]
++            for row in candidates:
++                key=tuple(row[k]for k in('pc24','m','x'))
++                if key not in admitted:continue
++                if key in rows and rows[key]!=row:raise ValueError('unequal architectural independent body')
++                rows[key]=row;keys.append(list(key))
++            successors.append({'source_barrier':pc,'mnemonic':mnem,'next_pc':(bank<<16)|start,'parameter_m':m,'parameter_x':x,'instruction_keys':keys,'barriers':stops,'caller_owner_added':False,'callee_exit_modes_added':False,'status_history_added':False})
++    return [rows[k]for k in sorted(rows)],{'source_stream':stream.metadata(),'origins':origins,'boundaries':[[pc,m]for pc,m in sorted(boundaries.items())],'successors':successors,'refused_source_contexts':refused,'successor_starts_attempted':starts_attempted,'successor_starts_decoded':starts_decoded,'original_current_live_MX':True,'caller_owner_added':False,'callee_exit_modes_added':False,'status_history_added':False,'interrupt_admission_added':False,'limits':{'graph_instructions':128,'starts':512,'call_depth':8}}
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -38,6 +38,9 @@
+     code=row['body']
+     if any(t in code for t in ('RecompReturn','interp_','_entry_s','_hrv','host_return_valid','cpu_aot_prefix','precise-mode unsupported:')):return False
+     if insn.mnem=='RTI':return False
++    if insn.mnem=='WDM':
++        from .native_reserved_wdm import validate_reserved_wdm
++        return validate_reserved_wdm(rom,parsed,row)
+     if insn.mnem in('RTS','RTL'):
+         from .architecture_return_steps import validate_return
+         return validate_return(rom,parsed,row)
+@@ -81,13 +84,18 @@
+     return_step_rows,return_step_graphs=derive_return_steps(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     aftercall_rows,aftercall_graphs=derive_aftercalls(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+     aftercall_mode_rows,aftercall_mode_graphs=derive_aftercall_modes(rom,parsed,enable_native_call_prefix=enable_native_call_prefix)
+-    program_rows=[];program_graphs=None;program_mode_rows=[];program_mode_graphs=None
++    program_rows=[];program_graphs=None;program_mode_rows=[];program_mode_graphs=None;architectural_rows=[];architectural_graphs=None;program_return_rows=[];program_return_graphs=None
+     if program_call_stream is not None:
+         from .architecture_program_call_sources import derive as derive_program_calls
+         program_rows,program_graphs=derive_program_calls(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+         from .architecture_program_mode_sources import derive as derive_program_modes
+-        program_mode_rows,program_mode_graphs=derive_program_modes(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows)])
++        from .architecture_program_return_sources import _new_frontier,derive as derive_program_returns
++        return_frontier=_new_frontier(rom,parsed,program_call_stream)
++        program_mode_rows,program_mode_graphs=derive_program_modes(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix,_return_frontier=return_frontier)
++        from .architecture_architectural_sources import derive as derive_architectural
++        architectural_rows,architectural_graphs=derive_architectural(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
++        program_return_rows,program_return_graphs=derive_program_returns(rom,parsed,program_call_stream,return_frontier,enable_native_call_prefix=enable_native_call_prefix)
++    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows)])
+     metadata['return_instruction_graphs']=return_graphs
+     metadata['callee_instruction_graphs']=callee_graphs
+     metadata['mode_instruction_graphs']=mode_graphs
+@@ -98,6 +106,8 @@
+     metadata['aftercall_mode_graphs']=aftercall_mode_graphs
+     metadata['program_call_graphs']=program_graphs
+     metadata['program_mode_graphs']=program_mode_graphs
++    metadata['architectural_frontier_graphs']=architectural_graphs
++    metadata['program_return_graphs']=program_return_graphs
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/architecture_program_call_sources.py b/recompiler/v2/architecture_program_call_sources.py
+--- a/recompiler/v2/architecture_program_call_sources.py
++++ b/recompiler/v2/architecture_program_call_sources.py
+@@ -14,7 +14,7 @@
+ from .architecture_callee_sources import derive as derive_callees
+ from .architecture_nested_sources import derive as derive_nested
+ from .architecture_return_steps import SOURCE_RETURN_CONTRACT,validate_return
+-BARRIERS={'PLP','RTI','TCS','TXS','XCE','MVN','MVP'}
++BARRIERS={'PLP','RTI','TCS','TXS','XCE','MVN','MVP','WDM'} # preserve formerly unsupported reserved-op barrier
+ MAX_STARTS=512
+ MAX_DEPTH=8
+ MAX_SOURCE_CALLS=512
+diff --git a/recompiler/v2/architecture_program_mode_sources.py b/recompiler/v2/architecture_program_mode_sources.py
+--- a/recompiler/v2/architecture_program_mode_sources.py
++++ b/recompiler/v2/architecture_program_mode_sources.py
+@@ -12,7 +12,7 @@
+ BARRIERS={'PLP','RTI','TCS','TXS','XCE','MVN','MVP','RTS','RTL'}
+ 
+ 
+-def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True,_return_frontier=None):
+     from .architecture_program_call_sources import derive as derive_program_calls
+     from .architecture_eligibility import _independent,_mask
+     # This factory authenticates the original stream/ROM/parsed/policy identity;
+@@ -85,7 +85,11 @@
+                 if key in allowed:continue
+                 member=graph.insns.get(key)
+                 if not member:continue
+-                if member.insn.mnem in BARRIERS or (key.pc,key.m,key.x)not in supported or getattr(member.insn,'const_z_fold_unconditional',False):stops.append([key.pc,key.m,key.x,member.insn.mnem]);continue
++                if member.insn.mnem in BARRIERS or (key.pc,key.m,key.x)not in supported or getattr(member.insn,'const_z_fold_unconditional',False):
++                    if _return_frontier is not None and member.insn.mnem in('RTS','RTL') and not getattr(member.insn,'const_z_fold_unconditional',False):
++                        from .architecture_program_return_sources import _record_frontier
++                        _record_frontier(_return_frontier,rom,parsed,stream,graph,key,member,pc,m,x)
++                    stops.append([key.pc,key.m,key.x,member.insn.mnem]);continue
+                 allowed.add(key)
+                 if member.insn.mnem not in('JSR','JSL'):todo.extend(member.successors)
+             admitted={(k.pc,k.m,k.x)for k in allowed};keys=[]
+@@ -95,4 +99,7 @@
+                 if key in rows and rows[key]!=row:raise ValueError('unequal program live-mode body')
+                 rows[key]=row;keys.append(list(key))
+             successors.append({'source_PLP':pc,'next_pc':(pc&0xff0000)|start,'parameter_m':m,'parameter_x':x,'instruction_keys':keys,'barriers':stops,'static_restored_mode_asserted':False})
++    if _return_frontier is not None:
++        from .architecture_program_return_sources import _seal_frontier
++        _seal_frontier(_return_frontier,rom,parsed,stream)
+     return [rows[k]for k in sorted(rows)],{'source_stream':stream.metadata(),'origins':origins,'boundaries':sorted(boundaries),'successors':successors,'refused_source_contexts':refused,'callee_exit_modes_added':False,'caller_owner_added':False,'ordinary_roots_added':False,'restored_P_from_history':False}
+diff --git a/recompiler/v2/architecture_program_return_sources.py b/recompiler/v2/architecture_program_return_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_program_return_sources.py
+@@ -0,0 +1,105 @@
++"""Terminal architectural returns from opaque current program-PLP frontiers.
++
++Only the existing mode factory can record its actual reached typed graph member.
++No external row/PC/JSON or popped-target/caller/exit fact selects a return.
++"""
++import hashlib,weakref,json
++from snes65816 import rom_offset
++from .architecture_emission_policy import _graph_digest
++from .architecture_program_call_sources import _ProgramCallStream,_PRODUCER,_policy_sha
++from .architecture_return_steps import SOURCE_RETURN_CONTRACT,validate_return
++from .decoder import FunctionDecodeGraph
++from .emit_function import emit_function
++from .ir import Return
++from .lowering import lower
++_ISSUER=object()
++_ISSUED=weakref.WeakSet()
++
++
++def _member_digest(members):
++    value=[(list(key),[list(origin)for origin in sorted(origins)])for key,origins in sorted(members.items())]
++    return hashlib.sha256(json.dumps(value,separators=(',',':')).encode()).hexdigest()
++
++
++class _ProgramReturnFrontier:
++    def __init__(self,issuer,rom,parsed,stream):
++        if issuer is not _ISSUER:raise ValueError('foreign program return issuer')
++        if type(stream)is not _ProgramCallStream or stream._producer is not _PRODUCER:raise ValueError('original program return stream required')
++        stream.rows(rom,parsed)
++        if stream._manifest is None or not stream._views:raise ValueError('actual original program emitter namespace required')
++        from .architecture_emission_policy import _options
++        for bank in stream._views:_options(stream,rom,parsed,bank)
++        _ISSUED.add(self)
++        self._issuer=issuer;self._rom=rom;self._rom_sha=hashlib.sha256(rom).hexdigest();self._parsed=parsed;self._stream=stream;self._stream_sha=stream._digest;self._policy=_policy_sha(parsed)
++        self._graphs={};self._members={};self._members_sha=None;self._sealed=False;self._consumed=False
++
++    def _validate(self,rom,parsed,stream):
++        if self not in _ISSUED or self._issuer is not _ISSUER or rom is not self._rom or parsed is not self._parsed or stream is not self._stream or hashlib.sha256(rom).hexdigest()!=self._rom_sha or _policy_sha(parsed)!=self._policy:raise ValueError('foreign/mutated program return context')
++        if self._sealed and _member_digest(self._members)!=self._members_sha:raise ValueError('sealed program return members mutated')
++        stream.rows(rom,parsed)
++        if stream._digest!=self._stream_sha:raise ValueError('program return source stream changed')
++        for graph,digest in self._graphs.values():
++            if _graph_digest(rom,graph)!=digest:raise ValueError('program return actual graph mutated')
++
++    def _record(self,issuer,rom,parsed,stream,graph,key,member,source_plp,parameter_m,parameter_x):
++        if issuer is not _ISSUER or self._sealed or self._consumed:raise ValueError('program return producer closed')
++        self._validate(rom,parsed,stream)
++        if type(graph)is not FunctionDecodeGraph or graph.insns.get(key)is not member or graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=128:raise ValueError('program return needs actual bounded typed member')
++        if (parameter_m,parameter_x)not in((0,0),(0,1),(1,0),(1,1))or (graph.entry.pc,graph.entry.m,graph.entry.x)!=(source_plp+1,parameter_m,parameter_x):raise ValueError('program return exact PLP successor context')
++        ins=member.insn;pc=key.pc
++        if ins.addr!=pc or ins.mnem not in('RTS','RTL')or ins.opcode!=(0x60 if ins.mnem=='RTS'else 0x6b)or ins.length!=1 or ins.data_region_exec or getattr(ins,'const_z_fold_unconditional',False):raise ValueError('program return exact terminal opcode')
++        if key.m not in(0,1)or key.x not in(0,1):raise ValueError('program return actual liveMX')
++        from .architecture_eligibility import _mask
++        if _mask(parsed,pc,1):raise ValueError('program return masked opcode')
++        off=rom_offset(pc>>16,pc&65535)
++        if off<0 or off>=len(rom)or rom[off]!=ins.opcode:raise ValueError('program return whole original byte')
++        ops=lower(ins,value_factory=lambda:None)
++        if len(ops)!=1 or not isinstance(ops[0],Return)or ops[0].interrupt or ops[0].long!=(ins.mnem=='RTL')or ops[0].source_pc24!=pc:raise ValueError('program return original typed Return')
++        identity=(pc,key.m,key.x);origin=(source_plp,parameter_m,parameter_x)
++        self._graphs[id(graph)]=(graph,_graph_digest(rom,graph))
++        self._members.setdefault(identity,set()).add(origin)
++
++    def _seal(self,issuer,rom,parsed,stream):
++        if issuer is not _ISSUER or self._sealed or self._consumed:raise ValueError('program return producer seal reuse')
++        self._validate(rom,parsed,stream);self._members_sha=_member_digest(self._members);self._sealed=True
++
++
++def _new_frontier(rom,parsed,stream):
++    return _ProgramReturnFrontier(_ISSUER,rom,parsed,stream)
++
++
++def _record_frontier(view,rom,parsed,stream,graph,key,member,source_plp,m,x):
++    if type(view)is not _ProgramReturnFrontier:raise ValueError('no external program return frontier')
++    view._record(_ISSUER,rom,parsed,stream,graph,key,member,source_plp,m,x)
++
++
++def _seal_frontier(view,rom,parsed,stream):
++    if type(view)is not _ProgramReturnFrontier:raise ValueError('no external program return frontier')
++    view._seal(_ISSUER,rom,parsed,stream)
++
++
++def derive(rom,parsed,stream,frontier,*,enable_native_call_prefix=True):
++    # Diagnostic OFF independently consumes its own actual mode-factory view;
++    # terminal RTS/RTL contains no call body to filter or target to promote.
++    if type(frontier)is not _ProgramReturnFrontier or not frontier._sealed or frontier._consumed:raise ValueError('sealed one-use program return frontier required')
++    frontier._validate(rom,parsed,stream);frontier._consumed=True
++    cfg={b:c for b,_p,c in parsed}
++    if len(cfg)!=len(parsed):raise ValueError('duplicate program return bank')
++    masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
++    rows=[];origins=[];refused=[]
++    from .architecture_eligibility import _independent,_mask
++    from .architecture_emission_policy import _options
++    for pc,m,x in sorted(frontier._members):
++        if _mask(parsed,pc,1):raise ValueError('program return policy changed')
++        bank=pc>>16;c=cfg.get(bank)
++        options={'exclude_ranges':c.exclude_ranges,'hle_func':c.hle_func,'hle_spc_upload':c.hle_spc_upload}if c is not None else _options(stream,rom,parsed,bank)
++        if options is None:raise ValueError('program return original bank policy absent')
++        local=[]
++        emit_function(rom,bank,pc&65535,m,x,func_name='DiscardedProgramModeReturn',data_regions=masks,exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],native_region_collector=local,_native_collector_only=True)
++        exact=[r for r in local if (r['pc24'],r['m'],r['x'])==(pc,m,x)]
++        if len(exact)!=1:refused.append([pc,m,x]);continue
++        row=dict(exact[0]);row['source_return_contract']=SOURCE_RETURN_CONTRACT
++        if not validate_return(rom,parsed,row)or not _independent(rom,parsed,row):refused.append([pc,m,x]);continue
++        rows.append(row)
++        origins.append({'return_key':[pc,m,x],'PLP_successor_contexts':[list(v)for v in sorted(frontier._members[(pc,m,x)])]})
++    return rows,{'contract':SOURCE_RETURN_CONTRACT,'source_stream':stream.metadata(),'origins':origins,'refused':refused,'typed_graphs':len(frontier._graphs),'external_rows_or_roots_accepted':False,'static_return_target_exported':False,'successor_mode_exported':False,'callee_exit_modes_added':False,'caller_owner_added':False,'ordinary_roots_added':False,'original_scheduler_owned':True}
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -2407,6 +2407,13 @@
+                     exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
+                 if region is not None:native_region_collector.append(region)
+                 continue
++            if region_insn.opcode==0x42:
++                from .native_reserved_wdm import collect_reserved_wdm
++                region=collect_reserved_wdm(rom,region_key,region_insn,region_ops,
++                    _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                    exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                if region is not None:native_region_collector.append(region)
++                continue
+             if region_insn.opcode in (0x44,0x54):
+                 from .native_blockmove import collect_blockmove
+                 region=collect_blockmove(rom,region_key,region_insn,region_ops,
+diff --git a/recompiler/v2/native_reserved_wdm.py b/recompiler/v2/native_reserved_wdm.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/native_reserved_wdm.py
+@@ -0,0 +1,33 @@
++"""Original reserved WDM: one opcode and immediate fetch, no guest effects."""
++from snes65816 import IMM,decode_insn,rom_offset
++from snes_cycles import instr_cpu_cycles
++from .ir import Nop
++from .lowering import lower
++CONTRACT='source-native-e0-reserved-wdm-v1'
++BODY='{ /* Original WDM opcode and immediate were fetched once by cpu_aot_begin; no guest effects. */ }'
++def collect_reserved_wdm(rom,key,insn,ops,cycles,*,data_regions=(),exclude_ranges=(),forced=()):
++    if key.m not in(0,1)or key.x not in(0,1)or insn.data_region_exec or getattr(insn,'const_z_fold_unconditional',False):return None
++    if(insn.mnem,insn.opcode,insn.mode,insn.length)!=('WDM',0x42,IMM,2)or len(ops)!=1 or type(ops[0])is not Nop:return None
++    pc=insn.addr&0xffffff
++    if key.pc!=pc or pc>>16 in(0x7e,0x7f)or pc&65535<0x8000 or(pc&65535)+2>65536:return None
++    for n in range(2):
++        at=(pc&0xff0000)|((pc+n)&65535)
++        if at&0x7fffff in forced or any(at>>16 in(b,b^128)and lo<=at&65535<hi for b,lo,hi in data_regions)or any(lo<=at&65535<hi for lo,hi in exclude_ranges):return None
++    off=rom_offset(pc>>16,pc&65535);decoded=decode_insn(rom,off,pc&65535,pc>>16,key.m,key.x)
++    if decoded is None or(decoded.opcode,decoded.mnem,decoded.mode,decoded.operand,decoded.length)!=(insn.opcode,insn.mnem,insn.mode,insn.operand,insn.length):return None
++    decoded.m_flag,decoded.x_flag=key.m,key.x
++    if(getattr(insn,'m_flag',None),getattr(insn,'x_flag',None))!=(key.m,key.x)or ops!=lower(decoded,value_factory=lambda:None)or cycles!=instr_cpu_cycles(0x42,m=key.m,x=key.x,e=0)or cycles!=2:return None
++    return {'pc24':pc&0x7fffff,'m':key.m,'x':key.x,'length':2,'cycles':2,'bytes':rom[off:off+2].hex(),'next_pc':(pc+2)&65535,'body':BODY,'mnemonic':'WDM','contract':CONTRACT,'original_immediate_fetch':True,'guest_state_effects':False}
++
++def validate_reserved_wdm(rom,parsed,row):
++    from .decoder import DecodeKey
++    from .architecture_eligibility import _mask
++    try:
++        pc=row['pc24'];m=row['m'];x=row['x']
++        if _mask(parsed,pc,2):return False
++        insn=decode_insn(rom,rom_offset(pc>>16,pc&65535),pc&65535,pc>>16,m,x)
++        if insn is None:return False
++        insn.m_flag,insn.x_flag=m,x
++        exact=collect_reserved_wdm(rom,DecodeKey(pc,m,x,()),insn,lower(insn,value_factory=lambda:None),instr_cpu_cycles(insn.opcode,m=m,x=x,e=0))
++        return exact is not None and all(row.get(k)==v for k,v in exact.items())
++    except(KeyError,ValueError,TypeError):return False
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 43
++CACHE_FORMAT_VERSION = 44
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1375,7 +1375,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':28, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':29, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',

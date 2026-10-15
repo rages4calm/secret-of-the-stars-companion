@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "60f125101ac09a19597b603b447d94c1a12184489939dd6b4e5bf398962bb086",
+  "predecessor_patch_sha256": "ee55a567f53c2ae3e8a81755bda7954a3b835d19bad8cc56db84156e243cce45",
+  "predecessor_binding_sha256": "3cc05733c99b159cad095ad5403b00c7cf1e80c0489db97a92fde5dfb97a1bd0",
+  "files": {
+    "recompiler/v2/architecture_aftercall_mode_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "0daa02e17677966d86f27f5eaf01f6a80e5efbefe18a46270acc4a61381f1a56",
+      "normalized_final_sha256": "0daa02e17677966d86f27f5eaf01f6a80e5efbefe18a46270acc4a61381f1a56"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "d50f7856694dcb69de66ef125dc498319d3f71403f22ca425061ec1aa1093c7d",
+      "final_sha256": "a848138e82d0327a1f127ecf2241e166b8c372aa54d35c464854c623b3dea086",
+      "normalized_final_sha256": "a848138e82d0327a1f127ecf2241e166b8c372aa54d35c464854c623b3dea086"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "4d61c6279104fb2ab901f787b7ecabd76fd4e2b7348a05195bad2ce7086acc79",
+      "final_sha256": "e748eeac0ab8adfcec6c2365b9a2df5fd151bb7b8153cd5a1e61905876554616",
+      "normalized_final_sha256": "e748eeac0ab8adfcec6c2365b9a2df5fd151bb7b8153cd5a1e61905876554616"
+    }
+  },
+  "cache_format": 40,
+  "normal_metadata": 25,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "source_proposal_sha256": "8c9dcdb1d2a91b18aaf0755ba9658c0c5623de046e9cf855c99e6090e2c2a17d",
+  "scope": "Internal source-authenticated aftercall PLP boundary and independent live-mode successors; original typed bank0 status pop and X truncation, no PHP history or inferred exit/owner/root facts."
+}

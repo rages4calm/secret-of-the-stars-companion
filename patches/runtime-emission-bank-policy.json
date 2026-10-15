@@ -1,0 +1,51 @@
+{
+  "patch_sha256": "7f0f267443396966a0221d56dca551bcba8c395c29c6e22898fd4d83bb39c137",
+  "predecessor_patch_sha256": "83a9952d653f6093f1c95852f9387c8fb46cc4fccf81b73d17bcb714266fb87f",
+  "predecessor_binding_sha256": "c93de89cb9ab11a8435a5f56b65543e92ddc25d0d75ef41361e88dbcdfa50515",
+  "files": {
+    "recompiler/v2/architecture_emission_policy.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "3750d35323c1dde3a22163d54b815d905043fd3ca1969b45a81e0b81262384b0",
+      "normalized_final_sha256": "3750d35323c1dde3a22163d54b815d905043fd3ca1969b45a81e0b81262384b0"
+    },
+    "recompiler/v2/architecture_program_call_sources.py": {
+      "predecessor_sha256": "ad58edac2c90ee2e4939c60373619bb7dab72799a0da67efc6cd3619656522e6",
+      "final_sha256": "29a0879e453894e22d57a10e06af12efb8e260df71d132c2c5263da3360b0386",
+      "normalized_final_sha256": "29a0879e453894e22d57a10e06af12efb8e260df71d132c2c5263da3360b0386"
+    },
+    "recompiler/v2/architecture_program_mode_sources.py": {
+      "predecessor_sha256": "7718fb6b8707b0cc4b78ffbf2f28ba8897bb99b787a024cadf6a8bf0b869c4b4",
+      "final_sha256": "0f4c12f4126fac466678b4f83ba5780bbd24d3ed1ea260c4ddde68767a48b07f",
+      "normalized_final_sha256": "0f4c12f4126fac466678b4f83ba5780bbd24d3ed1ea260c4ddde68767a48b07f"
+    },
+    "recompiler/v2/emit_bank.py": {
+      "predecessor_sha256": "4a000beb76520510f9cfb26a285e1bfd2064ea29da5f2b15e006a2723019ca05",
+      "final_sha256": "eb52e0c65096370224a854c31febff9db56613312d8b4eaa3dca900b47f474ae",
+      "normalized_final_sha256": "eb52e0c65096370224a854c31febff9db56613312d8b4eaa3dca900b47f474ae"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "f86136c91c23660302642f0281c96e1f9c94c366eda3b6f4d652a4746e2368c4",
+      "final_sha256": "14de30b81978141376e2744d6fe148daa868bc3fe90a8184ee91f6ed5353bea5",
+      "normalized_final_sha256": "14de30b81978141376e2744d6fe148daa868bc3fe90a8184ee91f6ed5353bea5"
+    },
+    "recompiler/v2/native_mode_successors.py": {
+      "predecessor_sha256": "580d7e05f596e7bff2cb99e46ea8f7dd9f54eb5d5d532a12a31b0809a66814a9",
+      "final_sha256": "8e3ce0104a1ab5fc8f0561707a011c8b8f37e4a03a62bea3d79ae4fe65f62c42",
+      "normalized_final_sha256": "8e3ce0104a1ab5fc8f0561707a011c8b8f37e4a03a62bea3d79ae4fe65f62c42"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "51e3fa220228795023c0b3c0a7bc918e12172048c1b7da839d3843e89ad2c3d3",
+      "final_sha256": "db53d06b8ea1e24f86e11e4ba5ac3bd1a1ca85c4c54b165e1ac59caaedb2adf1",
+      "normalized_final_sha256": "db53d06b8ea1e24f86e11e4ba5ac3bd1a1ca85c4c54b165e1ac59caaedb2adf1"
+    }
+  },
+  "cache_format": 43,
+  "normal_metadata": 28,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "source_proposal_sha256": "91f32b5c02f9efc2cdbd992bfa558b9c4a80ca2f18ac31e0ffa80a2e7685912b",
+  "source_accounting_sha256": "0d039b7663fa5a6affc881efb6855bb5e8ad85937c946276a6832ebe03767f8d",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Sealed actual original emitter bank policy and current graph/one-use source-instruction child role; explicit absent local cfg options plus global original masks/forced/HLE/decoder authority. Internal bounded liveMX call/receiving/PLP conversion; no new cfg/root/callee-exit/caller/ancestor/host or CPU/serialized facts."
+}

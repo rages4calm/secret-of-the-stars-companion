@@ -1,0 +1,326 @@
+diff --git a/recompiler/v2/architecture_emission_policy.py b/recompiler/v2/architecture_emission_policy.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_emission_policy.py
+@@ -0,0 +1,113 @@
++"""Opaque current emitter bank-policy views; no cfg/root or JSON authority."""
++import dataclasses,hashlib,json
++_ISSUER=object()
++
++def _freeze(v):
++    if v is None or isinstance(v,(str,int,float,bool)):return v
++    if isinstance(v,(bytes,bytearray)):return ['bytes',bytes(v).hex()]
++    if isinstance(v,dict):return [[_freeze(k),_freeze(x)]for k,x in sorted(v.items(),key=lambda pair:repr(pair[0]))]
++    if isinstance(v,(list,tuple)):return [_freeze(x)for x in v]
++    if isinstance(v,(set,frozenset)):return [_freeze(x)for x in sorted(v,key=repr)]
++    if dataclasses.is_dataclass(v):return _freeze(dataclasses.asdict(v))
++    if hasattr(v,'__dict__'):return [type(v).__name__,_freeze(vars(v))]
++    raise ValueError('unrecognized original policy/graph field')
++
++def _digest(v):return hashlib.sha256(json.dumps(_freeze(v),sort_keys=True,separators=(',',':')).encode()).hexdigest()
++
++def _decoder_policy_digest():
++    from . import decoder
++    return _digest((decoder._INSTRUCTION_AUTHORITY,decoder._AUTHORITY_DATA))
++
++def _graph_digest(rom,graph):
++    from snes65816 import rom_offset
++    members=[]
++    for k,di in sorted(graph.insns.items(),key=lambda item:(item[0].pc,item[0].m,item[0].x)):
++        off=rom_offset(k.pc>>16,k.pc&65535)
++        members.append(((k.pc,k.m,k.x),{name:getattr(di.insn,name,None)for name in di.insn.__slots__},[(s.pc,s.m,s.x)for s in sorted(di.successors,key=lambda s:(s.pc,s.m,s.x))],rom[off:off+di.insn.length].hex()))
++    return _digest((members,graph.entry,graph.authority_conflict,graph.data_region_exec_pcs,graph.unresolved_indirects,graph.unknown_callee_exit_sites))
++
++class _EmissionPolicy:
++    def __init__(self,issuer,rom,manifest,bank,entries,cfg,options,global_digest):
++        if issuer is not _ISSUER:raise ValueError('foreign bank policy issuer')
++        self._issuer=issuer;self._manifest=manifest;self._manifest_sha=_digest(manifest.to_dict());self._bank=bank;self._rom=rom;self._global=global_digest
++        self._decoder_sha=_decoder_policy_digest();self._cfg=cfg;self._options=options;self._option_sha=_digest(options);self._closed=False;self._graphs={};self._used=set();self._roles={};self._role_sha={}
++        self._entries={(bank<<16|e.start&65535,e.entry_m,e.entry_x)for e in entries}
++        if not self._entries or len(self._entries)>512:raise ValueError('original bank entry bound')
++        actual={(k.pc24,k.m,k.x)for k in manifest.nodes}
++        if not self._entries<=actual:raise ValueError('bank entries absent original manifest')
++    def record_graph(self,issuer,rom,graph,bank,start,m,x,options):
++        from .decoder import FunctionDecodeGraph
++        key=(bank<<16|start&65535,m,x)
++        if issuer is not _ISSUER or self._closed or rom is not self._rom or type(graph)is not FunctionDecodeGraph or key not in self._entries or key in self._used or _digest(options)!=self._option_sha:raise ValueError('foreign/duplicate bank producer graph or policy')
++        self._used.add(key);self._graphs[id(graph)]=(graph,_graph_digest(rom,graph))
++    def validate(self,issuer,rom,manifest,global_digest):
++        if issuer is not _ISSUER or self._issuer is not issuer or rom is not self._rom or manifest is not self._manifest or _digest(manifest.to_dict())!=self._manifest_sha or global_digest!=self._global or _digest(self._options)!=self._option_sha or _decoder_policy_digest()!=self._decoder_sha:raise ValueError('original bank policy identity/mutation')
++        for graph,expected in self._graphs.values():
++            if _graph_digest(rom,graph)!=expected or _digest(self._roles[id(graph)])!=self._role_sha[id(graph)]:raise ValueError('original bank graph mutated')
++        if not self._graphs:raise ValueError('bank policy has no actual original graph')
++    def metadata(self):return {'bank':self._bank,'local_cfg_present':self._cfg is not None,'explicit_local_options':_freeze(self._options),'original_graphs':len(self._graphs),'original_entry_keys':[list(k)for k in sorted(self._entries)],'policy_sha256':self._option_sha,'global_policy_sha256':self._global,'actual_decoder_policy_sha256':self._decoder_sha,'external_policy_accepted':False}
++
++def _open_bank(stream,rom,manifest,bank,entries,cfg,options):
++    # Called only at the existing emit_program bank invocation. The stream's
++    # original manifest/parsed/ROM references are not replaceable by JSON.
++    from .architecture_program_call_sources import _policy_sha
++    if manifest is not stream._manifest or rom is not stream._rom_object or stream._sealed:raise ValueError('foreign original emission namespace')
++    original=next((c for b,_path,c in stream._parsed if b==bank or b==(bank^0x80)),None)
++    if cfg is not original:raise ValueError('bank cfg identity differs actual producer')
++    if bank in stream._views:raise ValueError('duplicate bank emission policy')
++    view=_EmissionPolicy(_ISSUER,rom,manifest,bank,entries,cfg,options,_policy_sha(stream._parsed));view._parsed=stream._parsed;stream._views[bank]=view;stream._view_ids.add(id(view))
++    return view
++
++def _record_graph(stream,view,rom,graph,bank,start,m,x,options,role):
++    if stream._sealed:raise ValueError('original bank emission already sealed')
++    if type(view)is _InstructionPolicy:
++        view.record_graph(stream,rom,graph,bank,start,m,x,options)
++        view._parent._roles[id(graph)]=role;view._parent._role_sha[id(graph)]=_digest(role)
++        return
++    if type(view)is not _EmissionPolicy or stream._views.get(bank)is not view:raise ValueError('foreign original bank scope')
++    view.record_graph(_ISSUER,rom,graph,bank,start,m,x,options)
++    view._roles[id(graph)]=role;view._role_sha[id(graph)]=_digest(role)
++
++def _options(stream,rom,parsed,bank):
++    from .architecture_program_call_sources import _policy_sha
++    if parsed is not stream._parsed or not stream._sealed:raise ValueError('unsealed/foreign bank policy consumer')
++    view=stream._views.get(bank)
++    if type(view)is not _EmissionPolicy:return None
++    if id(view)not in stream._view_ids:raise ValueError('foreign bank policy object')
++    view.validate(_ISSUER,rom,stream._manifest,_policy_sha(parsed))
++    return dict(view._options)
++
++class _InstructionPolicy:
++    def __init__(self,parent,rom,graph,key,ins,options):
++        from snes65816 import rom_offset
++        if type(parent)is not _EmissionPolicy or id(graph)not in parent._graphs or parent._graphs[id(graph)][0]is not graph or _graph_digest(rom,graph)!=parent._graphs[id(graph)][1]:raise ValueError('missing actual source parent graph')
++        covered={(di.insn.addr&0xff0000)|((di.insn.addr+n)&65535)for di in graph.insns.values()for n in range(di.insn.length)}
++        if any(((key.pc&0xff0000)|((key.pc+n)&65535))not in covered for n in range(ins.length)):raise ValueError('instruction child beyond original wholebytes')
++        from .architecture_eligibility import _mask
++        actual_role=parent._roles[id(graph)]
++        if actual_role.get('source_instruction_only')is True or _digest(actual_role.get('sibling_entry_pcs'))!=_digest(options.get('sibling_entry_pcs')):raise ValueError('nested/foreign original child role')
++        for field in ['exclude_ranges','hle_func','hle_spc_upload','hle_dispatch','forced']:
++            if _digest(options.get(field))!=_digest(parent._options.get(field)):raise ValueError('weakened original child policy')
++        if any(span not in(options.get('data_regions')or())for span in parent._options.get('data_regions')or()):raise ValueError('weakened original child byte masks')
++        pc=key.pc&0xffffff;bank=pc>>16
++        barriers={di.insn.addr&0xffffff for di in graph.insns.values()if di.insn.data_region_exec or any(getattr(di.insn,v,None)for v in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr'))}
++        siblings={(bank<<16)|(v&65535)for v in options.get('sibling_entry_pcs')or()}
++        hle={(bank<<16)|(v&65535)for v in set(options.get('hle_func')or())|set(options.get('hle_spc_upload')or())}
++        if pc in barriers|siblings|hle or _mask(parent._parsed,pc,ins.length):raise ValueError('masked/noninstruction original child role')
++        for n in range(ins.length):
++            at=(pc&0xff0000)|((pc+n)&65535)
++            if at&0x7fffff in options['forced'] or any(at>>16 in(b,b^128)and lo<=at&65535<hi for b,lo,hi in options.get('data_regions')or())or any(lo<=at&65535<hi for lo,hi in options.get('exclude_ranges')or()):raise ValueError('original child local mask')
++        self._parent=parent;self._graph=graph;self._parent_sha=_graph_digest(rom,graph);self._key=(key.pc,key.m,key.x);self._options={k:v for k,v in options.items()if k!='sibling_entry_pcs'};self._options_sha=_digest(self._options);self._used=False
++        off=rom_offset(key.pc>>16,key.pc&65535);self._bytes=rom[off:off+ins.length]
++    def record_graph(self,stream,rom,graph,bank,start,m,x,options):
++        from .decoder import FunctionDecodeGraph
++        from snes65816 import rom_offset
++        if self._used or type(graph)is not FunctionDecodeGraph or stream._views.get(bank)is not self._parent or _graph_digest(rom,self._graph)!=self._parent_sha or (bank<<16|start&65535,m,x)!=self._key or _digest(options)!=self._options_sha or len(graph.insns)!=1:raise ValueError('foreign/mutated/reused instruction child scope')
++        di=next(iter(graph.insns.values()));off=rom_offset(bank,start)
++        if rom[off:off+di.insn.length]!=self._bytes or di.insn.data_region_exec or getattr(di.insn,'const_z_fold_unconditional',False):raise ValueError('instruction child original byte/body independence')
++        self._used=True;self._parent._graphs[id(graph)]=(graph,_graph_digest(rom,graph))
++
++def _instruction_scope(parent,rom,graph,key,ins,arguments):
++    if type(parent)is not _EmissionPolicy:raise ValueError('instruction child needs original bank issuer')
++    options={k:arguments.get(k)for k in ['data_regions','exclude_ranges','hle_func','hle_spc_upload','hle_dispatch']};options['forced']=arguments.get('native_call_prefix_forced');options['sibling_entry_pcs']=arguments.get('sibling_entry_pcs')
++    return _InstructionPolicy(parent,rom,graph,key,ins,options)
+diff --git a/recompiler/v2/architecture_program_call_sources.py b/recompiler/v2/architecture_program_call_sources.py
+--- a/recompiler/v2/architecture_program_call_sources.py
++++ b/recompiler/v2/architecture_program_call_sources.py
+@@ -21,16 +21,21 @@
+ _PRODUCER=object()
+ 
+ def _policy_sha(parsed):
+-    value=[(b,sorted(c.data_regions),sorted(c.authority_data),sorted(c.exclude_ranges),sorted(c.force_lle),sorted(c.hle_func.items()),sorted(c.hle_spc_upload.items()))for b,_p,c in parsed]
++    value=[(b,sorted(c.data_regions),sorted(c.authority_data),sorted(c.exclude_ranges),sorted(c.force_lle),sorted(c.hle_func.items()),sorted(c.hle_spc_upload.items()),[(k,v.hex())for k,v in sorted(c.authority_insns.items())],sorted(c.hle_dispatch.items()),sorted(getattr(c,'terminal_jsr',())),sorted(getattr(c,'noreturn_jsr',())))for b,_p,c in parsed]
+     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+ 
+ class _ProgramCallStream:
+-    def __init__(self,rom,parsed):
++    def __init__(self,rom,parsed,manifest=None):
++        self._manifest=manifest;self._rom_object=rom;self._views={};self._view_ids=set()
+         self._producer=_PRODUCER;self._rom_sha=hashlib.sha256(rom).hexdigest();self._parsed=parsed;self._policy=_policy_sha(parsed)
+         self._sealed=False;self._entries={};self._digest=None
+     def _record(self,rom,key,insn,ops,cycles,lines,graph,**guards):
+         if self._sealed or self._producer is not _PRODUCER:raise ValueError('program source stream closed')
+         if type(graph)is not FunctionDecodeGraph:raise ValueError('actual producer graph required')
++        if self._manifest is not None:
++            from .architecture_emission_policy import _ISSUER,_graph_digest
++            witnesses=[v for v in self._views.values()if id(graph)in v._graphs]
++            if len(witnesses)!=1 or witnesses[0]._graphs[id(graph)][0]is not graph or witnesses[0]._graphs[id(graph)][1]!=_graph_digest(rom,graph):raise ValueError('call graph absent actual original bank producer receipt')
+         member=graph.insns.get(key)
+         if member is None or member.insn is not insn:raise ValueError('program source call absent actual typed graph')
+         row=collect_call_prefix(rom,key,insn,ops,cycles,lines,**guards)
+@@ -44,7 +49,9 @@
+         if len(self._entries)>MAX_SOURCE_CALLS:raise ValueError('program source call bound')
+     def seal(self):
+         if self._sealed:raise ValueError('source stream seal reuse')
+-        self._sealed=True;self._digest=hashlib.sha256('\n'.join(self._entries[k]for k in sorted(self._entries)).encode()).hexdigest()
++        self._sealed=True
++        for view in self._views.values():view._closed=True
++        self._digest=hashlib.sha256('\n'.join(self._entries[k]for k in sorted(self._entries)).encode()).hexdigest()
+         return self
+     def rows(self,rom,parsed):
+         if self._producer is not _PRODUCER or not self._sealed or self._rom_sha!=hashlib.sha256(rom).hexdigest()or self._parsed is not parsed or self._policy!=_policy_sha(parsed):raise ValueError('original source stream identity')
+@@ -52,7 +59,7 @@
+         return [json.loads(self._entries[k])for k in sorted(self._entries)]
+     def metadata(self):return {'contract':'internal-program-typed-direct-call-stream-v1','call_mode_rows':len(self._entries),'sha256':self._digest,'external_rows_or_roots_accepted':False}
+ 
+-def _new_program_stream(rom,parsed):return _ProgramCallStream(rom,parsed)
++def _new_program_stream(rom,parsed,manifest=None):return _ProgramCallStream(rom,parsed,manifest)
+ 
+ def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
+     if type(stream)is not _ProgramCallStream or stream._producer is not _PRODUCER:raise ValueError('no external program call rows')
+@@ -97,7 +104,9 @@
+         if len(seen)>MAX_STARTS:
+             refused.append({'source_kind':kind,'source_start':start,'reason':'512start source bound'});continue
+         bank=start>>16
+-        if bank not in cfg or start&65535<0x8000 or bank in(0x7e,0x7f):
++        from .architecture_emission_policy import _options
++        policy=_options(stream,rom,parsed,bank)if bank not in cfg else None
++        if (bank not in cfg and policy is None)or start&65535<0x8000 or bank in(0x7e,0x7f):
+             refused.append({'source_kind':kind,'source_start':start,'reason':'unconfigured ROM bank/source'});continue
+         for m,x in((0,0),(0,1),(1,0),(1,1)):
+             try:
+@@ -107,10 +116,11 @@
+                 refused.append({'source_kind':kind,'source_start':start,'m':m,'x':x,'reason':'128instruction source bound'});continue
+             if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=128:
+                 refused.append({'source_kind':kind,'source_start':start,'m':m,'x':x,'reason':'source-authority conflict/data/indirect/128instruction bound'});continue
+-            local=[];prefixes=[];c=cfg[bank]
++            local=[];prefixes=[];c=cfg.get(bank)
++            local_options={'exclude_ranges':c.exclude_ranges,'hle_func':c.hle_func,'hle_spc_upload':c.hle_spc_upload}if c is not None else policy
+             # Even diagnostic-disabled generation needs originalcall source
+             # certificates for aftercall starts; call bodies are filteredbelow.
+-            emit_function(rom,bank,start&65535,m,x,func_name='DiscardedAfterCallSource',data_regions=masks,exclude_ranges=c.exclude_ranges,hle_func=c.hle_func,hle_spc_upload=c.hle_spc_upload,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=prefixes,native_call_prefix_forced=forced,_native_collector_only=True)
++            emit_function(rom,bank,start&65535,m,x,func_name='DiscardedAfterCallSource',data_regions=masks,exclude_ranges=local_options['exclude_ranges'],hle_func=local_options['hle_func'],hle_spc_upload=local_options['hle_spc_upload'],source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=prefixes,native_call_prefix_forced=forced,_native_collector_only=True)
+             members={(k.pc,k.m,k.x):d for k,d in g.insns.items()}
+             candidates=[]
+             for r in local+prefixes:
+@@ -142,4 +152,4 @@
+                 if r.get('source_return_contract'):return_keys.append(list(k))
+             graphs.append({'source_kind':kind,'source_start':start,'source_calls':sorted(origins),'parameter_m':m,'parameter_x':x,'instruction_keys':keys,'new_source_calls':new_call_keys,'source_return_keys':return_keys,'barriers':barriers,'unknown_calls':[list(v)for v in sorted(g.unknown_callee_exit_sites)],'closure_depth':current_depth,'callee_exit_modes_added':False,'caller_owner_added':False,'successor_mode_exported':False})
+     for g in graphs:g['source_calls']=sorted(entry_sources[(g['source_kind'],g['source_start'])])
+-    return [rows[k]for k in sorted(rows)],{'calls':calls,'graphs':graphs,'starts_processed':len(seen),'bound':MAX_STARTS,'depth_bound':MAX_DEPTH,'refused_source_contexts':refused,'source_stream':stream.metadata(),'old_source_starts_not_rederived':[[k,p]for k,p in sorted(covered)],'callee_exit_modes_added':False,'caller_owner_added':False,'source_return_contract':SOURCE_RETURN_CONTRACT}
++    return [rows[k]for k in sorted(rows)],{'calls':calls,'graphs':graphs,'starts_processed':len(seen),'bound':MAX_STARTS,'depth_bound':MAX_DEPTH,'refused_source_contexts':refused,'source_stream':stream.metadata(),'emission_policy_views':[v.metadata()for _b,v in sorted(stream._views.items())],'old_source_starts_not_rederived':[[k,p]for k,p in sorted(covered)],'callee_exit_modes_added':False,'caller_owner_added':False,'source_return_contract':SOURCE_RETURN_CONTRACT}
+diff --git a/recompiler/v2/architecture_program_mode_sources.py b/recompiler/v2/architecture_program_mode_sources.py
+--- a/recompiler/v2/architecture_program_mode_sources.py
++++ b/recompiler/v2/architecture_program_mode_sources.py
+@@ -37,7 +37,8 @@
+         selected=[b for b in record['barriers']if b[3]=='PLP']
+         if not selected:continue
+         start=record['source_start'];bank=start>>16
+-        if bank not in cfg or _mask(parsed,start,1):continue
++        from .architecture_emission_policy import _options
++        if (bank not in cfg and _options(stream,rom,parsed,bank)is None)or _mask(parsed,start,1):continue
+         graph=decode_function(rom,bank,start&65535,record['parameter_m'],record['parameter_x'],max_insns=128,data_regions=masks,stop_on_unknown_callee_exit=True)
+         if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=128:raise ValueError('program PLP original graph authority')
+         for pc,m,x,mnem in selected:
+@@ -73,8 +74,10 @@
+                 refused.append({'source_PLP':pc,'m':m,'x':x,'reason':'128instruction source bound'});continue
+             if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=128:
+                 refused.append({'source_PLP':pc,'m':m,'x':x,'reason':'conflict/data/indirect/128instruction bound'});continue
+-            local=[];calls_local=[];c=cfg[bank]
+-            emit_function(rom,bank,start,m,x,func_name='DiscardedProgramLiveModeSuccessor',data_regions=masks,exclude_ranges=c.exclude_ranges,hle_func=c.hle_func,hle_spc_upload=c.hle_spc_upload,source_task_resume_stops=graph.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls_local if enable_native_call_prefix else None,native_call_prefix_forced=forced,_native_collector_only=True)
++            local=[];calls_local=[];c=cfg.get(bank)
++            from .architecture_emission_policy import _options
++            local_options={'exclude_ranges':c.exclude_ranges,'hle_func':c.hle_func,'hle_spc_upload':c.hle_spc_upload}if c is not None else _options(stream,rom,parsed,bank)
++            emit_function(rom,bank,start,m,x,func_name='DiscardedProgramLiveModeSuccessor',data_regions=masks,exclude_ranges=local_options['exclude_ranges'],hle_func=local_options['hle_func'],hle_spc_upload=local_options['hle_spc_upload'],source_task_resume_stops=graph.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls_local if enable_native_call_prefix else None,native_call_prefix_forced=forced,_native_collector_only=True)
+             candidates=[r for r in local+calls_local if _independent(rom,parsed,r)]
+             supported={tuple(r[k]for k in('pc24','m','x'))for r in candidates};todo=[graph.entry];allowed=set();stops=[]
+             while todo:
+diff --git a/recompiler/v2/emit_bank.py b/recompiler/v2/emit_bank.py
+--- a/recompiler/v2/emit_bank.py
++++ b/recompiler/v2/emit_bank.py
+@@ -94,7 +94,7 @@
+               hle_dispatch=None,
+               inline_arg_map=None,
+               declared_entry_pcs=None,
+-              host_alias_entries=None, native_region_collector=None, _program_call_stream=None,
++              host_alias_entries=None, native_region_collector=None, _program_call_stream=None, _program_policy_scope=None,
+               enable_native_call_prefix: bool = False, native_call_prefix_forced=(),
+               enable_native_mode_successors: bool = False) -> str:
+     """Emit one bank's C source.
+@@ -218,6 +218,7 @@
+             entry_s_offset=entry.entry_s_offset,
+             native_region_collector=native_region_collector,
+             _program_call_stream=_program_call_stream,
++            _program_policy_scope=_program_policy_scope,
+             native_call_prefix_collector=(native_region_collector if enable_native_call_prefix else None),
+             native_call_prefix_forced=native_call_prefix_forced,
+             native_mode_successors=enable_native_mode_successors,
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -493,7 +493,7 @@
+                   entry_s_offset: int = 0, native_region_collector=None,
+                   source_task_resume_stops=None, native_call_prefix_collector=None,
+                   native_call_prefix_forced=(), native_mode_successors=False,
+-                  _native_instruction_members=None, _native_collector_only=False, _program_call_stream=None) -> str:
++                  _native_instruction_members=None, _native_collector_only=False, _program_call_stream=None, _program_policy_scope=None) -> str:
+     """Emit a complete v2 C function source for one 65816 function.
+ 
+     Pipeline:
+@@ -685,6 +685,10 @@
+     if unresolved_indirect_collector is not None:
+         unresolved_indirect_collector.extend(graph.unresolved_indirects)
+     cfg = build_cfg(graph, instruction_blocks=True)
++    if _program_policy_scope is not None:
++        from .architecture_emission_policy import _record_graph
++        _record_graph(_program_call_stream,_program_policy_scope,rom,graph,bank,start,entry_m,entry_x,{'data_regions':data_regions,'exclude_ranges':exclude_ranges,'hle_func':hle_func,'hle_spc_upload':hle_spc_upload,'hle_dispatch':hle_dispatch,'forced':native_call_prefix_forced},{'sibling_entry_pcs':sibling_entry_pcs,'source_instruction_only':_native_instruction_members is not None,'entry_range_end':end})
++
+ 
+     # A tight, side-effect-free memory poll cannot execute atomically under
+     # the LLE frame scheduler: the value it observes is commonly changed by
+diff --git a/recompiler/v2/native_mode_successors.py b/recompiler/v2/native_mode_successors.py
+--- a/recompiler/v2/native_mode_successors.py
++++ b/recompiler/v2/native_mode_successors.py
+@@ -63,6 +63,9 @@
+                 native_mode_successors=False,_native_instruction_members=frozenset({key.pc}),
+                 source_task_resume_stops=None,suppressed_collector=None,const_z_fold_collector=None,
+                 dispatch_target_suppressed_collector=None,unresolved_indirect_collector=None)
++            if arguments.get('_program_policy_scope')is not None:
++                from .architecture_emission_policy import _instruction_scope
++                args['_program_policy_scope']=_instruction_scope(arguments['_program_policy_scope'],rom,graph,key,ins,args)
+             # Only this source instruction is decoded/lowered. The returned C
+             # text (including symbolic labels) is discarded and never published.
+             emit_function(rom,bank,args.pop('start'),args.pop('entry_m'),args.pop('entry_x'),**{k:v for k,v in args.items()if k not in('rom','bank')})
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 42
++CACHE_FORMAT_VERSION = 43
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1107,7 +1107,7 @@
+     new_bank_symbols = {}
+     new_bank_regions = {}
+     from .architecture_program_call_sources import _new_program_stream
+-    program_call_stream=_new_program_stream(rom,parsed)
++    program_call_stream=_new_program_stream(rom,parsed,manifest)
+     all_regions = []
+     old_bank_regions = old_cache.get("bank_regions", {})
+     old_region_path = pathlib.Path(out_dir) / "native_regions.json"
+@@ -1224,6 +1224,9 @@
+                     if region_bank != bank and _lorom_mirror_pc24((region_bank << 16) | start) == ((bank << 16) | start):
+                         data_regions.append((bank, start, end))
+             bank_regions = []
++            from .architecture_emission_policy import _open_bank
++            original_policy_options={'data_regions':data_regions,'exclude_ranges':getattr(cfg,'exclude_ranges',None)if cfg is not None else None,'hle_func':getattr(cfg,'hle_func',None)if enable_hle and cfg is not None else None,'hle_spc_upload':getattr(cfg,'hle_spc_upload',None)if enable_hle and cfg is not None else None,'hle_dispatch':getattr(cfg,'hle_dispatch',None)if enable_hle and cfg is not None else None,'forced':{pc&0x7fffff for _b,_p,q in parsed for pc in getattr(q,'force_lle',())}}
++            bank_policy_scope=_open_bank(program_call_stream,rom,manifest,bank,entries_by_bank.get(bank,[]),cfg,original_policy_options)
+             source = emit_bank(
+                 rom, bank, entries_by_bank.get(bank, []),
+                 dispatch_helpers=dict(dispatch_helpers) or None,
+@@ -1251,6 +1254,7 @@
+                              if bank_file_header else None),
+                 native_region_collector=bank_regions,
+                 _program_call_stream=program_call_stream,
++                _program_policy_scope=bank_policy_scope,
+                 enable_native_call_prefix=enable_native_call_prefix,
+                 enable_native_mode_successors=enable_native_mode_successors,
+                 native_call_prefix_forced={pc & 0x7fffff for _b, _p, q in parsed for pc in getattr(q, "force_lle", ())},
+@@ -1371,7 +1375,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':27, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':28, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
