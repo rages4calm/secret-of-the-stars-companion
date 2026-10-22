@@ -120,3 +120,9 @@ Built on **[RetroPortingToolKit/snesrecomp](https://github.com/RetroPortingToolK
 This is an unofficial fan project with no affiliation or endorsement from Tecmo or the original game's rightsholders. Project licenses do not grant rights to original game content.
 
 The native foundation, runtime patch, project tools and documentation are **source available under PolyForm Noncommercial 1.0.0**, with retained third-party exceptions. Companion code is **MIT**. This repository is not uniformly MIT licensed. [Credits](CREDITS.md) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md).
+
+## Community
+
+[**R.A.I.D. — Retro AI Development**](https://discord.gg/Ad9BwSzctP) · a Discord for AI-assisted retro reverse-engineering, decomp & recomp.
+
+I post my projects and updates here. Join to discuss the work, share progress, and talk retro development.
