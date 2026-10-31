@@ -16,7 +16,9 @@ def main():
               ROOT/'HANDOFF-2026-10-08-Secret-of-the-Stars.md', ROOT/'.gitignore',
               ROOT/'patches/runtime-foundation.patch', ROOT/'patches/runtime-navigation-map.patch',
               ROOT/'patches/runtime-faithful-clear.patch', ROOT/'patches/runtime-modal-audio.patch']
-    files += sorted((ROOT/'tools').glob('*.py')) + sorted((ROOT/'tools').glob('*.ps1'))
+    files += [p for p in sorted((ROOT/'tools').glob('*.py'))
+              if p.name != 'build_battle_info_variant.py']
+    files += sorted((ROOT/'tools').glob('*.ps1'))
     files += sorted((ROOT/'tools').glob('*.c')) + sorted((ROOT/'tools').glob('*.h'))
     files += sorted((ROOT/'docs').glob('FOUNDATION-*.md'))
     files += sorted((ROOT/'docs/porting-references').glob('*.md'))

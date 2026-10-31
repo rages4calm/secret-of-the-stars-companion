@@ -91,8 +91,9 @@ was assembled with pinned Asar 1.91 after explicit FF padding to 2 MiB, with
 verified checksum and a separate regenerated/compiled hybrid project.
 Patched ROM SHA256:
 `16acc6e9bd659080597192e920b133056fd95704e00d42861dab1a15087d7081`.
-`tools/build_battle_info_variant.py --compile` reproduces that private variant;
-its recipe/source/tool receipts are in `local/patch-proof/battle-info-padded`.
+That historical private variant used excluded research inputs; its obsolete
+reproduction helper is no longer part of the public source snapshot. The private
+recipe/source/tool receipts remain in `local/patch-proof/battle-info-padded`.
 It boots, but its six hijacks and full HP/EP/drop behavior have not yet been
 qualified in combat. It is not installed as the player build. No license file was
 found in the pinned source; retain the private-use evidence boundary.

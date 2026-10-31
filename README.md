@@ -15,6 +15,8 @@ Exact 0.5.5 finite execution, rendering, keyboard/virtual-pad, audio and copied-
 > [!IMPORTANT]
 > Bring your own clean, unheadered **Tecmo Secret of the Stars (USA)** ROM. This repository contains authored source, development tools, documentation and six reviewed feature screenshots. **No ROM, generated game code, extracted art, soundtrack, save, checkpoint or playable game binary is included.** Your game data stays local.
 
+**Source layout:** `native/foundation` contains the game-specific C code, `Companion` contains the C# launcher, and Python tools build, generate and check the project. The upstream runtime is fetched separately and generated game C stays local. GitHub's language chart measures the tracked source and tools, not the language of the running game.
+
 > [!NOTE]
 > **Early development: native foundation 0.5.5 / Companion 0.3.6.** A local Windows build runs opening gameplay, menus and combat, with focused implementation checks. This is **not yet a complete native/AOT recompilation or a full-campaign-qualified widescreen port**. Substantial guest execution still uses the pinned SNES runtime's interpreter. HLE host staging and native presentation enhancements do not change that coverage claim.
 
