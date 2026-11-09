@@ -1,0 +1,19 @@
+{
+  "patch_sha256": "65eb0d3f1d28528cefe04a0a03616c04d2f815a90ff4e1a666900141918c129f",
+  "predecessor_patch_sha256": "babde8df16536358e6deb264883c430eaa9b7a1e549c90e6693708813379d325",
+  "predecessor_binding_sha256": "61ff850c5d657abba0dab7dd9292ed3378f5c291b059f73c8ebc211f5dc1dba3",
+  "cache_format": 50,
+  "normal_metadata": 35,
+  "task_metadata": 8,
+  "redirect_metadata": 1,
+  "files": {
+    "tools/v2_emit.py": {
+      "predecessor_sha256": "58efe61a75ab598bfad4e58e3a586829ba37c804d11386ffd040ef302a7f118a",
+      "final_sha256": "9f98235b5a2705d3f268949b98b9f8d8260d08d15c408f754219576b4ffdf036",
+      "normalized_final_sha256": "9f98235b5a2705d3f268949b98b9f8d8260d08d15c408f754219576b4ffdf036"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Retain original sync_symbols authored AOT roots and CFG entry M/X override in BOTH normal profile and fresh static baseline analysis. Profile-only roots remain excluded from baseline. Host/RAM/disassembly refusal and original exact subset unchanged; no new root authority."
+}

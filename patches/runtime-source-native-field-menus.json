@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "0835e0fdf4590c44c6076324ac2c58696290ce4b6f9035c0139e639a17a01444",
+  "predecessor_patch_sha256": "dafb89b12a40702e65aea8412ee22fc17dc557aec83463864540b95e70446872",
+  "predecessor_binding_sha256": "112650c1f4f73500f985bc07f017143e7ffcfc479dbbceb1aafb1e1ecd32fc89",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "640fd7bd2e05fdbec33502567cf15e9dad80f1b6818b30d1e3570172f7c8be99",
+      "final_sha256": "0fe3926500ee40725820cb812795b62a898e7df7365603b922227fb0c2787dbb",
+      "normalized_final_sha256": "727375cb5fbddee6d9ef1f3f07f4b2489fece7a09697be0232682b3332661cc8"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "fe5f88c67ad6979a379ae93d200e4c5461b9b2fdce6a34600220ec2dc8e0fa09",
+      "final_sha256": "bc17579137f49098d12c6bacfdddddda263c8af4bb13a2d4c20aca2a8969772b",
+      "normalized_final_sha256": "e46d720b495f3db4b5be06afeb218766d3aeedbca6e96620a01a6cd1bec91999"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "94b61da5ab4e8c6a1618071aa7ade8954d29be5bdd15bdb6c54310a1db8bd00f",
+      "final_sha256": "53f32ed0f440f505d8b37e022c090319c55146b409b345dd6e5ebbbede402e52",
+      "normalized_final_sha256": "a0034ba698541ff99789f72c4c51846e8aa89a6d8b1d87adab9a0a2716c4bbd7"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "f592ec4f325a6d441370b114f9ae7d93d419f3a22299a9f33c232eed330a5092",
+      "final_sha256": "d50d6b22214e58b7ec502fe9b426836e8a9ad5ba1dba57bf31ac0785b7790b10",
+      "normalized_final_sha256": "247c1a01893a0a9c6c20a6ba88be70f488cdde14f489eb3e52c8b29e9f4a3e4b"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source677 exact-PC bounded STAT/SET/SWAP field-menu paths with original ROR dp, TSB dp, CMP long,X and ROR A bodies and original supervisor/bus/stack/timing ownership inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. Two declared narrow bridge APIs are added: interp_bridge_add_native_condition_mode_site and interp_bridge_native_condition_gate_count. Existing APIs retain strict duplicate-PC refusal; new variants require identical original body/bytes/length and disjoint valid modes. Private registry capacity8192. No generator/CFG/root/exit/serialized/five-file execution ABI changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "frozen677_handoff_sha256": "85d9f5cbe00327ea682a847e09b8fc9f8f56bf506f45a041804e70f5aa2fcd2e",
+  "frozen677_source_pins_sha256": "58fb31fc2c5a8df91fe2e0c45532194458fadc12e0b8d3f98ee6fa96239b069f"
+}

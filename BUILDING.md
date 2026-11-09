@@ -1,5 +1,8 @@
 # Developer builds on Windows
 
+Current WIP snapshot: **native 0.5.6 / Companion 0.3.6**, native update105/source 134.
+[Current scope and focused checks](docs/NATIVE-PROGRESS-0.5.6.md).
+
 This repository is a source snapshot. Source-first Companion can build the native
 foundation from an owned ROM and launch an isolated profile without private
 fixtures. The ROM-free portable launcher package includes the self-contained
@@ -54,16 +57,17 @@ fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
 The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`.
-The current42-patch key is `7931b53c4968-f7024d97f1a4c5fe`. All42 full ordered
-hashes remain in the marker and receipt. Fresh builds use the public helper and
-verified runtime/SDL dependencies; changed existing caches are preserved, never
-reset to make a build pass. Keep required active caches and remove closed
-rebuildable outputs under the required-only storage policy.
+The current source applies **97 ordered patches**, including **67 runtime
+extensions**. The cache identity is derived from the runtime pin and the complete
+ordered patch hashes; the helper records it in the marker and compilation
+receipt. Fresh builds use the public helper and verified runtime/SDL dependencies.
+Changed existing caches are preserved rather than reset or overwritten. Use a
+fresh output folder and retain only needed build inputs and outputs.
 
 Runtime pin: `7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0`.
 Its two recorded submodule pins are in
 [`native/foundation/framework_pins.txt`](native/foundation/framework_pins.txt).
-The helper checks both submodule pins and applies all42 individually hashed
+The helper checks both submodule pins and applies all97 individually hashed
 runtime patches in order. The public `patches/` bindings record exact prior and
 final source hashes; each new stage validates its predecessor before applying,
 then validates final sources and source accounting. Unexpected edits or cache
@@ -324,33 +328,35 @@ workflows. A maintainer with workflow permission can move it into
 `.github/workflows/source-checks.yml` to run this same ROM-free checker on pushes
 and pull requests. Local source checks passed before publication.
 
-## Current source and artifact scope (native0.5.2 / Companion0.3.6)
+## Current source and artifact scope (native 0.5.6 / Companion 0.3.6)
 
-The current snapshot has63 native and24 unchanged Companion authored inputs.
-Its35 ordered patches use cache26 / normal instruction metadata12 / task
-metadata5 / redirect metadata1. Default generation records9274 normal mode
-rows,228 task rows and3 redirect rows in25 outputs. These counts describe
-source generation; complete native/AOT execution remains unfinished.
+Native update105/source 134 publishes authored source and metadata for 116,446
+admitted native instruction/mode keys at 31,250 PCs. The source inventory contains
+117,302 keys, with 856 unsupported conditional keys at 214 PCs kept quarantined.
+These are source-support counts, not executed campaign coverage or a completion
+percentage. Guarded interpreter fallback remains for missing or rejected contexts.
 
-Fresh executable SHA-256:
-`fb7f4e4c3771014ece407cc6c7511dffdf2e9dac7b9333f5da884a961ef0cc82`.
-Immutable compilation receipt SHA-256:
-`4187d5214c79f4b33ff44b7ecaf9633b173d163e56eb49a21f6d9aad897729d0`.
-The receipt remains `compiled_unqualified`. Its declared execution-state ABI is
-`de6eb89eb74024bc3e57df857a6a14fe6dd4d7d73dedf888fcba425eb5678321`.
+Normal Setup uses your owned ROM, the checked SDK and published architectural
+manifest/key metadata to generate game C in a fresh local `arch_native` output.
+It does not require private saves, recordings or pre-generated game code. Optional
+explicit developer reuse is separate from the default public build path. The
+helper and runtime bindings are recorded in `SOURCE-PROVENANCE.json`; the current
+helper SHA-256 is
+`5c23c935718b3c700568f024dbf9a4861bf0a64764514857332f0d12da1bca24`.
 
-Separate exact-artifact checks match12,834 completed original/native states,
-clocks and saved output bytes. Five operation routes cover actual wider effect
-pixels, keyboard/indexed virtual-controller journal controls and300-frame
-D3D11/audio playback. The finite pace is60.027FPS with zero steady underruns,
-missing frames and audible drops. Staged original-loader assets are explicit;
-this does not certify natural acquisition, all17 new X0 prefixes, physical
-controllers or the campaign. Owner/play testers verify campaign directions.
-See [grouped scope](docs/FOUNDATION-GROUPED-NATIVE-2026-10-12.md).
+The declared execution-state ABI is
+`a852efdd826b5c79ad88ae5f3539faf1a9490aaab2d819f55f28a87ad08b3a9b`.
+Profile updates with a different declared ABI must refuse; use fresh adoption
+instead. Never rewrite an old profile inventory to bypass this check. Matching
+ABI declarations do not guarantee every old checkpoint will work across WIP
+updates. Runtime/header donors must match the public helper's checked bindings.
 
-Earlier051 and private080 receipts retain their own scopes; current checks do
-not rewrite or transfer their qualification. Preserve declared ABI/profile update
-rules. Keep only required donors, receipts and inputs, place bounded large build
-outputs in Temp, and maintain the5GB steady workspace cap.
-
-Native0.5.3 uses declared execution ABI `a852efdd826b5c79ad88ae5f3539faf1a9490aaab2d819f55f28a87ad08b3a9b`. A source-profile update from native0.5.2 with a different declared ABI must refuse; use separate fresh adoption. Never rewrite an old profile inventory to bypass this check. The host turbo API and its verified runtime headers must be supplied together by the public helper. Original-checkpoint compatibility remains separately tested and does not imply source-profile ABI compatibility.
+Each build's first receipt remains **compiled_unqualified** and records its own
+inputs and executable identity. Separate qualification binds actual checks to
+that exact artifact. The reference update105 completed a 4,488-frame laboratory
+story event with zero fallback and exact state, clocks, checkpoint and full native
+DSP audio against its preceding build. Five source-proved message-return families
+remain source-only unless separately observed. Four original town layouts
+and builder recruitment also completed without fallback in distinct staged checks.
+These results do not qualify a newly compiled binary automatically or certify a
+natural campaign. See [the 0.5.6 progress note](docs/NATIVE-PROGRESS-0.5.6.md).

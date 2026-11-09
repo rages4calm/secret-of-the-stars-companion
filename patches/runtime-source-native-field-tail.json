@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "72e68296c8a9aecef9d7a1b4a07fb77f9328c8c7c47ada07f7c351229f9bea2e",
+  "predecessor_patch_sha256": "06e81547623c6215284a8bb9743423909e4c95e8e550be1daa8d5e588986909f",
+  "predecessor_binding_sha256": "c067bf6d1cc87b5e122e2e99696553115e1d771f4573f3a7cc78b5a432dfcbc8",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "13a8db39e3f7198ab4c8c74ee6b87d68381a7a330f88e7658f9311f67ce54ac5",
+      "final_sha256": "f1eaa092954057427ee8ccdb9c972ede3d68c5631bee275678559a261e0755c7",
+      "normalized_final_sha256": "0c3a0c33d06e7b0774666442c6603db29a4cbd53fc17749186da5fa9aaef6310"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "2927686fd8267d4500bd3d81ed17d44218fea5cd660784ba2bb7e08872447e16",
+      "final_sha256": "babdf68f718e9d4f1f59a83e8982e53dfc759f81d9ef0bdc2e191604ac22daf0",
+      "normalized_final_sha256": "fd676fd55a2981a6414df0dff7bb56389e4346e924514d3c023a4517d8626a93"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "582383a8212f27754afe862ea564f2e5588efc34207a69f00280eaa159fce048",
+      "final_sha256": "1faf03a24ecd641cca1162b2b940202517c292fb8270d048ec21c317ca9c58ae",
+      "normalized_final_sha256": "8bd05f9e7a0b56e03ca055ce7d2125704b458140dd7b281d04bef70b990d1fc9"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "2138b223ebc444e256a00b191490fb0075f88187493fa5b97dca2e71386bb07a",
+      "final_sha256": "f592ec4f325a6d441370b114f9ae7d93d419f3a22299a9f33c232eed330a5092",
+      "normalized_final_sha256": "8c45b504abfd38faf947cae5f9951f3f643db53860b53732afb46b9e9dd5367b"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source601 exact-PC bounded field-tail and bundled native execution architecture inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "frozen601_handoff_sha256": "0922817491e7b1470d8c550bb789d97a2e70d8d500c074c1daac51b44d43bbee",
+  "frozen601_source_pins_sha256": "0c376dc0a35e4781723ade9bd9e0ff432ade9f11ef299a8d411c1f729934f0e4"
+}

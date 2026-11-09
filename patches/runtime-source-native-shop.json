@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "cb80baca6b6d963315dd65a39791b947d8de46e55d58015107b6c9b643ec8dea",
+  "predecessor_patch_sha256": "f69a576738abc89185102a74cab1f8e039baf1383b88848bd8d7bfef9ead5f7a",
+  "predecessor_binding_sha256": "076b5ab153fc983352beb3b1e6444aecaf9523f019faf002a6252cbacce7ae99",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "add999334b81ed0f20edd63716ac263a756cb35b6cf312dc40455bd94d6755bd",
+      "final_sha256": "c97780a27bc060f5e3b469f2f26b2ad87f543d9a868ef95965a4a751b55ac103",
+      "normalized_final_sha256": "3c789a9d8756b599d2ed1978918b28a7d4a2b58dc36b75f30a316c5e486b23a6"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "a2ce09a4184409a66e8facca46a9e15cd7a080db922ca15b800b0e502e0f5389",
+      "final_sha256": "c7309f18915c06071a847ec7de12c71ac92eca85d4cb6ee5f2740320a4b15816",
+      "normalized_final_sha256": "fde4df7d9dbe9b91a2ea42c2d0811176c3951950dc242f31cc3f14e48cbef0c8"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "b5f2d9c6c67722ff9e79317928cd976637d5c1a9688cd4bdd6ad500a6e23533b",
+      "final_sha256": "9813a70ab1b7554a606716c3d03c60f399eb84a93dea666425d1d3e900a14a6a",
+      "normalized_final_sha256": "cc0538da65bed9bba7d2eff8d3c302248c92f382f84e1d0bafd8298022c8b72a"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source701 bounded shop buy/sell/controller/record/money/inventory native paths using only original opcode bodies/selectors declared in the frozen handoff. Original supervisor, physical bus/stack/timing, task/redirect owners and refusal rules retained. Existing677 explicit disjoint-mode and per-gate counter APIs remain unchanged. No generator/serialized/five-file execution ABI/CFG/root/owner/exit changes. Source-only branches remain separate from exact-artifact execution.",
+  "frozen701_handoff_sha256": "72dd91134e72f097682d57a213a48a7a84fa588770099f70c6270fa937ff0bcc",
+  "frozen701_source_pins_sha256": "17a680f2cf1edea38a37d27171b820f9929d5f8d869b56361227081435f3eff9"
+}

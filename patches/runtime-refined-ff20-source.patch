@@ -1,0 +1,600 @@
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -115,7 +115,11 @@
+     if program_call_stream is not None:
+         from .architecture_nested_initial_task_sources import derive as derive_nested_initial
+         nested_initial_rows,nested_initial_graphs=derive_nested_initial(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows)])
++    ff20_byte_rows=[];ff20_byte_graphs=None
++    if program_call_stream is not None:
++        from .architecture_ff20_byte_dispatch_sources import derive as derive_ff20_bytes
++        ff20_byte_rows,ff20_byte_graphs=derive_ff20_bytes(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
++    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows)])
+     metadata['return_instruction_graphs']=return_graphs
+     metadata['callee_instruction_graphs']=callee_graphs
+     metadata['mode_instruction_graphs']=mode_graphs
+@@ -133,6 +137,7 @@
+     metadata['task_member_graphs']=task_member_graphs
+     metadata['initial_task_graphs']=initial_task_graphs
+     metadata['nested_initial_task_graphs']=nested_initial_graphs
++    metadata['ff20_byte_dispatch_graphs']=ff20_byte_graphs
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/architecture_emission_policy.py b/recompiler/v2/architecture_emission_policy.py
+--- a/recompiler/v2/architecture_emission_policy.py
++++ b/recompiler/v2/architecture_emission_policy.py
+@@ -59,6 +59,14 @@
+     return view
+ 
+ def _record_graph(stream,view,rom,graph,bank,start,m,x,options,role):
++    from .architecture_ff20_byte_dispatch_sources import _FF20TargetPolicy
++    if type(view)is _FF20TargetPolicy:
++        view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
++        return
++    from .architecture_known_callee_refinement_sources import _RefinementPolicy
++    if type(view)is _RefinementPolicy:
++        view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
++        return
+     from .architecture_nested_initial_task_sources import _NestedInitialChildPolicy
+     if type(view)is _NestedInitialChildPolicy:
+         view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
+diff --git a/recompiler/v2/architecture_ff20_byte_dispatch_sources.py b/recompiler/v2/architecture_ff20_byte_dispatch_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_ff20_byte_dispatch_sources.py
+@@ -0,0 +1,256 @@
++"""Partial original FF20 D0 source discovery; independent pure CPU steps only."""
++import hashlib,weakref
++from snes65816 import rom_offset
++from .decoder import FunctionDecodeGraph,decode_function
++from .architecture_emission_policy import _EmissionPolicy,_digest,_graph_digest,_options
++from .architecture_program_call_sources import _policy_sha
++from .architecture_task_sources import PURE_OPS
++from . import architecture_initial_task_sources as initial
++_ISSUER=object();_REGISTRIES=weakref.WeakKeyDictionary();_ISSUED=weakref.WeakSet();_CERTIFICATES=weakref.WeakSet();_TARGETS=weakref.WeakSet();_PROOFS=weakref.WeakKeyDictionary();_SCOPE_PROOFS=weakref.WeakKeyDictionary();_RECORD_PROOFS=weakref.WeakKeyDictionary()
++MAX_INSNS=128;MAX_STARTS=504;MAX_DEPTH=8
++CONTRACT='source-original-FF20-byte-selector-D0-pure-v1'
++HELPER_ENTRY=0xff20;HELPER_BODY=0x84d9
++HELPER_BYTES=bytes.fromhex('088bc23029ff000aaae220a30548abc2208a386303a8b9000038e901008303ab286b')
++
++def _mapped(rom,pc,n=1):
++    if pc>>16 in(0x7e,0x7f)or pc&65535<0x8000 or(pc&65535)+n>65536:return False
++    off=rom_offset(pc>>16,pc&65535);return 0<=off and off+n<=len(rom)
++def _raw(rom,pc,n):
++    if not _mapped(rom,pc,n):raise ValueError('FF20 source mapped ROM required')
++    off=rom_offset(pc>>16,pc&65535);return rom[off:off+n]
++def _helper(rom,parsed):
++    forced={p&0x7fffff for _b,_p,c in parsed for p in c.force_lle}
++    if not{HELPER_ENTRY,HELPER_BODY}<=forced or _raw(rom,HELPER_ENTRY,3)!=bytes.fromhex('4cd984')or _raw(rom,HELPER_BODY,len(HELPER_BYTES))!=HELPER_BYTES:raise ValueError('whole original FF20 helper/forced policy changed')
++    return _digest((HELPER_BYTES,_raw(rom,HELPER_ENTRY,3)))
++def _next(g,k):
++    i=g.insns[k].insn;hits=[x for x in g.insns[k].successors if x.pc==((k.pc&0xff0000)|((k.pc+i.length)&65535))]
++    return hits[0]if len(hits)==1 else None
++def _match(rom,g,pairs):
++    found=[]
++    for k,di in g.insns.items():
++        i=di.insn
++        if(k.m,k.x)!=(1,1):continue
++        if i.opcode==0xa7:
++            keys=[k];q=k
++            for op,arg in((0xf0,None),(0xc9,0xff),(0xf0,None),(0x30,None),(0x20,None)):
++                q=_next(g,q)
++                if q is None or q not in g.insns:break
++                j=g.insns[q].insn
++                if j.opcode!=op or(arg is not None and j.operand!=arg):break
++                keys.append(q)
++            if len(keys)!=6 or any((x.m,x.x)!=(1,1)or not initial._typed(rom,g,pairs,x)for x in keys):continue
++            # The two equality skips must leave the direct-call path. BMI uses
++            # immediately preceding CMP N; no predecessor folded predicate.
++            if any(getattr(g.insns[x].insn,'const_z_fold_unconditional',False)for x in keys):continue
++            if g.insns[keys[1]].insn.operand!=g.insns[keys[3]].insn.operand:continue
++            skip=(k.pc&0xff0000)|g.insns[keys[1]].insn.operand
++            if skip in {v.pc for v in keys}:continue
++            if any(len(g.insns[x].successors)!=2 for x in(keys[1],keys[3],keys[4])):continue
++            target=(keys[-1].pc&0xff0000)|g.insns[keys[-1]].insn.operand
++            found.append(('predicate',tuple(keys),target))
++        elif i.opcode==0xe2 and i.operand==0x20 and k==g.entry:
++            q=_next(g,k);z=_next(g,q)if q is not None else None
++            if q is None or z is None or len(g.insns)!=3:continue
++            if g.insns[q].insn.opcode!=0x3a or g.insns[z].insn.opcode!=0x22 or g.insns[z].insn.operand!=HELPER_ENTRY:continue
++            keys=(k,q,z)
++            if all((x.m,x.x)==(1,1)and initial._typed(rom,g,pairs,x)for x in keys)and not g.insns[z].successors:found.append(('wrapper',keys,HELPER_ENTRY))
++    return found
++
++class _OriginalRecord:
++    def __init__(self,issuer,registry,parent,g,pairs,kind,keys,target):
++        if issuer is not _ISSUER:raise ValueError('private original FF20 source record')
++        self.registry=registry;self.parent=parent;self.graph=g;self.pairs=pairs;self.kind=kind;self.keys=keys;self.target=target;self.graph_sha=_graph_digest(registry.rom,g);self.pairs_sha=_digest(repr(pairs));self.role=parent._roles[id(g)];self.role_sha=_digest(self.role);self.options_sha=_digest(parent._options)
++        _ISSUED.add(self);_PROOFS[self]=self.digest()
++    def digest(self):return _digest((id(self.registry),id(self.parent),id(self.graph),id(self.pairs),self.kind,self.keys,self.target,self.graph_sha,self.pairs_sha,id(self.role),self.role_sha,self.options_sha))
++    def validate(self):
++        r=self.registry;p=self.parent;g=self.graph
++        if self not in _ISSUED or _PROOFS.get(self)!=self.digest()or type(p)is not _EmissionPolicy or r.stream._views.get(p._bank)is not p or p._graphs.get(id(g),(None,None))!=(g,self.graph_sha)or _graph_digest(r.rom,g)!=self.graph_sha or _digest(repr(self.pairs))!=self.pairs_sha or p._roles.get(id(g))is not self.role or _digest(self.role)!=self.role_sha or _digest(p._options)!=self.options_sha:raise ValueError('original FF20 graph/IR/role/options mutation')
++        if self.role.get('source_instruction_only')or(self.kind,self.keys,self.target)not in _match(r.rom,g,self.pairs):raise ValueError('original FF20 typed predicate/wrapper changed')
++
++class _Registry:
++    def __init__(self,issuer,stream,rom):
++        if issuer is not _ISSUER or stream._sealed or rom is not stream._rom_object:raise ValueError('actual open original producer required')
++        self.stream=stream;self.rom=rom;self.parsed=stream._parsed;self.manifest=stream._manifest;self.manifest_sha=_digest(self.manifest.to_dict());self.policy_sha=_policy_sha(self.parsed);self.records=[];self.certificates=[];self.reservations={};self.scopes={};self.rows={};self.ir={};self.children={};self.sealed=False;self.used=False
++        _ISSUED.add(self);_PROOFS[self]=self.digest()
++    def digest(self):return _digest((id(self.stream),id(self.rom),id(self.parsed),id(self.manifest),self.manifest_sha,self.policy_sha,[(id(x),_PROOFS.get(x))for x in self.records],[(id(c),_PROOFS.get(c))for c in self.certificates],self.reservations,[(k,id(v))for k,v in sorted(self.scopes.items())],[(k,id(g),d)for k,(g,d)in sorted(self.children.items())],[(k,id(g),id(p),d)for k,(g,p,d)in sorted(self.ir.items())],[(k,[(key,id(row),d)for key,(row,d)in sorted(v.items())])for k,v in sorted(self.rows.items())],self.sealed,self.used))
++    def refresh(self):_PROOFS[self]=self.digest()
++    def validate(self):
++        if self not in _ISSUED or _REGISTRIES.get(self.stream)is not self or _PROOFS.get(self)!=self.digest()or self.rom is not self.stream._rom_object or self.parsed is not self.stream._parsed or self.manifest is not self.stream._manifest or _digest(self.manifest.to_dict())!=self.manifest_sha or _policy_sha(self.parsed)!=self.policy_sha:raise ValueError('FF20 original registry namespace/ledger changed')
++        _helper(self.rom,self.parsed)
++        for record in self.records:record.validate()
++        if self.sealed:
++            if not self.stream._sealed:raise ValueError('FF20 source registry lost original seal')
++            for bank in{r.parent._bank for r in self.records}:_options(self.stream,self.rom,self.parsed,bank)
++        for c in self.certificates:c.validate()
++        for members in self.rows.values():
++            for row,d in members.values():
++                if _digest(row)!=d:raise ValueError('FF20 actual emitted row mutated')
++        for g,d in self.children.values():
++            if _graph_digest(self.rom,g)!=d:raise ValueError('FF20 target child graph mutated')
++    def seal(self,rom,parsed,stream):
++        if self.sealed or not stream._sealed or rom is not self.rom or parsed is not self.parsed or stream is not self.stream:raise ValueError('one-use actual original FF20 namespace seal')
++        self.validate();self.sealed=True;self.refresh()
++        for caller in self.records:
++            if caller.kind!='predicate':continue
++            for wrapper in self.records:
++                if wrapper.kind=='wrapper'and wrapper.graph.entry.pc==caller.target and wrapper.parent is caller.parent:
++                    self.certificates.append(_Certificate(_ISSUER,self,caller,wrapper))
++        self.refresh();self.validate()
++    def reserve(self,issuer,entry,certificate):
++        if issuer is not _ISSUER or not self.sealed or certificate not in self.certificates or certificate not in _CERTIFICATES:raise ValueError('private sealed FF20 target reservation')
++        self.validate()
++        if entry[0]not in certificate.targets or entry[1]not in(0,1)or entry[2]not in(0,1):raise ValueError('target not source-derived partial D0 domain')
++        ident=(id(certificate),entry)
++        if ident in self.reservations:raise ValueError('FF20 child context already reserved')
++        if len(self.reservations)>=MAX_STARTS:raise ValueError('504 source start bound')
++        self.reservations[ident]=(1,certificate.seal_digest);self.refresh()
++
++class _Certificate:
++    def __init__(self,issuer,registry,caller,wrapper):
++        if issuer is not _ISSUER or not registry.sealed or caller not in registry.records or wrapper not in registry.records:raise ValueError('private FF20 source certificate')
++        self.registry=registry;self.caller=caller;self.wrapper=wrapper;self.helper_sha=_helper(registry.rom,registry.parsed);self.reads=[];self.targets=set();self.roles={};self.graph_roles=[]
++        call=wrapper.keys[-1];self.return_pc=(call.pc+3)&65535;self.bank=call.pc>>16
++        for selector in range(126):
++            address=(self.return_pc+2*selector+1)&65535;pc=(self.bank<<16)|address
++            if not _mapped(registry.rom,pc,2):raise ValueError('D0 source word read is not mapped ROM')
++            word=int.from_bytes(_raw(registry.rom,pc,2),'little');self.reads.append((selector,pc,word));self.targets.add((self.bank<<16)|word)
++        parent=wrapper.parent
++        for g,d in parent._graphs.values():
++            self.graph_roles.append((id(g),d))
++            for k,di in g.insns.items():self.roles.setdefault((k.pc,k.m,k.x),set()).add(di.insn.length)
++        self.seal_digest=self.digest();_CERTIFICATES.add(self);_PROOFS[self]=self.seal_digest
++    def digest(self):return _digest((id(self.registry),id(self.caller),id(self.wrapper),self.helper_sha,self.return_pc,self.bank,self.reads,self.targets,self.roles,self.graph_roles))
++    def validate(self):
++        r=self.registry
++        if self not in _CERTIFICATES or _PROOFS.get(self)!=self.seal_digest or self.seal_digest!=self.digest()or self.caller not in r.records or self.wrapper not in r.records or self.caller.target!=self.wrapper.graph.entry.pc or self.helper_sha!=_helper(r.rom,r.parsed):raise ValueError('FF20 source certificate mutation/foreign')
++        self.caller.validate();self.wrapper.validate()
++        actual=[(id(g),d)for g,d in self.wrapper.parent._graphs.values()]
++        if actual!=self.graph_roles:raise ValueError('original FF20 role graphs changed')
++        for selector,pc,word in self.reads:
++            if pc!=((self.bank<<16)|((self.return_pc+selector*2+1)&65535))or int.from_bytes(_raw(r.rom,pc,2),'little')!=word:raise ValueError('original FF20 source read domain changed')
++    def role_ok(self,pc,m,x,n):
++        occupied=set(range(pc,pc+n))
++        for(start,om,ox),lengths in self.roles.items():
++            for oldn in lengths:
++                if occupied&set(range(start,start+oldn))and(start!=pc or(om,ox)==(m,x)and oldn!=n):return False
++        if any(pc<other<pc+n for other in self.targets):return False
++        return True
++
++def _capture_original(stream,parent,rom,graph,pairs):
++    if type(parent)is not _EmissionPolicy:return
++    if stream._sealed or parent._closed or stream._views.get(parent._bank)is not parent or parent._graphs.get(id(graph),(None,))[0]is not graph:raise ValueError('FF20 capture outside actual original producer')
++    if parent._roles[id(graph)].get('source_instruction_only'):return
++    matches=_match(rom,graph,pairs)
++    if not matches:return
++    _helper(rom,stream._parsed)
++    r=_REGISTRIES.get(stream)
++    if r is None:r=_Registry(_ISSUER,stream,rom);_REGISTRIES[stream]=r
++    r.validate()
++    for kind,keys,target in matches:
++        if any(x.graph is graph and x.kind==kind and x.keys==keys for x in r.records):continue
++        r.records.append(_OriginalRecord(_ISSUER,r,parent,graph,pairs,kind,keys,target));r.refresh()
++
++class _FF20TargetPolicy:
++    _target_only=True
++    def __init__(self,issuer,registry,certificate,entry,options,role):
++        if issuer is not _ISSUER or not registry.sealed or certificate not in registry.certificates:raise ValueError('sealed original FF20 child issuer required')
++        registry.validate()
++        if (id(certificate),entry)in registry.scopes or registry.reservations.get((id(certificate),entry))!=(1,certificate.seal_digest):raise ValueError('unreserved original FF20 child context')
++        self.registry=registry;self.certificate=certificate;self.entry=entry;self.options=options;self.role=role;self.option_sha=_digest(options);self.role_sha=_digest(role);self.depth=1;self.used=False;self.graph=None
++        self.bank=registry.stream._views.get(entry[0]>>16)
++        original=_options(registry.stream,registry.rom,registry.parsed,entry[0]>>16)
++        if self.bank is not certificate.wrapper.parent or original is None:raise ValueError('FF20 child requires original same-bank policy')
++        for f in('exclude_ranges','hle_func','hle_spc_upload','hle_dispatch','forced'):
++            if _digest(options.get(f))!=_digest(original.get(f)):raise ValueError('FF20 child weakened original policy')
++        if any(x not in(options.get('data_regions')or())for x in(original.get('data_regions')or()))or _digest(role.get('sibling_entry_pcs'))!=_digest(certificate.wrapper.role.get('sibling_entry_pcs')):raise ValueError('FF20 child data/sibling roles changed')
++        _TARGETS.add(self);_SCOPE_PROOFS[self]=self.context();registry.scopes[(id(certificate),entry)]=self;registry.refresh()
++    def context(self):return _digest((id(self.registry),id(self.certificate),self.entry,id(self.bank),self.depth,id(self.options),self.option_sha,id(self.role),self.role_sha))
++    def validate(self):
++        if self not in _TARGETS or _SCOPE_PROOFS.get(self)!=self.context()or self.depth!=1 or self.depth>MAX_DEPTH or self.registry.scopes.get((id(self.certificate),self.entry))is not self or self.registry.reservations.get((id(self.certificate),self.entry))!=(1,self.certificate.seal_digest):raise ValueError('FF20 child issued context/reservation mutated')
++        self.registry.validate()
++        if _digest(self.options)!=self.option_sha or _digest(self.role)!=self.role_sha or self.registry.stream._views.get(self.entry[0]>>16)is not self.bank:raise ValueError('FF20 child policy mutated')
++        _options(self.registry.stream,self.registry.rom,self.registry.parsed,self.entry[0]>>16)
++        if not self.used and(self.graph is not None or self in _RECORD_PROOFS):raise ValueError('FF20 unused child record state changed')
++        if self.used and _RECORD_PROOFS.get(self)!=(id(self.graph),_graph_digest(self.registry.rom,self.graph),_SCOPE_PROOFS[self]):raise ValueError('FF20 recorded child context changed')
++    def record_graph(self,stream,rom,graph,bank,start,m,x,options,role):
++        self.validate()
++        if self.used or stream is not self.registry.stream or rom is not self.registry.rom or type(graph)is not FunctionDecodeGraph or(bank<<16|start,m,x)!=self.entry or _digest(options)!=self.option_sha or _digest(role)!=self.role_sha:raise ValueError('foreign/reused FF20 target graph')
++        if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=MAX_INSNS:raise ValueError('FF20 child128/data/indirect barrier')
++        self.used=True;self.graph=graph;d=_graph_digest(rom,graph);_RECORD_PROOFS[self]=(id(graph),d,_SCOPE_PROOFS[self]);self.registry.children[id(self)]=(graph,d);self.registry.refresh()
++
++def _capture_child_ir(stream,scope,rom,graph,pairs):
++    if type(scope)is not _FF20TargetPolicy:return
++    scope.validate();r=scope.registry
++    if stream is not r.stream or rom is not r.rom or graph is not scope.graph or not scope.used or id(scope)in r.ir:raise ValueError('actual oneuse FF20 child IR required')
++    r.ir[id(scope)]=(graph,pairs,_digest(repr(pairs)));r.refresh()
++
++def _seal_rows(issuer,scope,rows):
++    if issuer is not _ISSUER or type(scope)is not _FF20TargetPolicy:raise ValueError('private actual FF20 collector seal')
++    scope.validate();r=scope.registry
++    if not scope.used or id(scope)not in r.ir or id(scope.graph)in r.rows:raise ValueError('oneuse actual graph/IR collector seal')
++    members={}
++    for row in rows:
++        key=tuple(row[k]for k in('pc24','m','x'))
++        if key in members:raise ValueError('duplicate actual FF20 collector row')
++        members[key]=(row,_digest(row))
++    r.rows[id(scope.graph)]=members;r.refresh()
++
++def _pure_row(rom,parsed,cert,graph,pairs,key,row):
++    from .architecture_eligibility import _independent
++    di=graph.insns.get(key)
++    item=cert.registry.rows.get(id(graph),{}).get((key.pc,key.m,key.x))
++    if di is None or row is None or item is None or item[0]is not row or item[1]!=_digest(row):return False
++    ins=di.insn
++    return (ins.mnem in PURE_OPS and tuple(row.get(k)for k in('pc24','m','x'))==(key.pc,key.m,key.x) and initial._typed(rom,graph,pairs,key) and not getattr(ins,'const_z_fold_unconditional',False) and not any(getattr(ins,f,None)for f in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr')) and cert.role_ok(key.pc,key.m,key.x,ins.length) and _independent(rom,parsed,row))
++
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++    from .architecture_eligibility import _mask,_independent
++    from .emit_function import emit_function
++    if not stream._sealed or parsed is not stream._parsed or rom is not stream._rom_object:raise ValueError('actual sealed FF20 source namespace required')
++    r=_REGISTRIES.get(stream)
++    if r is None:return [],{'contract':CONTRACT,'source_cases':['D0/E0_mapped_ROM_only'],'D1_source_case':'unknown_original_barrier','producer_domains':[],'graphs':[],'refused':[]}
++    r.seal(rom,parsed,stream)
++    if r.used:raise ValueError('FF20 source namespace reuse')
++    r.used=True;r.refresh();rows={};graphs=[];refused=[];domains=[];masks=[x for _b,_p,c in parsed for x in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++    for cert in r.certificates:
++        domains.append({'caller_entry':[cert.caller.graph.entry.pc,1,1],'caller_predicate_keys':[[k.pc,k.m,k.x]for k in cert.caller.keys],'wrapper_entry':[cert.wrapper.graph.entry.pc,1,1],'wrapper_keys':[[k.pc,k.m,k.x]for k in cert.wrapper.keys],'original_graph_sha256':[cert.caller.graph_sha,cert.wrapper.graph_sha],'selector_domain':[0,125],'saved_return':cert.return_pc,'mathematical_reads':[list(v)for v in cert.reads],'unique_targets':sorted(cert.targets),'intentional_table_cardinality':None,'discovery_D':0,'runtime_entry_D_guard':False})
++        for pc in sorted(cert.targets):
++            for m,x in((0,0),(0,1),(1,0),(1,1)):
++                entry=(pc,m,x)
++                if len(r.reservations)>=MAX_STARTS:refused.append({'entry':list(entry),'reason':'504 source start bound'});continue
++                r.reserve(_ISSUER,entry,cert)
++                if not _mapped(rom,pc)or _mask(parsed,pc,1):refused.append({'entry':list(entry),'reason':'original mapped/byte policy'});continue
++                bank=cert.wrapper.parent;options=dict(_options(stream,rom,parsed,pc>>16));options['data_regions']=list(options.get('data_regions')or())
++                for mask in masks:
++                    if mask not in options['data_regions']:options['data_regions'].append(mask)
++                siblings=cert.wrapper.role.get('sibling_entry_pcs');role={'sibling_entry_pcs':siblings,'source_instruction_only':False,'entry_range_end':None}
++                if pc&65535 in(siblings or()):refused.append({'entry':list(entry),'reason':'original sibling callable role'});continue
++                try:g=decode_function(rom,pc>>16,pc&65535,m,x,max_insns=MAX_INSNS,data_regions=options['data_regions'],hle_dispatch=options['hle_dispatch'],sibling_entry_pcs=siblings,hle_entry_pcs=set(options['hle_func']or())|set(options['hle_spc_upload']or()),stop_on_unknown_callee_exit=True)
++                except RuntimeError as e:
++                    if 'max_insns=128'not in str(e):raise
++                    refused.append({'entry':list(entry),'reason':'original128 graph bound'});continue
++                if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=MAX_INSNS:refused.append({'entry':list(entry),'reason':'original128/data/indirect barrier'});continue
++                scope=_FF20TargetPolicy(_ISSUER,r,cert,entry,options,role);local=[]
++                emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedOriginalFF20Source',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
++                scope.validate()
++                if scope.graph is None or _graph_digest(rom,scope.graph)!=_graph_digest(rom,g):raise ValueError('actual FF20 child emitter/decoder differs')
++                actual=scope.graph;item=r.ir.get(id(scope))
++                if item is None or item[0]is not actual or item[2]!=_digest(repr(item[1])):raise ValueError('actual FF20 child IR missing/mutated')
++                _seal_rows(_ISSUER,scope,local)
++                candidates={tuple(row[k]for k in('pc24','m','x')):row for row in local};todo=[actual.entry];allowed=set();barriers=[]
++                while todo:
++                    key=todo.pop()
++                    if key in allowed:continue
++                    di=actual.insns.get(key)
++                    if di is None:continue
++                    ins=di.insn;row=candidates.get((key.pc,key.m,key.x))
++                    if not _pure_row(rom,parsed,cert,actual,item[1],key,row):barriers.append([key.pc,key.m,key.x,ins.mnem]);continue
++                    allowed.add(key);todo.extend(di.successors)
++                out=[]
++                for key in sorted(allowed,key=lambda k:(k.pc,k.m,k.x)):
++                    ident=(key.pc,key.m,key.x);row=candidates[ident]
++                    if ident in rows and rows[ident]!=row:raise ValueError('unequal independent FF20 source bodies')
++                    rows[ident]=row;out.append(list(ident))
++                graphs.append({'entry':list(entry),'depth':1,'instruction_keys':out,'barriers':barriers,'source_graph_sha256':_graph_digest(rom,actual),'typed_instructions':len(actual.insns)})
++    r.validate()
++    return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'source_cases':['D0/E0_mapped_ROM_only'],'D1_source_case':'unknown_original_barrier','producer_domains':domains,'graphs':graphs,'refused':refused,'attempted_starts':len(r.reservations),'graph_bound':MAX_INSNS,'start_bound':MAX_STARTS,'ancestry_bound':MAX_DEPTH,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False,'runtime_entry_D_guard':False,'native_calls_or_returns_added':False,'actual_original_dispatch_changed':False}
+diff --git a/recompiler/v2/architecture_known_callee_refinement_sources.py b/recompiler/v2/architecture_known_callee_refinement_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_known_callee_refinement_sources.py
+@@ -0,0 +1,238 @@
++"""Source typing from existing complete writer facts; never return ownership."""
++import weakref,hashlib
++from snes65816 import decode_insn,rom_offset
++from .decoder import FunctionDecodeGraph,decode_function,DecodeKey
++from .architecture_emission_policy import _EmissionPolicy,_digest,_graph_digest,_options
++from . import architecture_initial_task_sources as initial
++from . import architecture_nested_initial_task_sources as nested
++_ISSUER=object();_VIEWS=weakref.WeakSet();_FACTS=weakref.WeakSet();_SCOPES=weakref.WeakSet();_RECEIPTS=weakref.WeakSet()
++_VIEW_BY_SOURCE=weakref.WeakKeyDictionary();_PROOFS=weakref.WeakKeyDictionary();_RESERVATION_PROOFS=weakref.WeakKeyDictionary();_IR_PROOFS=weakref.WeakKeyDictionary();_FACT_LIST_PROOFS=weakref.WeakKeyDictionary();_SCOPE_CONTEXTS=weakref.WeakKeyDictionary();_RECORD_PROOFS=weakref.WeakKeyDictionary()
++CONTRACT='source-existing-writer-exit-same-entry-refinement-v1'
++
++class _ExistingWriterFact:
++    def __init__(self,issuer,view,piece):
++        if issuer is not _ISSUER or view not in _VIEWS or not any(p is piece for p in view.source.reg._pieces):raise ValueError('actual original writer fact required')
++        kind,bank,g,d,params,role,options,keys,pairs=piece
++        if kind!='writer' or initial._writer(view.rom,g,pairs)!=(list(keys),params):raise ValueError('whole original writer graph/IR required')
++        key=next((k for k in view.manifest.nodes if (k.pc24,k.m,k.x)==(g.entry.pc,g.entry.m,g.entry.x)),None)
++        if key is None:raise ValueError('writer absent original manifest')
++        node=view.manifest.nodes[key];exit_mode=view.manifest.exit_modes.get(key)
++        if exit_mode!=(1,0)or node.disposition.value!='aot_eligible'or node.instruction_count!=len(g.insns)or node.instruction_count!=15 or node.demands:raise ValueError('existing complete writer exit proof required')
++        self.view=view;self.piece=piece;self.bank=bank;self.graph=g;self.pairs=pairs;self.key=key;self.node=node;self.exit_mode=exit_mode;self.signature=(key.pc24,key.m,key.x)
++        self.seal=self.digest();_FACTS.add(self);_PROOFS[self]=self.seal;self.validate()
++    def digest(self):return _digest((id(self.view),id(self.piece),id(self.bank),id(self.graph),_graph_digest(self.view.rom,self.graph),id(self.pairs),repr(self.pairs),self.signature,self.exit_mode,id(self.node)))
++    def validate(self):
++        v=self.view;v.base_validate()
++        if self not in _FACTS or _PROOFS.get(self)!=self.seal or self.seal!=self.digest()or not any(p is self.piece for p in v.source.reg._pieces):raise ValueError('writer fact identity/mutation')
++        _kind,bank,g,_d,params,_role,_opts,keys,pairs=self.piece
++        actual=v.stream._views.get(g.entry.pc>>16);opts=_options(v.stream,v.rom,v.parsed,g.entry.pc>>16)
++        if actual is not self.bank or opts is None or v.manifest.nodes.get(self.key)is not self.node or v.manifest.exit_modes.get(self.key)!=self.exit_mode or self.exit_mode!=(1,0)or initial._writer(v.rom,g,pairs)!=(list(keys),params):raise ValueError('original writer bank/manifest/wholebody proof changed')
++    def metadata(self):return {'key':list(self.signature),'exit':list(self.exit_mode),'writer_graph_sha256':_graph_digest(self.view.rom,self.graph),'existing_manifest_sha256':self.view.manifest_sha,'new_exit_fact_added':False}
++
++class _SourceView:
++    def __init__(self,issuer,source):
++        if issuer is not nested._REFINEMENT_SOURCE_ISSUER or type(source)is not nested._Observation or source not in nested._ISSUED or not source.used or not source.original_done:raise ValueError('completed original initial source producer required')
++        source.validate()
++        self.source=source;self.stream=source.stream;self.rom=source.rom;self.parsed=source.parsed;self.manifest=source.stream._manifest;self.manifest_sha=_digest(self.manifest.to_dict())
++        self.inherited_attempts=source.attempts;self.inherited_sha=_digest(source.attempts);self.inherited_count=len(source.attempts);self.parents=tuple(source.receipts.values());self.parents_sha=_digest([(id(r),r.seal)for r in self.parents]);self.reserved={};self.reserve_sha=_digest({});self.used=False;self.facts=[];self.receipts={};self.ir={};self.ir_sha=_digest([])
++        _VIEWS.add(self);_PROOFS[self]=self.namespace_digest();_RESERVATION_PROOFS[self]=self.reserve_sha;_IR_PROOFS[self]=self.ir_sha
++    def namespace_digest(self):return _digest((id(self.source),id(self.stream),id(self.rom),id(self.parsed),id(self.manifest),self.manifest_sha,id(self.inherited_attempts),self.inherited_sha,self.inherited_count,self.parents_sha))
++    def base_validate(self):
++        if self not in _VIEWS or _VIEW_BY_SOURCE.get(self.source)is not self or _PROOFS.get(self)!=self.namespace_digest()or self.stream is not self.source.stream or self.rom is not self.source.rom or self.parsed is not self.source.parsed or self.manifest is not self.stream._manifest or _digest(self.manifest.to_dict())!=self.manifest_sha:raise ValueError('foreign/mutated refined source namespace')
++        self.source.validate()
++        if self.inherited_attempts is not self.source.attempts or _digest(self.source.attempts)!=self.inherited_sha or len(self.inherited_attempts)!=self.inherited_count or self.parents_sha!=_digest([(id(r),r.seal)for r in self.parents])or any(self.source.receipts.get(id(r.graph))is not r for r in self.parents):raise ValueError('sealed original attempt/receipt facts changed')
++        if _RESERVATION_PROOFS.get(self)!=self.reserve_sha or self.reserve_sha!=_digest(self.reserved):raise ValueError('refined reservation changed')
++        if _IR_PROOFS.get(self)!=self.ir_sha or self.ir_sha!=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(self.ir.items())]):raise ValueError('actual refined IR registry changed')
++    def facts_validate(self):
++        self.base_validate()
++        if _FACT_LIST_PROOFS.get(self)!=_digest([(id(f),f.seal)for f in self.facts])or self.fact_sha!=_digest([f.metadata()for f in self.facts])or any(f.view is not self for f in self.facts):raise ValueError('existing fact list identity changed')
++        for f in self.facts:f.validate()
++    def validate(self):
++        self.facts_validate()
++        for r in self.receipts.values():r.validate()
++    def reserve(self,issuer,entry,parent,edge):
++        if issuer is not _ISSUER:raise ValueError('private refinement reservation issuer')
++        self.base_validate();parent.validate();depth=parent.depth if edge['kind']=='same_entry_existing_writer_refinement'else parent.depth+1
++        if not _edge(self,parent,entry,edge):raise ValueError('source edge absent actual issued parent')
++        ident=(entry,self.fact_sha);value=(id(parent),_digest(edge),depth)
++        if ident not in self.reserved and self.inherited_count+len(self.reserved)>=initial.MAX_STARTS:raise ValueError('shared512 source attempts exhausted')
++        values=self.reserved.setdefault(ident,[])
++        if value not in values:values.append(value)
++        self.reserve_sha=_digest(self.reserved);_RESERVATION_PROOFS[self]=self.reserve_sha
++        return depth
++    def total_attempts(self):return self.inherited_count+len(self.reserved)
++
++
++def _new_source_view(issuer,source):
++    if source in _VIEW_BY_SOURCE:raise ValueError('refinement source view already issued')
++    view=_SourceView(issuer,source);_VIEW_BY_SOURCE[source]=view;view.base_validate()
++    for p in source.reg._pieces:
++        if p[0]=='writer':view.facts.append(_ExistingWriterFact(_ISSUER,view,p))
++    view.fact_sha=_digest([f.metadata()for f in view.facts]);_FACT_LIST_PROOFS[view]=_digest([(id(f),f.seal)for f in view.facts]);return view
++
++def _bank(view,entry,expected=None):
++    actual=view.stream._views.get(entry[0]>>16);opts=_options(view.stream,view.rom,view.parsed,entry[0]>>16)
++    if type(actual)is not _EmissionPolicy or opts is None or(expected is not None and actual is not expected):raise ValueError('original refined source bank changed')
++    return actual,opts
++
++def _fact_at(view,graph,pairs,key):
++    view.facts_validate()
++    di=graph.insns.get(key)
++    if di is None or di.insn.opcode not in(0x20,0x22)or not initial._typed(view.rom,graph,pairs,key):return None
++    i=di.insn;target=((key.pc&0xff0000)|i.operand)if i.opcode==0x20 else i.operand
++    for f in view.facts:
++        if f.signature==(target,key.m,key.x):f.validate();return f
++    return None
++
++def _edge(view,parent,entry,edge):
++    if entry[1]not in(0,1)or entry[2]not in(0,1):return False
++    if edge['kind']=='same_entry_existing_writer_refinement':
++        return type(parent)is nested._Receipt and any(r is parent for r in view.parents)and entry==parent.entry and edge.get('source_graph')==parent.graph_sha and any(_fact_at(view,parent.graph,parent.pairs,k)is not None for k in parent.allowed)
++    if type(parent)is not _RefinedReceipt or parent.view is not view or parent not in _RECEIPTS:return False
++    hits=[k for k in parent.allowed if [k.pc,k.m,k.x]==edge.get('source_key')]
++    if len(hits)!=1 or edge.get('source_graph')!=parent.graph_sha:return False
++    k=hits[0];i=parent.graph.insns[k].insn
++    if not initial._typed(view.rom,parent.graph,parent.pairs,k):return False
++    if edge['kind']=='unknown_call_numeric_fall':
++        off=rom_offset(k.pc>>16,k.pc&65535)
++        return i.opcode in(0x20,0x22)and _fact_at(view,parent.graph,parent.pairs,k)is None and entry[0]==(k.pc&0xff0000)|((k.pc+i.length)&65535)and (k.pc&65535)+i.length<65536 and edge.get('source_bytes')==view.rom[off:off+i.length].hex()
++    return edge['kind']=='source_owned_live_P_frontier'and i.opcode==0x28 and entry[0]==k.pc+1 and k.pc&65535<65535
++
++class _RefinementPolicy:
++    _target_only=True
++    def __init__(self,issuer,view,entry,parent,edge,depth,options,role):
++        if issuer is not _ISSUER or view not in _VIEWS:raise ValueError('private same-entry refinement scope')
++        view.validate();parent.validate()
++        expected_depth=parent.depth if edge['kind']=='same_entry_existing_writer_refinement'else parent.depth+1
++        if depth!=expected_depth or not 0<=depth<=initial.MAX_DEPTH or not _edge(view,parent,entry,edge)or (id(parent),_digest(edge),depth)not in view.reserved.get((entry,view.fact_sha),[]):raise ValueError('unreserved or guessed refined source ancestry')
++        self.view=view;self._stream=view.stream;self.entry=entry;self.parent=parent;self.edge=dict(edge);self.depth=depth;self.options=options;self.option_sha=_digest(options);self.role=role;self.role_sha=_digest(role);self.used=False;self.graph=None;self.graph_sha=None;self.bank,original=_bank(view,entry)
++        for f in('exclude_ranges','hle_func','hle_spc_upload','hle_dispatch','forced'):
++            if _digest(options.get(f))!=_digest(original.get(f)):raise ValueError('refinement weakened original policy')
++        if any(m not in(options.get('data_regions')or())for m in(original.get('data_regions')or()))or _digest(role.get('sibling_entry_pcs'))!=_digest(frozenset(p&65535 for p,_m,_x in self.bank._entries)):raise ValueError('refinement weakened data/sibling policy')
++        self.fact_sha=view.fact_sha;_SCOPES.add(self);_SCOPE_CONTEXTS[self]=self.context_digest()
++    def context_digest(self):
++        return _digest((id(self.view),self.entry,id(self.parent),_digest(self.edge),self.depth,id(self.bank),self.fact_sha,id(self.options),self.option_sha,id(self.role),self.role_sha))
++    def validate(self):
++        if self not in _SCOPES or _SCOPE_CONTEXTS.get(self)!=self.context_digest():raise ValueError('issued refinement constructor context changed')
++        v=self.view;v.facts_validate();self.parent.validate();_bank(v,self.entry,self.bank)
++        if self._stream is not v.stream:raise ValueError('refinement stream identity changed')
++        expected_depth=self.parent.depth if self.edge['kind']=='same_entry_existing_writer_refinement'else self.parent.depth+1
++        reservation=(id(self.parent),_digest(self.edge),self.depth)
++        if self.depth!=expected_depth or not 0<=self.depth<=initial.MAX_DEPTH or reservation not in v.reserved.get((self.entry,self.fact_sha),[]):raise ValueError('issued refinement reservation missing or changed')
++        recorded=_RECORD_PROOFS.get(self)
++        if self.used:
++            if self.graph is None or recorded!=(id(self.graph),self.graph_sha,_SCOPE_CONTEXTS[self])or self.graph_sha!=_graph_digest(v.rom,self.graph):raise ValueError('refined recorded graph/context changed')
++        elif recorded is not None or self.graph is not None or self.graph_sha is not None:raise ValueError('refined recorded context reset')
++        if self not in _SCOPES or self.fact_sha!=v.fact_sha or _digest(self.options)!=self.option_sha or _digest(self.role)!=self.role_sha or not _edge(v,self.parent,self.entry,self.edge):raise ValueError('refined scope identity/policy changed')
++        for f in v.facts:f.validate()
++    def record_graph(self,stream,rom,graph,bank,start,m,x,options,role):
++        self.validate()
++        if self.used or stream is not self._stream or rom is not self.view.rom or type(graph)is not FunctionDecodeGraph or(bank<<16|start,m,x)!=self.entry or _digest(options)!=self.option_sha or _digest(role)!=self.role_sha:raise ValueError('foreign/reused refined graph producer')
++        if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=initial.MAX_INSNS:raise ValueError('original128/data/indirect refined graph barrier')
++        self.used=True;self.graph=graph;self.graph_sha=_graph_digest(rom,graph);_RECORD_PROOFS[self]=(id(graph),self.graph_sha,_SCOPE_CONTEXTS[self])
++
++def _capture_refinement_ir(stream,scope,rom,graph,pairs):
++    if type(scope)is not _RefinementPolicy:return
++    scope.validate();v=scope.view
++    if scope not in _SCOPES or not scope.used or stream is not v.stream or rom is not v.rom or graph is not scope.graph or id(scope)in v.ir:raise ValueError('actual oneuse refined IR capture required')
++    v.ir[id(scope)]=(graph,pairs,_digest(repr(pairs)));v.ir_sha=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(v.ir.items())]);_IR_PROOFS[v]=v.ir_sha
++
++class _RefinedReceipt:
++    def __init__(self,issuer,view,scope,allowed):
++        if issuer is not _ISSUER or scope not in _SCOPES or not scope.used or view is not scope.view:raise ValueError('actual completed refined graph required')
++        view.validate();scope.validate();item=view.ir.get(id(scope))
++        if item is None or item[0]is not scope.graph or item[2]!=_digest(repr(item[1])):raise ValueError('missing original refined IR')
++        self.view=view;self.scope=scope;self.entry=scope.entry;self.depth=scope.depth;self.parent=scope.parent;self.edge=dict(scope.edge);self.scope_context=_SCOPE_CONTEXTS[scope];self.graph=scope.graph;self.graph_sha=scope.graph_sha;self.pairs=item[1];self.pairs_sha=item[2];self.allowed=frozenset(allowed);self.seal=self.digest();_RECEIPTS.add(self);view.receipts[id(self.graph)]=self;_PROOFS[self]=self.seal;self.validate()
++    def digest(self):return _digest((id(self.view),id(self.scope),self.entry,self.depth,id(self.parent),self.edge,self.scope_context,id(self.graph),self.graph_sha,id(self.pairs),self.pairs_sha,sorted((k.pc,k.m,k.x)for k in self.allowed)))
++    def validate(self,_seen=None):
++        _seen=set()if _seen is None else _seen
++        if id(self)in _seen:raise ValueError('refined source ancestry cycle')
++        _seen.add(id(self));v=self.view;v.base_validate()
++        if self not in _RECEIPTS or v.receipts.get(id(self.graph))is not self or _PROOFS.get(self)!=self.seal or self.seal!=self.digest()or self.graph_sha!=_graph_digest(v.rom,self.graph)or self.pairs_sha!=_digest(repr(self.pairs)):raise ValueError('refined receipt identity/IR mutation')
++        self.scope.validate()
++        if self.view is not self.scope.view or self.scope_context!=_SCOPE_CONTEXTS.get(self.scope)or self.scope_context!=self.scope.context_digest()or self.parent is not self.scope.parent or self.edge!=self.scope.edge or self.depth!=self.scope.depth:raise ValueError('refined receipt differs from exact issued scope context')
++        expected=self.parent.depth if self.edge['kind']=='same_entry_existing_writer_refinement'else self.parent.depth+1
++        if self.entry!=self.scope.entry or self.graph is not self.scope.graph or self.depth!=expected or self.depth>initial.MAX_DEPTH or not _edge(v,self.parent,self.entry,self.edge):raise ValueError('refined receiving/entry/depth changed')
++        if type(self.parent)is _RefinedReceipt:self.parent.validate(_seen)
++        else:self.parent.validate()
++        _seen.remove(id(self))
++
++
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++    from .architecture_eligibility import _mask,_independent
++    from .emit_function import emit_function
++    from .lowering import lower
++    from .native_regions import collect_stack_control
++    from snes_cycles import instr_cpu_cycles
++    view=nested._issue_known_refinement_view(stream,rom,parsed)
++    if view is None:return [],{'contract':CONTRACT,'graphs':[],'refused':[{'reason':'no completed initial source producer'}]}
++    if view.used:raise ValueError('refinement namespace reused')
++    view.validate();view.used=True;pending={};seen=set();rows={};graphs=[];refused=[]
++    masks=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++    def queue(entry,parent,edge):
++        depth=view.reserve(_ISSUER,entry,parent,edge)
++        if depth>initial.MAX_DEPTH:refused.append({'entry':list(entry),'reason':'true8 source depth'});return
++        if not initial._mapped(rom,entry[0])or _mask(parsed,entry[0],1):refused.append({'entry':list(entry),'reason':'original unmapped/masked'});return
++        if entry not in pending or depth<pending[entry][2]:pending[entry]=(parent,edge,depth)
++    for parent in view.parents:
++        if any(_fact_at(view,parent.graph,parent.pairs,k)is not None for k in parent.allowed):queue(parent.entry,parent,{'kind':'same_entry_existing_writer_refinement','source_graph':parent.graph_sha})
++    while pending:
++        entry=min(pending,key=lambda e:(pending[e][2],e));parent,edge,depth=pending.pop(entry)
++        if entry in seen:continue
++        seen.add(entry);pc,m,x=entry
++        if type(stream._views.get(pc>>16))is not _EmissionPolicy:refused.append({'entry':list(entry),'reason':'no original bank policy'});continue
++        bank,options=_bank(view,entry);options['data_regions']=list(options.get('data_regions')or())
++        for mask in masks:
++            if mask not in options['data_regions']:options['data_regions'].append(mask)
++        siblings=frozenset(p&65535 for p,_m,_x in bank._entries)
++        if pc&65535 in siblings:refused.append({'entry':list(entry),'reason':'original sibling namespace'});continue
++        role={'sibling_entry_pcs':siblings,'source_instruction_only':False,'entry_range_end':None};exits={f.signature:f.exit_mode for f in view.facts}
++        try:g=decode_function(rom,pc>>16,pc&65535,m,x,max_insns=initial.MAX_INSNS,data_regions=options['data_regions'],hle_dispatch=options['hle_dispatch'],sibling_entry_pcs=siblings,hle_entry_pcs=set(options['hle_func']or())|set(options['hle_spc_upload']or()),callee_exit_mx=exits,stop_on_unknown_callee_exit=True)
++        except RuntimeError as e:
++            if 'max_insns=128'not in str(e):raise
++            refused.append({'entry':list(entry),'reason':'original128 graph bound'});continue
++        if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=initial.MAX_INSNS:refused.append({'entry':list(entry),'reason':'original128/data/indirect barrier'});continue
++        scope=_RefinementPolicy(_ISSUER,view,entry,parent,edge,depth,options,role);local=[];calls=[]
++        emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedExistingWriterRefinement',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,callee_exit_mx=exits,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
++        if scope.graph is None or scope.graph_sha!=_graph_digest(rom,g):raise ValueError('knownfact actual emitter/decoder mismatch')
++        actual=scope.graph;candidates={tuple(r[k]for k in('pc24','m','x')):r for r in local+calls};todo=[actual.entry];allowed=set();barriers=[];known=[];out=[]
++        while todo:
++            key=todo.pop()
++            if key in allowed:continue
++            di=actual.insns.get(key)
++            if di is None:continue
++            ins=di.insn;r=candidates.get((key.pc,key.m,key.x))
++            if ins.mnem not in initial.ALLOWED or ins.mnem in initial.FORBIDDEN or r is None or not view.source.reg.role_ok(key.pc,key.m,key.x,ins.length)or not _independent(rom,parsed,r)or getattr(ins,'const_z_fold_unconditional',False)or any(getattr(ins,n,None)for n in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr')):barriers.append([key.pc,key.m,key.x,ins.mnem]);continue
++            allowed.add(key)
++            if ins.mnem=='PLP':continue # no caller-PHP successor history
++            if ins.mnem in('JSR','JSL'):
++                fact=_fact_at(view,actual,view.ir[id(scope)][1],key)
++                if fact is None:continue
++                # Decoder itself must supply exact lexical successor in existingfact modes.
++                fall=(key.pc&0xff0000)|((key.pc+ins.length)&65535)
++                if len(di.successors)!=1 or any((k.pc,k.m,k.x)!=(fall,*fact.exit_mode)for k in di.successors):raise ValueError('existing writer lexical source successor mismatch')
++                known.append({'source_key':[key.pc,key.m,key.x],'fact':fact.metadata()})
++            todo.extend(di.successors)
++        receipt=_RefinedReceipt(_ISSUER,view,scope,allowed)
++        for key in sorted(allowed,key=lambda k:(k.pc,k.m,k.x)):
++            ins=actual.insns[key].insn;r=candidates[(key.pc,key.m,key.x)];ident=(key.pc,key.m,key.x)
++            if ins.mnem in('JSR','JSL')and _fact_at(view,actual,receipt.pairs,key)is None:
++                if not r.get('original_scheduler_call'):raise ValueError('refined canonical directcall missing')
++                if (key.pc&65535)+ins.length>=65536:barriers.append([key.pc,key.m,key.x,'callfallwrap']);continue
++                fall=(key.pc&0xff0000)|((key.pc+ins.length)&65535)
++                for cm,cx in((0,0),(0,1),(1,0),(1,1)):queue((fall,cm,cx),receipt,{'kind':'unknown_call_numeric_fall','source_key':list(ident),'source_bytes':r['bytes'],'source_graph':receipt.graph_sha})
++            elif ins.mnem=='PLP':
++                for cm,cx in((0,0),(0,1),(1,0),(1,1)):
++                    off=rom_offset(key.pc>>16,key.pc&65535);fresh=decode_insn(rom,off,key.pc&65535,key.pc>>16,cm,cx);fresh.m_flag,fresh.x_flag=cm,cx
++                    pr=collect_stack_control(rom,DecodeKey(key.pc,cm,cx),fresh,lower(fresh,value_factory=lambda:None),instr_cpu_cycles(fresh.opcode,m=cm,x=cx,e=0))
++                    if pr and view.source.reg.role_ok(key.pc,cm,cx,1)and _independent(rom,parsed,pr):
++                        pk=(key.pc,cm,cx)
++                        if pk in rows and rows[pk]!=pr:raise ValueError('unequal refined independent PLP body')
++                        rows[pk]=pr
++                    if key.pc&65535<65535:queue((key.pc+1,cm,cx),receipt,{'kind':'source_owned_live_P_frontier','source_key':list(ident),'source_graph':receipt.graph_sha})
++            if r.get('original_scheduler_call')and not enable_native_call_prefix:continue
++            if ident in rows and rows[ident]!=r:raise ValueError('unequal refined canonical body')
++            rows[ident]=r;out.append(list(ident))
++        graphs.append({'entry':list(entry),'parent_entry':list(parent.entry),'origin':edge,'depth':depth,'source_graph_sha256':receipt.graph_sha,'known_lexical_source_successors':known,'instruction_keys':out,'unknown_calls':[list(v)for v in actual.unknown_callee_exit_sites],'barriers':barriers,'typed_instructions':len(actual.insns)})
++    view.validate()
++    return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'existing_facts':[f.metadata()for f in view.facts],'graphs':graphs,'refused':refused,'inherited_attempted_starts':view.inherited_count,'refined_attempted_starts':len(view.reserved),'total_attempted_starts':view.total_attempts(),'graph_bound':initial.MAX_INSNS,'start_bound':initial.MAX_STARTS,'depth_bound':initial.MAX_DEPTH,'same_issued_entry_depth':True,'old_attempt_facts_unchanged':True,'new_exit_facts_added':False,'ordinary_roots_added':False,'caller_owner_added':False,'saved_P_history_exported':False,'runtime_dispatch_added':False}
+diff --git a/recompiler/v2/architecture_nested_initial_task_sources.py b/recompiler/v2/architecture_nested_initial_task_sources.py
+--- a/recompiler/v2/architecture_nested_initial_task_sources.py
++++ b/recompiler/v2/architecture_nested_initial_task_sources.py
+@@ -257,3 +257,14 @@
+         graphs.append({'entry':list(entry),'parent_entry':list(parent.entry),'origin':edge,'depth':depth,'source_graph_sha256':receipt.graph_sha,'instruction_keys':out,'unknown_calls':[list(v)for v in actual.unknown_callee_exit_sites],'barriers':barriers,'typed_instruction_count':len(actual.insns)})
+     o.validate()
+     return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'initializers':initializers,'graphs':graphs,'refused':refused,'original_attempted_starts':o.original_attempts,'total_attempted_starts':len(o.attempts),'nested_processed_starts':len(seen),'graph_bound':initial.MAX_INSNS,'start_bound':initial.MAX_STARTS,'depth_bound':initial.MAX_DEPTH,'original_issuer_unchanged':True,'callee_exit_modes_added':False,'ordinary_roots_added':False,'caller_owner_added':False,'saved_P_history_exported':False,'runtime_dispatch_added':False}
++
++
++_REFINEMENT_SOURCE_ISSUER=object()
++def _issue_known_refinement_view(stream,rom,parsed):
++    # Readonly one-use consumer of the COMPLETED original source producer.
++    o=getattr(stream,'_nested_initial_observation',None)
++    if o is None:return None
++    if type(o)is not _Observation or o not in _ISSUED or stream is not o.stream or rom is not o.rom or parsed is not o.parsed or not o.original_done or not o.used:raise ValueError('completed actual initial source view required')
++    o.validate()
++    from .architecture_known_callee_refinement_sources import _new_source_view
++    return _new_source_view(_REFINEMENT_SOURCE_ISSUER,o)
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -894,6 +894,11 @@
+         _capture_initial_task(_program_call_stream,_program_policy_scope,rom,graph,block_per_insn_ir)
+         from .architecture_nested_initial_task_sources import _capture_child_ir
+         _capture_child_ir(_program_call_stream,_program_policy_scope,rom,graph,block_per_insn_ir)
++        from .architecture_known_callee_refinement_sources import _capture_refinement_ir
++        _capture_refinement_ir(_program_call_stream,_program_policy_scope,rom,graph,block_per_insn_ir)
++        from .architecture_ff20_byte_dispatch_sources import _capture_original as _capture_ff20_original,_capture_child_ir as _capture_ff20_child_ir
++        _capture_ff20_original(_program_call_stream,_program_policy_scope,rom,graph,block_per_insn_ir)
++        _capture_ff20_child_ir(_program_call_stream,_program_policy_scope,rom,graph,block_per_insn_ir)
+ 
+     # ── Non-local-return idiom detection ────────────────────────────────
+     # A basic block is an NLR-block if its IR has the shape
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 48
++CACHE_FORMAT_VERSION = 49
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1393,7 +1393,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':33, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':34, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',

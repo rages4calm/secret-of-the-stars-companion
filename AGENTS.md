@@ -1,6 +1,6 @@
 # Secret of the Stars — public source instructions
 
-This checkout is the public native0.5.5 / Companion0.3.6 source snapshot.
+This checkout is the public native0.5.6 / Companion0.3.6 source snapshot.
 Start with README.md, BUILDING.md, CONTRIBUTING.md and SOURCE-PROVENANCE.json.
 Dated handoffs and validation documents describe their recorded versions;
 they are not instructions to recreate completed experiments or private runs.

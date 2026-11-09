@@ -1,0 +1,404 @@
+diff --git a/recompiler/v2/architecture_baseline_view.py b/recompiler/v2/architecture_baseline_view.py
+--- a/recompiler/v2/architecture_baseline_view.py
++++ b/recompiler/v2/architecture_baseline_view.py
+@@ -64,7 +64,7 @@
+     if type(capture)is not _Capture:raise ValueError('foreign baseline capture type')
+     proof=_PROOFS.get(capture)
+     if type(capture)is not _Capture or capture not in _ISSUED or not _ACTIVE or proof is None or proof['phase']!='capturing' or capture.phase!='capturing' or rom is not proof['rom']or parsed is not proof['parsed']or stream is not proof['stream']or stream is not capture.stream or not stream._sealed:raise ValueError('foreign/reused baseline source capture')
+-    if len(sources)!=23 or sources[-2][0]!='source_ROM_stack_terminal_tail_instructions' or sources[-1][0]!='source_ROM_stack_direct_call_prefix_instructions' or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
++    if len(sources)!=24 or sources[-3][0]!='source_ROM_stack_terminal_tail_instructions' or sources[-2][0]!='source_ROM_stack_direct_call_prefix_instructions' or sources[-1][0]!='source_ROM_stack_numeric_aftercall_instructions' or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
+     capture.sources=tuple((origin,tuple(rows))for origin,rows in sources);capture.recipes=dict(recipes)
+     capture.seal=_digest((capture.sources,capture.recipes));capture.phase='sealed'
+     proof.update(phase='sealed',sources=capture.sources,recipes=capture.recipes,seal=capture.seal)
+@@ -145,7 +145,7 @@
+             bank_regions = []
+             from .architecture_emission_policy import _open_bank
+             original_policy_options={'data_regions':data_regions,'exclude_ranges':getattr(cfg,'exclude_ranges',None)if cfg is not None else None,'hle_func':getattr(cfg,'hle_func',None)if enable_hle and cfg is not None else None,'hle_spc_upload':getattr(cfg,'hle_spc_upload',None)if enable_hle and cfg is not None else None,'hle_dispatch':getattr(cfg,'hle_dispatch',None)if enable_hle and cfg is not None else None,'forced':{pc&0x7fffff for _b,_p,q in parsed for pc in getattr(q,'force_lle',())}}
+-            bank_policy_scope=_open_bank(program_call_stream,rom,manifest,bank,entries_by_bank.get(bank,[]),cfg,original_policy_options)
++            bank_policy_scope=_open_bank(program_call_stream,rom,manifest,bank,entries_by_bank.get(bank,[]),cfg,original_policy_options,inline_arg_map=inline_arg_map)
+             source = emit_bank(
+                 rom, bank, entries_by_bank.get(bank, []),
+                 dispatch_helpers=dict(dispatch_helpers) or None,
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -127,11 +127,15 @@
+     if program_call_stream is not None:
+         from .architecture_rom_stack_tail_sources import derive as derive_rom_stack_tail
+         tail_rows,tail_recipe=derive_rom_stack_tail(rom,parsed,program_call_stream)
++    target_aftercall_rows=[];target_aftercall_recipe=None
++    if program_call_stream is not None:
++        from .architecture_rom_stack_aftercall_sources import derive as derive_rom_stack_aftercalls
++        target_aftercall_rows,target_aftercall_recipe=derive_rom_stack_aftercalls(rom,parsed,program_call_stream)
+     target_call_rows=[];target_call_recipe=None
+     if program_call_stream is not None:
+         from .architecture_rom_stack_call_sources import derive as derive_rom_stack_calls
+         target_call_rows,target_call_recipe=derive_rom_stack_calls(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+-    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows),('source_declared_wait_call_instructions',declared_rows),('source_ROM_stack_terminal_tail_instructions',tail_rows),('source_ROM_stack_direct_call_prefix_instructions',target_call_rows)]
++    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows),('source_declared_wait_call_instructions',declared_rows),('source_ROM_stack_terminal_tail_instructions',tail_rows),('source_ROM_stack_direct_call_prefix_instructions',target_call_rows),('source_ROM_stack_numeric_aftercall_instructions',target_aftercall_rows)]
+     if _baseline_capture is None:
+         output,metadata=merge_source_union(rom,parsed,ordinary,sources)
+     else:
+@@ -157,6 +161,7 @@
+     metadata['declared_wait_call_source']=declared_recipe
+     metadata['rom_stack_terminal_tail_source']=tail_recipe
+     metadata['rom_stack_direct_call_prefix_source']=target_call_recipe
++    metadata['rom_stack_numeric_aftercall_source']=target_aftercall_recipe
+     if _baseline_capture is not None:
+         from .architecture_baseline_view import _finish_capture
+         return None,_finish_capture(_baseline_capture,rom,parsed,program_call_stream,sources,metadata)
+diff --git a/recompiler/v2/architecture_emission_policy.py b/recompiler/v2/architecture_emission_policy.py
+--- a/recompiler/v2/architecture_emission_policy.py
++++ b/recompiler/v2/architecture_emission_policy.py
+@@ -1,6 +1,7 @@
+ """Opaque current emitter bank-policy views; no cfg/root or JSON authority."""
+ import dataclasses,hashlib,json
+ _ISSUER=object()
++_INLINE_UNSET=object()
+ 
+ def _freeze(v):
+     if v is None or isinstance(v,(str,int,float,bool)):return v
+@@ -47,7 +48,7 @@
+         if not self._graphs:raise ValueError('bank policy has no actual original graph')
+     def metadata(self):return {'bank':self._bank,'local_cfg_present':self._cfg is not None,'explicit_local_options':_freeze(self._options),'original_graphs':len(self._graphs),'original_entry_keys':[list(k)for k in sorted(self._entries)],'policy_sha256':self._option_sha,'global_policy_sha256':self._global,'actual_decoder_policy_sha256':self._decoder_sha,'external_policy_accepted':False}
+ 
+-def _open_bank(stream,rom,manifest,bank,entries,cfg,options):
++def _open_bank(stream,rom,manifest,bank,entries,cfg,options,*,inline_arg_map=_INLINE_UNSET):
+     # Called only at the existing emit_program bank invocation. The stream's
+     # original manifest/parsed/ROM references are not replaceable by JSON.
+     from .architecture_program_call_sources import _policy_sha
+@@ -56,6 +57,9 @@
+     if cfg is not original:raise ValueError('bank cfg identity differs actual producer')
+     if bank in stream._views:raise ValueError('duplicate bank emission policy')
+     view=_EmissionPolicy(_ISSUER,rom,manifest,bank,entries,cfg,options,_policy_sha(stream._parsed));view._parsed=stream._parsed;stream._views[bank]=view;stream._view_ids.add(id(view))
++    if inline_arg_map is not _INLINE_UNSET:
++        from .architecture_rom_stack_aftercall_sources import _capture_original_inline_policy
++        _capture_original_inline_policy(_ISSUER,stream,view,rom,manifest,inline_arg_map)
+     return view
+ 
+ def _record_graph(stream,view,rom,graph,bank,start,m,x,options,role):
+@@ -73,6 +77,10 @@
+         return
+     from .architecture_initial_task_sources import _InitialChildPolicy
+     if type(view)is _InitialChildPolicy:
++        view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
++        return
++    from .architecture_rom_stack_aftercall_sources import _AfterCallPolicy
++    if type(view)is _AfterCallPolicy:
+         view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
+         return
+     from .architecture_rom_stack_dispatch_sources import _TargetPolicy
+diff --git a/recompiler/v2/architecture_rom_stack_aftercall_sources.py b/recompiler/v2/architecture_rom_stack_aftercall_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_rom_stack_aftercall_sources.py
+@@ -0,0 +1,248 @@
++"""One-level numeric aftercall children of issued original ROM-target CALLs."""
++import weakref
++from .architecture_emission_policy import _digest,_graph_digest
++from .architecture_rom_stack_tail_sources import _validate,_role_ok,scope_context
++_PENDING=weakref.WeakKeyDictionary()
++_RESULTS=weakref.WeakKeyDictionary()
++_USED=weakref.WeakSet()
++_RUNS=weakref.WeakSet()
++_QUEUED_SCOPES=weakref.WeakSet()
++_EMITTING=weakref.WeakSet()
++_CONTEXTS=weakref.WeakSet()
++_POLICIES=weakref.WeakSet()
++_CONTEXT_PROOFS=weakref.WeakKeyDictionary()
++_POLICY_PROOFS=weakref.WeakKeyDictionary()
++_EMITTED=weakref.WeakKeyDictionary()
++_INLINE_POLICIES=weakref.WeakKeyDictionary()
++_INLINE_UNAVAILABLE=weakref.WeakKeyDictionary()
++_INLINE_REFUSALS=weakref.WeakKeyDictionary()
++_ISSUER=object()
++CONTRACT='source-ROM-word-issued-call-numeric-aftercall-v1'
++BARRIERS={'PLP','RTI','TCS','TXS','XCE','MVN','MVP'}
++
++
++def _capture_original_inline_policy(producer,stream,view,rom,manifest,source_map):
++    # Called ONLY inside actual _open_bank, with the same original variable
++    # passed to emit_bank by both original program/baseline producer callsites.
++    from .architecture_emission_policy import _EmissionPolicy,_ISSUER as bank_issuer
++    from . import decoder
++    if producer is not bank_issuer or type(view)is not _EmissionPolicy or view in _INLINE_POLICIES or view in _INLINE_UNAVAILABLE or view._issuer is not bank_issuer or view._closed or stream._sealed or stream._views.get(view._bank)is not view or rom is not stream._rom_object or rom is not view._rom or manifest is not stream._manifest or manifest is not view._manifest or view._parsed is not stream._parsed:raise ValueError('actual original bank inline-policy capture required')
++    active=decoder._ACTIVE_INLINE_ARG_MAP
++    # Capture is an optional prerequisite of THIS family only. Old emit_program
++    # accepts Mapping/dict subclasses and normalizes them itself; do not reject
++    # old-valid producers when this narrow proof cannot authenticate the input.
++    if type(source_map)is not dict or (active is not None and type(active)is not dict):
++        _INLINE_UNAVAILABLE[view]='original source/effective inline map outside concrete capture shape; NEW children refused'
++        return
++    if any(type(k)is not int or not 0<=k<=0xffffff or type(v)is not int or v<0 for mapping in(source_map,active or {})for k,v in mapping.items()):
++        _INLINE_UNAVAILABLE[view]='original source/effective inline map cannot be authenticated; NEW children refused'
++        return
++    if _digest(source_map)!=_digest(active or {}):
++        _INLINE_UNAVAILABLE[view]='original source/effective inline policies do not match; NEW children refused'
++        return
++    _INLINE_POLICIES[view]=(stream,rom,manifest,stream._parsed,source_map,_digest(source_map),active,_digest(manifest.to_dict()))
++
++
++def _inline_status(record,rom,parsed,stream):
++    from . import decoder
++    from snes65816 import rom_bank_mirror
++    view=record['certificate']._parent;proof=_INLINE_POLICIES.get(view)
++    if proof is None:return _INLINE_UNAVAILABLE.get(view,'authenticated original bank inline policy unavailable')
++    bound_stream,bound_rom,manifest,bound_parsed,source_map,expected,active,manifest_sha=proof
++    if bound_stream is not stream or bound_rom is not rom or bound_parsed is not parsed or manifest is not stream._manifest or manifest is not view._manifest or stream._views.get(view._bank)is not view or view._parsed is not parsed or _digest(manifest.to_dict())!=manifest_sha or _digest(source_map)!=expected or decoder._ACTIVE_INLINE_ARG_MAP is not active or _digest(active or {})!=expected:raise ValueError('original captured inline policy/context mutated')
++    target=record['rows'][1]['next_pc'];skip=source_map.get(target)
++    if skip is None and rom_bank_mirror((target>>16)&255)is not None:skip=source_map.get(target^0x800000)
++    if skip:return 'authenticated nonzero original inline skip, including original mirror lookup; numeric child refused'
++    return None
++
++
++def _parent(record,rom,parsed,stream,*,require_inline=True):
++    from .architecture_rom_stack_call_sources import _RECORDS,_shape
++    from .architecture_eligibility import _mask,_independent
++    if not any(r is record for r in _RECORDS.get(stream,())):raise ValueError('actual issued original prefix record required')
++    cert,graph=_validate(rom,parsed,stream,record['scope'])
++    if cert is not record['certificate']or graph is not record['graph']or _graph_digest(rom,graph)!=record['graph_sha']or scope_context(record['scope'])!=(record['options_sha'],record['role_sha'])or _digest(list(record['rows']))!=record['row_sha']or _digest((record['start'],record['graph_sha'],record['keys'],record['rows'],record['options_sha'],record['role_sha']))!=record['seal']:raise ValueError('original prefix record mutated')
++    keys=_shape(rom,graph)
++    if keys is None or tuple((k.pc,k.m,k.x)for k in keys)!=record['keys']or len(record['rows'])!=2:raise ValueError('original whole prefix source changed')
++    for key,row in zip(keys,record['rows']):
++        if tuple(row[f]for f in('pc24','m','x'))!=(key.pc,key.m,key.x)or _mask(parsed,key.pc,row['length'])or not _role_ok(cert,key.pc,key.m,key.x,row['length'])or not _independent(rom,parsed,row):raise ValueError('original prefix canonical source refused')
++    callkey=keys[1];ins=graph.insns[callkey].insn;call=record['rows'][1]
++    if ins.opcode!=0x20 or ins.length!=3 or call['mnemonic']!='JSR'or call['original_scheduler_call']is not True or call['frame_bytes']!=2:raise ValueError('original JSR hardware frame required')
++    # Original codegen._emit_return_frame_push pushes site+2; RTS adds one.
++    # This is only numeric source eligibility, never a callee return assertion.
++    if require_inline and _inline_status(record,rom,parsed,stream)is not None:raise ValueError('queued parent lacks authenticated zero-inline source policy')
++    start=(callkey.pc&0xff0000)|(((callkey.pc&65535)+2+1)&65535)
++    return cert,graph,start
++
++
++def _queue_original(producer,stream,scope,rom,parsed):
++    from .architecture_rom_stack_dispatch_sources import _AFTERCALL_PRODUCER
++    from .architecture_rom_stack_call_sources import _RECORDS
++    if producer is not _AFTERCALL_PRODUCER or stream in _USED or stream in _RESULTS or stream in _RUNS:raise ValueError('live original completion issuer required')
++    records=[r for r in _RECORDS.get(stream,())if r['scope']is scope]
++    if not records:return # disabled/missing faithful collector supplies no request
++    if len(records)!=1:raise ValueError('ambiguous original issued CALL')
++    if scope in _QUEUED_SCOPES:raise ValueError('original CALL scope already queued')
++    _QUEUED_SCOPES.add(scope) # burn before full producer proof/callbacks
++    record=records[0];_parent(record,rom,parsed,stream,require_inline=False)
++    reason=_inline_status(record,rom,parsed,stream)
++    if reason is not None:
++        _INLINE_REFUSALS.setdefault(stream,[]).append({'target':record['start'],'source_call':list(record['keys'][1]),'reason':reason,'skipped_continuation_granted':False})
++        return
++    pending=_PENDING.setdefault(stream,[])
++    if any(r is record for r in pending):raise ValueError('original CALL request issued twice')
++    pending.append(record)
++
++
++class _Context:
++    def __init__(self,issuer,rom,parsed,stream,seen):
++        from .architecture_rom_stack_dispatch_sources import MAX_STARTS,MAX_DEPTH,MAX_INSNS
++        if issuer is not _ISSUER or type(seen)is not set or any(type(v)is not int for v in seen):raise ValueError('same live original attempted-PC ledger required')
++        if (MAX_STARTS,MAX_DEPTH,MAX_INSNS)!=(512,8,128):raise ValueError('original bound policy changed')
++        _CONTEXTS.add(self);self.rom=rom;self.parsed=parsed;self.stream=stream;self.seen=seen;self.old=frozenset(seen);self.attempted=set();self.graphs={};self.closed=False
++        _CONTEXT_PROOFS[self]=(rom,parsed,stream,seen,self.old,set(),{},{'phase':'active','snapshot':None})
++    def validate(self,*,completed=False):
++        proof=_CONTEXT_PROOFS.get(self)
++        if proof is None or any(a is not b for a,b in zip(proof[:4],(self.rom,self.parsed,self.stream,self.seen)))or proof[4]!=self.old or proof[5]!=self.attempted or proof[7]['phase']not in('active','sealed')or self.closed is not(proof[7]['phase']=='sealed'):raise ValueError('original shared budget identity/seal changed')
++        if self not in _CONTEXTS or proof[7]['phase']!=('sealed'if completed else'active')or not self.old.issubset(self.seen)or self.seen!=set(self.old)|self.attempted:raise ValueError('foreign/mutated shared original ledger')
++        if not self.stream._sealed or self.stream._rom_object is not self.rom or self.stream._parsed is not self.parsed:raise ValueError('original live context changed')
++        if set(self.graphs)!=set(proof[6])or any(self.graphs[k][0]is not v[0]or self.graphs[k][1]!=v[1]for k,v in proof[6].items()):raise ValueError('numeric child registry seal changed')
++        for graph,digest in self.graphs.values():
++            if _graph_digest(self.rom,graph)!=digest:raise ValueError('numeric child graph mutated')
++        if completed and proof[7]['snapshot']!=(tuple(sorted(self.old)),tuple(sorted(self.attempted)),len(self.seen)):raise ValueError('sealed original/typed/total ledger changed')
++    def seal(self):
++        self.validate() # only active -> sealed once, never a phase reset
++        phase=_CONTEXT_PROOFS[self][7]
++        phase['snapshot']=(tuple(sorted(self.old)),tuple(sorted(self.attempted)),len(self.seen))
++        phase['phase']='sealed';self.closed=True
++    def reserve(self,record,m,x):
++        from .architecture_rom_stack_dispatch_sources import MAX_STARTS,MAX_DEPTH
++        self.validate()
++        if type(m)is not int or type(x)is not int or m not in(0,1)or x not in(0,1):raise ValueError('exact typed child modes required')
++        cert,parent,start=_parent(record,self.rom,self.parsed,self.stream)
++        # Only actual original target depth0 -> numeric child depth1. No recursion.
++        depth=1
++        if depth>MAX_DEPTH:raise ValueError('original shared ancestry bound')
++        key=(start,m,x)
++        if key in self.attempted:return None,'duplicate typed child'
++        if start in self.old and (m,x)==(0,1):return None,'original M0X1 attempt already spent, including refusal'
++        if len(self.seen)>=MAX_STARTS:return None,'same original512 exhausted; no typed reservation available'
++        self.attempted.add(key);self.seen.add(key);_CONTEXT_PROOFS[self][5].add(key) # every reserved mode/refusal costs one
++        return _AfterCallPolicy(_ISSUER,self,record,key,depth),None
++
++
++class _AfterCallPolicy:
++    _target_only=True # original generic program CALL capture stays disabled
++    def __init__(self,issuer,context,record,key,depth):
++        if issuer is not _ISSUER or context not in _CONTEXTS or depth!=1 or key not in context.attempted:raise ValueError('private reserved depth1 source child required')
++        _POLICIES.add(self);self.context=context;self.record=record;self.key=key;self.depth=depth;self.used=False;self.graph=None
++        scope=record['scope'];self.options=dict(scope._options);self.options['data_regions']=list(scope._options.get('data_regions')or());self.role=dict(scope._role)
++        self.options_sha=_digest(self.options);self.role_sha=_digest(self.role)
++        _POLICY_PROOFS[self]=(context,record,key,depth,self.options_sha,self.role_sha)
++        _EMITTED[self]=(False,None)
++    def validate(self,*,completed=False):
++        proof=_POLICY_PROOFS.get(self)
++        if proof is None or proof[0]is not self.context or proof[1]is not self.record or proof[2:]!=(self.key,self.depth,self.options_sha,self.role_sha):raise ValueError('numeric child reservation/context seal changed')
++        emitted=_EMITTED.get(self)
++        if emitted is None or self.used is not emitted[0]or self.graph is not emitted[1]:raise ValueError('numeric emitter one-use state changed')
++        if self not in _POLICIES or self.depth!=1 or self.key not in self.context.attempted:raise ValueError('foreign numeric child policy')
++        self.context.validate(completed=completed);cert,parent,start=_parent(self.record,self.context.rom,self.context.parsed,self.context.stream)
++        if self.key[0]!=start or self.key[1]not in(0,1)or self.key[2]not in(0,1)or _digest(self.options)!=self.options_sha or _digest(self.role)!=self.role_sha:raise ValueError('numeric child context mutated')
++        if _digest(self.options)!=_digest(self.record['scope']._options)or _digest(self.role)!=_digest(self.record['scope']._role):raise ValueError('original target masks/roles weakened')
++        return cert
++    def record_graph(self,stream,rom,graph,bank,start,m,x,options,role):
++        from .decoder import FunctionDecodeGraph
++        from .architecture_rom_stack_dispatch_sources import MAX_INSNS,MAX_STARTS
++        if self in _EMITTING:raise ValueError('numeric child emission already consumed/in progress')
++        _EMITTING.add(self) # burn before original proof callbacks, including failure
++        self.validate()
++        if self.used or stream is not self.context.stream or rom is not self.context.rom or type(graph)is not FunctionDecodeGraph or (bank<<16|start,m,x)!=self.key or (graph.entry.pc,graph.entry.m,graph.entry.x)!=self.key or _digest(options)!=self.options_sha or _digest(role)!=self.role_sha or len(self.context.seen)>MAX_STARTS:raise ValueError('foreign/mutated/reused numeric child emission')
++        if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=MAX_INSNS:raise ValueError('numeric child authority/indirect/128 barrier')
++        self.used=True;self.graph=graph;_EMITTED[self]=(True,graph);entry=(graph,_graph_digest(rom,graph));self.context.graphs[id(graph)]=entry;_CONTEXT_PROOFS[self.context][6][id(graph)]=entry
++
++
++def _run_original(producer,stream,rom,parsed,seen,*,enabled):
++    from .architecture_rom_stack_dispatch_sources import _AFTERCALL_PRODUCER,_mapped,MAX_INSNS,MAX_STARTS,MAX_DEPTH
++    from .architecture_eligibility import _mask,_independent
++    from .architecture_task_sources import PURE_OPS
++    from .architecture_return_steps import SOURCE_RETURN_CONTRACT,validate_return
++    from .decoder import decode_function
++    from .emit_function import emit_function
++    if producer is not _AFTERCALL_PRODUCER or stream in _USED or stream in _RESULTS or stream in _RUNS:raise ValueError('one live original derive completion required')
++    _RUNS.add(stream) # consumed before callbacks; failed runs cannot be retried
++    requests=_PENDING.pop(stream,[])
++    if not enabled and requests:raise ValueError('disabled numeric child run has issued requests')
++    context=_Context(_ISSUER,rom,parsed,stream,seen);rows={};origins=[];refused=_INLINE_REFUSALS.pop(stream,[]);scopes=[]
++    if len(context.old)>MAX_STARTS:refused.append({'reason':'original attempted ledger already over512; all NEW child reservations refused','original_attempted_starts':len(context.old),'enabled':enabled})
++    for record in requests:
++        cert,parent,start=_parent(record,rom,parsed,stream)
++        for m,x in((0,0),(0,1),(1,0),(1,1)):
++            scope,reason=context.reserve(record,m,x);key=(start,m,x)
++            if scope is None:
++                refused.append({'source_call':list(record['keys'][1]),'start':list(key),'reason':reason});continue
++            scopes.append(scope);cert=scope.validate();bank=start>>16;options=scope.options;siblings=scope.role['sibling_entry_pcs']
++            if bank!=cert._parent._bank or not _mapped(rom,start,1)or _mask(parsed,start,1)or start&65535 in(siblings or()):
++                refused.append({'start':list(key),'reason':'original mapped/mask/sibling source boundary'});continue
++            try:
++                graph=decode_function(rom,bank,start&65535,m,x,max_insns=MAX_INSNS,data_regions=options['data_regions'],hle_dispatch=options['hle_dispatch'],sibling_entry_pcs=siblings,hle_entry_pcs=set(options['hle_func']or())|set(options['hle_spc_upload']or()),stop_on_unknown_callee_exit=True)
++            except RuntimeError as error:
++                if 'max_insns=128'not in str(error):raise
++                refused.append({'start':list(key),'reason':'original128 instruction graph bound'});continue
++            if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=MAX_INSNS:
++                refused.append({'start':list(key),'reason':'original authority/data/indirect/128 barrier'});continue
++            local=[]
++            emit_function(rom,bank,start&65535,m,x,func_name='DiscardedROMStackNumericAfterCall',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=graph.unknown_callee_exit_sites,native_region_collector=local,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
++            if not scope.used or scope.graph is None or _graph_digest(rom,scope.graph)!=_graph_digest(rom,graph):raise ValueError('original numeric emitter graph mismatch')
++            actual=scope.graph;candidates={}
++            for original in local:
++                row=dict(original);identity=tuple(row[f]for f in('pc24','m','x'));di=next((v for k,v in actual.insns.items()if(k.pc,k.m,k.x)==identity),None)
++                if di is None:raise ValueError('collector outside actual numeric graph')
++                if identity in candidates:raise ValueError('ambiguous original numeric collector')
++                ins=di.insn
++                if (row['mnemonic'],row['length'])!=(ins.mnem,ins.length):raise ValueError('original numeric collector source shape differs')
++                if ins.mnem not in PURE_OPS|{'RTS','RTL'}or ins.mnem in BARRIERS or getattr(ins,'const_z_fold_unconditional',False)or any(getattr(ins,f,None)for f in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr')):continue
++                if _mask(parsed,identity[0],ins.length)or not _role_ok(cert,*identity,ins.length):continue
++                if ins.mnem in('RTS','RTL'):
++                    row['source_return_contract']=SOURCE_RETURN_CONTRACT
++                    if not validate_return(rom,parsed,row):raise ValueError('present original numeric return collector malformed')
++                if not _independent(rom,parsed,row):raise ValueError('present original numeric canonical collector malformed')
++                candidates[identity]=row
++            todo=[actual.entry];allowed=set();barriers=[]
++            while todo:
++                k=todo.pop()
++                if k in allowed:continue
++                di=actual.insns.get(k);identity=(k.pc,k.m,k.x)
++                if di is None:continue
++                if identity not in candidates:barriers.append([*identity,di.insn.mnem]);continue
++                allowed.add(k)
++                if di.insn.mnem not in('RTS','RTL'):todo.extend(di.successors)
++            accepted=[]
++            for k in sorted(allowed,key=lambda k:(k.pc,k.m,k.x)):
++                identity=(k.pc,k.m,k.x);row=candidates[identity]
++                if identity in rows and rows[identity]!=row:raise ValueError('unequal numeric aftercall body')
++                rows[identity]=row;accepted.append(list(identity))
++            scope.validate()
++            origins.append({'parent_target':record['start'],'source_call':list(record['keys'][1]),'parent_graph_sha256':record['graph_sha'],'numeric_start':list(key),'depth':1,'source_graph_sha256':_graph_digest(rom,actual),'instruction_keys':accepted,'barriers':barriers,'unknown_calls':[list(v)for v in sorted(actual.unknown_callee_exit_sites)],'callee_exit_modes_added':False,'successor_mode_exported':False})
++    context.seal()
++    recipe={'contract':CONTRACT,'enabled':enabled,'origins':origins,'refused':refused,'original_attempted_starts':len(context.old),'typed_child_attempts':len(context.attempted),'total_shared_attempted_starts':len(seen),'original_ledger_overfull':len(context.old)>MAX_STARTS,'remaining_original_capacity':max(0,MAX_STARTS-len(context.old)),'typed_reservations_within_remaining_bound':len(context.attempted)<=max(0,MAX_STARTS-len(context.old)),'start_bound':MAX_STARTS,'graph_bound':MAX_INSNS,'depth_bound':MAX_DEPTH,'child_depth':1,'recursive_child_CALLs':False,'all_original_targets_processed_first':True,'typed_alternatives_each_charged':True,'mathematical_target_certificate_changed':False,'ordinary_roots_added':False,'callee_exit_modes_added':False,'caller_owner_added':False,'saved_history_exported':False,'task_ownership_changed':False,'original_E0_liveMX_guards_unchanged':True,'admitted_parent_inline_policy_authenticated':True,'known_nonzero_inline_skips_refused':True,'skipped_continuation_granted':False,'numeric_JSR_return':'original pushed site+2, RTS+1; no inline-data skip or static return assertion'}
++    output=[rows[k]for k in sorted(rows)]
++    _RESULTS[stream]=(output,recipe,_digest((output,recipe)),context,tuple(requests),tuple(scopes))
++
++
++def derive(rom,parsed,stream):
++    if stream in _USED or not stream._sealed or stream._rom_object is not rom or stream._parsed is not parsed:raise ValueError('one-use original numeric child consumer required')
++    _USED.add(stream)
++    result=_RESULTS.pop(stream,None)
++    if result is None:raise ValueError('original dispatch completion did not supply numeric children')
++    rows,recipe,seal,context,requests,scopes=result
++    context.validate(completed=True)
++    for record in requests:_parent(record,rom,parsed,stream)
++    for scope in scopes:scope.validate(completed=True)
++    from .architecture_eligibility import _mask,_independent
++    for row in rows:
++        if _mask(parsed,row['pc24'],row['length'])or not _independent(rom,parsed,row):raise ValueError('numeric child consume canonical/mask proof changed')
++    from .architecture_rom_stack_dispatch_sources import MAX_STARTS
++    if (recipe['original_attempted_starts'],recipe['typed_child_attempts'],recipe['total_shared_attempted_starts'])!=(len(context.old),len(context.attempted),len(context.seen))or len(context.old)+len(context.attempted)!=len(context.seen):raise ValueError('recipe original/typed/total does not match sealed actual ledger')
++    if recipe['original_ledger_overfull']is not(len(context.old)>MAX_STARTS)or recipe['remaining_original_capacity']!=max(0,MAX_STARTS-len(context.old))or recipe['typed_reservations_within_remaining_bound']is not True or len(context.attempted)>max(0,MAX_STARTS-len(context.old)):raise ValueError('new-family capacity report/ledger violates original bound')
++    if _digest((rows,recipe))!=seal:raise ValueError('numeric source rows/recipe mutated')
++    return rows,recipe
+diff --git a/recompiler/v2/architecture_rom_stack_dispatch_sources.py b/recompiler/v2/architecture_rom_stack_dispatch_sources.py
+--- a/recompiler/v2/architecture_rom_stack_dispatch_sources.py
++++ b/recompiler/v2/architecture_rom_stack_dispatch_sources.py
+@@ -10,6 +10,7 @@
+ _TARGETS=weakref.WeakSet()
+ _TAIL_PRODUCER=object()
+ _PREFIX_PRODUCER=object()
++_AFTERCALL_PRODUCER=object()
+ MAX_INSNS=128
+ MAX_STARTS=512
+ MAX_DEPTH=8
+@@ -173,6 +174,8 @@
+             _record_original_tail(_TAIL_PRODUCER,stream,scope,rom,parsed,local)
+             from .architecture_rom_stack_call_sources import _record_original_prefix
+             _record_original_prefix(_PREFIX_PRODUCER,stream,scope,rom,parsed,local,prefixes,enable_native_call_prefix=prefix_capture)
++            from .architecture_rom_stack_aftercall_sources import _queue_original
++            _queue_original(_AFTERCALL_PRODUCER,stream,scope,rom,parsed)
+             candidates={tuple(r[k]for k in('pc24','m','x')):r for r in local};todo=[actual.entry];allowed=set();barriers=[]
+             while todo:
+                 key=todo.pop()
+@@ -189,4 +192,7 @@
+                 rows[identity]=row;admitted.append(list(identity))
+             graphs.append({'target':start,'initial_m':0,'initial_x':1,'instruction_keys':admitted,'barriers':barriers,'unknown_calls':[list(k)for k in sorted(actual.unknown_callee_exit_sites)],'closure_depth':0})
+         cert._child_seal=_digest([(k,id(g),d)for k,(g,d)in sorted(cert._children.items())]);cert.validate(rom,parsed,stream)
+-    return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'producer_domains':domains,'graphs':graphs,'refused':refused,'starts_processed':len(seen),'graph_bound':MAX_INSNS,'start_bound':MAX_STARTS,'depth_bound':MAX_DEPTH,'no_direct_call_closure_in_initial_pure_family':True,'ordinary_roots_added':False,'caller_owner_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False,'saved_history_exported':False,'original_read_PHA_RTS_changed':False,'new_host_dispatch':False,'external_JSON_target_authority':False}
++    original_starts_processed=len(seen) # old recipe remains its original target-only counts
++    from .architecture_rom_stack_aftercall_sources import _run_original
++    _run_original(_AFTERCALL_PRODUCER,stream,rom,parsed,seen,enabled=enable_native_call_prefix)
++    return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'producer_domains':domains,'graphs':graphs,'refused':refused,'starts_processed':original_starts_processed,'graph_bound':MAX_INSNS,'start_bound':MAX_STARTS,'depth_bound':MAX_DEPTH,'no_direct_call_closure_in_initial_pure_family':True,'ordinary_roots_added':False,'caller_owner_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False,'saved_history_exported':False,'original_read_PHA_RTS_changed':False,'new_host_dispatch':False,'external_JSON_target_authority':False}
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 55
++CACHE_FORMAT_VERSION = 57
+ 
+ # â”€â”€ Program modules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1070,8 +1070,8 @@
+         rom_sha256_hex = hashlib.sha256(rom).hexdigest()
+     if rom_size is None:
+         rom_size = len(rom)
+-    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 56
+-    output_normal_format=40 if architecture_baseline is None else 41
++    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 58
++    output_normal_format=42 if architecture_baseline is None else 43
+     from .faithful_prefix import prefix_contracts
+     from .emit_function import set_faithful_prefix_contracts
+     set_faithful_prefix_contracts(prefix_contracts(manifest, parsed))
+@@ -1242,7 +1242,7 @@
+             bank_regions = []
+             from .architecture_emission_policy import _open_bank
+             original_policy_options={'data_regions':data_regions,'exclude_ranges':getattr(cfg,'exclude_ranges',None)if cfg is not None else None,'hle_func':getattr(cfg,'hle_func',None)if enable_hle and cfg is not None else None,'hle_spc_upload':getattr(cfg,'hle_spc_upload',None)if enable_hle and cfg is not None else None,'hle_dispatch':getattr(cfg,'hle_dispatch',None)if enable_hle and cfg is not None else None,'forced':{pc&0x7fffff for _b,_p,q in parsed for pc in getattr(q,'force_lle',())}}
+-            bank_policy_scope=_open_bank(program_call_stream,rom,manifest,bank,entries_by_bank.get(bank,[]),cfg,original_policy_options)
++            bank_policy_scope=_open_bank(program_call_stream,rom,manifest,bank,entries_by_bank.get(bank,[]),cfg,original_policy_options,inline_arg_map=inline_arg_map)
+             source = emit_bank(
+                 rom, bank, entries_by_bank.get(bank, []),
+                 dispatch_helpers=dict(dispatch_helpers) or None,

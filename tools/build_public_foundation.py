@@ -5,6 +5,7 @@ over an owner profile, or invents a gameplay qualification receipt.
 """
 from pathlib import Path
 import argparse,hashlib,json,os,re,shutil,subprocess,sys,time
+from dataclasses import dataclass
 
 ROOT=Path(__file__).resolve().parents[1]
 RUNTIME_URL='https://github.com/RetroPortingToolKit/snesrecomp.git'
@@ -123,8 +124,28 @@ SELECTED_TASK_SOURCE_NAMES=('recompiler/v2/cfg_loader.py', 'recompiler/v2/emit_f
 
 # Ordered authored runtime deltas retain exact predecessor and final identities.
 # Generated game files are not inputs and compilation never grants qualification.
-RUNTIME_EXTENSION_SPECS = ({'name': 'runtime-original-call-retention', 'patch_sha256': 'f89a5e4b7fc3716f4a440353cc1392a3fcb4ee003fc671f033e3ed30fd09b985', 'binding_sha256': '74fd49aad510fbc0f4d3a3e97b7bef768ad56c3913ab171d9c731a18f8c7236f', 'files': ['recompiler/v2/codegen.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/native_call_prefix.py', 'recompiler/v2/native_regions.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_original_calls.py', 'recompiler/v2/task_resume.py', 'runner/src/common_rtl.c', 'runner/src/cpu_state.c', 'runner/src/cpu_state.h', 'runner/src/desktop/host_main.c', 'runner/src/snes/bridge_task_call.inc', 'runner/src/snes/bridge_task_helpers.inc', 'runner/src/snes/bridge_task_original_runtime.inc', 'runner/src/snes/interp816.c', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/snes.c', 'runner/src/task_original_call_contract.h', 'runner/src/task_original_call_contract.inc'], 'new_files': ['recompiler/v2/task_original_calls.py', 'runner/src/snes/bridge_task_original_runtime.inc', 'runner/src/task_original_call_contract.h', 'runner/src/task_original_call_contract.inc'], 'unpatched_predecessors': {'recompiler/v2/codegen.py': '808a83ac6db1dbac912de8d30ca8ef10028e8b65978c153cbc8391a5e22cbbf0', 'recompiler/v2/emit_function.py': '42a3bb0ddf73a3e5db7757a6bd8919a8d36558a249f18dcc202c5083ee4db1a2', 'recompiler/v2/native_call_prefix.py': '9e7488609a26bff99600e21dbcc65d093d3ace1b1f4f43c26ea87fe08eef08dc', 'recompiler/v2/native_regions.py': 'b2dcb0b24b013f2543e91e2a6d11475a474b71d4012cc42214e5ba2294b42268', 'recompiler/v2/program_emit.py': 'f7799a49fd4d331d74ecf5ef2ed347eb4866229406c7a5614f821dd76f624f6a', 'recompiler/v2/task_resume.py': '891b92e35838dcb348cef1ca43635053f15c26dc294d5e3a371bef99cc2b3e30', 'runner/src/common_rtl.c': 'e2146f5de96ff2a236de50f275525e10a7ad038f06448c9c06c38e9d3179ddb1', 'runner/src/cpu_state.c': '0a4b53ca254dd66aa81d0d232fc7ad3d29fb2a8739be16820a83c4129c4de7f7', 'runner/src/cpu_state.h': 'f045d10a22df9d2df8bc898da16d5032166e59744ed49c72aaa5286336d409c4', 'runner/src/desktop/host_main.c': '06adadb980c4eccb4393a3f2abdd258503b1647f66b795bb7bd7a32d517a52f4', 'runner/src/snes/bridge_task_call.inc': 'f470728c8b39ff9767f01da473de9c9f173d473635c466bd9b324c59ca93fe74', 'runner/src/snes/bridge_task_helpers.inc': '86569e088973f03df80407ee37f687f6bc1b74d094b2054d20c2203561c46583', 'runner/src/snes/interp816.c': '658acf8afdac221e02b4eb7672512403c2a5c15f0d27c4822f2411d4451ab665', 'runner/src/snes/interp_bridge.c': '411b6e034dd60cca43010cd999345c6fb45f6572404db4c5937e550337468224', 'runner/src/snes/snes.c': '08dc7f6ab2d38a027bed9251ec1de5f03f9f23866eb2f2f0167b309e6da33245'}, 'metadata': {'cache_format': 22, 'normal_metadata': 9, 'task_metadata': 4, 'redirect_metadata': 1}}, {'name': 'runtime-long-jump-stack-indirect-y', 'patch_sha256': 'ec77e0a198c56713763920c1346aa80e7342d7c54d8c055633175781629afeb1', 'binding_sha256': '03c0e6a3c5a28c5aa84d68218ef5e82a6e875c284d6fa66e8ba96faf88dee885', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_regions.py', 'recompiler/v2/program_emit.py', 'runner/src/cpu_state.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'recompiler/v2/emit_function.py': '4d1e7fcea904e6c48137873ff335600064e51b2a7ec4b434bfd49c4c49980c76', 'recompiler/v2/native_regions.py': 'd7dc1fad195254c9e4477c0378fc00205d61c454334d711490cf859fa4a31b61', 'recompiler/v2/program_emit.py': '2779e661158a722dade40df67883d8dd852ad229ea23cad19beb412fa5357526', 'runner/src/cpu_state.h': 'a9c719580ebaa01f458d383512a89789d0f733abd54888db76125e7d75e71afd', 'runner/src/snes/interp_bridge.c': 'b5979f45857400eaa8127b00c545e5f62b21bed100b02cb87f768d690c1ab478'}, 'metadata': {'cache_format': 23, 'normal_metadata': 10, 'task_metadata': 4, 'redirect_metadata': 1}}, {'name': 'runtime-indirect-control', 'patch_sha256': '2b723cefdf7faa6dccad43702281a0fce561277a89900b69b4e8a52968bf5474', 'binding_sha256': '7a07b9f335179b41cb0806dbfe375dc8381646fd3612aca3d03dfe1cf216f2f1', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_indirect_control.py', 'recompiler/v2/program_emit.py', 'runner/src/cpu_state.h', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/native_indirect_control.py'], 'unpatched_predecessors': {'recompiler/v2/emit_function.py': '4d678e1baef47e68d0e8db122a7c52b7908e0a32885a77b68748117b64b7231d', 'recompiler/v2/program_emit.py': 'a94ac9107d4302480544ebf921269d01bd792de32e71d059db39a50840a952a7', 'runner/src/cpu_state.h': 'c8b7bc9e132b83e3e2e56b9b6a42d24f8ad7141c4e4301b16291ec6e379e092b', 'runner/src/snes/interp_bridge.c': '1f5345cfdabd7e90040351dc118ea1ffc2e9fa9518baf076632ff40fe1c6fee0'}, 'metadata': {'cache_format': 24, 'normal_metadata': 11, 'task_metadata': 4, 'redirect_metadata': 1}}, {'name': 'runtime-task-original-prefix', 'patch_sha256': 'b992641a8e331dab5f1c2edd7e5c7349163e150ba537179793cbd47c53a56683', 'binding_sha256': 'b3b92cdd08008832fff1caac30f586626e0dcc3e60534831ed6c3417dedac8bc', 'files': ['recompiler/v2/program_emit.py', 'recompiler/v2/task_resume.py', 'runner/src/cpu_state.h', 'runner/src/snes/bridge_task_call.inc', 'runner/src/snes/bridge_task_original_runtime.inc', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'recompiler/v2/program_emit.py': '55f4d98b9e9f84d0841f7aa57f71424dc75a91e793fbabc9422e1bc6915a87f8', 'recompiler/v2/task_resume.py': '07e5996369b4705e3dff34456730b953245d840f9cb1a99b850710b535a5c554', 'runner/src/cpu_state.h': 'cc3028ac50395b4da840d2f6bc3f43a6da841b2381cc3f84ebf4583a746fe59a', 'runner/src/snes/bridge_task_call.inc': '23248f7c92e1d025f3c2121732d8a9d9657d4848efa053d747d12b3b4e520b41', 'runner/src/snes/bridge_task_original_runtime.inc': 'fc2c3cd95cbda3ef4a6c9b7052378ada8c0e10445c35c79ac44a6afb8d311ed6', 'runner/src/snes/interp_bridge.c': '905b2e047797c39ef9407e6ed2f024481e1775ab71705842e748477e180380e0'}, 'metadata': {'cache_format': 25, 'normal_metadata': 11, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-interrupt-return', 'patch_sha256': '75926f688cc3dbd6dccc4ce3446976b0f6307f93c212533dae5bb25248d071a1', 'binding_sha256': '3ba0770eb6d5f13ae1a794bb7365ebe1f06ddb117ff2172786ee40b56efe3f10', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_interrupt_return.py', 'recompiler/v2/program_emit.py', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/native_interrupt_return.py'], 'unpatched_predecessors': {'recompiler/v2/emit_function.py': '02cf21790a4327524359b3ca504381f4a60cb76277ab816aaa0d941a16dcdb4b', 'recompiler/v2/program_emit.py': 'fe4ed2d530e308b814443c7bfa4419c7eeda2e01a6d0c3a0bd769fe7a081c265', 'runner/src/snes/interp_bridge.c': '0f0518b919603954cd89325a6e4cb5f9c5f12f9b3ded1bb860424bd1a7fc03b2'}, 'metadata': {'cache_format': 26, 'normal_metadata': 12, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-carry-emulation-exchange', 'patch_sha256': '629f510383cd70654d8a43fefe5eec30918a42ee8c7bdbb5343280ebe48a8075', 'binding_sha256': 'a7b94a2a879b6c19e432fc4b896e6159c286f47ee0541a71baf623422175e7b5', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_exchange.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/native_exchange.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 27, 'normal_metadata': 13, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-blockmove', 'patch_sha256': '0a1b15776666a61e2bbedd653fa658298314a2004869963d718061605d092570', 'binding_sha256': '6711b5cfcfdff92c5603784123fcaf16e48f47c7d34cf52f625aea1626567512', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_blockmove.py', 'recompiler/v2/program_emit.py', 'runner/src/cpu_state.h', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/native_blockmove.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 28, 'normal_metadata': 14, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-reset-bootstrap-emulation', 'patch_sha256': '6edc8dfe64015c9c896382627708cfb41db0b6ae5b8e3a6e55b62a1080dc1df9', 'binding_sha256': 'f428d6b7e01959c1de0a9b6ad1168754023b15659830b3d48d7dcacff9a6f199', 'files': ['recompiler/v2/native_bootstrap.py', 'recompiler/v2/native_regions.py', 'recompiler/v2/program_emit.py', 'runner/src/cpu_state.h', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/native_bootstrap.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 29, 'normal_metadata': 15, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-mode-successors', 'patch_sha256': 'b665988c08e87e23bb07da2cf9e7b0d40fcb61a10372fa1d933d2c0aaf851e08', 'binding_sha256': 'cb526acc78c3c26fad6e24fed58c6b6771325dfa1478e693dbb1d7372cb0bfc7', 'files': ['recompiler/v2/decoder.py', 'recompiler/v2/emit_bank.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/native_mode_successors.py', 'recompiler/v2/program_emit.py', 'tools/v2_emit.py'], 'new_files': ['recompiler/v2/native_mode_successors.py'], 'unpatched_predecessors': {'recompiler/v2/decoder.py': '155edb7da1b0398109d0b00d9ad472f5d9d46e89a79d7f2a713d290db7af708e', 'recompiler/v2/emit_bank.py': '003fbdba518e04145fbcde95e05694173915e602ed85df853dc3feb5ff670fe0', 'tools/v2_emit.py': 'fb7b1a3155618da2fa2f71a6a578fbbb61ae758b88339cde84bafb4d3f354866'}, 'metadata': {'cache_format': 30, 'normal_metadata': 16, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-source-suspend', 'patch_sha256': 'd833d7dc406ea9d4eb7c93c85af212522782d800ca2f1991ab1aa21e387eb1f4', 'binding_sha256': '7c547ed65e281fae59b304f5f93fed78259f80c5b8630139f2f28993c708b9b3', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_regions.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/source_redirect.py', 'recompiler/v2/task_resume.py', 'recompiler/v2/task_suspend.py', 'runner/src/common_rtl.c', 'runner/src/cpu_state.c', 'runner/src/cpu_state.h', 'runner/src/snes/bridge_task_call.inc', 'runner/src/snes/bridge_task_original_runtime.inc', 'runner/src/snes/bridge_task_suspend.inc', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/snes.c', 'runner/src/task_resume_contract.inc', 'runner/src/task_suspend_lineage.h', 'runner/src/task_suspend_lineage.inc'], 'new_files': ['recompiler/v2/task_suspend.py', 'runner/src/snes/bridge_task_suspend.inc', 'runner/src/task_suspend_lineage.h', 'runner/src/task_suspend_lineage.inc'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 31, 'normal_metadata': 16, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-architecture-eligibility', 'patch_sha256': '49127b9014e96faa4d2cc50d1515bc29d4f5d6d78c81e48201ff89caedfaa368', 'binding_sha256': '216ba88dcc9d792fb10c050e66f3090d0bff0249187d8a1f6d4254b9055db4d8', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_ff20_sources.py', 'recompiler/v2/program_emit.py', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_ff20_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 32, 'normal_metadata': 17, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-turbo-cadence', 'patch_sha256': 'cfb88676320da4f5ae5f1144e5814a307ecc70c689ed48ba13dc6d6964859dc7', 'binding_sha256': '7495d2b5cfb54642b6d53c38e8d6de2d24f440b5f3abaa0b7d5a216caafcd817', 'files': ['runner/src/common_rtl.c', 'runner/src/common_rtl.h', 'runner/src/desktop/host_main.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/common_rtl.h': 'f6efb33932de8c1adf8d23b1313d3d3af79fc17f30d2e634240e05750d0d6ad8'}, 'metadata': {'cache_format': 32, 'normal_metadata': 17, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-return-instructions', 'patch_sha256': '450ce03ce31486317ad2108cce99a80e6c119ccf3f760f8862bb11baaf4a8fad', 'binding_sha256': '136906a9a6e78c321870d0cf8bba1c19075a3acde5e04387a500d0dc1c10ce27', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_return_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_return_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 33, 'normal_metadata': 18, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-callee-instructions', 'patch_sha256': '9070328b96b9df5c2a32f73c2d927c4ef5467993718d9fc197957740f5efa4c6', 'binding_sha256': '131021104fd513c11750348fd4cef24fa28c4472d2c38ab55c97bfe051dbfb70', 'files': ['recompiler/v2/architecture_callee_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_callee_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 34, 'normal_metadata': 19, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-dynamic-p-instructions', 'patch_sha256': 'c3a2205226e3594f163ae6252f26e9433ab6ddb98824600e5b7769592c64e16c', 'binding_sha256': '76d70ff5f6b58158dff0c945af6c64670f3ed7bc02f4bee0e0c728780b3dbe0e', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_mode_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_mode_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 35, 'normal_metadata': 20, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-nested-instructions', 'patch_sha256': '65bb7bfed0c31b7b7f03c04441344a1aa9a1e46d55b7416246110ecb38f1f2ac', 'binding_sha256': '27beaefc7a9dcb997f88c8115a29784e6a3022e7151910d7d9aaae663ee474f7', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_nested_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_nested_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 36, 'normal_metadata': 21, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-frontier-dynamic-p', 'patch_sha256': '5486f4d47dc5ccb4cc0bc686d1e044c471d85bc142316c8dcbdf2380b7e77348', 'binding_sha256': '15f03ed4f721e84ee8c2a8118b6ae2e33c721f0844a4f8369949636159665627', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_frontier_mode_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_frontier_mode_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 37, 'normal_metadata': 22, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-source-return-steps', 'patch_sha256': '0e0b689fb492bb1369077fb09161f9bb18f0d1ab1acbefa40c6ffdca977c6bab', 'binding_sha256': 'dd0103e5ef9e8136d136726796a04606af63918a083db90012bf0f06e5d87981', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_return_steps.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_return_steps.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 38, 'normal_metadata': 23, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-aftercall-source-closure', 'patch_sha256': '3a85c417735b1bd306249997309ef9bb84edd03d696b5c5d2e9429ced253b8cb', 'binding_sha256': '1173e66d76c869542ba579fbf9e97824f3e7dd6e9d51a425b45dbced923417b3', 'files': ['recompiler/v2/architecture_aftercall_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_aftercall_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 39, 'normal_metadata': 24, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-callable-progress', 'patch_sha256': 'ee55a567f53c2ae3e8a81755bda7954a3b835d19bad8cc56db84156e243cce45', 'binding_sha256': '3cc05733c99b159cad095ad5403b00c7cf1e80c0489db97a92fde5dfb97a1bd0', 'files': ['runner/src/snes/bridge_callable_progress120.inc', 'runner/src/snes/interp_bridge.c'], 'new_files': ['runner/src/snes/bridge_callable_progress120.inc'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 39, 'normal_metadata': 24, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-aftercall-dynamic-p', 'patch_sha256': '60f125101ac09a19597b603b447d94c1a12184489939dd6b4e5bf398962bb086', 'binding_sha256': 'cc4cfefeaf592fae00fe9a4fdbcb44281b8b3400ed610cc16a9a836f6c49485c', 'files': ['recompiler/v2/architecture_aftercall_mode_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_aftercall_mode_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 40, 'normal_metadata': 25, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-aftercall-return-steps', 'patch_sha256': '6b9b70845fba69f83d767bf9b46589faa4c890925fe2a9cd28b10e322fbe0448', 'binding_sha256': 'a9293f1e82cb43b2da71f5d736c7aab1f34a5fb77701a344538629416103fe29', 'files': ['recompiler/v2/architecture_return_steps.py'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 40, 'normal_metadata': 25, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-program-call-closure', 'patch_sha256': '02850a53c3ab8ea3325c47af212fbbfe9227a4288b917799dd640bcc553a3152', 'binding_sha256': '4eb27f737c789efca37600ab08101f71956b39c160769b207e33b2dbaa64ed6d', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_program_call_sources.py', 'recompiler/v2/emit_bank.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_program_call_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 41, 'normal_metadata': 26, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-program-dynamic-p', 'patch_sha256': '83a9952d653f6093f1c95852f9387c8fb46cc4fccf81b73d17bcb714266fb87f', 'binding_sha256': 'c93de89cb9ab11a8435a5f56b65543e92ddc25d0d75ef41361e88dbcdfa50515', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_program_mode_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_program_mode_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 42, 'normal_metadata': 27, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-emission-bank-policy', 'patch_sha256': '7f0f267443396966a0221d56dca551bcba8c395c29c6e22898fd4d83bb39c137', 'binding_sha256': '367f984ab2fe5d5cf917a0c08d7fcc5f1ced82c6893796d288f326ae3d38f4b7', 'files': ['recompiler/v2/architecture_emission_policy.py', 'recompiler/v2/architecture_program_call_sources.py', 'recompiler/v2/architecture_program_mode_sources.py', 'recompiler/v2/emit_bank.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/native_mode_successors.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_emission_policy.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 43, 'normal_metadata': 28, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-combined-frontier-returns', 'patch_sha256': '9be41b96abd51f81cca9b6bcb2a35fa076e9f544e425d52d517b07cc1f107b16', 'binding_sha256': '36f31d1030f5e2c2088fad1949cb5d0353f1f7c39caad2a6536dfd8a4d46a5f8', 'files': ['recompiler/v2/architecture_architectural_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_program_call_sources.py', 'recompiler/v2/architecture_program_mode_sources.py', 'recompiler/v2/architecture_program_return_sources.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/native_reserved_wdm.py', 'recompiler/v2/program_emit.py', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/architecture_architectural_sources.py', 'recompiler/v2/architecture_program_return_sources.py', 'recompiler/v2/native_reserved_wdm.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 44, 'normal_metadata': 29, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-task-pure-instructions', 'patch_sha256': 'd29219e692a2b7f4f3050ca1aecaae6d3666ae1b402ab70b62dc15b4d5387aa8', 'binding_sha256': 'f703651bda6e515bc9db1e116dd31e11d49eb049bf9b4f1320348fdd1c06da69', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_task_sources.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_resume.py'], 'new_files': ['recompiler/v2/architecture_task_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 45, 'normal_metadata': 30, 'task_metadata': 6, 'redirect_metadata': 1}})
-RUNTIME_GENERATION_FORMATS = {'cache':45,'normal':30,'task':6,'redirect':1}
+RUNTIME_EXTENSION_SPECS = ({'name': 'runtime-original-call-retention', 'patch_sha256': 'f89a5e4b7fc3716f4a440353cc1392a3fcb4ee003fc671f033e3ed30fd09b985', 'binding_sha256': '74fd49aad510fbc0f4d3a3e97b7bef768ad56c3913ab171d9c731a18f8c7236f', 'files': ['recompiler/v2/codegen.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/native_call_prefix.py', 'recompiler/v2/native_regions.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_original_calls.py', 'recompiler/v2/task_resume.py', 'runner/src/common_rtl.c', 'runner/src/cpu_state.c', 'runner/src/cpu_state.h', 'runner/src/desktop/host_main.c', 'runner/src/snes/bridge_task_call.inc', 'runner/src/snes/bridge_task_helpers.inc', 'runner/src/snes/bridge_task_original_runtime.inc', 'runner/src/snes/interp816.c', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/snes.c', 'runner/src/task_original_call_contract.h', 'runner/src/task_original_call_contract.inc'], 'new_files': ['recompiler/v2/task_original_calls.py', 'runner/src/snes/bridge_task_original_runtime.inc', 'runner/src/task_original_call_contract.h', 'runner/src/task_original_call_contract.inc'], 'unpatched_predecessors': {'recompiler/v2/codegen.py': '808a83ac6db1dbac912de8d30ca8ef10028e8b65978c153cbc8391a5e22cbbf0', 'recompiler/v2/emit_function.py': '42a3bb0ddf73a3e5db7757a6bd8919a8d36558a249f18dcc202c5083ee4db1a2', 'recompiler/v2/native_call_prefix.py': '9e7488609a26bff99600e21dbcc65d093d3ace1b1f4f43c26ea87fe08eef08dc', 'recompiler/v2/native_regions.py': 'b2dcb0b24b013f2543e91e2a6d11475a474b71d4012cc42214e5ba2294b42268', 'recompiler/v2/program_emit.py': 'f7799a49fd4d331d74ecf5ef2ed347eb4866229406c7a5614f821dd76f624f6a', 'recompiler/v2/task_resume.py': '891b92e35838dcb348cef1ca43635053f15c26dc294d5e3a371bef99cc2b3e30', 'runner/src/common_rtl.c': 'e2146f5de96ff2a236de50f275525e10a7ad038f06448c9c06c38e9d3179ddb1', 'runner/src/cpu_state.c': '0a4b53ca254dd66aa81d0d232fc7ad3d29fb2a8739be16820a83c4129c4de7f7', 'runner/src/cpu_state.h': 'f045d10a22df9d2df8bc898da16d5032166e59744ed49c72aaa5286336d409c4', 'runner/src/desktop/host_main.c': '06adadb980c4eccb4393a3f2abdd258503b1647f66b795bb7bd7a32d517a52f4', 'runner/src/snes/bridge_task_call.inc': 'f470728c8b39ff9767f01da473de9c9f173d473635c466bd9b324c59ca93fe74', 'runner/src/snes/bridge_task_helpers.inc': '86569e088973f03df80407ee37f687f6bc1b74d094b2054d20c2203561c46583', 'runner/src/snes/interp816.c': '658acf8afdac221e02b4eb7672512403c2a5c15f0d27c4822f2411d4451ab665', 'runner/src/snes/interp_bridge.c': '411b6e034dd60cca43010cd999345c6fb45f6572404db4c5937e550337468224', 'runner/src/snes/snes.c': '08dc7f6ab2d38a027bed9251ec1de5f03f9f23866eb2f2f0167b309e6da33245'}, 'metadata': {'cache_format': 22, 'normal_metadata': 9, 'task_metadata': 4, 'redirect_metadata': 1}}, {'name': 'runtime-long-jump-stack-indirect-y', 'patch_sha256': 'ec77e0a198c56713763920c1346aa80e7342d7c54d8c055633175781629afeb1', 'binding_sha256': '03c0e6a3c5a28c5aa84d68218ef5e82a6e875c284d6fa66e8ba96faf88dee885', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_regions.py', 'recompiler/v2/program_emit.py', 'runner/src/cpu_state.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'recompiler/v2/emit_function.py': '4d1e7fcea904e6c48137873ff335600064e51b2a7ec4b434bfd49c4c49980c76', 'recompiler/v2/native_regions.py': 'd7dc1fad195254c9e4477c0378fc00205d61c454334d711490cf859fa4a31b61', 'recompiler/v2/program_emit.py': '2779e661158a722dade40df67883d8dd852ad229ea23cad19beb412fa5357526', 'runner/src/cpu_state.h': 'a9c719580ebaa01f458d383512a89789d0f733abd54888db76125e7d75e71afd', 'runner/src/snes/interp_bridge.c': 'b5979f45857400eaa8127b00c545e5f62b21bed100b02cb87f768d690c1ab478'}, 'metadata': {'cache_format': 23, 'normal_metadata': 10, 'task_metadata': 4, 'redirect_metadata': 1}}, {'name': 'runtime-indirect-control', 'patch_sha256': '2b723cefdf7faa6dccad43702281a0fce561277a89900b69b4e8a52968bf5474', 'binding_sha256': '7a07b9f335179b41cb0806dbfe375dc8381646fd3612aca3d03dfe1cf216f2f1', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_indirect_control.py', 'recompiler/v2/program_emit.py', 'runner/src/cpu_state.h', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/native_indirect_control.py'], 'unpatched_predecessors': {'recompiler/v2/emit_function.py': '4d678e1baef47e68d0e8db122a7c52b7908e0a32885a77b68748117b64b7231d', 'recompiler/v2/program_emit.py': 'a94ac9107d4302480544ebf921269d01bd792de32e71d059db39a50840a952a7', 'runner/src/cpu_state.h': 'c8b7bc9e132b83e3e2e56b9b6a42d24f8ad7141c4e4301b16291ec6e379e092b', 'runner/src/snes/interp_bridge.c': '1f5345cfdabd7e90040351dc118ea1ffc2e9fa9518baf076632ff40fe1c6fee0'}, 'metadata': {'cache_format': 24, 'normal_metadata': 11, 'task_metadata': 4, 'redirect_metadata': 1}}, {'name': 'runtime-task-original-prefix', 'patch_sha256': 'b992641a8e331dab5f1c2edd7e5c7349163e150ba537179793cbd47c53a56683', 'binding_sha256': 'b3b92cdd08008832fff1caac30f586626e0dcc3e60534831ed6c3417dedac8bc', 'files': ['recompiler/v2/program_emit.py', 'recompiler/v2/task_resume.py', 'runner/src/cpu_state.h', 'runner/src/snes/bridge_task_call.inc', 'runner/src/snes/bridge_task_original_runtime.inc', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'recompiler/v2/program_emit.py': '55f4d98b9e9f84d0841f7aa57f71424dc75a91e793fbabc9422e1bc6915a87f8', 'recompiler/v2/task_resume.py': '07e5996369b4705e3dff34456730b953245d840f9cb1a99b850710b535a5c554', 'runner/src/cpu_state.h': 'cc3028ac50395b4da840d2f6bc3f43a6da841b2381cc3f84ebf4583a746fe59a', 'runner/src/snes/bridge_task_call.inc': '23248f7c92e1d025f3c2121732d8a9d9657d4848efa053d747d12b3b4e520b41', 'runner/src/snes/bridge_task_original_runtime.inc': 'fc2c3cd95cbda3ef4a6c9b7052378ada8c0e10445c35c79ac44a6afb8d311ed6', 'runner/src/snes/interp_bridge.c': '905b2e047797c39ef9407e6ed2f024481e1775ab71705842e748477e180380e0'}, 'metadata': {'cache_format': 25, 'normal_metadata': 11, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-interrupt-return', 'patch_sha256': '75926f688cc3dbd6dccc4ce3446976b0f6307f93c212533dae5bb25248d071a1', 'binding_sha256': '3ba0770eb6d5f13ae1a794bb7365ebe1f06ddb117ff2172786ee40b56efe3f10', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_interrupt_return.py', 'recompiler/v2/program_emit.py', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/native_interrupt_return.py'], 'unpatched_predecessors': {'recompiler/v2/emit_function.py': '02cf21790a4327524359b3ca504381f4a60cb76277ab816aaa0d941a16dcdb4b', 'recompiler/v2/program_emit.py': 'fe4ed2d530e308b814443c7bfa4419c7eeda2e01a6d0c3a0bd769fe7a081c265', 'runner/src/snes/interp_bridge.c': '0f0518b919603954cd89325a6e4cb5f9c5f12f9b3ded1bb860424bd1a7fc03b2'}, 'metadata': {'cache_format': 26, 'normal_metadata': 12, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-carry-emulation-exchange', 'patch_sha256': '629f510383cd70654d8a43fefe5eec30918a42ee8c7bdbb5343280ebe48a8075', 'binding_sha256': 'a7b94a2a879b6c19e432fc4b896e6159c286f47ee0541a71baf623422175e7b5', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_exchange.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/native_exchange.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 27, 'normal_metadata': 13, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-blockmove', 'patch_sha256': '0a1b15776666a61e2bbedd653fa658298314a2004869963d718061605d092570', 'binding_sha256': '6711b5cfcfdff92c5603784123fcaf16e48f47c7d34cf52f625aea1626567512', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_blockmove.py', 'recompiler/v2/program_emit.py', 'runner/src/cpu_state.h', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/native_blockmove.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 28, 'normal_metadata': 14, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-reset-bootstrap-emulation', 'patch_sha256': '6edc8dfe64015c9c896382627708cfb41db0b6ae5b8e3a6e55b62a1080dc1df9', 'binding_sha256': 'f428d6b7e01959c1de0a9b6ad1168754023b15659830b3d48d7dcacff9a6f199', 'files': ['recompiler/v2/native_bootstrap.py', 'recompiler/v2/native_regions.py', 'recompiler/v2/program_emit.py', 'runner/src/cpu_state.h', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/native_bootstrap.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 29, 'normal_metadata': 15, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-mode-successors', 'patch_sha256': 'b665988c08e87e23bb07da2cf9e7b0d40fcb61a10372fa1d933d2c0aaf851e08', 'binding_sha256': 'cb526acc78c3c26fad6e24fed58c6b6771325dfa1478e693dbb1d7372cb0bfc7', 'files': ['recompiler/v2/decoder.py', 'recompiler/v2/emit_bank.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/native_mode_successors.py', 'recompiler/v2/program_emit.py', 'tools/v2_emit.py'], 'new_files': ['recompiler/v2/native_mode_successors.py'], 'unpatched_predecessors': {'recompiler/v2/decoder.py': '155edb7da1b0398109d0b00d9ad472f5d9d46e89a79d7f2a713d290db7af708e', 'recompiler/v2/emit_bank.py': '003fbdba518e04145fbcde95e05694173915e602ed85df853dc3feb5ff670fe0', 'tools/v2_emit.py': 'fb7b1a3155618da2fa2f71a6a578fbbb61ae758b88339cde84bafb4d3f354866'}, 'metadata': {'cache_format': 30, 'normal_metadata': 16, 'task_metadata': 5, 'redirect_metadata': 1}}, {'name': 'runtime-source-suspend', 'patch_sha256': 'd833d7dc406ea9d4eb7c93c85af212522782d800ca2f1991ab1aa21e387eb1f4', 'binding_sha256': '7c547ed65e281fae59b304f5f93fed78259f80c5b8630139f2f28993c708b9b3', 'files': ['recompiler/v2/emit_function.py', 'recompiler/v2/native_regions.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/source_redirect.py', 'recompiler/v2/task_resume.py', 'recompiler/v2/task_suspend.py', 'runner/src/common_rtl.c', 'runner/src/cpu_state.c', 'runner/src/cpu_state.h', 'runner/src/snes/bridge_task_call.inc', 'runner/src/snes/bridge_task_original_runtime.inc', 'runner/src/snes/bridge_task_suspend.inc', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/snes.c', 'runner/src/task_resume_contract.inc', 'runner/src/task_suspend_lineage.h', 'runner/src/task_suspend_lineage.inc'], 'new_files': ['recompiler/v2/task_suspend.py', 'runner/src/snes/bridge_task_suspend.inc', 'runner/src/task_suspend_lineage.h', 'runner/src/task_suspend_lineage.inc'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 31, 'normal_metadata': 16, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-architecture-eligibility', 'patch_sha256': '49127b9014e96faa4d2cc50d1515bc29d4f5d6d78c81e48201ff89caedfaa368', 'binding_sha256': '216ba88dcc9d792fb10c050e66f3090d0bff0249187d8a1f6d4254b9055db4d8', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_ff20_sources.py', 'recompiler/v2/program_emit.py', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_ff20_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 32, 'normal_metadata': 17, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-turbo-cadence', 'patch_sha256': 'cfb88676320da4f5ae5f1144e5814a307ecc70c689ed48ba13dc6d6964859dc7', 'binding_sha256': '7495d2b5cfb54642b6d53c38e8d6de2d24f440b5f3abaa0b7d5a216caafcd817', 'files': ['runner/src/common_rtl.c', 'runner/src/common_rtl.h', 'runner/src/desktop/host_main.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/common_rtl.h': 'f6efb33932de8c1adf8d23b1313d3d3af79fc17f30d2e634240e05750d0d6ad8'}, 'metadata': {'cache_format': 32, 'normal_metadata': 17, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-return-instructions', 'patch_sha256': '450ce03ce31486317ad2108cce99a80e6c119ccf3f760f8862bb11baaf4a8fad', 'binding_sha256': '136906a9a6e78c321870d0cf8bba1c19075a3acde5e04387a500d0dc1c10ce27', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_return_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_return_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 33, 'normal_metadata': 18, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-callee-instructions', 'patch_sha256': '9070328b96b9df5c2a32f73c2d927c4ef5467993718d9fc197957740f5efa4c6', 'binding_sha256': '131021104fd513c11750348fd4cef24fa28c4472d2c38ab55c97bfe051dbfb70', 'files': ['recompiler/v2/architecture_callee_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_callee_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 34, 'normal_metadata': 19, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-dynamic-p-instructions', 'patch_sha256': 'c3a2205226e3594f163ae6252f26e9433ab6ddb98824600e5b7769592c64e16c', 'binding_sha256': '76d70ff5f6b58158dff0c945af6c64670f3ed7bc02f4bee0e0c728780b3dbe0e', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_mode_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_mode_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 35, 'normal_metadata': 20, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-nested-instructions', 'patch_sha256': '65bb7bfed0c31b7b7f03c04441344a1aa9a1e46d55b7416246110ecb38f1f2ac', 'binding_sha256': '27beaefc7a9dcb997f88c8115a29784e6a3022e7151910d7d9aaae663ee474f7', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_nested_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_nested_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 36, 'normal_metadata': 21, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-frontier-dynamic-p', 'patch_sha256': '5486f4d47dc5ccb4cc0bc686d1e044c471d85bc142316c8dcbdf2380b7e77348', 'binding_sha256': '15f03ed4f721e84ee8c2a8118b6ae2e33c721f0844a4f8369949636159665627', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_frontier_mode_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_frontier_mode_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 37, 'normal_metadata': 22, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-source-return-steps', 'patch_sha256': '0e0b689fb492bb1369077fb09161f9bb18f0d1ab1acbefa40c6ffdca977c6bab', 'binding_sha256': 'dd0103e5ef9e8136d136726796a04606af63918a083db90012bf0f06e5d87981', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_return_steps.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_return_steps.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 38, 'normal_metadata': 23, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-aftercall-source-closure', 'patch_sha256': '3a85c417735b1bd306249997309ef9bb84edd03d696b5c5d2e9429ced253b8cb', 'binding_sha256': '1173e66d76c869542ba579fbf9e97824f3e7dd6e9d51a425b45dbced923417b3', 'files': ['recompiler/v2/architecture_aftercall_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_aftercall_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 39, 'normal_metadata': 24, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-callable-progress', 'patch_sha256': 'ee55a567f53c2ae3e8a81755bda7954a3b835d19bad8cc56db84156e243cce45', 'binding_sha256': '3cc05733c99b159cad095ad5403b00c7cf1e80c0489db97a92fde5dfb97a1bd0', 'files': ['runner/src/snes/bridge_callable_progress120.inc', 'runner/src/snes/interp_bridge.c'], 'new_files': ['runner/src/snes/bridge_callable_progress120.inc'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 39, 'normal_metadata': 24, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-aftercall-dynamic-p', 'patch_sha256': '60f125101ac09a19597b603b447d94c1a12184489939dd6b4e5bf398962bb086', 'binding_sha256': 'cc4cfefeaf592fae00fe9a4fdbcb44281b8b3400ed610cc16a9a836f6c49485c', 'files': ['recompiler/v2/architecture_aftercall_mode_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_aftercall_mode_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 40, 'normal_metadata': 25, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-aftercall-return-steps', 'patch_sha256': '6b9b70845fba69f83d767bf9b46589faa4c890925fe2a9cd28b10e322fbe0448', 'binding_sha256': 'a9293f1e82cb43b2da71f5d736c7aab1f34a5fb77701a344538629416103fe29', 'files': ['recompiler/v2/architecture_return_steps.py'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 40, 'normal_metadata': 25, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-program-call-closure', 'patch_sha256': '02850a53c3ab8ea3325c47af212fbbfe9227a4288b917799dd640bcc553a3152', 'binding_sha256': '4eb27f737c789efca37600ab08101f71956b39c160769b207e33b2dbaa64ed6d', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_program_call_sources.py', 'recompiler/v2/emit_bank.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_program_call_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 41, 'normal_metadata': 26, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-program-dynamic-p', 'patch_sha256': '83a9952d653f6093f1c95852f9387c8fb46cc4fccf81b73d17bcb714266fb87f', 'binding_sha256': 'c93de89cb9ab11a8435a5f56b65543e92ddc25d0d75ef41361e88dbcdfa50515', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_program_mode_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_program_mode_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 42, 'normal_metadata': 27, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-emission-bank-policy', 'patch_sha256': '7f0f267443396966a0221d56dca551bcba8c395c29c6e22898fd4d83bb39c137', 'binding_sha256': '367f984ab2fe5d5cf917a0c08d7fcc5f1ced82c6893796d288f326ae3d38f4b7', 'files': ['recompiler/v2/architecture_emission_policy.py', 'recompiler/v2/architecture_program_call_sources.py', 'recompiler/v2/architecture_program_mode_sources.py', 'recompiler/v2/emit_bank.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/native_mode_successors.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_emission_policy.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 43, 'normal_metadata': 28, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-combined-frontier-returns', 'patch_sha256': '9be41b96abd51f81cca9b6bcb2a35fa076e9f544e425d52d517b07cc1f107b16', 'binding_sha256': '36f31d1030f5e2c2088fad1949cb5d0353f1f7c39caad2a6536dfd8a4d46a5f8', 'files': ['recompiler/v2/architecture_architectural_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_program_call_sources.py', 'recompiler/v2/architecture_program_mode_sources.py', 'recompiler/v2/architecture_program_return_sources.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/native_reserved_wdm.py', 'recompiler/v2/program_emit.py', 'runner/src/snes/interp_bridge.c'], 'new_files': ['recompiler/v2/architecture_architectural_sources.py', 'recompiler/v2/architecture_program_return_sources.py', 'recompiler/v2/native_reserved_wdm.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 44, 'normal_metadata': 29, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-task-pure-instructions', 'patch_sha256': 'd29219e692a2b7f4f3050ca1aecaae6d3666ae1b402ab70b62dc15b4d5387aa8', 'binding_sha256': 'f703651bda6e515bc9db1e116dd31e11d49eb049bf9b4f1320348fdd1c06da69', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_task_sources.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_resume.py'], 'new_files': ['recompiler/v2/architecture_task_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 45, 'normal_metadata': 30, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-combined-rom-task-members', 'patch_sha256': 'f282b1b84704020de50091065c4eb942cf7736278a6769166b18d8ca49c9aa2c', 'binding_sha256': '6644647c74ee47442d622716ed734f6d0e88e64c278d82a0efa5f7a9ab426f91', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_emission_policy.py', 'recompiler/v2/architecture_rom_stack_dispatch_sources.py', 'recompiler/v2/architecture_task_member_sources.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_resume.py'], 'new_files': ['recompiler/v2/architecture_rom_stack_dispatch_sources.py', 'recompiler/v2/architecture_task_member_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 46, 'normal_metadata': 31, 'task_metadata': 6, 'redirect_metadata': 1}}, {'name': 'runtime-combined-initial-selected-task', 'patch_sha256': 'f56312d53e80e3d98cf03ba731ee405a963f50c3bb2488fcd5e503de531b86fe', 'binding_sha256': '590d57de7c43a2e2f8dc870def166e685b4b8c7918ecb447315ac4c095fc505d', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_emission_policy.py', 'recompiler/v2/architecture_initial_task_sources.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_resume.py', 'recompiler/v2/task_selected_member_sources.py', 'runner/src/snes/bridge_task_helpers.inc', 'runner/src/snes/interp_bridge.c', 'runner/src/task_selected_member_contract.h'], 'new_files': ['recompiler/v2/architecture_initial_task_sources.py', 'recompiler/v2/task_selected_member_sources.py', 'runner/src/task_selected_member_contract.h'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 47, 'normal_metadata': 32, 'task_metadata': 7, 'redirect_metadata': 1}}, {'name': 'runtime-combined-selected-call-parent-nested', 'patch_sha256': 'fd036fa13264f6bf06c1237330c05507afb83989970fb8b7ed8501d6a8d30f79', 'binding_sha256': '9b41058b1f92fe9908d1219f86f2b26779f72b0562d4ab9daf75a385e8fa8c70', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_emission_policy.py', 'recompiler/v2/architecture_initial_task_sources.py', 'recompiler/v2/architecture_nested_initial_task_sources.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_parent_member_sources.py', 'recompiler/v2/task_resume.py', 'recompiler/v2/task_selected_call_sources.py', 'runner/src/snes/bridge_task_call.inc', 'runner/src/snes/bridge_task_helpers.inc', 'runner/src/snes/interp_bridge.c', 'runner/src/task_parent_member_contract.h', 'runner/src/task_selected_call_contract.h'], 'new_files': ['recompiler/v2/architecture_nested_initial_task_sources.py', 'recompiler/v2/task_parent_member_sources.py', 'recompiler/v2/task_selected_call_sources.py', 'runner/src/task_parent_member_contract.h', 'runner/src/task_selected_call_contract.h'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 48, 'normal_metadata': 33, 'task_metadata': 8, 'redirect_metadata': 1}}, {'name': 'runtime-turbo-speed', 'patch_sha256': 'de81a499306a5c0c2a798cc3747bc4859c9d2023dc201c64c767290716513033', 'binding_sha256': '21d29cc3a174b6dfe89692ab7c04dcf5bbc39017b45560d1101f4540f1e744a5', 'files': ['runner/src/common_rtl.c', 'runner/src/common_rtl.h', 'runner/src/desktop/host_main.c'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 48, 'normal_metadata': 33, 'task_metadata': 8, 'redirect_metadata': 1}}, {'name': 'runtime-refined-ff20-source', 'patch_sha256': 'e4ea45154ee0889fe85e05f4899bb358d6cd004089ca21e1521664a712630a54', 'binding_sha256': 'de0f05e71772a1df5cfdf44836735e516ec0d0b1f0d4d51a2686e643d6c7675f', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_emission_policy.py', 'recompiler/v2/architecture_ff20_byte_dispatch_sources.py', 'recompiler/v2/architecture_known_callee_refinement_sources.py', 'recompiler/v2/architecture_nested_initial_task_sources.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_known_callee_refinement_sources.py', 'recompiler/v2/architecture_ff20_byte_dispatch_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 49, 'normal_metadata': 34, 'task_metadata': 8, 'redirect_metadata': 1}}, {'name': 'runtime-writer-fact-early-refusal', 'patch_sha256': '5a2f0ebad421b7abc033925766a9c6f2567e0cdcf1a70979b6253f2404e0c391', 'binding_sha256': 'ba5b9a4ce452ece8906c6dd6c9798c18d291309f39b5ab674515caf5836ad018', 'files': ['recompiler/v2/architecture_known_callee_refinement_sources.py'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 49, 'normal_metadata': 34, 'task_metadata': 8, 'redirect_metadata': 1}}, {'name': 'runtime-baseline-architecture-view', 'patch_sha256': 'babde8df16536358e6deb264883c430eaa9b7a1e549c90e6693708813379d325', 'binding_sha256': '61ff850c5d657abba0dab7dd9292ed3378f5c291b059f73c8ebc211f5dc1dba3', 'files': ['recompiler/v2/architecture_baseline_view.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/emit_bank.py', 'recompiler/v2/emit_function.py', 'recompiler/v2/program_emit.py', 'tools/v2_emit.py'], 'new_files': ['recompiler/v2/architecture_baseline_view.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 50, 'normal_metadata': 35, 'task_metadata': 8, 'redirect_metadata': 1}}, {'name': 'runtime-baseline-authored-symbols', 'patch_sha256': '65eb0d3f1d28528cefe04a0a03616c04d2f815a90ff4e1a666900141918c129f', 'binding_sha256': 'd664a35118c41523e1f7ee4ce663cf3004192863b21ab6ea8d603deaed2cf4e2', 'files': ['tools/v2_emit.py'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 50, 'normal_metadata': 35, 'task_metadata': 8, 'redirect_metadata': 1}}, {'name': 'runtime-nested-bank01-initializer', 'patch_sha256': 'a888b1e381b80248c2adc065740609a1f179c946889138b94b91ad712443a883', 'binding_sha256': 'e710b126f4c0b7ab0fc225ba6487a8c80bcfa9e239858dc77af6e21278b9cf1d', 'files': ['recompiler/v2/architecture_initial_task_sources.py', 'recompiler/v2/architecture_nested_initial_task_sources.py'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 50, 'normal_metadata': 35, 'task_metadata': 8, 'redirect_metadata': 1}}, {'name': 'runtime-declared-wait-call', 'patch_sha256': '3898eff444223ab0662a84f20f5b9c87bf763c5ca5539c4c527a024999184add', 'binding_sha256': '2e843d5216d0e0790103f0de4b234a171652508d791d9a8592bbf10e4594a727', 'files': ['recompiler/v2/architecture_baseline_view.py', 'recompiler/v2/architecture_declared_wait_call_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/program_emit.py', 'recompiler/v2/task_resume.py', 'recompiler/v2/task_selected_call_sources.py'], 'new_files': ['recompiler/v2/architecture_declared_wait_call_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 52, 'normal_metadata': 37, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-immutable-rom-digest', 'patch_sha256': 'baf5f1888836c49b988606e4533981d17db5d4f616e1cebd43ad2b0e38eb5d57', 'binding_sha256': '043f5f603bbf883bbd14dc5a020a4f8f83371e45027f19068d14fccd7edbf639', 'files': ['recompiler/v2/architecture_initial_task_sources.py'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 52, 'normal_metadata': 37, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-terminal-rom-source-tail', 'patch_sha256': '67c5f7480b217eb3acad1422fde383ea4aa19407a822a634c7993ca6222109e7', 'binding_sha256': 'c16a77be2650dc006267ef0a6972ea0132d20ebf569164c563750c9647e7f01a', 'files': ['recompiler/v2/architecture_baseline_view.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_rom_stack_dispatch_sources.py', 'recompiler/v2/architecture_rom_stack_tail_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_rom_stack_tail_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 54, 'normal_metadata': 39, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-rom-target-call-prefix', 'patch_sha256': '7a3b65e47761554b1590836b53528b0026805489b01019e05bb1140b5252c768', 'binding_sha256': '226b9dfbdfa6a3e09be787b7a699a399d7217b90ee471deaa2b4c2a814779099', 'files': ['recompiler/v2/architecture_rom_stack_dispatch_sources.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_baseline_view.py', 'recompiler/v2/architecture_rom_stack_call_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_rom_stack_call_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 56, 'normal_metadata': 41, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-rom-target-aftercall', 'patch_sha256': 'fcd51c1bb5860e0f236ba96df4e5c73e0dc0094e739ddfc9af055b07665be4b6', 'binding_sha256': 'a350b2a2f8af298d4f344999ac4c3540130ca442bb2fedd15f9fb86fd9ebbb8c', 'files': ['recompiler/v2/architecture_baseline_view.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_emission_policy.py', 'recompiler/v2/architecture_rom_stack_aftercall_sources.py', 'recompiler/v2/architecture_rom_stack_dispatch_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_rom_stack_aftercall_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 58, 'normal_metadata': 43, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-ff20-architectural-chain', 'patch_sha256': 'c5a298a4f6bac9f9c95747047901f73ea9422c4ff234bfab0530b7e537010d5a', 'binding_sha256': 'c1dde23669dd0fb1690179ee645d4d0ed3cdeb425d275db66913cfeabd3e7c78', 'files': ['recompiler/v2/architecture_baseline_view.py', 'recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_emission_policy.py', 'recompiler/v2/architecture_ff20_architectural_sources.py', 'recompiler/v2/architecture_ff20_byte_dispatch_sources.py', 'recompiler/v2/program_emit.py'], 'new_files': ['recompiler/v2/architecture_ff20_architectural_sources.py'], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-nested-validation-batch', 'patch_sha256': '5905a828635eab8e4d38726008efb15c066539c637ffc639ac11547d46dce4ad', 'binding_sha256': 'bf04e845fb54ef3842add245868dfff6d95e47650e6b7f76505390beda97991e', 'files': ['recompiler/v2/architecture_ff20_architectural_sources.py', 'recompiler/v2/architecture_nested_initial_task_sources.py'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-upstream-analyzer-identity', 'patch_sha256': '71c532452f0a21978c360efe920bdfe94c66e621a4a430dc9453c97c2b8b72c7', 'binding_sha256': '0a4e85b46516b1c489c27137eb430b59a2961df14fe3210a6111b0a423511a29', 'files': ['snesrecomp_cli.py', 'tools/build_native_analyzer.py', 'tools/native_analyzer_identity.py', 'tools/v2_analyze.py'], 'new_files': ['tools/native_analyzer_identity.py'], 'unpatched_predecessors': {'snesrecomp_cli.py': '9ba8a35b1062d64970f9a194dd1bc70578e0f2a6ccf675afdd94874aba561b8b', 'tools/build_native_analyzer.py': 'e222ce5e5a0ae8318e4e96a2e5333e8a8cbd3b4bc550771da6c339f61f2298d5', 'tools/v2_analyze.py': 'a6822404005b08641ba2f2ff217acf4e721c2409eb48401c8560b40a8123924f'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-requested-analysis-roots', 'patch_sha256': 'fd2b196c1d2438c3f499ebafd7afd21e210e6f6b8fb3212bef5c6d2740363498', 'binding_sha256': 'ccac7e4fe464432f34de70db4597e8f708ca5a4758d1fc9f48cef22a965ed77c', 'files': ['recompiler/v2/program_emit.py', 'tools/v2_emit.py'], 'new_files': [], 'unpatched_predecessors': {'tools/v2_emit.py': '9f98235b5a2705d3f268949b98b9f8d8260d08d15c408f754219576b4ffdf036'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-bank-validation-phase', 'patch_sha256': '300071a8f546481e2cf46b6633b33f2e23aa7bdfa1c4fb6f1f6380faf1270e5c', 'binding_sha256': 'e56e0923bb869f5ec5f5d40107ab8158f2de4ee5ed907898b60bcf2bbf79ba28', 'files': ['recompiler/v2/architecture_eligibility.py', 'recompiler/v2/architecture_emission_policy.py'], 'new_files': [], 'unpatched_predecessors': {}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-control', 'patch_sha256': '6b3817f9c907b5fb58e8777868b9294afefd8a77a5704eb2447459f6850c5c83', 'binding_sha256': '389a4f31ad74206733c475cc5e5aa9f03802e1556a144b316c29be24c3a5f8b0', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '72b9fe3a232ef2630b6b4a8a76b0857f782710461d461ccf578d1bfaae3dba90', 'runner/src/snes/interp816.h': '956bd938bbe585f30469c43b54fb7acb6c328a1059a4a7c30e056cf5e53b6fa9', 'runner/src/snes/interp_bridge.c': 'ad25aa1d2e63718b1573276005156f2317b8a8bdd37741350088b4c48ede5a8b', 'runner/src/snes/interp_bridge.h': '4fdcffd52e6c5aa649f7fed253808c7c9a3ecdfaf8bfdf4da5bf714368f03a31'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-stack', 'patch_sha256': '19833ff9d0a0581cf0c51fb28ca415159cdd3b39b5d7a7474a82eea2a5e4837f', 'binding_sha256': 'b0eb1df49de4abdc206d954dedf9b3a6def10002f338e44162c5f1efd7a8a838', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '9e148dd333b095f7f6dec9fbb6e9a851c678ae2631ef5d9347745c5b414680a5', 'runner/src/snes/interp816.h': 'eee14931751ebcbe62d0fb108bc4c8753f2f775a0028759175947cb726d258d4', 'runner/src/snes/interp_bridge.c': '8e885e5f8bb7e663783351435ea66444d495e9a5b8f35253e9ccad36f07ca03c', 'runner/src/snes/interp_bridge.h': '2157814b8cfbca6016e9616eda535b216c3378b40e46964d0b419f4c29071164'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-index-stack', 'patch_sha256': 'd80baf717f828c9cc6b3d3837acca93af59dee81251a5892f301a992cd9f1d17', 'binding_sha256': 'bdfa3864927d619529e90781bb35a12fb740d835c7506813e95a9a1df9dfdd9d', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '809a7ae1bd2a7c554d8d71a39954edaa421aac36328bd6925ed65783af425c77', 'runner/src/snes/interp816.h': '75a9825eea1e49883219387bc263c399ad60b7b767ee079c2e7c4770c67aa7ae', 'runner/src/snes/interp_bridge.c': '677a9cc16f0a41bd84d1fe3880c65c19a23afaa67136d9b701091ac9a076b7cf', 'runner/src/snes/interp_bridge.h': 'b46bd208f6a9993dd6b3546b7f122572430eb498e4bbedf9b6d77eaa4f615822'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-dispatcher', 'patch_sha256': '43df76ebd848096f3e0ca71cd747fab3067ec306be17313c9cbfebe2c67e13f2', 'binding_sha256': '5e923123cbbdc06f107fb2b0a36d242b26837881be3efa1ccc9dfff554f3c445', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'e923b470db291112b3807d262fd0b149f80992590f014cc1dda250d7e81d54b3', 'runner/src/snes/interp816.h': 'fe54c1540948b82a0739f2ee5bde7b211eea173af8413c27cfdd9e002b752a18', 'runner/src/snes/interp_bridge.c': 'b5c8c9b80bc7b2c136e4a11e97fdd6007287110f23dd435b56bcc63b5d42414f', 'runner/src/snes/interp_bridge.h': '0d440bc8037a580719a6f5ad1c0e7b972a7c7de3ad0c761bc1a64209bf24c832'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-field-loop', 'patch_sha256': '98fe1733daa2577297e41caed701cf3fb8892aedd0a0ee930a123e05af5834a2', 'binding_sha256': 'f926e40aa29d217838d4e8518d517328c8cf4efca277e03fc99203eda33308c5', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'c062c075964cb1a310761c58e4d83fcaa12aeff617b7771ef3554bd1f414ae27', 'runner/src/snes/interp816.h': '09e97b62424eff7fe887b495f199b0372d8ddaa14438e20abe5c14087dd6b24e', 'runner/src/snes/interp_bridge.c': 'b4ddf1155fd9fa39cb6481e05b55913f113593900634461a1dc2d6fdb1547abc', 'runner/src/snes/interp_bridge.h': '5bf6e9265e25ef29fca29f35ffe70164e108976d54aeaadc5d46d28e2a955fac'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-scene-condition', 'patch_sha256': '9a2d806594c1e473f45f52458f4d72ee1fa5f57da27759c9199e7a2fab474932', 'binding_sha256': '8d42447c7d4660d597316baad7470e44c51a8d81a80470329976c7e3a816a353', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'f12a88f53ab4835e0808b97859dc96bfb96bb12f87f74c468ec035d1272a251b', 'runner/src/snes/interp816.h': 'cc19d9fd05e507d12591bdafb7bebe0baf6730668a7f470d64379797af42699f', 'runner/src/snes/interp_bridge.c': '740c9d004c7a35ddd5261d1ce709fb923e7b1cf88e27308de91896150c655b4a', 'runner/src/snes/interp_bridge.h': '714610ce5e7bce0f99ea677043c3fbe3b727acb37bb9b9e830e892699c40c175'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-condition-family', 'patch_sha256': '76ee174bf98487d8989dee7601204740e3c636b6c192a888f8e41297af2dbc97', 'binding_sha256': 'e13c0a00890e36e5c004c4e2b9802a4bcb26990f4f3b10ded4dc9cb0bcef9a7f', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'acbbaa2cbb64f8f079a739ddc73b53be788b317dc53b4b0314d070e931417a64', 'runner/src/snes/interp816.h': 'a1bc048bd5b090552e2f2b34a0413295d16eea6e6c265ed519c5dc55d6c843c8', 'runner/src/snes/interp_bridge.c': '70f3cf831cf1823296e786ca4420bc427b6aa3e56d4ba2dec79a1bc13f39740f', 'runner/src/snes/interp_bridge.h': '46fd284bb1bc4b4c97b80bcabab5b982af4e9c9b1cdd70857354c1c87e193514'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-message-window', 'patch_sha256': 'c6287628e00c231ac4d32941ad0f000d1990c1c8a27eb8af063dcf7a6004e5a3', 'binding_sha256': 'b8f5c994f08598c95e6cd7a42b69363a24e48dbb12be5ec068566a5c65a27701', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'daeb315ef4b53d3d0b1ec8c144a3cb9bbc17ee09b1fb06f313d5c1f931e3710a', 'runner/src/snes/interp816.h': 'de0d488bd9bd26a0e483c3df4324ec470f29a1aa39b59742855336a6376b544f', 'runner/src/snes/interp_bridge.c': '5b2b26bb294cbf6545f1a3df899799260f7722191a22b89d8ff343f629c16f63', 'runner/src/snes/interp_bridge.h': 'e9dc1f41aa67550f6336f253ca5b13d882137d3325aaae1c1281d3454003df94'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-field-loader', 'patch_sha256': '06e81547623c6215284a8bb9743423909e4c95e8e550be1daa8d5e588986909f', 'binding_sha256': 'c067bf6d1cc87b5e122e2e99696553115e1d771f4573f3a7cc78b5a432dfcbc8', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '4d16569463b23b700948538a5bd7e7679f59286ce0d1aa0d0f99db42824fcfb4', 'runner/src/snes/interp816.h': 'fd2691ec9f110fbc86aa817771c463b84e5532d4a81c764027e52ac382b15077', 'runner/src/snes/interp_bridge.c': '730bf1693742124f8bb1904b77d5dfd536ec32c1a9e42a8ef5fbd60165bcbf3a', 'runner/src/snes/interp_bridge.h': '19222d6d588cb30fa853d450d5c4dc04b51a06a57f66f9fb320c4265620e3a1d'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-field-tail', 'patch_sha256': '72e68296c8a9aecef9d7a1b4a07fb77f9328c8c7c47ada07f7c351229f9bea2e', 'binding_sha256': 'd9747aa9355593f28a1adf5bc0ec1b5a94e8f24877f8d66e307050727756e2ef', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '13a8db39e3f7198ab4c8c74ee6b87d68381a7a330f88e7658f9311f67ce54ac5', 'runner/src/snes/interp816.h': '2927686fd8267d4500bd3d81ed17d44218fea5cd660784ba2bb7e08872447e16', 'runner/src/snes/interp_bridge.c': '582383a8212f27754afe862ea564f2e5588efc34207a69f00280eaa159fce048', 'runner/src/snes/interp_bridge.h': '2138b223ebc444e256a00b191490fb0075f88187493fa5b97dca2e71386bb07a'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-menu-condition', 'patch_sha256': '2e46821d3759967fadc56c890d39e2928c99a197a9f517f97adb9be795f01d52', 'binding_sha256': 'e11538c1f2dbfc13a643eb1f8552c0e3c9f221a3f9e2f0bacce4b91d466a449c', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'f1eaa092954057427ee8ccdb9c972ede3d68c5631bee275678559a261e0755c7', 'runner/src/snes/interp816.h': 'babdf68f718e9d4f1f59a83e8982e53dfc759f81d9ef0bdc2e191604ac22daf0', 'runner/src/snes/interp_bridge.c': '1faf03a24ecd641cca1162b2b940202517c292fb8270d048ec21c317ca9c58ae'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-item-continuation', 'patch_sha256': '351e844aed03524d108657a4ed816f96f0a85c2228e7067eaff75ae9a5ae39e3', 'binding_sha256': '80a039a00c4108c8e4ff69607e4c0fd5c9c4d01a55dbb07dcbeaa40d26d11b31', 'files': ['runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp_bridge.c': 'a6c862d747c861dcec51249a78a99a1dd4ca68492c6a4448bcdfd6471d285b51'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-final-battle', 'patch_sha256': '3cdafbc3fe817663fc6ed28f308879c76043633fea169c8283a47819a5377c7c', 'binding_sha256': '2149b46a1f75cf89360f3162a040a34dd77937abdde48aa0f117a14354418edd', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '3adf549b98f251263c7b5b92ebcf1e08a8d6a16a3c85f4f308171e675043217d', 'runner/src/snes/interp816.h': '32fd1d571620defebf3b2aba0f7e33170abbc7e478c88afd2a861254473e3125', 'runner/src/snes/interp_bridge.c': '13162dc1dfbbc5e68925a851b7964298821fee55cf784763fca6ac591af85215'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-equipment-change', 'patch_sha256': '43a4b8d74c0b902121ebed533583821b3f2f04a5fa19325e8a5c001b5d943141', 'binding_sha256': 'e3801d3c363e9a03cd41e92b5405403738207c334f74743efadd501c9a126957', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '289184d5a3e391b592b877c07bf3d7bb800f6876ead63609340f1407a1901f0d', 'runner/src/snes/interp816.h': '0047cb581026ebf35b769ce8f7b6d54b790a195c969b514e6942806dde7303cc', 'runner/src/snes/interp_bridge.c': '8a579a1c8088d5a13493f34f0746b7f814e2504f9d179f9423aae36037e57be8'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-item-effects', 'patch_sha256': 'dafb89b12a40702e65aea8412ee22fc17dc557aec83463864540b95e70446872', 'binding_sha256': '112650c1f4f73500f985bc07f017143e7ffcfc479dbbceb1aafb1e1ecd32fc89', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'b821c453797674b527a388dabd8696b6691ecfbc1948fc27131a134694a9774c', 'runner/src/snes/interp816.h': 'af6ff8f5cc797ca98aae91a860cdf859822d3db58e37074fefcc1377283bfbd8', 'runner/src/snes/interp_bridge.c': 'ec9f1b2a79eb4d4946325dc2030dd5d4ab7859633bc75133c37366f37cdd88de'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-field-menus', 'patch_sha256': '0835e0fdf4590c44c6076324ac2c58696290ce4b6f9035c0139e639a17a01444', 'binding_sha256': '9829338a6d40212466a5f8f0b780f6347b123fbc3fbca0f65698ddfb8aa3a923', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '640fd7bd2e05fdbec33502567cf15e9dad80f1b6818b30d1e3570172f7c8be99', 'runner/src/snes/interp816.h': 'fe5f88c67ad6979a379ae93d200e4c5461b9b2fdce6a34600220ec2dc8e0fa09', 'runner/src/snes/interp_bridge.c': '94b61da5ab4e8c6a1618071aa7ade8954d29be5bdd15bdb6c54310a1db8bd00f', 'runner/src/snes/interp_bridge.h': 'f592ec4f325a6d441370b114f9ae7d93d419f3a22299a9f33c232eed330a5092'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-magic', 'patch_sha256': '180832ebe3ca609374a0e6190506173d75d03bacb1e10dafab57c28c9fae0cc4', 'binding_sha256': '76585b2c91a61132055adc82bb5daba9782caae6af4918c6d8cb2bdc61bf8328', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '0fe3926500ee40725820cb812795b62a898e7df7365603b922227fb0c2787dbb', 'runner/src/snes/interp816.h': 'bc17579137f49098d12c6bacfdddddda263c8af4bb13a2d4c20aca2a8969772b', 'runner/src/snes/interp_bridge.c': '53f32ed0f440f505d8b37e022c090319c55146b409b345dd6e5ebbbede402e52'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-battle-magic', 'patch_sha256': 'f69a576738abc89185102a74cab1f8e039baf1383b88848bd8d7bfef9ead5f7a', 'binding_sha256': '076b5ab153fc983352beb3b1e6444aecaf9523f019faf002a6252cbacce7ae99', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': '6752fba37a0000b0ab834f4312b33a71ff3ee479edb5dec090f4836ca008af06', 'runner/src/snes/interp816.h': 'b1e5208583c974ef7a334e350142d5387b2d7c67258a38807dea618b216434f3', 'runner/src/snes/interp_bridge.c': '8378c0df68ff23fdbbd11268782160cfe1ce59363a6943f82f1e90f244bcbe51'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-shop', 'patch_sha256': 'cb80baca6b6d963315dd65a39791b947d8de46e55d58015107b6c9b643ec8dea', 'binding_sha256': '94cf6f1abeeb46c6b4477bd7835a93da1f1c3ded7282dc0f784f789a5a97a32e', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'add999334b81ed0f20edd63716ac263a756cb35b6cf312dc40455bd94d6755bd', 'runner/src/snes/interp816.h': 'a2ce09a4184409a66e8facca46a9e15cd7a080db922ca15b800b0e502e0f5389', 'runner/src/snes/interp_bridge.c': 'b5f2d9c6c67722ff9e79317928cd976637d5c1a9688cd4bdd6ad500a6e23533b'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-source-native-sort', 'patch_sha256': '1388142a496b7219e9649a6ed723623d3d505ec750fcb04dc3a43ab496a26222', 'binding_sha256': 'c5675119d2fc7bd3cd0a6c165896acae674a9a268e8f52110ddd5f9831f74c5e', 'files': ['runner/src/snes/interp816.c', 'runner/src/snes/interp816.h', 'runner/src/snes/interp_bridge.c'], 'new_files': [], 'unpatched_predecessors': {'runner/src/snes/interp816.c': 'c97780a27bc060f5e3b469f2f26b2ad87f543d9a868ef95965a4a751b55ac103', 'runner/src/snes/interp816.h': 'c7309f18915c06071a847ec7de12c71ac92eca85d4cb6ee5f2740320a4b15816', 'runner/src/snes/interp_bridge.c': '9813a70ab1b7554a606716c3d03c60f399eb84a93dea666425d1d3e900a14a6a'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}}, {'name': 'runtime-architectural-native', 'patch_sha256': '199c1e6293958370dfdb37ba4de9ed3d0f4fc0b038b265115a1afbd146b74af5', 'binding_sha256': '3a7b2eb923331b29570a550823aafe05f69bb96372b644f97849da89da83a78f', 'files': ['recompiler/v2/emit_native_blocks.py', 'runner/src/native_blocks.h', 'runner/src/snes/interp_bridge.c', 'runner/src/snes/interp_bridge.h'], 'new_files': ['recompiler/v2/emit_native_blocks.py', 'runner/src/native_blocks.h'], 'unpatched_predecessors': {'recompiler/v2/emit_native_blocks.py': None, 'runner/src/native_blocks.h': None, 'runner/src/snes/interp_bridge.c': 'c940a4cc516696f48ba21541e7466a82becfcc97b298d061173bf45b224071d5', 'runner/src/snes/interp_bridge.h': 'd50d6b22214e58b7ec502fe9b426836e8a9ad5ba1dba57bf31ac0785b7790b10'}, 'metadata': {'cache_format': 60, 'normal_metadata': 45, 'task_metadata': 9, 'redirect_metadata': 1}})
+RUNTIME_GENERATION_FORMATS = {'cache':59,'normal':44,'task':9,'redirect':1}
+BASELINE_GENERATION_FORMATS = {'cache':60,'normal':45,'task':9,'redirect':1}
+
+def target_generation_formats(args):
+    return dict(BASELINE_GENERATION_FORMATS if getattr(args,'architecture_discovery_baseline',False) else RUNTIME_GENERATION_FORMATS)
+
+def baseline_output_provenance(args,generated_metadata,region_metadata):
+    formats=target_generation_formats(args)
+    if type(generated_metadata.get('format_version'))is not int or generated_metadata['format_version']!=formats['cache'] or type(region_metadata.get('format_version'))is not int or region_metadata['format_version']!=formats['normal']:
+        raise RuntimeError('Selected architecture discovery mode/generated formats differ')
+    proof=region_metadata.get('architecture_source_eligibility',{}).get('baseline_discovery')
+    if not getattr(args,'architecture_discovery_baseline',False):
+        if proof is not None:raise RuntimeError('Unexpected baseline provenance in default generation')
+        return None
+    if not isinstance(proof,dict)or proof.get('contract')!='fresh-static-architecture-discovery-subset-v1' or proof.get('fresh_native_producer_once')is not True or proof.get('subset_roots_nodes_exits_sets')is not True or proof.get('external_model_or_rows_accepted')is not False or proof.get('second_program_output')is not False or proof.get('source_limit_changes')is not False or proof.get('new_owner_or_exit_authority')is not False or proof.get('ordinary_callable_view')!='current_profiled' or proof.get('architecture_view')!='fresh_static_only':
+        raise RuntimeError('Actual baseline discovery source provenance missing/different')
+    if type(proof.get('source_family_count'))is not int or proof['source_family_count']!=25 or any(not isinstance(proof.get(k),str)or re.fullmatch('[0-9a-f]{64}',proof[k])is None for k in ('baseline_model_sha256','profiled_model_sha256','reviewed_root_source_sha256')):
+        raise RuntimeError('Baseline source view digests/family schema missing/different')
+    # Format/provenance preflight only. This is not a semantic population certificate.
+    return {'enabled':True,'formats':formats,'source_provenance':proof,'semantic_population_approved':False,'execution_qualified':False}
+
 TASK_GENERATED_ROW_COUNT = 235
 
 def runtime_extension_bindings():
@@ -215,7 +236,7 @@ def validate_direct_call_patch(path):
 def validate_reset_bootstrap_outputs(directory,cache,rom_sha,rom):
     directory=Path(directory);raw=Path(rom).read_bytes()
     metadata=directory/'native_regions.json';source=directory/'native_regions_v2.c'
-    value=json.loads(metadata.read_bytes());recipe=value.get('reset_bootstrap')
+    value=_read_legacy_normal(metadata);recipe=value.get('reset_bootstrap')
     if sha(Path(rom))!=rom_sha or value.get('rom_sha256')!=rom_sha or not isinstance(recipe,dict):raise RuntimeError('Reset bootstrap source metadata/ROM missing.')
     if recipe.get('source_contract')!='declared-reset-vector-three-step-e1-bootstrap-v1' or recipe.get('ordinary_roots_added')is not False or recipe.get('source_declared_name')!='I_RESET' or recipe.get('entry')!=0x8000 or recipe.get('vector_pc')!=0xfffc or recipe.get('prefix_pc')!=0x8000 or recipe.get('successor')!=0x8004:raise RuntimeError('Reset bootstrap declared source owner differs.')
     if recipe.get('vector_bytes')!=raw[0x7ffc:0x7ffe].hex() or recipe.get('prefix_bytes')!=raw[:4].hex():raise RuntimeError('Reset bootstrap actual mapped source bytes differ.')
@@ -230,15 +251,287 @@ def validate_reset_bootstrap_outputs(directory,cache,rom_sha,rom):
         if cache.get('outputs',{}).get(path.name)!=sha(path):raise RuntimeError('Reset bootstrap output/cache mismatch.')
     return {'metadata_format':RUNTIME_GENERATION_FORMATS['normal'],'separate_e1_rows':3,'declared_entry':recipe['entry'],'ordinary_roots_added':False,'execution_qualified':False}
 
+
+
+"""Private root helper extension: strict old projection + dynamic new rows.
+Root inserts before compilation after ONE actual public generation. No full factory
+replay, source-tree monkeypatch, unknown-family acceptance or hardcoded new count.
+"""
+import copy,json,re,sys,hashlib
+from pathlib import Path
+
+def canonical(value):return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+def key(r):return(r['pc24'],r['m'],r['x'])
+def _canonical_module_identity(runtime):
+    import importlib
+    runtime=Path(runtime).resolve(strict=True)
+    expected={'v2_analyze':runtime/'tools/v2_analyze.py','snes65816':runtime/'recompiler/snes65816.py','v2.decoder':runtime/'recompiler/v2/decoder.py','v2.emit_function':runtime/'recompiler/v2/emit_function.py','v2.architecture_eligibility':runtime/'recompiler/v2/architecture_eligibility.py','v2.architecture_return_steps':runtime/'recompiler/v2/architecture_return_steps.py','v2.architecture_task_sources':runtime/'recompiler/v2/architecture_task_sources.py'}
+    def verify_loaded():
+        for name,module in list(sys.modules.items()):
+            if name=='v2' or name.startswith('v2.'):
+                path=Path(getattr(module,'__file__','')).resolve()
+                if not path.is_relative_to(runtime/'recompiler/v2'):raise RuntimeError('Canonical child loaded foreign v2 module: '+name)
+        for name,path in expected.items():
+            if name in sys.modules and Path(getattr(sys.modules[name],'__file__','')).resolve()!=path:raise RuntimeError('Canonical child module identity differs: '+name)
+    verify_loaded()
+    sys.path[:0]=[str(runtime/'recompiler'),str(runtime/'tools')]
+    for name in expected:importlib.import_module(name)
+    verify_loaded()
+    return {name:str(Path(sys.modules[name].__file__).resolve())for name in expected}
+
+
+def _canonical_population_child(payload):
+    # Fresh -I/-B interpreter; captured-profile imports from the helper parent
+    # cannot provide any canonical decoder/emitter or package namespace here.
+    modules=_canonical_module_identity(Path(payload['runtime']))
+    if payload['mode']=='identity':return {'status':'CANONICAL_MODULE_IDENTITY_ONLY','modules':modules}
+    if payload['mode']!='validate':raise RuntimeError('Unknown canonical child mode')
+    path=Path(payload['generated_directory'])/'native_regions.json'
+    value=json.loads(path.read_bytes())
+    if canonical(value)!=payload['actual_digest']:raise RuntimeError('Canonical child actual metadata differs')
+    old=_project_legacy_normal(value)
+    if canonical(old)!=payload['old_digest']:raise RuntimeError('Canonical child original projection differs')
+    legacy,report=_validate_new_population_local(value,old,rom_path=Path(payload['rom_path']),runtime=Path(payload['runtime']),cfg_dir=Path(payload['cfg_dir']),generated_directory=Path(payload['generated_directory']),allowed_new_families=dict(FAMILIES))
+    if canonical(legacy)!=payload['old_digest']:raise RuntimeError('Canonical child changed original projection')
+    return {'status':'CANONICAL_NEW_ROWS_VALIDATED_ISOLATED','modules':modules,'report':report,'actual_digest':payload['actual_digest'],'old_digest':payload['old_digest']}
+
+
+def _run_canonical_population_child(payload):
+    import subprocess
+    script="import importlib.util,json,sys;sys.dont_write_bytecode=True;s=importlib.util.spec_from_file_location('canonical_source_helper',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);r=m._canonical_population_child(json.loads(sys.argv[2]));print(json.dumps(r,separators=(',',':')))"
+    result=subprocess.run([sys.executable,'-I','-B','-c',script,str(Path(__file__).resolve()),json.dumps(payload,separators=(',',':'))],capture_output=True,text=True,timeout=300)
+    if len(result.stdout)>1000000 or len(result.stderr)>1000000:raise RuntimeError('Canonical child exceeded bounded report allowance')
+    if result.returncode:raise RuntimeError('Isolated canonical child refused: '+result.stderr[-12000:])
+    value=json.loads(result.stdout)
+    if not isinstance(value,dict):raise RuntimeError('Canonical child structured report missing')
+    return value
+
+
+def validate_new_population(value,old,*,rom_path,runtime,cfg_dir,generated_directory,allowed_new_families):
+    if allowed_new_families!=dict(FAMILIES):raise RuntimeError('Isolated canonical family set differs')
+    payload={'mode':'validate','runtime':str(Path(runtime).resolve()),'cfg_dir':str(Path(cfg_dir).resolve()),'rom_path':str(Path(rom_path).resolve()),'generated_directory':str(Path(generated_directory).resolve()),'actual_digest':canonical(value),'old_digest':canonical(old)}
+    result=_run_canonical_population_child(payload)
+    if result.get('status')!='CANONICAL_NEW_ROWS_VALIDATED_ISOLATED' or result.get('actual_digest')!=payload['actual_digest']or result.get('old_digest')!=payload['old_digest']:raise RuntimeError('Canonical child result identity differs')
+    report=result['report'];report['canonical_runtime_modules']=result['modules'];report['canonical_process']='fresh isolated -I -B interpreter; no capture-runtime namespace reuse'
+    return copy.deepcopy(old),report
+
+
+def _validate_new_population_local(value,old,*,rom_path,runtime,cfg_dir,generated_directory,allowed_new_families):
+    # allowed_new_families is a ROOT CODE constant {origin:recipe_key}, never an
+    # input capture/JSON field. Root sets exact239 name only after frozen source.
+    assert value['format_version']==34 and value['rom_sha256']==old['rom_sha256']
+    assert value['direct_call_prefix']is old['direct_call_prefix']
+    assert value['mode_successors']is True
+    rows=value['regions'];fm={key(r):r for r in rows};prior={key(r):r for r in old['regions']}
+    if len(fm)!=len(rows)or any(fm.get(k)!=r for k,r in prior.items()):raise RuntimeError('Old whole normal row dictionary changed; retain generation')
+    before=old['architecture_source_eligibility'];after=value['architecture_source_eligibility']
+    if len(before['sources'])!=19 or after['sources'][:19]!=before['sources']:raise RuntimeError('Old19 source family records changed; retain generation for scoped review')
+    for field,v in before.items():
+        if field!='sources'and after.get(field)!=v:raise RuntimeError('Old source recipe changed: '+field)
+    for field in('contract','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed'):
+        if after.get(field)!=before[field]:raise RuntimeError('Architecture admission policy changed')
+    fresh_families=after['sources'][19:]
+    if {f['origin']for f in fresh_families}!=set(allowed_new_families)or len(fresh_families)!=len(allowed_new_families):raise RuntimeError('Unexpected new family set')
+    claimed=set();family_report=[]
+    for family in fresh_families:
+        added=[tuple(k)for k in family['added']];reused=[tuple(k)for k in family['reused']]
+        if family.get('refused')!=[]or len(set(added))!=len(added)or len(set(reused))!=len(reused)or set(added)&set(reused)or family['source_rows']!=len(added)+len(reused):raise RuntimeError('New family accounting/duplicates differ')
+        if not set(added)<=set(fm)or not set(reused)<=set(fm)or claimed&set(added):raise RuntimeError('New family output ownership differs')
+        recipe=after.get(allowed_new_families[family['origin']])
+        if not isinstance(recipe,dict):raise RuntimeError('New source recipe missing')
+        # Exact new producer contracts are frozen in root-reviewed runtime code;
+        # helper must pin their recipe fields/digests in root code after output,
+        # before compilation, if this generic structural gate cannot prove them.
+        claimed.update(added);family_report.append((family['origin'],family['source_rows'],len(added),len(reused)))
+    fresh=set(fm)-set(prior)
+    if not fresh<=claimed:raise RuntimeError('Fresh ordinary/profile rows outside new sealed families; retain output for exact source review')
+    sys.path[:0]=[str(Path(runtime)/'recompiler'),str(Path(runtime)/'tools')]
+    from v2_analyze import _load_cfgs
+    from snes65816 import rom_offset,decode_insn
+    from v2.decoder import DecodeKey
+    from v2.emit_function import emit_function
+    from v2.architecture_eligibility import _independent
+    from v2.architecture_return_steps import validate_return
+    from v2.architecture_task_sources import PURE_OPS
+    for family in fresh_families:
+        for ident in [tuple(k)for k in family['added']+family['reused']]:
+            if fm[ident]['mnemonic']not in PURE_OPS or any(k in fm[ident]for k in('source_return_contract','original_scheduler_call','causal_suspended_child')):raise RuntimeError('New pure family exported call/return/causal authority')
+    rom=Path(rom_path).read_bytes();parsed=_load_cfgs(Path(cfg_dir));forced={p&0x7fffff for _b,_p,c in parsed for p in c.force_lle}
+    masks=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
+    text=(Path(generated_directory)/'native_regions_v2.c').read_text(encoding='utf8')
+    for ident in sorted(fresh):
+        row=fm[ident];pc,m,x=ident
+        if not _independent(rom,parsed,row):raise RuntimeError('New row is not independent source-owned architecture: '+repr(ident))
+        off=rom_offset(pc>>16,pc&65535);ins=decode_insn(rom,off,pc&65535,pc>>16,m,x)
+        if ins is None or rom[off:off+ins.length].hex()!=row['bytes']:raise RuntimeError('New source bytes changed')
+        cfg=next((c for b,_p,c in parsed if b==pc>>16),None)
+        if cfg is None:raise RuntimeError('New row requires exact bank-policy authority; generic validation cannot assume empty policy')
+        # One independently decoded member only; no function/callee/exit inference.
+        # Existing core emits faithful body into collectors. No source stream or
+        # historical ancestry is recreated and no owning callable is emitted.
+        collected=[];calls=[]
+        emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedCanonicalNewInstruction',data_regions=masks,exclude_ranges=cfg.exclude_ranges,hle_func=cfg.hle_func,hle_spc_upload=cfg.hle_spc_upload,hle_dispatch=cfg.hle_dispatch,native_call_prefix_forced=forced,native_region_collector=collected,native_call_prefix_collector=calls,_native_instruction_members=frozenset({pc}),_native_collector_only=True)
+        candidates=[r for r in collected+calls if key(r)==ident]
+        # The optional return marker is metadata-only; actual return architecture
+        # must independently pass existing exact fullPC24/ordered-pop validator.
+        probe=dict(row)
+        if probe.pop('source_return_contract',None)is not None and not validate_return(rom,parsed,row):raise RuntimeError('New marked return differs from canonical architecture')
+        if not any(r==probe for r in candidates):raise RuntimeError('New body differs from fresh typed single-instruction canonical collector: '+repr(ident))
+        compact=lambda s:re.sub(r'\s+','',s)
+        if compact(row['body'])not in compact(text):raise RuntimeError('Canonical new body absent from actual generated C')
+    # Root applies unchanged old row/28-literal/address validators to this explicit
+    # old projection. Physical case count is checked ONCE against full actual
+    # rows+reset3, not hidden by old scalar. No generated file is substituted.
+    legacy=copy.deepcopy(old);legacy['format_version']=old['format_version']
+    return legacy,{'old_rows':len(prior),'actual_rows':len(rows),'new_rows':len(fresh),'new_families':family_report,'source_generation_only':True,'physical_cases_required':len(rows)+3,'new_rows_sha256':canonical([fm[k]for k in sorted(fresh)]),'actual_normal_sha256':canonical(value),'canonical_scope':'NEW per-instruction bodies only, no old oracle/factory replay'}
+
+
+"""ROOT PREPARATION ONLY: exact241-only metadata fences; source218 deferred before existing240 gate.
+
+No CLI, cache/helper writes, generation, tests or build. Root may incorporate this
+code after source review. Metadata validates an existing producer output; it is
+never supplied to a source factory as a graph/role/caller certificate.
+"""
+import copy,hashlib,json
+
+FAMILIES=(
+ ('source_original_FF20_byte_dispatch_pure_instructions','ff20_byte_dispatch_graphs'),
+)
+def canonical(value):return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+def rowkey(row):return tuple(row[name]for name in('pc24','m','x'))
+
+def fence_projection_and_recipes(value,old,rom,*,root_chosen_normal_format):
+    if type(root_chosen_normal_format)is not int or value.get('format_version')!=root_chosen_normal_format:raise RuntimeError('Root must bind exact final normal format')
+    before=old['architecture_source_eligibility'];after=value['architecture_source_eligibility']
+    sources=after['sources']
+    if len(before['sources'])!=19 or len(sources)!=20 or sources[:19]!=before['sources']:raise RuntimeError('Original19 family records changed')
+    if [s.get('origin')for s in sources[19:]]!=[p[0]for p in FAMILIES]:raise RuntimeError('Wrong final241-only ordered family set')
+    fm={rowkey(r):r for r in value['regions']};prior={rowkey(r):r for r in old['regions']}
+    if len(fm)!=len(value['regions'])or len(prior)!=len(old['regions'])or any(fm.get(k)!=row for k,row in prior.items()):raise RuntimeError('Original full normal rows changed')
+    allowed_fields=set(before)|{name for _origin,name in FAMILIES}
+    if set(after)!=allowed_fields:raise RuntimeError('Unexpected source metadata fields')
+    # This projects from ACTUAL metadata, not a replacement copy of trusted old.
+    projected=copy.deepcopy(value)
+    projected['format_version']=old['format_version']
+    projected['regions']=[r for r in value['regions']if rowkey(r)in prior]
+    projected['architecture_source_eligibility']['sources']=sources[:19]
+    for _origin,name in FAMILIES:projected['architecture_source_eligibility'].pop(name)
+    if projected!=old:raise RuntimeError('Complete actual original19 metadata projection changed')
+    byte=after[FAMILIES[0][1]]
+    if byte.get('contract')!='source-original-FF20-byte-selector-D0-pure-v1' or byte.get('source_cases')!=['D0/E0_mapped_ROM_only'] or byte.get('D1_source_case')!='unknown_original_barrier':raise RuntimeError('241 partial D0 contract changed')
+    if (byte.get('graph_bound'),byte.get('start_bound'),byte.get('ancestry_bound'))!=(128,504,8)or not 0<=byte.get('attempted_starts',505)<=504:raise RuntimeError('241 source limits changed')
+    if any(byte.get(k)is not False for k in('ordinary_roots_added','callee_exit_modes_added','task_ownership_changed','runtime_entry_D_guard','native_calls_or_returns_added','actual_original_dispatch_changed')):raise RuntimeError('241 exported new runtime authority')
+    for graph in byte['graphs']:
+        if graph.get('depth')!=1 or not 0<=graph.get('typed_instructions',128)<128:raise RuntimeError('241 target ancestry/graph limit changed')
+    for domain in byte['producer_domains']:
+        if domain.get('selector_domain')!=[0,125]or domain.get('discovery_D')!=0 or domain.get('runtime_entry_D_guard')is not False or domain.get('intentional_table_cardinality')is not None:raise RuntimeError('241 mathematical selector proof changed')
+        wrapper=domain['wrapper_entry'];bank=wrapper[0]>>16
+        keys=domain['wrapper_keys'];call=keys[-1][0];saved=(call+3)&65535
+        if domain.get('saved_return')!=saved:raise RuntimeError('241 saved source return differs')
+        reads=[]
+        for s in range(126):
+            low=(saved+2*s+1)&65535
+            if low<0x8000 or low==0xffff:raise RuntimeError('241 D0 word is outside whole mapped bank')
+            off=(bank&0x7f)*32768+(low&32767)
+            if off+2>len(rom):raise RuntimeError('241 ROM word read out of bounds')
+            reads.append([s,(bank<<16)|low,int.from_bytes(rom[off:off+2],'little')])
+        if reads!=domain.get('mathematical_reads')or sorted({(bank<<16)|r[2]for r in reads})!=domain.get('unique_targets'):raise RuntimeError('241 whole D0 read/target domain changed')
+    for family,(_origin,name)in zip(sources[19:],FAMILIES):
+        admitted={tuple(k)for graph in after[name]['graphs']for k in graph['instruction_keys']}
+        claimed={tuple(k)for kind in('added','reused')for k in family[kind]}
+        if admitted!=claimed or len(claimed)!=family['source_rows']:raise RuntimeError('New family whole source-member accounting differs')
+    fresh=[r for r in value['regions']if rowkey(r)not in prior]
+    # Existing240 then proves each NEW row against the one-instruction original
+    # canonical collector and actual C. Original28 literal/old address/return
+    # validators receive the proven projection, with their old scalar scopes.
+    return projected,{
+      'original_projection_sha256':canonical(projected),
+      'actual_full_metadata_sha256':canonical(value),
+      'new_recipe_sha256':{name:canonical(after[name])for _origin,name in FAMILIES},
+      'new_rows_sha256':canonical(fresh),'old_rows':len(prior),'actual_rows':len(fm),'new_rows':len(fresh),
+      'full_call_rows':sum(r['mnemonic']in('JSR','JSL')for r in value['regions']),
+      'full_call_distinct_pcs':len({r['pc24']for r in value['regions']if r['mnemonic']in('JSR','JSL')}),
+      'full_JSR_rows':sum(r['mnemonic']=='JSR'for r in value['regions']),
+      'full_JSL_rows':sum(r['mnemonic']=='JSL'for r in value['regions']),
+      'physical_normal_plus_reset_cases':len(fm)+3,
+      'scope':'ACTUAL generation metadata only; not compiled/qualified/native execution',
+    }
+
+
+"""Helper-only actual metadata projection and precompile source gate."""
+_COMBINED_NORMAL={}
+
+def _project_legacy_normal(value):
+    import copy
+    meta=value.get('architecture_source_eligibility',{})
+    families=meta.get('sources',[])
+    if value.get('format_version')!=34 or len(families)!=20 or [r.get('origin')for r in families[19:]]!=[x[0]for x in FAMILIES]:raise RuntimeError('Combined20 source format/family identity differs')
+    fresh=set()
+    for family in families[19:]:
+        fresh.update(tuple(k)for k in family.get('added',[]))
+    result=copy.deepcopy(value);result['format_version']=33
+    result['regions']=[r for r in value['regions']if rowkey(r)not in fresh]
+    result['architecture_source_eligibility']['sources']=copy.deepcopy(families[:19])
+    for _origin,recipe in FAMILIES:result['architecture_source_eligibility'].pop(recipe,None)
+    # EXACT original whole-metadata digest, all19 recipes/rows and old scalars.
+    # No generated old dictionary or profile is substituted or published.
+    _legacy_normal_source_row_count(result)
+    return result
+
 def normal_source_row_count(value):
+    if value.get('format_version')==33:return _legacy_normal_source_row_count(value)
+    _project_legacy_normal(value)
+    return len(value['regions'])
+
+def _read_legacy_normal(path):
+    path=Path(path);ident=str(path.resolve())
+    if ident not in _COMBINED_NORMAL:raise RuntimeError('Combined normal precompile proof must precede old output validators')
+    value=json.loads(path.read_bytes());record=_COMBINED_NORMAL[ident]
+    if canonical(value)!=record['actual_digest']:raise RuntimeError('Actual normal metadata changed after source proof')
+    return _project_legacy_normal(value)
+
+def _actual_normal_total(directory):
+    ident=str((Path(directory)/'native_regions.json').resolve())
+    if ident not in _COMBINED_NORMAL:raise RuntimeError('Physical C count needs actual validated source total')
+    return _COMBINED_NORMAL[ident]['actual_rows']
+
+def prepare_combined_source_population(directory,out,rom,runtime,cfg_dir):
+    directory=Path(directory);out=Path(out);path=directory/'native_regions.json';reject_links(path)
+    value=json.loads(path.read_bytes())
+    meta=value.get('architecture_source_eligibility',{});families=meta.get('sources',[])
+    hot={0x1e5cc,0x1e5e8,0x1e5e1,0x1e5fb,0x1e5d1,0x1e602}
+    # Original native_regions.json already serializes FULL actual rows/recipes.
+    # Preserve a bound prevalidation population receipt BEFORE any baseline guard.
+    hot_claimed=[]
+    if len(families)>19:
+        claimed={tuple(k)for k in families[19].get('added',[])}
+        hot_claimed=[r for r in value.get('regions',[])if rowkey(r)in claimed and r.get('pc24')in hot]
+    pending={'status':'ACTUAL_GENERATION_UNVALIDATED','actual_metadata_path':str(path),'actual_metadata_sha256':sha(path),'full_rows_serialized_in_actual_metadata':True,'full_recipes_serialized_in_actual_metadata':True,'format':value.get('format_version'),'actual_rows':len(value.get('regions',[])),'families':[{'origin':f.get('origin'),'source_rows':f.get('source_rows'),'added':len(f.get('added',[])),'reused':len(f.get('reused',[]))}for f in families],'hot_claimed_added_keys':[list(rowkey(r))for r in hot_claimed],'native_execution_qualified':False}
+    pending_path=out/'actual-source-population-before-validation.json'
+    with pending_path.open('x',encoding='utf8',newline='\n')as f:json.dump(pending,f,indent=2);f.write('\n')
+    old=_project_legacy_normal(value)
+    projected,recipe_report=fence_projection_and_recipes(value,old,Path(rom).read_bytes(),root_chosen_normal_format=34)
+    if projected!=old:raise RuntimeError('Original33 projection differs between strict gates')
+    _unused,population_report=validate_new_population(value,old,rom_path=rom,runtime=runtime,cfg_dir=cfg_dir,generated_directory=directory,allowed_new_families=dict(FAMILIES))
+    if not hot_claimed:raise RuntimeError('No genuinely new hot241 source key; stop BEFORE compile and preserve actual output')
+    # Added keys have now passed whole old projection, source-member recipes,
+    # exact one-step canonical body/ROM/masks and actual generated C presence.
+    record={'actual_digest':canonical(value),'actual_rows':len(value['regions'])}
+    _COMBINED_NORMAL[str(path.resolve())]=record
+    report={'status':'ACTUAL_SOURCE_POPULATION_VALIDATED_PRECOMPILE','recipe':recipe_report,'population':population_report,'genuinely_new_hot241_keys':[list(rowkey(r))for r in hot_claimed],'native_execution_qualified':False,'old_projection_format':33,'new_actual_format':34}
+    with(out/'actual-source-population-validated.json').open('x',encoding='utf8',newline='\n')as f:json.dump(report,f,indent=2);f.write('\n')
+    return report
+
+
+def _legacy_normal_source_row_count(value):
     enabled=value.get('direct_call_prefix')
-    if value.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal'] or enabled is not True and enabled is not False or value.get('direct_call_contract')!='source-direct-call-architectural-prefix-v1':raise RuntimeError('Direct call source metadata/option missing.')
+    if value.get('format_version')!=33 or enabled is not True and enabled is not False or value.get('direct_call_contract')!='source-direct-call-architectural-prefix-v1':raise RuntimeError('Direct call source metadata/option missing.')
     if value.get('mode_successors')is not True or value.get('mode_successor_contract')!='source-owned-live-mx-instruction-successors-v1':raise RuntimeError('Live mode successor metadata/option missing.')
     meta=value.get('architecture_source_eligibility',{})
     sources=meta.get('sources',[])
-    if meta.get('contract')!='source-reviewed-independent-instruction-union-v1' or meta.get('ordinary_roots_added')is not False or meta.get('callee_exit_modes_added')is not False or meta.get('task_ownership_changed')is not False or len(sources)!=15:raise RuntimeError('Independent architecture source policy missing.')
-    expected=((7, 7, 0), (83, 83, 0), (99, 99, 0), (48, 46, 2), (12, 7, 5), (73, 14, 59), (4, 3, 1), (24, 14, 10), (91, 89, 2), (4, 4, 0), (12192, 5862, 6330), (401, 235, 166), (44, 36, 8), (141, 27, 114), (204, 121, 83))if enabled else((7, 7, 0), (79, 79, 0), (95, 95, 0), (44, 44, 0), (12, 7, 5), (73, 14, 59), (4, 3, 1), (24, 14, 10), (67, 67, 0), (4, 4, 0), (11566, 5445, 6121), (384, 222, 162), (40, 33, 7), (141, 27, 114), (204, 121, 83))
-    origins=('reviewed_original_task_child', 'reviewed_original_ff20_receiving_starts', 'source_direct_call_return_instructions', 'source_direct_callee_instructions', 'source_dynamic_P_boundaries', 'source_nested_direct_call_instructions', 'source_nested_dynamic_P_frontier', 'source_architectural_return_steps', 'source_direct_aftercall_closure', 'source_aftercall_dynamic_P_frontier', 'source_program_direct_call_closure', 'source_program_dynamic_P_frontier', 'source_program_architectural_frontier', 'source_program_dynamic_P_architectural_returns', 'source_task_pure_architectural_instructions')
+    if meta.get('contract')!='source-reviewed-independent-instruction-union-v1' or meta.get('ordinary_roots_added')is not False or meta.get('callee_exit_modes_added')is not False or meta.get('task_ownership_changed')is not False or len(sources)!=19:raise RuntimeError('Independent architecture source policy missing.')
+    expected=((7, 7, 0), (83, 83, 0), (99, 99, 0), (48, 46, 2), (12, 7, 5), (73, 14, 59), (4, 3, 1), (24, 14, 10), (91, 89, 2), (4, 4, 0), (12192, 5862, 6330), (401, 235, 166), (44, 36, 8), (141, 27, 114), (204, 121, 83), (439, 427, 12), (230, 24, 206), (260, 260, 0), (116, 116, 0))if enabled else((7, 7, 0), (79, 79, 0), (95, 95, 0), (44, 44, 0), (12, 7, 5), (73, 14, 59), (4, 3, 1), (24, 14, 10), (67, 67, 0), (4, 4, 0), (11566, 5445, 6121), (384, 222, 162), (40, 33, 7), (141, 27, 114), (204, 121, 83), (439, 427, 12), (217, 12, 205), (252, 252, 0), (104, 104, 0))
+    origins=('reviewed_original_task_child', 'reviewed_original_ff20_receiving_starts', 'source_direct_call_return_instructions', 'source_direct_callee_instructions', 'source_dynamic_P_boundaries', 'source_nested_direct_call_instructions', 'source_nested_dynamic_P_frontier', 'source_architectural_return_steps', 'source_direct_aftercall_closure', 'source_aftercall_dynamic_P_frontier', 'source_program_direct_call_closure', 'source_program_dynamic_P_frontier', 'source_program_architectural_frontier', 'source_program_dynamic_P_architectural_returns', 'source_task_pure_architectural_instructions', 'source_ROM_stack_dispatch_pure_instructions', 'source_task_graph_architectural_members', 'source_original_initial_task_instructions', 'source_nested_initial_task_instructions')
     if any(source.get('origin')!=origin or source.get('source_rows')!=count or len(source.get('added',[]))!=added or len(source.get('reused',[]))!=reused or source.get('refused')!=[] for source,origin,(count,added,reused)in zip(sources,origins,expected)):raise RuntimeError('Independent architecture source union differs.')
     return_calls={0x01f4da:0x01f4dd,0x01f508:0x01f50b,0x01f547:0x01f54a,0x01f591:0x01f594}
     callee_calls={0x01f504:0x01f689,0x01f525:0x01f533,0x01f566:0x01f689,0x01f5c7:0x01f5d5}
@@ -284,7 +577,24 @@ def normal_source_row_count(value):
     fresh={tuple(k)for k in sources[14]['added']}
     ordered=sorted((r for r in value['regions']if(r['pc24'],r['m'],r['x'])in fresh),key=lambda r:(r['pc24'],r['m'],r['x']))
     if len(ordered)!=121 or hashlib.sha256(json.dumps(ordered,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='748fd6349b4bcfb362d10476e53d7e4d4a2d14b22d4fcc816f978bb34204ccf6':raise RuntimeError('New task instruction exact canonical bodies differ.')
-    return 16172 if enabled else 15471
+    if hashlib.sha256(json.dumps(meta.get('rom_stack_dispatch_graphs'),sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('257464e7f9522396d15a58a45fa4cbcdbe27da9b44d118d9110be55d44b36c53' if enabled else '257464e7f9522396d15a58a45fa4cbcdbe27da9b44d118d9110be55d44b36c53'):raise RuntimeError('New combined source recipe differs: rom_stack_dispatch_graphs')
+    if hashlib.sha256(json.dumps(meta.get('task_member_graphs'),sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('bde1f959de185b82d193d3f382e9e527c0e17f7a33df934e47c40f1cb6c234f4' if enabled else '991e139ecb88969a07f12e3952a06e28a96b0ba0ec6b4c992b62cebbf44389ef'):raise RuntimeError('New combined source recipe differs: task_member_graphs')
+    newkeys={tuple(k)for k in sources[15]['added']}
+    newrows=sorted((r for r in value['regions']if(r['pc24'],r['m'],r['x'])in newkeys),key=lambda r:(r['pc24'],r['m'],r['x']))
+    if hashlib.sha256(json.dumps(newrows,sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('dc5d40076d4f834650894ed650de06d55da35866995ec3bdc6593055325d1bea' if enabled else 'dc5d40076d4f834650894ed650de06d55da35866995ec3bdc6593055325d1bea'):raise RuntimeError('New combined canonical added bodies differ.')
+    newkeys={tuple(k)for k in sources[16]['added']}
+    newrows=sorted((r for r in value['regions']if(r['pc24'],r['m'],r['x'])in newkeys),key=lambda r:(r['pc24'],r['m'],r['x']))
+    if hashlib.sha256(json.dumps(newrows,sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('e84639e6e17153ba8ade3f18c29a27122584b3a94cee14a334c2e40f035b8180' if enabled else 'd28eca6b6a98c7a23a695182b8d9b70736f102b314aa512a20d4c001d5beabee'):raise RuntimeError('New combined canonical added bodies differ.')
+    if hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('ac7d7c6031057a08887c106d76f21db56ab3835cb08003322e208e6ab5f3f930' if enabled else '9ba62228d3bd163828756873ad6a5277d5469693e33aefa6cf542722ec30c18b'):raise RuntimeError('Complete combined compositional source metadata differs; actual producer must match.')
+    if hashlib.sha256(json.dumps(meta.get('initial_task_graphs'),sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('dd92d7688f9e3e88d691ee71e1b5ffed1281bcbcf17873952df11924652786b3' if enabled else 'a187e8377acd07ecc1ae7c6b7be94e2aff25bc9e2137295d4f99c543adbc0bdc'):raise RuntimeError('New combined source recipe differs: initial_task_graphs')
+    newkeys={tuple(k)for k in sources[17]['added']}
+    newrows=sorted((r for r in value['regions']if(r['pc24'],r['m'],r['x'])in newkeys),key=lambda r:(r['pc24'],r['m'],r['x']))
+    if hashlib.sha256(json.dumps(newrows,sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('16200f069a828eb1da33681b535351def60042c3463bd681c640fc34a0369999' if enabled else '02bd476f04ad9da192ee982fdd42ccfbee8a264769f3041c8d8098ae5550cbd8'):raise RuntimeError('New combined canonical added bodies differ.')
+    if hashlib.sha256(json.dumps(meta.get('nested_initial_task_graphs'),sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('f7fb8160321ec95df09d9a1e5012d283dc8471fb561facd4a381187ed2ed2582' if enabled else '87eb310cc767b38f677ec8df74ecb931395a8f496cad4c4ccea7be33842ccfa5'):raise RuntimeError('New combined source recipe differs: nested_initial_task_graphs')
+    newkeys={tuple(k)for k in sources[18]['added']}
+    newrows=sorted((r for r in value['regions']if(r['pc24'],r['m'],r['x'])in newkeys),key=lambda r:(r['pc24'],r['m'],r['x']))
+    if hashlib.sha256(json.dumps(newrows,sort_keys=True,separators=(',',':')).encode()).hexdigest()!=('9410e3538604ad91b47a9fba2c09bcb9c3e884ac32e4aa78b4392056ff4c5753' if enabled else '398e4a5fc0154b25b870f3947ac5564b3e2aac01abc5f5d5bf56428ac1f3ce43'):raise RuntimeError('New combined canonical added bodies differ.')
+    return 16999 if enabled else 16266
 
 def validate_new_program_source_returns(runtime,directory,rom,architecture,rows):
     import json,os,subprocess,sys
@@ -370,7 +680,7 @@ print(json.dumps({'validated':len(rows),'RTS':sum(r['mnemonic']=='RTS'for r in r
 def validate_direct_call_outputs(directory,cache,rom_sha,rom,enabled,runtime):
     directory=Path(directory);raw=Path(rom).read_bytes()
     metadata=directory/'native_regions.json';source=directory/'native_regions_v2.c'
-    value=json.loads(metadata.read_bytes());rows=value.get('regions');code=source.read_text(encoding='utf-8')
+    value=_read_legacy_normal(metadata);rows=value.get('regions');code=source.read_text(encoding='utf-8')
     if sha(Path(rom))!=rom_sha or value.get('rom_sha256')!=rom_sha or value.get('direct_call_prefix')is not enabled or len(rows)!=normal_source_row_count(value):raise RuntimeError('Direct call source metadata/ROM/count differs.')
     # Preserve the prior return family and only fresh source-certified aftercall returns.
     architecture=value['architecture_source_eligibility'];family=architecture['sources'][7];after_family=architecture['sources'][8]
@@ -396,8 +706,8 @@ def validate_direct_call_outputs(directory,cache,rom_sha,rom,enabled,runtime):
         if clean(row['body'])!=clean(''.join(exact)):raise RuntimeError('Source return bank0 wrap/fullPC/pop-stage body differs.')
     new_return_metadata=validate_new_program_source_returns(runtime,directory,rom,architecture,rows)
     subset=[r for r in rows if r.get('contract')=='source-direct-call-architectural-prefix-v1']
-    if len(subset)!=(701 if enabled else 0):raise RuntimeError('Direct call source mode row count differs.')
-    if enabled and (len({r['pc24']for r in subset})!=341 or sum(r['mnemonic']=='JSR'for r in subset)!=352 or sum(r['mnemonic']=='JSL'for r in subset)!=349):raise RuntimeError('Direct call source family count differs.')
+    if len(subset)!=(733 if enabled else 0):raise RuntimeError('Direct call source mode row count differs.')
+    if enabled and (len({r['pc24']for r in subset})!=360 or sum(r['mnemonic']=='JSR'for r in subset)!=354 or sum(r['mnemonic']=='JSL'for r in subset)!=379):raise RuntimeError('Direct call source family count differs.')
     keys=[(r['pc24'],r['m'],r['x'])for r in rows]
     if len(set(keys))!=len(keys):raise RuntimeError('Duplicate original scheduler mode row.')
     for row in subset:
@@ -498,7 +808,28 @@ def validate_stack_direct_patch(path):
 
 ADDRESS_CONTRACT_SCOPES = {'native-e0-source-cached-indirect-y-v1': {'old_keys': [[43553, 1, 1], [46175, 1, 1], [46180, 1, 1], [46185, 1, 1], [46195, 1, 1], [46200, 1, 1], [46203, 1, 1], [46213, 1, 1], [46220, 1, 1], [46225, 1, 1], [46239, 1, 1], [46244, 1, 1], [46249, 1, 1], [46276, 1, 1], [46283, 1, 1], [46288, 1, 1]], 'old_count': 16, 'old_rows_sha256': 'fea69583fd2aad20cccd20a0bf13f80cea5728fcbbb332594baabe287f196ee5', 'new_count': 7, 'new_rows_sha256': '10065f29c776b3897f0f03f8bd05dba470d5dc7e1d4a440b6c72f98b03d23491', 'total': 23}, 'native-e0-source-cached-stack-direct-v1': {'old_keys': [[34083, 1, 1], [34088, 1, 1], [34111, 1, 1], [34119, 0, 1], [34128, 0, 1], [182320, 0, 1]], 'old_count': 6, 'old_rows_sha256': '2e22c4d1edc331583492c7c2b29fe53e2e6d9d3a639688ce6471b626242dfc68', 'new_count': 47, 'new_rows_sha256': 'e848c1f6ca019e35647897dff25119c8a8c4e50bc378ee45dabb55bbfea3aac4', 'total': 53}, 'native-e0-source-cached-stack-indirect-y-v1': {'old_keys': [], 'old_count': 0, 'old_rows_sha256': '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945', 'new_count': 8, 'new_rows_sha256': '8f4389841394b6c92b08ecfe5a6338ca6d55371f663328dcc147b41406dad53c', 'total': 8}}
 
+# ONLY the five independently source191-certified address rows are partitioned.
+# ADDRESS_CONTRACT_SCOPES and the original source53 validator stay unchanged.
+ADDRESS_SOURCE191_SCOPES = {'native-e0-source-cached-indirect-y-v1': {'keys': [[181951, 0, 1]], 'row_count': 1, 'canonical_rows_sha256': '8863ed2fc198177222d54379422e359e71d84714536fdf63062e2383db53f576', 'total_after': 24}, 'native-e0-source-cached-stack-direct-v1': {'keys': [[166436, 0, 1], [184322, 0, 1], [192677, 0, 1]], 'row_count': 3, 'canonical_rows_sha256': '3b65d86dad00bf4515a86b8a857d3a4f30fd79d3ce11dd793f5ca6bbbbc6ee61', 'total_after': 56}, 'native-e0-source-cached-stack-indirect-y-v1': {'keys': [[189967, 0, 1]], 'row_count': 1, 'canonical_rows_sha256': '309e5d1f3a8bc2b1d81c470d4a1c283e9eb9db5c188792b8fa99bfcd70955e07', 'total_after': 9}}
+
+
+def partition_source191_address_rows(value,subset,contract):
+    # Parent output validators already call normal_source_row_count, whose
+    # unchanged seventeen-family/recipe/wholemetadata seals bind this artifact.
+    spec=ADDRESS_SOURCE191_SCOPES[contract]
+    key=lambda r:(r['pc24'],r['m'],r['x'])
+    canonical=lambda rows:hashlib.sha256(json.dumps(sorted(rows,key=key),sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    wanted=set(map(tuple,spec['keys']))
+    selected=[r for r in subset if key(r)in wanted]
+    architecture=value['architecture_source_eligibility'];families=architecture['sources']
+    if len(families)!=19 or families[15]['origin']!='source_ROM_stack_dispatch_pure_instructions' or hashlib.sha256(json.dumps(architecture['rom_stack_dispatch_graphs'],sort_keys=True,separators=(',',':')).encode()).hexdigest()!='257464e7f9522396d15a58a45fa4cbcdbe27da9b44d118d9110be55d44b36c53':raise RuntimeError('Source191 address recipe/family differs: '+contract)
+    source_members={tuple(k)for g in architecture['rom_stack_dispatch_graphs']['graphs']for k in g['instruction_keys']}
+    if len(subset)!=spec['total_after'] or len(selected)!=spec['row_count'] or {key(r)for r in selected}!=wanted or canonical(selected)!=spec['canonical_rows_sha256'] or not wanted<={tuple(k)for k in families[15]['added']} & source_members:raise RuntimeError('Source191 address rows lack exact new canonical graph scope: '+contract)
+    return [r for r in subset if key(r)not in wanted]
+
+
 def validate_address_contract_scope(value,subset,contract):
+    subset=partition_source191_address_rows(value,subset,contract)
     spec=ADDRESS_CONTRACT_SCOPES[contract]
     key=lambda r:(r['pc24'],r['m'],r['x'])
     canonical=lambda rows:hashlib.sha256(json.dumps(sorted(rows,key=key),sort_keys=True,separators=(',',':')).encode()).hexdigest()
@@ -512,8 +843,8 @@ def validate_address_contract_scope(value,subset,contract):
 
 def validate_stack_direct_outputs(directory,cache,rom_sha,rom):
     directory=Path(directory);rom=Path(rom);raw=rom.read_bytes()
-    value=json.loads((directory/'native_regions.json').read_bytes());rows=value.get('regions');code=(directory/'native_regions_v2.c').read_text(encoding='utf-8')
-    if sha(rom)!=rom_sha or value.get('rom_sha256')!=rom_sha or value.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal'] or not isinstance(rows,list)or len(rows)!=normal_source_row_count(value):raise RuntimeError('Stack direct actualROM/metadata9/count differs.')
+    value=_read_legacy_normal(directory/'native_regions.json');rows=value.get('regions');code=(directory/'native_regions_v2.c').read_text(encoding='utf-8')
+    if sha(rom)!=rom_sha or value.get('rom_sha256')!=rom_sha or value.get('format_version')!=33 or not isinstance(rows,list)or len(rows)!=normal_source_row_count(value):raise RuntimeError('Stack direct actualROM/metadata9/count differs.')
     subset=[r for r in rows if r.get('contract')=='native-e0-source-cached-stack-direct-v1']
     opcodes={'ORA':0x03,'AND':0x23,'EOR':0x43,'ADC':0x63,'STA':0x83,'LDA':0xa3,'CMP':0xc3,'SBC':0xe3}
     address_scope=validate_address_contract_scope(value,subset,'native-e0-source-cached-stack-direct-v1')
@@ -579,8 +910,8 @@ def validate_indirect_y_patch(path):
 def validate_indirect_y_outputs(directory,cache,rom_sha,rom):
     directory=Path(directory);rom=Path(rom);raw=rom.read_bytes()
     if sha(rom)!=rom_sha:raise RuntimeError('IndirectY supplied ROM identity differs.')
-    value=json.loads((directory/'native_regions.json').read_bytes());rows=value.get('regions');code=(directory/'native_regions_v2.c').read_text(encoding='utf-8')
-    if value.get('format_version')!=RUNTIME_GENERATION_FORMATS['normal'] or value.get('rom_sha256')!=rom_sha or not isinstance(rows,list) or len(rows)!=normal_source_row_count(value):raise RuntimeError('IndirectY metadata9/source-scoped normal generation differs.')
+    value=_read_legacy_normal(directory/'native_regions.json');rows=value.get('regions');code=(directory/'native_regions_v2.c').read_text(encoding='utf-8')
+    if value.get('format_version')!=33 or value.get('rom_sha256')!=rom_sha or not isinstance(rows,list) or len(rows)!=normal_source_row_count(value):raise RuntimeError('IndirectY metadata9/source-scoped normal generation differs.')
     subset=[r for r in rows if r.get('contract')=='native-e0-source-cached-indirect-y-v1']
     opcodes={'ORA':0x11,'AND':0x31,'EOR':0x51,'ADC':0x71,'STA':0x91,'LDA':0xb1,'CMP':0xd1,'SBC':0xf1}
     address_scope=validate_address_contract_scope(value,subset,'native-e0-source-cached-indirect-y-v1')
@@ -588,7 +919,7 @@ def validate_indirect_y_outputs(directory,cache,rom_sha,rom):
         pc=row.get('pc24');m=row.get('m');x=row.get('x');body=row.get('body');b=row.get('bytes');mnemonic=row.get('mnemonic');offset=(pc>>16)*32768+(pc&32767)
         if m not in (0,1) or x not in (0,1) or row.get('length')!=2 or row.get('next_pc')!=((pc+2)&65535) or mnemonic not in opcodes or not isinstance(b,str) or len(b)!=4 or bytes.fromhex(b)[0]!=opcodes[mnemonic] or raw[offset:offset+2].hex()!=b:raise RuntimeError('IndirectY typed source row/ROM/mode differs.')
         if not isinstance(body,str) or body not in code or body.count('uint16 _ea_lo = cpu_aot_read16(cpu, 0x00, _ea_p);')!=1 or 'cpu_aot_begin' in body or 'cpu_aot_commit' in body or '*next_pc=((uint32)cpu->PB<<16)|' not in body:raise RuntimeError('IndirectY faithful pointer/body/fullPC differs.')
-    for name,count in (('native_regions_v2.c',normal_source_row_count(value)+3),('native_task_resume_v2.c',TASK_GENERATED_ROW_COUNT),('native_source_redirect_v2.c',3)):
+    for name,count in (('native_regions_v2.c',_actual_normal_total(directory)+3),('native_task_resume_v2.c',task_scheduler_scope_count(json.loads((directory/'native_task_resume.json').read_bytes()))),('native_source_redirect_v2.c',3)):
         path=directory/name;reject_links(path);source=path.read_text(encoding='utf-8')
         if source.count('cpu_aot_begin_scheduler_region(')!=count or 'cpu_aot_begin_region(' in source:raise RuntimeError('IndirectY common one-use scheduler scope missing: '+name)
         if cache.get('outputs',{}).get(name)!=sha(path):raise RuntimeError('IndirectY scoped output/cache mismatch: '+name)
@@ -671,10 +1002,50 @@ SUSPEND_TASK_FAMILY_SHA256='ee1db8462b1461ca99ce652cddc3d5212353df831ae63f48b78e
 SUSPEND_TASK_PRIOR_ROWS_SHA256='eea81f1dc726eeb28fbe6cb875dab3417fe1f9f8022e8ae33d91b0b9a5753d64'
 SUSPEND_TASK_ADDED_ROWS_SHA256='e7499822fd11a8140aaf63ae2a728191ba9d352e49ed10eacecbb2890e20e2fb'
 
+TASK_SEPARATE_FIELDS = ('selected_architectural_members', 'selected_architectural_calls', 'retained_parent_architectural_members')
+TASK_EXTENSION_SEALS = {'on': {'whole_metadata': '2f54327ad99bae2c11eaa0de9cf80bb66f9e1edc031e00bf09c4795f2f839eb8', 'C_sha256': 'd85816d9ed11b226a1f389d621219efa08af25d5b7a2080dc7ad70762ce77445', 'counts': {'selected_architectural_members': 5, 'selected_architectural_calls': 10, 'retained_parent_architectural_members': 1}, 'scope': 251, 'fields': {'selected_architectural_members': 'ebe4cb49b561a4e55b4b7c239712b78f2495d91e9cb71c45dad68e50a01b81d9', 'selected_architectural_calls': 'a687af5796b3cc4ea73e88c396b0c861e14a3eff7b9e474b4debaad555677453', 'retained_parent_architectural_members': 'd81e1e24c0c32752cdf3f4c556426f3ffcc099281cb7008942641d1da05c359f'}, 'old_rows': 'e9cc56788163d2159f425e90c383a3eaf6a442224cb7a8b1f85c8ce1034123af', 'old_recipe': '8bbedf0ffd121f97956a79a96721a81d53a9379fa446b99022cc7ac76e70fa72', 'old_graphs': 'ac2994f66b32622ba5d608dc5a2945334a8853bc689bcd28198661aef5f9f36b', 'prefix235_200_bytes': 322329, 'prefix235_200_sha256': 'fc2d8999c66dff236354d8293d9e0c996758846df09a0a60b47877a252f85364', 'prefix207_bytes': 331985, 'prefix207_sha256': '24f5374849a987f5286bf35a133edf5bc4f11f6a8e4c89b209e9c0749335c732', 'parent_append_sha256': '5692f64790697c52c27bdc6dbfe0ef4f4a230f051c08b3210ec12a5d67e1d8b7'}, 'off': {'whole_metadata': 'c033390d8c292c7d38bc3def8c79f71053baee83ed2b44eeae499d9e009e1d88', 'C_sha256': '0b877eac16296246e0f0e74e0ad45c121d61b94946c06d90eed9973d10159fd3', 'counts': {'selected_architectural_members': 5, 'selected_architectural_calls': 0, 'retained_parent_architectural_members': 1}, 'scope': 241, 'fields': {'selected_architectural_members': 'ebe4cb49b561a4e55b4b7c239712b78f2495d91e9cb71c45dad68e50a01b81d9', 'selected_architectural_calls': '0f8b0745ecbe560f08d072fa396da7790d1d6e18a8f6694d684608647fa0b158', 'retained_parent_architectural_members': '9406d44a1845d9813e351301d0a13d2b3ea0e158f629bf22c2ec652038d28b26'}, 'old_rows': 'e9cc56788163d2159f425e90c383a3eaf6a442224cb7a8b1f85c8ce1034123af', 'old_recipe': '8bbedf0ffd121f97956a79a96721a81d53a9379fa446b99022cc7ac76e70fa72', 'old_graphs': 'ac2994f66b32622ba5d608dc5a2945334a8853bc689bcd28198661aef5f9f36b', 'prefix235_200_bytes': 322329, 'prefix235_200_sha256': 'fc2d8999c66dff236354d8293d9e0c996758846df09a0a60b47877a252f85364', 'prefix207_bytes': 323344, 'prefix207_sha256': 'f77a4132cd0be1a6f8c1bc8fca197aaa67bb3c6db5542061642079cf533ecd1c', 'parent_append_sha256': '5692f64790697c52c27bdc6dbfe0ef4f4a230f051c08b3210ec12a5d67e1d8b7'}}
+
+def task_scheduler_scope_count(value):
+    call=value.get('selected_architectural_calls',{}).get('recipe',{}).get('direct_call_prefix')
+    if type(call)is not bool or value.get('format_version')!=RUNTIME_GENERATION_FORMATS['task']:raise RuntimeError('Task8 direct CALL option/schema missing.')
+    seal=TASK_EXTENSION_SEALS['on'if call else'off']
+    if len(value.get('rows',[]))!=TASK_GENERATED_ROW_COUNT or any(not isinstance(value.get(f),dict)or set(value[f])!={'rows','recipe'}or len(value[f]['rows'])!=seal['counts'][f]for f in TASK_SEPARATE_FIELDS):raise RuntimeError('Task8 separate source scopes differ.')
+    count=len(value['rows'])+sum(len(value[f]['rows'])for f in TASK_SEPARATE_FIELDS)
+    if count!=seal['scope']:raise RuntimeError('Task8 total scheduler scope differs.')
+    return count
+
+def validate_selected_member_extension(value,code,raw):
+    canonical=lambda v:hashlib.sha256(json.dumps(v,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    count=task_scheduler_scope_count(value);enabled=value['selected_architectural_calls']['recipe']['direct_call_prefix'];seal=TASK_EXTENSION_SEALS['on'if enabled else'off']
+    if canonical(value)!=seal['whole_metadata']:raise RuntimeError('Complete task8 merged source metadata differs.')
+    if canonical(value['rows'])!=seal['old_rows']or canonical(value['recipe'])!=seal['old_recipe']or canonical(value['graphs'])!=seal['old_graphs']:raise RuntimeError('Old235 fields/recipe/graphs changed.')
+    data=code.encode('utf-8')
+    if hashlib.sha256(data).hexdigest()!=seal['C_sha256']or hashlib.sha256(data[:seal['prefix235_200_bytes']]).hexdigest()!=seal['prefix235_200_sha256']or hashlib.sha256(data[:seal['prefix207_bytes']]).hexdigest()!=seal['prefix207_sha256']or hashlib.sha256(data[seal['prefix207_bytes']:]).hexdigest()!=seal['parent_append_sha256']:raise RuntimeError('Old235/200/207 Cprefix or exact parent append changed.')
+    if code.count('cpu_aot_begin_scheduler_region(')!=count:raise RuntimeError('Complete task scheduler scope differs.')
+    tail=data[seal['prefix235_200_bytes']:]
+    if tail.count(b'if(!cpu_source_task_resume_active(cpu,pc24,mx)) return false;')!=seal['counts']['selected_architectural_calls']or tail.count(b'if(!cpu_source_task_parent_admitted(cpu,pc24,mx))return false;')!=seal['counts']['retained_parent_architectural_members']:raise RuntimeError('New CALL/parent current owner guard missing.')
+    keys={(r['pc24'],r['m'],r['x'])for r in value['rows']}
+    for field in TASK_SEPARATE_FIELDS:
+        extension=value[field]
+        if canonical(extension)!=seal['fields'][field]:raise RuntimeError('Separate task row/recipe source seal changed: '+field)
+        for row in extension['rows']:
+            key=(row['pc24'],row['m'],row['x']);pc=key[0];b=bytes.fromhex(row['bytes']);off=(pc>>16)*32768+(pc&32767)
+            if key in keys or key[1]not in(0,1)or key[2]not in(0,1)or len(b)!=row['length']or raw[off:off+len(b)]!=b or row['body']not in code:raise RuntimeError('Task field overlaps old authority or typed wholebytes/body differ.')
+            keys.add(key)
+            if field=='selected_architectural_members'and row['mnemonic']not in('PHP','PLP','PLD'):raise RuntimeError('Old200 NONCALL scope changed.')
+            if field=='selected_architectural_calls':
+                long=row['mnemonic']=='JSL';frame=3 if long else 2;length=4 if long else 3;body=row['body']
+                target=int.from_bytes(b[1:],'little')if long else(pc&0xff0000)|int.from_bytes(b[1:],'little')
+                if row['mnemonic']not in('JSR','JSL')or row.get('original_scheduler_call')is not True or row.get('contract')!='source-direct-call-architectural-prefix-v1'or len(b)!=length or b[0]!=(0x22 if long else 0x20)or row['cycles']!=(8 if long else 6)or row['frame_bytes']!=frame or row['next_pc']!=target:raise RuntimeError('Selected CALL canonical original typed frame differs.')
+                if body.count('cpu_aot_get_direct_call_operands(')!=1 or body.count('cpu_source_call_native_push(')!=1 or body.count('cpu_aot_write8(')!=frame or body.count('cpu->PB=(uint8)(_call_target>>16);')!=int(long)or '*next_pc=_call_target;'not in body:raise RuntimeError('Selected CALL actual cached operands/ordered frame observer differ.')
+            elif field=='retained_parent_architectural_members'and row['mnemonic']in('JSR','JSL','RTS','RTL','RTI','TCS','TXS'):raise RuntimeError('Parent NONCALL field gained call/return/owner authority.')
+    return value['selected_architectural_members']
+
 def validate_selected_task_outputs(directory,cache,rom_sha,rom):
     directory=Path(directory);metadata_path=directory/'native_task_resume.json';source_path=directory/'native_task_resume_v2.c'
     reject_links(metadata_path);reject_links(source_path)
     value=json.loads(metadata_path.read_bytes())
+    validate_selected_member_extension(value,source_path.read_text(encoding='utf-8'),Path(rom).read_bytes())
     recipe={'callee': 65283, 'calls': [120952, 99338], 'return': 33839, 'select': 33833, 'subcall': {'call': 120847, 'callee': 120959, 'entry_m': 1, 'entry_x': [0, 1], 'exit_m': 0, 'exit_x': 0, 'landing': 120850, 'return': 121008, 'rows': [{'branch': 0, 'bytes': 'c230', 'fall': 120961, 'length': 2, 'm': 1, 'opcode': 194, 'pc24': 120959, 'x': 0}, {'branch': 0, 'bytes': 'a95555', 'fall': 120964, 'length': 3, 'm': 0, 'opcode': 169, 'pc24': 120961, 'x': 0}, {'branch': 0, 'bytes': '8f00247e', 'fall': 120968, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120964, 'x': 0}, {'branch': 0, 'bytes': '8f01247e', 'fall': 120972, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120968, 'x': 0}, {'branch': 0, 'bytes': '8f1e247e', 'fall': 120976, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120972, 'x': 0}, {'branch': 0, 'bytes': 'a980f0', 'fall': 120979, 'length': 3, 'm': 0, 'opcode': 169, 'pc24': 120976, 'x': 0}, {'branch': 0, 'bytes': 'a23000', 'fall': 120982, 'length': 3, 'm': 0, 'opcode': 162, 'pc24': 120979, 'x': 0}, {'branch': 0, 'bytes': 'ca', 'fall': 120983, 'length': 1, 'm': 0, 'opcode': 202, 'pc24': 120982, 'x': 0}, {'branch': 0, 'bytes': 'ca', 'fall': 120984, 'length': 1, 'm': 0, 'opcode': 202, 'pc24': 120983, 'x': 0}, {'branch': 0, 'bytes': 'ca', 'fall': 120985, 'length': 1, 'm': 0, 'opcode': 202, 'pc24': 120984, 'x': 0}, {'branch': 0, 'bytes': 'ca', 'fall': 120986, 'length': 1, 'm': 0, 'opcode': 202, 'pc24': 120985, 'x': 0}, {'branch': 0, 'bytes': '9f00227e', 'fall': 120990, 'length': 4, 'm': 0, 'opcode': 159, 'pc24': 120986, 'x': 0}, {'branch': 120982, 'bytes': 'd0f6', 'fall': 120992, 'length': 2, 'm': 0, 'opcode': 208, 'pc24': 120990, 'x': 0}, {'branch': 0, 'bytes': '8ff0237e', 'fall': 120996, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120992, 'x': 0}, {'branch': 0, 'bytes': '8ff4237e', 'fall': 121000, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 120996, 'x': 0}, {'branch': 0, 'bytes': '8ff8237e', 'fall': 121004, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 121000, 'x': 0}, {'branch': 0, 'bytes': '8ffc237e', 'fall': 121008, 'length': 4, 'm': 0, 'opcode': 143, 'pc24': 121004, 'x': 0}, {'branch': 0, 'bytes': '60', 'fall': 120850, 'length': 1, 'm': 0, 'opcode': 96, 'pc24': 121008, 'x': 0}, {'branch': 0, 'bytes': 'c230', 'fall': 120961, 'length': 2, 'm': 1, 'opcode': 194, 'pc24': 120959, 'x': 1}], 'same_owner': True}}
     recipe['cases']=[{'callsite':pc,'landing':pc+4,'p_mask':0x20,'p_value':0x20}for pc in recipe['calls']]+[{'callsite':0x01e056,'landing':0x01e05a,'p_mask':0x30,'p_value':0x20}]
     if value.get('format_version')!=RUNTIME_GENERATION_FORMATS['task'] or value.get('kind')!='source_selected_task_resume' or value.get('rom_sha256')!=rom_sha or {k:v for k,v in value.get('recipe',{}).items()if k not in ('original_calls','original_prefix_keys','suspended_child')}!=recipe:
@@ -1058,6 +1429,11 @@ print(json.dumps(value.metadata(),sort_keys=True))
       'wrapper_optout':'--no-reviewed-roots','generator_option':'--reviewed-root-manifest',
       'local_profile_dependency':False,'admission_is_execution_qualification':False}
 
+
+CURRENT61_PROFILE_RECEIPT_SHA256 = 'a4a6c34cf68fa7a95d3f9dc312397b3898b1a6c763a41a779b24c1f633c5b9a7'
+CURRENT61_PROFILE_MARKER_SHA256 = '9be61835f6e511a08756463177761301b31c141b690d32c578edf03dfa8287e6'
+CURRENT61_PROFILE_IDENTITY = {'rom_sha256': '7da4a3cfa5de4bb4722a6e2a42c26aae322b5e668f1645d8c870fb99e6080600', 'module_id': 'main', 'mapper': 'lorom', 'program_digest': '84ee2d0224f5857be9dac61d8b9a187d3a94ccfa2c43a67a5b1cc81de4994210', 'build_digest': 'ea89f70a2ec85c9dfda4a5a19e826d34435366c90ccdcb4ef7c4c08e0273dcd2', 'generation_digest': '5dec7b7890744e01a163ec900f62b2ab217e0c06ec91a9a4bd72c1bccb455c78'}
+
 def source_runtime_preflight(runtime,preflight):
     if preflight is None:
         if runtime:raise ValueError('--profile-runtime-dir requires --profile-manifest')
@@ -1071,12 +1447,20 @@ def source_runtime_preflight(runtime,preflight):
       'faithful_instruction_patch_sha256':FAITHFUL_INSTRUCTION_PATCH_SHA256,
       'host_modal_audio_patch_sha256':HOST_AUDIO_PATCH_SHA256,
       'automatic_faithful_patch_sha256':AUTOMATIC_FAITHFUL_PATCH_SHA256}
-    if any(receipt.get(k)!=v for k,v in expected.items())or receipt.get('prefix_patch_sha256')or receipt.get('lifecycle_patch_sha256')or 'faithful_hook_boundary_patch_sha256' in receipt or 'reviewed_roots_patch_sha256' in receipt:
-        raise ValueError('Only original five-patch3909 captures are currently supported; newer source captures require explicit compatibility review')
+    if preflight.get('current61_profile'):
+        if sha(marker)!=CURRENT61_PROFILE_MARKER_SHA256:raise ValueError('Exact current61 capture runtime marker changed')
+    else:
+        if any(receipt.get(k)!=v for k,v in expected.items())or receipt.get('prefix_patch_sha256')or receipt.get('lifecycle_patch_sha256')or 'faithful_hook_boundary_patch_sha256' in receipt or 'reviewed_roots_patch_sha256' in receipt:
+            raise ValueError('Only original five-patch3909 captures are currently supported; newer source captures require explicit compatibility review')
     sources=receipt.get('patched_sources',{})
     if not isinstance(sources,dict)or not sources:raise ValueError('Original runtime source marker missing')
     if command(['git','rev-parse','HEAD'],runtime)!=RUNTIME_PIN:raise ValueError('Original runtime pin changed')
-    runtime_source_accounting(runtime,sources)
+    new_names=()
+    if preflight.get('current61_profile'):
+        new_names=receipt.get('new_patched_sources')
+        if not isinstance(new_names,list)or any(not isinstance(n,str)for n in new_names)or len(new_names)!=len(set(new_names))or not set(new_names)<=set(sources):
+            raise ValueError('Exact current61 runtime new-source partition is invalid')
+    runtime_source_accounting(runtime,sources,new_names)
     for name,digest in sources.items():
         if Path(name).is_absolute()or'..'in Path(name).parts:raise ValueError('Original runtime marker path escapes source')
         path=profile_file(runtime/name)
@@ -1085,16 +1469,18 @@ def source_runtime_preflight(runtime,preflight):
     preflight['protected'][str(marker)]=sha(marker);preflight['source_runtime']=runtime
     return runtime
 
-def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=True,reviewed=True,certify=True,continuations=True,direct_calls=True):
+def generation_commands(runtime,project,rom,identity,profiles=(),prefixes=True,reviewed=True,certify=True,continuations=True,direct_calls=True,architecture_baseline=False,analysis_roots=()):
     # Source-owned live-mode alternatives are independent of prefix/call diagnostics.
     emit=[sys.executable,runtime/'tools/v2_emit.py','--rom',rom,'--cfg-dir',project/'recomp',
       '--out-dir',project/'src/gen','--analysis-backend','native','--cfg-roots','--no-host-root-scan','--native-mode-successors']
+    if architecture_baseline:emit+=['--architecture-discovery-baseline']
     if prefixes:emit+=['--faithful-prefixes']
     if direct_calls:emit+=['--native-direct-call-prefix']
     sync=[sys.executable,runtime/'tools/v2_sync_funcs_h.py','--cfg-dir',project/'recomp','--out',project/'recomp/funcs.h']
     if reviewed:emit+=['--reviewed-root-manifest',project/REVIEWED_ROOTS_INPUT]
     if certify:emit+=['--certify-converged-exits']
     if continuations:emit+=['--certify-native-continuations']
+    for seed in analysis_roots:emit+=['--analysis-roots-file',seed]
     for profile in profiles:emit+=['--profile-manifest',profile]
     return [emit,sync]if sync else[emit]
 
@@ -1174,18 +1560,30 @@ def profile_records(path):
         else:yield record
     for record in records:yield from unpack(record)
 
-def profile_preflight(paths,receipt_path,program_path,expected,source,analyzer_path=None):
+def profile_preflight(paths,receipt_path,program_path,expected,source,analyzer_path=None,profile_source_binding=None,profile_source_binding_sha256=None):
     if not paths:
-        if receipt_path or program_path or analyzer_path:raise ValueError('Original profile identity inputs require --profile-manifest')
+        if receipt_path or program_path or analyzer_path or profile_source_binding or profile_source_binding_sha256:raise ValueError('Original profile identity inputs require --profile-manifest')
         return None
     if not receipt_path or not program_path or not analyzer_path:
         raise ValueError('Profiles require original --profile-build-receipt, --profile-program-manifest and --profile-analyzer')
-    if len(paths)>32:raise ValueError('At most32 explicit profile files per build')
+    if len(paths)>64:raise ValueError('At most64 explicit profile files; legacy captures remain limited to32')
     profiles=[profile_file(p)for p in paths]
     if len(set(profiles))!=len(profiles):raise ValueError('Repeated local profile path')
     if sum(p.stat().st_size for p in profiles)>128*1024*1024:raise ValueError('Local profile bundle exceeds128MiB')
     receipt_path=profile_file(receipt_path,4*1024*1024);program_path=profile_file(program_path)
     receipt=json.loads(receipt_path.read_bytes());program=json.loads(program_path.read_bytes())
+    current61_profile=sha(receipt_path)==CURRENT61_PROFILE_RECEIPT_SHA256
+    if len(paths)>32 and not current61_profile:raise ValueError('At most32 explicit legacy profile files per build')
+    explicit_profile_binding=None
+    if current61_profile:
+        if not profile_source_binding or not profile_source_binding_sha256:raise ValueError('Current61 profiles require explicit root-reviewed profile binding path and SHA256')
+        explicit_profile_binding=profile_file(profile_source_binding,4*1024*1024)
+        if not re.fullmatch('[0-9a-f]{64}',profile_source_binding_sha256)or sha(explicit_profile_binding)!=profile_source_binding_sha256:raise ValueError('Current61 profile binding changed')
+        binding=json.loads(explicit_profile_binding.read_bytes())
+        if binding.get('schema')!='source61-build27-owned-profile-binding-v1' or binding.get('original_receipt_sha256')!=CURRENT61_PROFILE_RECEIPT_SHA256 or binding.get('identity')!=CURRENT61_PROFILE_IDENTITY:raise ValueError('Unreviewed current61 capture producer binding')
+        if binding.get('profiles')!={str(p.resolve()):sha(p)for p in profiles}:raise ValueError('Profile path/bytes differ from explicit reviewed binding')
+    elif profile_source_binding or profile_source_binding_sha256:raise ValueError('Current61 binding cannot admit another capture build')
+
     if receipt.get('status')!='compiled_unqualified' or receipt.get('public_build')is not True:
         raise ValueError('Unrecognized original public build receipt; historical/experimental builds are preserved')
     if receipt.get('rom_sha256')!=expected or receipt.get('runtime_pin')!=RUNTIME_PIN:
@@ -1194,7 +1592,7 @@ def profile_preflight(paths,receipt_path,program_path,expected,source,analyzer_p
         raise ValueError('Original profile generator patch is unrecognized; explicit compatibility review required')
     for field,digest in [('runtime_patch_sha256',FOUNDATION_PATCH_SHA256),('host_navigation_patch_sha256',HOST_NAVIGATION_PATCH_SHA256),('faithful_instruction_patch_sha256',FAITHFUL_INSTRUCTION_PATCH_SHA256),('host_modal_audio_patch_sha256',HOST_AUDIO_PATCH_SHA256)]:
         if receipt.get(field)!=digest:raise ValueError('Original build patch identity mismatch: '+field)
-    if receipt.get('prefix_patch_sha256')or receipt.get('lifecycle_patch_sha256')or receipt.get('automatic_generation',{}).get('faithful_prefixes')or 'faithful_hook_boundary_patch_sha256' in receipt or 'reviewed_roots_patch_sha256' in receipt:
+    if not current61_profile and (receipt.get('prefix_patch_sha256')or receipt.get('lifecycle_patch_sha256')or receipt.get('automatic_generation',{}).get('faithful_prefixes')or 'faithful_hook_boundary_patch_sha256' in receipt or 'reviewed_roots_patch_sha256' in receipt):
         raise ValueError('New prefix/lifecycle captures require explicit source-generation compatibility review; current import supports original3909 captures only')
     automatic=receipt.get('automatic_generation',{})
     relative=automatic.get('manifest','')
@@ -1207,8 +1605,8 @@ def profile_preflight(paths,receipt_path,program_path,expected,source,analyzer_p
     executable=profile_file(receipt_path.parent/'build/SecretOfTheStarsSNESRecomp.exe',128*1024*1024)
     analyzer=profile_file(analyzer_path,128*1024*1024)
     if sha(executable)!=receipt.get('executable_sha256'):raise ValueError('Original executable identity mismatch')
-    cache_path=profile_file(program_path.parent/'.snesrecomp-cache.json',4*1024*1024);cache=json.loads(cache_path.read_bytes())
-    if cache.get('format_version')!=5 or cache.get('module')!={'id':'main','prefix':''}:
+    cache_path=profile_file(program_path.parent/'.snesrecomp-cache.json',(8 if current61_profile else 4)*1024*1024);cache=json.loads(cache_path.read_bytes())
+    if cache.get('format_version')!=(48 if current61_profile else 5) or cache.get('module')!={'id':'main','prefix':''}:
         raise ValueError('Unrecognized original generation cache/module')
     outputs=cache.get('outputs',{})
     if not isinstance(outputs,dict)or outputs.get('program_manifest.json')!=sha(program_path):raise ValueError('Original generation output identity mismatch')
@@ -1238,6 +1636,8 @@ def profile_preflight(paths,receipt_path,program_path,expected,source,analyzer_p
     if f'g_program_module.program_digest = "{sha(program_path)}";'not in module or f'g_program_module.build_digest = "{generation}";'not in module:
         raise ValueError('Original emitted module identity mismatch')
     identity={'rom_sha256':expected,'module_id':'main','mapper':'lorom','program_digest':sha(program_path),'build_digest':sha(executable),'generation_digest':generation}
+    if current61_profile and identity!=CURRENT61_PROFILE_IDENTITY:raise ValueError('Current61 original capture identity changed')
+    if explicit_profile_binding:protected[str(explicit_profile_binding)]=sha(explicit_profile_binding)
     captures={};journals={}
     for path in profiles:
         for record in profile_records(path):
@@ -1254,7 +1654,7 @@ def profile_preflight(paths,receipt_path,program_path,expected,source,analyzer_p
             elif record.get('checkpoint_complete')is True:captures[capture]=max(sequence,captures.get(capture,-1))
             else:raise ValueError('Profile checkpoint is not complete')
     if not captures or any(seq>captures.get(cap,-1)for cap,seq in journals.items()):raise ValueError('Journal extends beyond complete checkpoint')
-    return {'identity':identity,'profiles':profiles,'receipt':receipt_path,'program':program_path,'analyzer':analyzer,'protected':protected,'captures':sorted(captures),'original_generator_digest':generator,'original_config_digest':config}
+    return {'current61_profile':current61_profile,'identity':identity,'profiles':profiles,'receipt':receipt_path,'program':program_path,'analyzer':analyzer,'protected':protected,'captures':sorted(captures),'original_generator_digest':generator,'original_config_digest':config}
 
 def profile_audit(preflight,runtime,source):
     if preflight is None:return None
@@ -1267,7 +1667,8 @@ def profile_audit(preflight,runtime,source):
     if Path(v2_emit.__file__).resolve()!=runtime/'tools/v2_emit.py':raise ValueError('Profile auditor imported another runtime')
     analyzer=preflight['analyzer']
     paths=[runtime/'recompiler/v2',runtime/'tools/v2_emit.py',runtime/'recompiler/snes65816.py',runtime/'tools/v2_analyze.py',runtime/'tools/disassembly_layout.py',runtime/'tools/sync_symbols.py',runtime/'tools/ingest_disassembly_authority.py',runtime/'recompiler-rs/src',runtime/'recompiler-rs/Cargo.toml',runtime/'recompiler-rs/Cargo.lock',analyzer]
-    generator=hashlib.sha256((v2_emit._tree_digest(paths)+'\0aot_deny_gate=0').encode()).hexdigest()
+    suffix='\0aot_deny_gate=0'+('\0faithful_prefixes=1' if preflight.get('current61_profile') else '')
+    generator=hashlib.sha256((v2_emit._tree_digest(paths)+suffix).encode()).hexdigest()
     if generator!=preflight['original_generator_digest']:
         raise ValueError('Original profile generator/analyzer is not the recognized pinned build; explicit compatibility review required')
     for root in paths:
@@ -1294,6 +1695,25 @@ def profile_audit(preflight,runtime,source):
     if report['warnings']:raise ValueError('Profile ingest warnings are fatal')
     return report
 
+def profile_generation_policy(preflight,audit_only,runtime,source):
+    if preflight is None:
+        if audit_only:raise ValueError('--profile-audit-only requires explicit exact current61 profiles and binding')
+        return None
+    if not audit_only:return {'mode':'analysis_roots','profiles_forwarded_as_generation_roots':True,'default':False}
+    if not preflight.get('current61_profile')or sha(preflight['receipt'])!=CURRENT61_PROFILE_RECEIPT_SHA256 or preflight['identity']!=CURRENT61_PROFILE_IDENTITY:raise ValueError('--profile-audit-only supports only recognized exact current61 binding')
+    # Original source identity, explicit binding and reader audit already passed.
+    # SDK computes candidate keys only: no decoder/emitter or root promotion.
+    from v2.program_emit import discover_profile_roots
+    from v2.cfg_loader import load_bank_cfg
+    if Path(sys.modules[discover_profile_roots.__module__].__file__).resolve()!=runtime/'recompiler/v2/program_emit.py' or Path(sys.modules[load_bank_cfg.__module__].__file__).resolve()!=runtime/'recompiler/v2/cfg_loader.py':raise ValueError('Profile candidate audit imported another original runtime')
+    cfgs=[load_bank_cfg(str(p))for p in sorted((source/'recomp').glob('bank[0-9a-fA-F][0-9a-fA-F].cfg'))]
+    declared={((cfg.bank&255)<<16)|(entry.start&65535)for cfg in cfgs for entry in cfg.entries}
+    forced=set()
+    roots=discover_profile_roots(preflight['profiles'],declared,forced,expected_rom=preflight['identity']['rom_sha256'],expected_module='main')
+    candidate=[{'pc24':pc,'m':m,'x':x}for pc,m,x in sorted({(k.pc24,k.m,k.x)for k in roots})]
+    return {'mode':'audit_only','default':False,'profiles_forwarded_as_generation_roots':False,'unpromoted_candidate_roots':candidate,'unpromoted_candidate_root_count':len(candidate),'unpromoted_candidate_original_targets':sorted(forced),'unpromoted_candidate_original_target_count':len(forced),'source_conversion':'Reviewed source241 partial original FF20 D0 discovery; source218 refinement deferred; observations confer no source ownership','native_execution_qualified':False}
+
+
 def snapshot_profiles(preflight,out):
     if preflight is None:return []
     folder=out/'profile-inputs';folder.mkdir(exist_ok=False);copies=[]
@@ -1310,8 +1730,8 @@ def snapshot_authored(source,project):
     reject_links(source.absolute());reject_links(project.absolute())
     path=source/'authored-files.json';reject_links(path)
     manifest=json.loads(path.read_text());actual={}
-    if not isinstance(manifest,dict) or len(manifest)!=63 or REVIEWED_ROOTS_INPUT not in manifest or 'src/foundation_guide_data.h' not in manifest or 'src/foundation_current_data.h' not in manifest:
-        raise ValueError('Expected63 authored inputs including reviewed roots, story-guide and Current advice data; preserve source')
+    if not isinstance(manifest,dict) or len(manifest)!=70 or REVIEWED_ROOTS_INPUT not in manifest or 'src/foundation_guide_data.h' not in manifest or 'src/foundation_current_data.h' not in manifest:
+        raise ValueError('Expected70 authored inputs including original guide/advice and the five declared architectural backend inputs; preserve source')
     for name,expected in manifest.items():
         if not isinstance(name,str) or Path(name).is_absolute() or '..' in Path(name).parts:
             raise ValueError('Authored input escapes snapshot')
@@ -1328,14 +1748,537 @@ def snapshot_authored(source,project):
         raise RuntimeError('Authored snapshot changed during copy; build refused')
     return manifest,actual
 
+def validate_seed_preparation_mode(args):
+    source_only=getattr(args,'source_seed_prepare',False)
+    if source_only:
+        if args.profile_seed_prepare or args.profile_audit_only or args.profile_manifest or any(getattr(args,n,None) for n in ('profile_build_receipt','profile_program_manifest','profile_analyzer','profile_runtime_dir','profile_source_binding','profile_source_binding_sha256')):
+            raise ValueError('Source-only preparation cannot claim historical profile inputs')
+        if not args.architecture_discovery_baseline or not args.analysis_roots_file:
+            raise ValueError('Source-only preparation requires explicit baseline and source-analysis seed files')
+        args.profile_seed_prepare=True
+    elif getattr(args,'analysis_roots_file',None):
+        raise ValueError('Explicit source seed files require --source-seed-prepare')
+    if getattr(args,'architecture_discovery_baseline',False)and not args.profile_seed_prepare:
+        raise ValueError('--architecture-discovery-baseline initially requires --profile-seed-prepare; actual population review/compile continuation remain separate')
+    if not args.profile_seed_prepare:
+        return
+    if args.profile_audit_only or (not args.profile_manifest and not source_only):
+        raise ValueError('--profile-seed-prepare requires explicit profiles and cannot combine --profile-audit-only')
+    if not all(getattr(args,n)for n in ('emit_proven_prefixes','reviewed_roots','certify_converged_exits','native_continuations','native_direct_calls')):
+        raise ValueError('Seed preparation requires the complete declared source analysis policy; no diagnostic feature disabling')
+
+
+def generate_profile_seed_auxiliary_outputs(project,out,rom,expected,actual):
+    clear_generator=project/'tools/generate_faithful_clear.py'
+    if not clear_generator.is_file():raise RuntimeError('Authored snapshot is missing the faithful-clear generator; refresh its manifest before building.')
+    with (out/'generate-faithful-clear.log').open('w',encoding='utf-8') as log:
+        r=subprocess.run([sys.executable,str(clear_generator),'--rom',str(rom),'--project-root',str(project)],
+                         cwd=project,stdout=log,stderr=subprocess.STDOUT)
+    if r.returncode:raise RuntimeError('Faithful clear generation failed; inspect '+str(out/'generate-faithful-clear.log'))
+    clear_provenance_path=project/'src/gen/faithful_clear.provenance.json'
+    clear_provenance=json.loads(clear_provenance_path.read_text(encoding='utf-8'))
+    if (clear_provenance.get('generator_sha256')!=actual['tools/generate_faithful_clear.py']
+        or clear_provenance.get('rom_sha256')!=expected
+        or clear_provenance.get('output_sha256')!=sha(project/'src/gen/faithful_clear.generated.h')):
+        raise RuntimeError('Generated clear provenance does not match the authored snapshot and ROM.')
+    constructor_generator=project/'tools/generate_constructor.py'
+    if not constructor_generator.is_file():raise RuntimeError('Authored constructor generator missing; refresh manifest before building.')
+    with (out/'generate-constructor.log').open('w',encoding='utf-8') as log:
+        r=subprocess.run([sys.executable,str(constructor_generator),'--rom',str(rom),'--project-root',str(project)],cwd=project,stdout=log,stderr=subprocess.STDOUT)
+    if r.returncode:raise RuntimeError('Constructor generation failed; inspect '+str(out/'generate-constructor.log'))
+    constructor_provenance_path=project/'src/gen/constructor.provenance.json'
+    constructor_provenance=json.loads(constructor_provenance_path.read_text(encoding='utf-8'))
+    if (constructor_provenance.get('module')!='secret-of-the-stars-faithful-constructor-v1'
+        or constructor_provenance.get('generator_sha256')!=actual['tools/generate_constructor.py']
+        or constructor_provenance.get('rom_sha256')!=expected
+        or constructor_provenance.get('output_sha256')!=sha(project/'src/gen/constructor.generated.h')
+        or constructor_provenance.get('sites_sha256')!=sha(project/'src/gen/constructor_sites.generated.h')):
+        raise RuntimeError('Generated constructor provenance differs from authored snapshot and ROM.')
+
+
+def freeze_profile_seed_preparation(out,project,runtime,rom,expected,actual,target_sources,target_marker_digest,profile_inputs,profile_report,profile_snapshots,generated_metadata,automatic_manifest,args):
+    # This is an immutable UNREVIEWED source population, not a compilation or
+    # semantic qualification receipt. Stop before legacy population assertions.
+    if (not profile_inputs and not getattr(args,'source_seed_prepare',False)) or args.profile_audit_only or not args.profile_seed_prepare:
+        raise ValueError('Explicit seed preparation context missing')
+    def tree(root):
+        result={}
+        for folder,dirs,files in os.walk(root,followlinks=False):
+            parent=Path(folder);reject_links(parent)
+            dirs[:]=sorted(n for n in dirs if n not in ('.git','__pycache__','target','build'))
+            for name in sorted(files):
+                path=parent/name;reject_links(path)
+                result[path.relative_to(root).as_posix()]=sha(path)
+        return result
+    outputs=generated_metadata.get('outputs')
+    if not isinstance(outputs,dict)or not outputs:raise RuntimeError('Complete generated output map missing')
+    for name,digest in outputs.items():
+        if Path(name).is_absolute()or '..'in Path(name).parts:raise RuntimeError('Generated output escape')
+        path=project/'src/gen'/name;reject_links(path)
+        if sha(path)!=digest:raise RuntimeError('Generated output changed before preparation freeze')
+    metadata={}
+    for name in ('program_manifest.json','native_regions.json','native_task_resume.json','native_source_redirect.json','.snesrecomp-cache.json'):
+        path=project/'src/gen'/name;reject_links(path);metadata[name]=json.loads(path.read_bytes())
+    if metadata['program_manifest.json']!=automatic_manifest or metadata['.snesrecomp-cache.json']!=generated_metadata:raise RuntimeError('Actual metadata differs while freezing')
+    for path,digest in (profile_inputs['protected'] if profile_inputs else {}).items():
+        if sha(Path(path))!=digest:raise RuntimeError('Protected capture identity/source changed during preparation')
+    for name,digest in actual.items():
+        # funcs.h is an SDK-owned post-emission derivative, separately sealed.
+        if name!='recomp/funcs.h'and sha(project/name)!=digest:raise RuntimeError('Authored project input changed: '+name)
+    toolchain={}
+    for name in ('cmake','cc','cxx','ninja'):
+        resolved=Path(shutil.which(getattr(args,name))).resolve(strict=True);reject_links(resolved)
+        toolchain[name]={'path':str(resolved),'sha256':sha(resolved)}
+    runtime_files={}
+    for folder in ('recompiler','recompiler-rs/src','runner','tools','lib'):
+        root=runtime/folder
+        if root.exists():
+            for name,digest in tree(root).items():runtime_files[folder+'/'+name]=digest
+    for name in ('CMakeLists.txt','Cargo.toml','Cargo.lock','runtime-source-provenance.json'):
+        path=runtime/name
+        if path.is_file():runtime_files[name]=sha(path)
+    receipt={'schema':'profile-seed-preparation-v1','status':'generated_unreviewed_uncompiled',
+      'helper_path':str(Path(__file__).resolve()),'helper_sha256':sha(Path(__file__)),'rom_sha256':expected,'rom':str(rom),
+      'output_dir':str(out.resolve()),'project':str(project.resolve()),'runtime':str(runtime.resolve()),
+      'authored_input_hashes':actual,'project_tree_hashes':tree(project),
+      'runtime_tree_hashes':runtime_files,'runtime_patched_sources':target_sources,'runtime_marker_sha256':target_marker_digest,
+      'profile_snapshot_hashes':{str(path.relative_to(out)):sha(path)for path in profile_snapshots},
+      'profile_original_protected_hashes':profile_inputs['protected'] if profile_inputs else {},'profile_identity':profile_inputs['identity'] if profile_inputs else None,
+      'seed_input_kind':'source_analysis_requests' if getattr(args,'source_seed_prepare',False) else 'historical_profiles',
+      'analysis_seed_hashes':{str(p):sha(Path(p)) for p in getattr(args,'analysis_roots_file',[])},
+      'profile_audit':profile_report,'actual_analysis_roots':automatic_manifest['roots'],
+      'actual_complete_metadata':metadata,'generated_output_hashes':outputs,
+      'callable_source_hashes':{name:digest for name,digest in tree(project/'src/gen').items()if name.endswith(('.c','.h','.inc'))},
+      'toolchain':toolchain,'arguments':{k:str(v)if isinstance(v,Path)else[str(x)for x in v]if isinstance(v,list)else v for k,v in vars(args).items()},
+      'legacy_population_assertions_executed':False,'compilation_started':False,'native_execution_qualified':False,
+      'review_requirement':'A separate root-reviewed source validator must check actual full old/new row/call/return/owner/mask/bounds deltas. This JSON is never a factory certificate or permission to bypass original guards.',
+      'resume_requirement':'Compile only these untouched generated outputs after the separate reviewed source validator and strict reviewed handoff verify. Do not rerun the whole producer to derive expected metadata. First compilation receipt must be create-new compiled_unqualified.'}
+    if getattr(args,'architecture_discovery_baseline',False):
+        receipt['architecture_discovery_baseline']=baseline_output_provenance(args,generated_metadata,metadata['native_regions.json'])
+        receipt['generation_lineage']={'helper_sha256':sha(Path(__file__)),'runtime_marker_sha256':target_marker_digest,'ordered_runtime_extensions':runtime_extension_records(),'expected_formats':target_generation_formats(args),'compilation_helper_sha256':None,'compilation_started':False}
+    path=out/'profile-seed-preparation.json'
+    with path.open('x',encoding='utf-8')as f:f.write(json.dumps(receipt,indent=2)+'\n')
+    print(json.dumps({'status':receipt['status'],'receipt':str(path),'sha256':sha(path),'compilation_started':False}),flush=True)
+    return receipt
+
+
+
+@dataclass(frozen=True,kw_only=True)
+class CompilationFinalizerContext:
+    """Explicit values from validated main; construction grants no semantic authority."""
+    accumulator_lineage: object
+    accumulator_patch: object
+    actual: object
+    args: object
+    audio_patch: object
+    automatic_manifest: object
+    automatic_manifest_path: object
+    automatic_patch: object
+    cache_identity: object
+    clear_provenance: object
+    clear_provenance_path: object
+    combined_source_population: object
+    constructor_provenance: object
+    constructor_provenance_path: object
+    continuation_patch: object
+    converged_patch: object
+    diagnostic_target_path: object
+    diagnostic_targets: object
+    direct_call_metadata: object
+    direct_call_patch: object
+    dispatch_path: object
+    dispatch_rows: object
+    dispatch_targets: object
+    dispositions: object
+    expected: object
+    faithful_patch: object
+    generated_cache: object
+    generated_metadata: object
+    generates: object
+    hook_boundary_patch: object
+    hook_handoff_patch: object
+    host_patch: object
+    host_proof_idle_patch: object
+    indirect_y_generation: object
+    indirect_y_patch: object
+    leaf_regions_patch: object
+    lifecycle_patch: object
+    manifest: object
+    manifest_targets: object
+    marker: object
+    memory_bits_patch: object
+    native_regions_patch: object
+    new_patch_names: object
+    out: object
+    patch: object
+    patch_names: object
+    prefix_instructions_patch: object
+    prefix_patch: object
+    profile_inputs: object
+    profile_policy: object
+    profile_snapshots: object
+    project: object
+    redirect_observer_idle_patch: object
+    region_metadata: object
+    region_metadata_path: object
+    region_source_path: object
+    reset_bootstrap_generation: object
+    return_steps_patch: object
+    reviewed_patch: object
+    reviewed_report: object
+    rmw_patch: object
+    rom: object
+    runtime: object
+    selected_case_patch: object
+    selected_task_metadata: object
+    selected_task_patch: object
+    source: object
+    source_redirect_metadata: object
+    source_redirect_patch: object
+    stack_controls_patch: object
+    stack_direct_metadata: object
+    stack_direct_patch: object
+    stack_primitives_patch: object
+    target_marker_digest: object
+    target_sources: object
+    task_callee_patch: object
+    task_scheduler_mode_rows: object
+    continuation_record: object
+    architectural_native_preparation: object = None
+
+
+def prepare_architectural_native(context):
+    """Validate/generate or reuse private architectural C before the first compile."""
+    project=context.project;out=context.out;runtime=context.runtime
+    generator=project/'tools/generate_architectural_native.py'
+    manifest=project/'config/architectural-native/manifest.json'
+    keys=project/'config/architectural-native/native.keys.json'
+    for path in(generator,manifest,keys):reject_links(path)
+    destination=out/'arch_native';destination.mkdir(exist_ok=False)
+    output=destination/'sots_arch78.generated.c';receipt=destination/'architectural-native-generation.json'
+    argv=[sys.executable,'-I','-B',str(generator),'--rom',str(context.rom),'--sdk',str(runtime),'--manifest',str(manifest),'--keys',str(keys),'--output',str(output)]
+    preparation=context.architectural_native_preparation
+    if preparation is not None:
+        if preparation.get('status')!='BOUND':raise ValueError('Architectural preparation remains unbound')
+        previous=Path(preparation['path']);reject_links(previous)
+        if sha(previous)!=preparation['sha256']:raise ValueError('Architectural preparation changed')
+        record=json.loads(previous.read_bytes());source=Path(record['output']);reject_links(source)
+        if record['generator_sha256']!=sha(generator)or sha(source)!=record['output_sha256']:raise ValueError('Prepared architectural generator/output identity differs')
+        argv+=['--reuse-source',str(source),'--reuse-receipt',str(previous)]
+    # The isolated authored wrapper validates original ROM, manifest/keys,
+    # generator self identity and every normalized SDK import, including ABI.
+    with(out/'architectural-native-generation.log').open('xb')as log:
+        result=subprocess.run(argv,cwd=project,stdout=log,stderr=subprocess.STDOUT,timeout=1200)
+    if result.returncode:raise RuntimeError('Architectural generation refused; preserve generation log and outputs')
+    if(out/'architectural-native-generation.log').stat().st_size>5000000:raise RuntimeError('Architectural generation log bound exceeded')
+    record=json.loads(receipt.read_bytes())
+    if record['status']!='generated_private_architectural_native_unqualified'or record['generator_sha256']!=sha(generator)or record['output_sha256']!=sha(output):raise RuntimeError('Architectural generation receipt differs')
+    record.update(receipt_path=str(receipt),receipt_sha256=sha(receipt),output=str(output),legacy_generated_code_regenerated=False,execution_qualified=False,native_AOT_complete=False)
+    return record
+
+
+def finalize_compilation(context):
+    """Shared original compile/profile/receipt tail; caller must validate every input."""
+    baseline_provenance=baseline_output_provenance(context.args,context.generated_metadata,context.region_metadata)
+    if baseline_provenance is not None and context.continuation_record is None:
+        raise RuntimeError('Baseline compilation requires a separately reviewed exact-output continuation context')
+    accumulator_lineage=context.accumulator_lineage
+    accumulator_patch=context.accumulator_patch
+    actual=context.actual
+    args=context.args
+    audio_patch=context.audio_patch
+    automatic_manifest=context.automatic_manifest
+    automatic_manifest_path=context.automatic_manifest_path
+    automatic_patch=context.automatic_patch
+    cache_identity=context.cache_identity
+    clear_provenance=context.clear_provenance
+    clear_provenance_path=context.clear_provenance_path
+    combined_source_population=context.combined_source_population
+    constructor_provenance=context.constructor_provenance
+    constructor_provenance_path=context.constructor_provenance_path
+    continuation_patch=context.continuation_patch
+    converged_patch=context.converged_patch
+    diagnostic_target_path=context.diagnostic_target_path
+    diagnostic_targets=context.diagnostic_targets
+    direct_call_metadata=context.direct_call_metadata
+    direct_call_patch=context.direct_call_patch
+    dispatch_path=context.dispatch_path
+    dispatch_rows=context.dispatch_rows
+    dispatch_targets=context.dispatch_targets
+    dispositions=context.dispositions
+    expected=context.expected
+    faithful_patch=context.faithful_patch
+    generated_cache=context.generated_cache
+    generated_metadata=context.generated_metadata
+    generates=context.generates
+    hook_boundary_patch=context.hook_boundary_patch
+    hook_handoff_patch=context.hook_handoff_patch
+    host_patch=context.host_patch
+    host_proof_idle_patch=context.host_proof_idle_patch
+    indirect_y_generation=context.indirect_y_generation
+    indirect_y_patch=context.indirect_y_patch
+    leaf_regions_patch=context.leaf_regions_patch
+    lifecycle_patch=context.lifecycle_patch
+    manifest=context.manifest
+    manifest_targets=context.manifest_targets
+    marker=context.marker
+    memory_bits_patch=context.memory_bits_patch
+    native_regions_patch=context.native_regions_patch
+    new_patch_names=context.new_patch_names
+    out=context.out
+    patch=context.patch
+    patch_names=context.patch_names
+    prefix_instructions_patch=context.prefix_instructions_patch
+    prefix_patch=context.prefix_patch
+    profile_inputs=context.profile_inputs
+    profile_policy=context.profile_policy
+    profile_snapshots=context.profile_snapshots
+    project=context.project
+    redirect_observer_idle_patch=context.redirect_observer_idle_patch
+    region_metadata=context.region_metadata
+    region_metadata_path=context.region_metadata_path
+    region_source_path=context.region_source_path
+    reset_bootstrap_generation=context.reset_bootstrap_generation
+    return_steps_patch=context.return_steps_patch
+    reviewed_patch=context.reviewed_patch
+    reviewed_report=context.reviewed_report
+    rmw_patch=context.rmw_patch
+    rom=context.rom
+    runtime=context.runtime
+    selected_case_patch=context.selected_case_patch
+    selected_task_metadata=context.selected_task_metadata
+    selected_task_patch=context.selected_task_patch
+    source=context.source
+    source_redirect_metadata=context.source_redirect_metadata
+    source_redirect_patch=context.source_redirect_patch
+    stack_controls_patch=context.stack_controls_patch
+    stack_direct_metadata=context.stack_direct_metadata
+    stack_direct_patch=context.stack_direct_patch
+    stack_primitives_patch=context.stack_primitives_patch
+    target_marker_digest=context.target_marker_digest
+    target_sources=context.target_sources
+    task_callee_patch=context.task_callee_patch
+    task_scheduler_mode_rows=context.task_scheduler_mode_rows
+    continuation_record=context.continuation_record
+    architectural_native_generation=prepare_architectural_native(context)
+    cmake=[args.cmake,'-S',project,'-B',out/'build','-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
+      '-DCMAKE_C_COMPILER='+args.cc,'-DCMAKE_CXX_COMPILER='+args.cxx,
+      '-DCMAKE_MAKE_PROGRAM='+str(Path(shutil.which(args.ninja)).resolve()),
+      '-DSNESRECOMP_ROOT='+str(runtime),'-DSNESRECOMP_FRAME_IMPL=HLE',
+      '-DSNESRECOMP_SDL_BACKEND=SDL3','-DSNESRECOMP_ENABLE_NET=OFF']
+    cmake.append('-DSOTS_ARCH_NATIVE_SOURCE='+architectural_native_generation['output'])
+    if args.sdl3_dir:cmake.append('-DSDL3_DIR='+str(args.sdl3_dir.resolve(strict=True)))
+    for name,cmd in [('configure',cmake),('build',[args.cmake,'--build',out/'build','-j'+str(args.jobs)])]:
+        print(name.capitalize()+'...',flush=True)
+        with (out/(name+'.log')).open('w',encoding='utf-8') as log:
+            r=subprocess.run(list(map(str,cmd)),cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
+        if r.returncode:raise RuntimeError(name+' failed; inspect '+str(out/(name+'.log')))
+    if any(sha(source/n)!=h or sha(project/n)!=h for n,h in actual.items()):
+        raise RuntimeError('Authored inputs changed during build; compilation retained unqualified.')
+    if profile_inputs is not None and any(sha(Path(path))!=digest for path,digest in profile_inputs['protected'].items()):
+        raise RuntimeError('Original profile/source identity changed during build; compilation retained unqualified.')
+    if sha(marker)!=target_marker_digest or any(sha(runtime/n)!=digest for n,digest in target_sources.items()):
+        raise RuntimeError('Target patched source identity changed during build; compilation retained unqualified.')
+    runtime_source_accounting(runtime,patch_names,new_patch_names)
+    if sha(Path(architectural_native_generation['output']))!=architectural_native_generation['output_sha256']:raise RuntimeError('Architectural native C changed during compile; preserve unqualified output')
+    architectural_native_generation['post_compile_output_sha256']=sha(Path(architectural_native_generation['output']))
+    architectural_native_generation['post_compile_output_unchanged']=True
+    binary=out/'build/SecretOfTheStarsSNESRecomp.exe'
+    if not binary.exists():raise RuntimeError('Windows executable missing after build.')
+    profile=out/'profile';profile.mkdir();shutil.copy2(binary,profile/binary.name)
+    (profile/'config.ini').write_text('[Graphics]\nRenderer=direct3d11\nFullscreen=0\nVSync=1\nNewRenderer=0\nWidescreen=0\n[Sound]\nEnableAudio=1\nAudioFreq=32040\nAudioChannels=2\nAudioSamples=512\n[General]\nAutosave=0\nSkipLauncher=1\n',encoding='ascii')
+    (profile/'foundation.ini').write_text('[Enhancements]\nEnhancedPixels=1\nBattleInfo=1\nFastMenus=1\nJournal=1\nNavigationMap=1\nNavigationMapObjective=1\nExperimentalFieldWide=0\nExperimentalFieldActors=0\nNativeClear=0\nNativeColumns=0\nHdMenuFrames=0\nXpMultiplierPercent=100\nGoldMultiplierPercent=100\nMovementSpeedPercent=200\nStartingShopDiscount=1\nFastForwardToggle=0\nLegacyControllerGestures=1\n',encoding='ascii')
+    assert sha(rom)==expected
+    state_source=(project/'src/foundation_state.c').read_text()
+    schema=re.search(r'#define FOUNDATION_VERSION (\d+)u',state_source)
+    state_identity=re.search(r'FoundationStateIdentity\(void\).*?return "([^"]+)"',state_source)
+    if not schema or not state_identity or 'header[1] < 1 || header[1] > FOUNDATION_VERSION' not in state_source:
+        raise RuntimeError('Checkpoint contract changed; preserve this build and explicitly update its compatibility declaration before adoption.')
+    schema_version=int(schema.group(1))
+    result={'status':'compiled_unqualified','public_build':True,'executable_sha256':sha(binary),
+      'architectural_native_generation':architectural_native_generation,
+      'native_continuation_patch_sha256':sha(continuation_patch),
+      'native_continuation_source_binding_sha256':sha(CONTINUATION_BINDING),
+      'native_continuation_scope':continuation_binding()['scope'],
+      'memory_rmw_patch_sha256':sha(rmw_patch),
+      'memory_rmw_source_binding_sha256':sha(RMW_BINDING),
+      'memory_rmw_scope':rmw_binding()['scope'],
+      'memory_bits_patch_sha256':sha(memory_bits_patch),
+      'native_regions_patch_sha256':sha(native_regions_patch),
+          'native_leaf_regions_patch_sha256':sha(leaf_regions_patch),
+          'native_hook_handoff_patch_sha256':sha(hook_handoff_patch),
+          'native_stack_primitives_patch_sha256':sha(stack_primitives_patch),
+          'native_return_steps_patch_sha256':sha(return_steps_patch),
+          'native_prefix_instructions_patch_sha256':sha(prefix_instructions_patch),
+          'native_stack_controls_patch_sha256':sha(stack_controls_patch),
+          'selected_task_resume_patch_sha256':sha(selected_task_patch),
+      'memory_bits_source_binding_sha256':sha(MEMORY_BITS_BINDING),
+      'memory_bits_scope':memory_bits_binding()['scope'],
+      'native_regions_source_binding_sha256':sha(NATIVE_REGIONS_BINDING),
+      'native_regions_scope':native_regions_binding()['scope'],
+      'native_leaf_regions_source_binding_sha256':sha(LEAF_REGIONS_BINDING),
+      'native_leaf_regions_scope':leaf_regions_binding()['scope'],
+      'native_hook_handoff_source_binding_sha256':sha(HOOK_HANDOFF_BINDING),
+      'native_hook_handoff_scope':hook_handoff_binding()['scope'],
+      'native_stack_primitives_source_binding_sha256':sha(STACK_PRIMITIVES_BINDING),
+      'native_stack_primitives_scope':stack_primitives_binding()['scope'],
+      'native_return_steps_source_binding_sha256':sha(RETURN_STEPS_BINDING),
+      'native_return_steps_scope':return_steps_binding()['scope'],
+      'native_prefix_instructions_source_binding_sha256':sha(PREFIX_INSTRUCTIONS_BINDING),
+      'native_prefix_instructions_scope':prefix_instructions_binding()['scope'],
+      'native_stack_controls_source_binding_sha256':sha(STACK_CONTROLS_BINDING),
+      'native_stack_controls_scope':stack_controls_binding()['scope'],
+      'selected_task_resume_source_binding_sha256':sha(SELECTED_TASK_BINDING),
+      'selected_task_resume_scope':selected_task_binding()['scope'],
+      'source_redirect_patch_sha256':sha(source_redirect_patch),
+      'source_redirect_source_binding_sha256':sha(SOURCE_REDIRECT_BINDING),
+      'source_redirect_scope':source_redirect_binding()['scope'],
+      'indirect_y_patch_sha256':sha(indirect_y_patch),
+      'indirect_y_source_binding_sha256':sha(INDIRECT_Y_BINDING),
+      'indirect_y_scope':indirect_y_binding()['scope'],
+      'redirect_observer_idle_patch_sha256':sha(redirect_observer_idle_patch),
+      'redirect_observer_idle_source_binding_sha256':sha(REDIRECT_OBSERVER_IDLE_BINDING),
+      'selected_task_case_patch_sha256':sha(selected_case_patch),
+      'selected_task_case_source_binding_sha256':sha(SELECTED_CASE_BINDING),
+      'direct_call_prefix_patch_sha256':sha(direct_call_patch),
+      'direct_call_prefix_source_binding_sha256':sha(DIRECT_CALL_BINDING),
+      'redirect_observer_idle_scope':redirect_observer_idle_binding()['scope'],
+      'selected_task_case_scope':selected_case_binding()['scope'],
+      'direct_call_prefix_scope':direct_call_binding()['scope'],
+      'host_proof_idle_patch_sha256':sha(host_proof_idle_patch),
+      'host_proof_idle_source_binding_sha256':sha(HOST_PROOF_IDLE_BINDING),
+      'host_proof_idle_scope':host_proof_idle_binding()['scope'],
+      'stack_direct_patch_sha256':sha(stack_direct_patch),
+      'stack_direct_source_binding_sha256':sha(STACK_DIRECT_BINDING),
+      'stack_direct_scope':stack_direct_binding()['scope'],
+      'stack_direct_generation':stack_direct_metadata,
+      'task_callee_patch_sha256':sha(task_callee_patch),
+      'task_callee_source_binding_sha256':sha(TASK_CALLEE_BINDING),
+      'task_callee_scope':task_callee_binding()['scope'],
+      'indirect_y_generation':indirect_y_generation,
+      'source_redirect_generation':{'metadata_format':1,'mode_rows':len(source_redirect_metadata['rows']),'distinct_pcs':len({r['pc24']for r in source_redirect_metadata['rows']}),'metadata_sha256':sha(project/'src/gen/native_source_redirect.json'),'source_sha256':sha(project/'src/gen/native_source_redirect_v2.c'),'execution_qualified':False},
+      'selected_task_resume_generation':{'metadata_format':RUNTIME_GENERATION_FORMATS['task'],'mode_rows':len(selected_task_metadata['rows']),'selected_architectural_member_rows':len(selected_task_metadata['selected_architectural_members']['rows']),'selected_architectural_call_rows':len(selected_task_metadata['selected_architectural_calls']['rows']),'retained_parent_architectural_member_rows':len(selected_task_metadata['retained_parent_architectural_members']['rows']),'total_scheduler_mode_rows':task_scheduler_mode_rows,'distinct_pcs':len({r['pc24']for r in selected_task_metadata['rows']}),'metadata_sha256':sha(project/'src/gen/native_task_resume.json'),'source_sha256':sha(project/'src/gen/native_task_resume_v2.c'),'execution_qualified':False},
+      'direct_call_prefix_generation':direct_call_metadata,
+      'reset_bootstrap_generation':reset_bootstrap_generation,
+      'combined_source_population':combined_source_population,
+      'native_region_generation':{'cache_format':generated_metadata['format_version'],'metadata_format':region_metadata['format_version'],'stack_control_contract':region_metadata['stack_control_contract'],'result_contract':region_metadata['result_contract'],'instruction_source':region_metadata['instruction_source'],'source_cfg_scheduler_rows':len(region_metadata['regions']),'metadata_sha256':sha(region_metadata_path),'source_sha256':sha(region_source_path),'diagnostic_disable':'SNESRECOMP_DISABLE_NATIVE_REGIONS=1','execution_qualified':False},
+      'runtime_accumulator_patch_sha256':sha(accumulator_patch),'runtime_accumulator_emitter_sha256':ACCUMULATOR_EMITTER_SHA256,'runtime_accumulator_source_review':{'offline_unit_report_sha256':ACCUMULATOR_UNIT_SHA256,'scope':'Pinned reviewed offline instruction/source proof; public Setup does not consume private fixtures or infer actual-artifact gameplay qualification.'},
+      'runtime_accumulator_source_lineage':accumulator_lineage,
+      'runtime_accumulator_patch_scope':'Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies. MemoryRMW/INC/DEC/refusals and original buses/timing/ABI remain.',
+      'version':(project/'VERSION').read_text().strip(),'rom_sha256':expected,'rom_copied':False,
+      'authored_inputs':actual,'matches_authored_snapshot':actual==manifest,
+      'runtime_pin':RUNTIME_PIN,'runtime_patch_sha256':sha(patch),
+      'runtime_extensions':runtime_extension_records(),
+      'runtime_source_provenance':{'runtime_dir':str(runtime),'runtime_cache_identity':cache_identity,'marker_sha256':target_marker_digest,'patched_sources':target_sources,'new_patched_sources':sorted(new_patch_names)},
+      'host_navigation_patch_sha256':sha(host_patch),
+          'faithful_instruction_patch_sha256':sha(faithful_patch),
+          'host_modal_audio_patch_sha256':sha(audio_patch),
+      'automatic_faithful_patch_sha256':sha(automatic_patch),
+      'lifecycle_patch_sha256':sha(lifecycle_patch),'prefix_patch_sha256':sha(prefix_patch),
+          'faithful_hook_boundary_patch_sha256':sha(hook_boundary_patch),
+          'reviewed_roots_patch_sha256':sha(reviewed_patch),
+          'converged_exit_patch_sha256':sha(converged_patch),
+      'reviewed_root_generation':reviewed_report,
+      'converged_exit_patch_scope':'Generic post-convergence double fresh-decode certificate for previously unstable exact exit facts. Structural masks, forced-original entries and unresolved, conflicting, recursive or unstable dependencies remain authoritative. No decoded opcode emission or runtime instruction changes.',
+      'reviewed_roots_patch_scope':'Strict metadata-only authored PC/M/X seeds through normal additional_roots; CFG masks and force-LLE remain authoritative. No decoded bodies, exit facts or eligibility override.',
+      'lifecycle_patch_scope':'Scoped paired host return-tag lifecycle in three original dispatch branches; no guest/checkpoint layout or instruction timing change.',
+      'faithful_hook_boundary_patch_scope':'Single interp_bridge pre-opcode hook boundary refusal preserves original callback producers; no generated opcode executes across that boundary and original transfer/timing remain authoritative.',
+      'prefix_patch_scope':'Distinct aot_prefix disposition with exact unknown-call stop and original hard masks; never guesses callee exit modes or full-function eligibility. Generator option is explicit and recorded separately.',
+      'automatic_faithful_patch_scope':'Upstream decoded instruction/IR emission with original bus transfers and internal clocks, per-instruction scheduler commits, cached effective addresses, native flag/return semantics and faithful unsupported continuation. No serialized guest fields or checkpoint/SRAM layout changes.',
+      'automatic_generation':{'mode':'upstream-faithful-instruction','cfg_roots':True,'host_root_scan':False,
+          'native_continuations':args.native_continuations,
+          'native_direct_call_prefix':args.native_direct_calls,'direct_call_generator_option':'--native-direct-call-prefix','direct_call_diagnostic_optout':'--no-native-direct-call-prefix',
+          'native_mode_successors':True,'mode_successor_generator_option':'--native-mode-successors',
+          'mode_successor_contract':region_metadata['mode_successor_contract'],
+          'native_continuation_certificates':len(automatic_manifest.get('native_continuations',[])),
+          'native_continuation_generator_option':'--certify-native-continuations',
+          'native_continuation_diagnostic_optout':'--no-native-continuations',
+          'faithful_prefixes':args.emit_proven_prefixes,'prefix_wrapper_option':'--emit-proven-prefixes','prefix_generator_option':'--faithful-prefixes',
+          'certify_converged_exits':args.certify_converged_exits,'converged_exit_generator_option':'--certify-converged-exits','converged_exit_diagnostic_optout':'--no-converged-exits',
+          'generation_commands':[list(map(str,cmd))for cmd in generates],
+          'generator_digest':generated_metadata['generator_digest'],'config_digest':generated_metadata['config_digest'],
+          'cache_sha256':sha(generated_cache),'emitted_output_hashes':generated_metadata['outputs'],
+          'manifest':automatic_manifest_path.relative_to(out).as_posix(),'manifest_sha256':sha(automatic_manifest_path),
+          'root_mode_contexts':len(automatic_manifest['roots']),'discovered_mode_nodes':len(automatic_manifest['nodes']),
+          'dispositions':dispositions,'eligibility_is_execution_coverage':False,
+          'guarded_clear_constructor_default':'Existing authored guarded islands remain enabled simultaneously in normal player launches; exact automatic-native qualification separately disables both using explicit environment controls.',
+          'original_byte_diagnostic':{'target_file':diagnostic_target_path.relative_to(out).as_posix(),
+              'target_file_sha256':sha(diagnostic_target_path),'unique_entry_targets':len(diagnostic_targets),
+              'manifest_unique_entry_targets':len(manifest_targets),'actual_dispatch_unique_entry_targets':len(dispatch_targets),
+              'actual_dispatch_rows':dispatch_rows,'dispatch_source_sha256':sha(dispatch_path),'target_policy':'Union of every actual manifest entry and strictly parsed generated DispatchEntry row, including original interrupt entries and aliases.',
+              'enabled_by_default':False,'environment':{
+                  'SNESRECOMP_LLE_INTERP_TARGET_FILE':'<absolute path to this generated target file>',
+                  'SNESRECOMP_DISABLE_NATIVE_CONTINUATIONS':'1',
+                  'SNESRECOMP_DISABLE_NATIVE_REGIONS':'1',
+                  'SNESRECOMP_FOUNDATION_GENERATED_CLEAR':'0','SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR':'0'},
+              'limits':'Diagnostic configuration only; actual compiled-call/instruction evidence must verify original-byte admission. Does not change normal profile settings.'}},
+      'host_navigation_patch_scope':'Appended map hotkey, parser/defaults and host dispatch only; existing command ids and serialized guest execution unchanged.',
+      'host_modal_audio_patch_scope':'Host playback pause/prefill resume and overlay request consumption only; no guest machine or checkpoint layout changes.',
+      'faithful_instruction_patch_scope':'Byte transaction wrapper/declaration only; existing bus/clock and checkpoint layout unchanged.',
+      'checkpoint_schema':{'identity':state_identity.group(1),'writes':schema_version,'reads':list(range(1,schema_version+1))},
+      'save_compatibility':'secret-of-the-stars-usa-sram-v1',
+      'execution_state_abi_sha256':hashlib.sha256(('\n'.join(actual[name] for name in ('src/foundation_state.c','src/foundation_state.h','src/game_rtl.c','src/game_rtl.h','src/variables.h'))+'\n'+RUNTIME_PIN+'\n'+sha(patch)).encode()).hexdigest(),
+      'private_generated_files':[p.relative_to(out).as_posix() for p in (project/'src/gen').rglob('*') if p.is_file()],
+      'generated_guest_islands':{'faithful_constructor':{
+          'generator_input':'tools/generate_constructor.py','generator_sha256':actual['tools/generate_constructor.py'],
+          'provenance_file':constructor_provenance_path.relative_to(out).as_posix(),'provenance_sha256':sha(constructor_provenance_path),
+          'generated_header':'project/src/gen/constructor.generated.h','generated_header_sha256':constructor_provenance['output_sha256'],
+          'sites_header':'project/src/gen/constructor_sites.generated.h','sites_header_sha256':constructor_provenance['sites_sha256'],
+          'instruction_bytes_sha256':constructor_provenance['instruction_bytes_sha256'],'entry_pcs':[node['pc'] for node in constructor_provenance['nodes']],
+          'default_variant':'guarded-outer-constructor','scope':constructor_provenance['scope']},'faithful_clear':{
+          'generator_input':'tools/generate_faithful_clear.py','generator_sha256':actual['tools/generate_faithful_clear.py'],
+          'provenance_file':clear_provenance_path.relative_to(out).as_posix(),'provenance_sha256':sha(clear_provenance_path),
+          'generated_header':'project/src/gen/faithful_clear.generated.h','generated_header_sha256':clear_provenance['output_sha256'],
+          'instruction_bytes_sha256':clear_provenance['instruction_bytes_sha256'],'entry_pcs':[node['pc'] for node in clear_provenance['nodes']],
+          'scope':'Complete guarded CB19-CB34 routine with original C45E call/CB34 RTS; existing scheduler frontend retained.',
+          'default_variant':'whole-routine','legacy_variant':'three-instruction','legacy_entry_pcs':[node['pc'] for node in clear_provenance['legacy_nodes']]}},
+      'profile':profile.relative_to(ROOT).as_posix() if profile.is_relative_to(ROOT) else str(profile),
+      'limits':'Fresh developer compilation only; gameplay qualification and owner installation remain separate.'}
+    if profile_inputs is not None:
+        generated_cache=project/'src/gen/.snesrecomp-cache.json'
+        generated_metadata=json.loads(generated_cache.read_bytes())
+        captured_roots=json.loads(profile_inputs['program'].read_bytes())['roots']
+        key=lambda item:(item['pc24'],item['m'],item['x'])
+        original_roots={key(item)for item in captured_roots}
+        result['local_profile_generation']={'enabled':not args.profile_audit_only,'audit_enabled':True,'mode':'audit_only' if args.profile_audit_only else 'analysis_roots','generation_policy':profile_policy,'default':False,'capture_identity':profile_inputs['identity'],
+          'original_receipt_sha256':sha(profile_inputs['receipt']),'original_program_manifest_sha256':sha(profile_inputs['program']),
+          'original_generator_digest':profile_inputs['original_generator_digest'],'original_config_digest':profile_inputs['original_config_digest'],
+          'original_runtime_dir':str(profile_inputs['source_runtime']),
+          'analyzer_path':str(profile_inputs['analyzer']),'analyzer_sha256':sha(profile_inputs['analyzer']),
+          'capture_ids':profile_inputs['captures'],'profile_inputs':[{'original_path':str(original),'sha256':sha(copy),'snapshot':copy.relative_to(out).as_posix()}for original,copy in zip(profile_inputs['profiles'],profile_snapshots)],
+          'protected_source_provenance':profile_inputs['protected'],'ingest_report':'profile-ingest.json','ingest_sha256':sha(out/'profile-ingest.json'),
+          'target_generator_digest':generated_metadata['generator_digest'],'target_config_digest':generated_metadata['config_digest'],
+          'generated_cache_sha256':sha(generated_cache),'emitted_outputs':{p.relative_to(out).as_posix():sha(p)for p in(project/'src/gen').rglob('*')if p.is_file()},
+          'new_observed_root_contexts':[] if args.profile_audit_only else[r for r in automatic_manifest['roots']if key(r)not in original_roots],
+          'actual_root_contexts_new_vs_capture':[r for r in automatic_manifest['roots']if key(r)not in original_roots],
+          'admission_is_execution_qualification':False,'historical_or_legacy_import':False,
+          'limits':('Exact current61 captures were validated/audited and immutably snapshotted only. SDK candidate roots/exclusions remain unpromoted and were not forwarded to generation; source241 supplies the independently source-certified conversion; source218 remains deferred. No claim that observed roots became native.' if args.profile_audit_only else 'Optional exact original-build local observations seed normal pinned analysis. CFG authority/force-LLE remain authoritative; observations and compiled source are not gameplay or release qualification. No captures are bundled into public source.')}
+    if baseline_provenance is not None:
+        result['architecture_discovery_baseline']=baseline_provenance
+        result['compilation_lineage']={'helper_sha256':sha(Path(__file__)),'runtime_marker_sha256':target_marker_digest,'reviewed_generation_continuation':continuation_record,'generation_commands':[list(map(str,cmd))for cmd in generates],'generated_cache_sha256':sha(generated_cache)}
+    if continuation_record is not None:
+        result['same_output_continuation']=continuation_record
+    with(out/'source-build-receipt.json').open('x',encoding='utf-8')as receipt_file:receipt_file.write(json.dumps(result,indent=2)+'\n')
+    print('Built: '+str(binary));print('Fresh profile: '+str(profile))
+    print('Run from the fresh profile: SecretOfTheStarsSNESRecomp.exe --no-launcher --rom "<your original ROM path>"')
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--rom',type=Path,required=True)
+    p.add_argument('--runtime-prepare-only',action='store_true',help='Prepare verified patched runtime only; no project snapshot, analyzer, generation or compilation')
+    p.add_argument('--source-seed-prepare',action='store_true',help='Prepare source-only analysis with explicit requested roots; no historical capture claims')
+    p.add_argument('--analysis-roots-file',type=Path,action='append',default=[],help='Source-analysis root requests, independently analyzed; never execution authority')
     p.add_argument('--profile-manifest',type=Path,action='append',default=[],help='Optional owned local Tier2v2 JSON checkpoint/JSONL journal (repeatable); never a release default')
+    p.add_argument('--profile-audit-only',action='store_true',help='Validate/snapshot exact current61 captures and record unpromoted SDK candidates without forwarding profiles as generation roots')
+    p.add_argument('--architecture-discovery-baseline',action='store_true',help='Fresh original static discovery view for architecture families; requires profile seed preparation and stops uncompiled for actual delta review')
+    p.add_argument('--profile-seed-prepare',action='store_true',help='Explicit source-analysis epoch: seed validated profiles, freeze complete actual unreviewed generated population, then stop before legacy population assertions and compilation')
     p.add_argument('--profile-build-receipt',type=Path,help='Original public source-build receipt belonging to these captures')
     p.add_argument('--profile-program-manifest',type=Path,help='Exact original generated program manifest belonging to these captures')
     p.add_argument('--profile-analyzer',type=Path,help='Exact existing original native analyzer; actual generator digest must match captured build, no cache path guessing')
     p.add_argument('--profile-runtime-dir',type=Path,help='Explicit unchanged original five-patch capture runtime, separately validated from target runtime')
+    p.add_argument('--profile-source-binding',type=Path,help='Explicit root-reviewed owned current61 capture binding; never a default')
+    p.add_argument('--profile-source-binding-sha256',help='Exact reviewed profile source binding SHA256')
     p.set_defaults(emit_proven_prefixes=True,reviewed_roots=True,certify_converged_exits=True,native_continuations=True,native_direct_calls=True)
     p.add_argument('--no-native-continuations',dest='native_continuations',action='store_false',help='Diagnostic: omit isolated native continuation certificates')
     p.add_argument('--no-native-direct-call-prefix',dest='native_direct_calls',action='store_false',help='Diagnostic: omit source-exact architectural direct JSR/JSL instruction rows; original callee scheduler ownership remains')
@@ -1349,6 +2292,8 @@ def main():
     p.add_argument('--ninja',default='ninja');p.add_argument('--jobs',type=int,default=8)
     p.add_argument('--output-dir',type=Path,help='Optional new build directory; refuses an existing path. Default: local/source-builds/timestamp.')
     args=p.parse_args()
+    validate_seed_preparation_mode(args)
+    if args.runtime_prepare_only and (args.source_seed_prepare or args.profile_seed_prepare or args.profile_audit_only or args.profile_manifest or args.analysis_roots_file):raise ValueError('Runtime-only preparation cannot consume generation/profile inputs')
     validate_selected_task_recipe(ROOT/'native/foundation/recomp')
     validate_source_redirect_recipe(ROOT/'native/foundation/recomp')
     reject_links(args.rom.absolute());reject_links(ROOT.absolute())
@@ -1361,9 +2306,11 @@ def main():
     if sha(rom)!=expected or rom.stat().st_size!=int(identity['rom_size']):
         raise RuntimeError('Unsupported input. Supply the exact unheadered clean USA ROM specified in rom_identity.txt.')
     if args.jobs<1 or args.jobs>64:raise ValueError('--jobs must be 1..64')
-    profile_inputs=profile_preflight(args.profile_manifest,args.profile_build_receipt,args.profile_program_manifest,expected,source,args.profile_analyzer)
+    profile_inputs=profile_preflight(args.profile_manifest,args.profile_build_receipt,args.profile_program_manifest,expected,source,args.profile_analyzer,args.profile_source_binding,args.profile_source_binding_sha256)
     capture_runtime=source_runtime_preflight(args.profile_runtime_dir,profile_inputs)
     profile_report=profile_audit(profile_inputs,capture_runtime,source)
+    profile_policy=profile_generation_policy(profile_inputs,args.profile_audit_only,capture_runtime,source)
+    if profile_report is not None:profile_report['generation_policy']=profile_policy
     for tool in ('git','cargo',args.cmake,args.cc,args.cxx,args.ninja):
         if not shutil.which(tool):raise RuntimeError('Required tool is unavailable: '+tool)
     out=args.output_dir.absolute() if args.output_dir else ROOT/'local/source-builds'/time.strftime('%Y%m%d-%H%M%S')
@@ -1780,6 +2727,11 @@ def main():
     for key,name in [('rbengine','retcomm-rbengine'),('recomp-net','recomp-net')]:
         if command(['git','rev-parse','HEAD'],runtime/'lib'/name)!=pins[key]:
             raise RuntimeError('Upstream submodule pin mismatch: '+name)
+    if args.runtime_prepare_only:
+        record={'status':'runtime_prepared_no_generation','helper_sha256':sha(Path(__file__)),'runtime_dir':str(runtime.resolve()),'runtime_pin':RUNTIME_PIN,'runtime_cache_identity':cache_identity,'runtime_marker':str(marker.resolve()),'runtime_marker_sha256':target_marker_digest,'runtime_patched_sources':target_sources,'runtime_extensions':runtime_extension_records(),'submodule_pins':pins,'generation_performed':False,'compilation_started':False,'native_execution_qualified':False,'native_AOT_complete':False}
+        with(out/'runtime-preparation.json').open('x',encoding='utf-8')as stream:stream.write(json.dumps(record,indent=2)+'\n')
+        print(json.dumps(record),flush=True)
+        return
     project=out/'project'
     manifest,actual=snapshot_authored(source,project)
     reviewed_report=reviewed_roots_preflight(runtime,project,identity,args.reviewed_roots)
@@ -1788,7 +2740,9 @@ def main():
         with(out/'profile-ingest.json').open('x',encoding='utf-8')as report_file:report_file.write(json.dumps(profile_report,indent=2)+'\n')
     (project/'mods/preloaded/packages').mkdir(parents=True)
     print('Generating private local code from the verified ROM.',flush=True)
-    generates=generation_commands(runtime,project,rom,identity,profile_snapshots,args.emit_proven_prefixes,args.reviewed_roots,args.certify_converged_exits,args.native_continuations,args.native_direct_calls)
+    seed_pins={str(p):sha(profile_file(p,1024*1024)) for p in args.analysis_roots_file}
+    generation_profiles=[] if args.profile_audit_only else profile_snapshots
+    generates=generation_commands(runtime,project,rom,identity,generation_profiles,args.emit_proven_prefixes,args.reviewed_roots,args.certify_converged_exits,args.native_continuations,args.native_direct_calls,args.architecture_discovery_baseline,args.analysis_roots_file)
     generation_env={k:v for k,v in os.environ.items()if not k.startswith('SNESRECOMP_')}
     generation_env['PYTHONDONTWRITEBYTECODE']='1'
     if profile_inputs is not None:generation_env['SNESRECOMP_NATIVE_ANALYZER']=str(profile_inputs['analyzer'])
@@ -1796,13 +2750,18 @@ def main():
         for generate in generates:
             r=subprocess.run(list(map(str,generate)),cwd=project,stdout=log,stderr=subprocess.STDOUT,env=generation_env)
             if r.returncode:raise RuntimeError('Generation failed; inspect '+str(out/'generate.log'))
+    if any(sha(Path(p))!=digest for p,digest in seed_pins.items()):raise RuntimeError('Analysis seed changed during generation')
     automatic_manifest_path=project/'src/gen/program_manifest.json'
     reject_links(automatic_manifest_path)
     automatic_manifest=json.loads(automatic_manifest_path.read_text(encoding='utf-8'))
     generated_cache=project/'src/gen/.snesrecomp-cache.json'
     reject_links(generated_cache);generated_metadata=json.loads(generated_cache.read_bytes())
-    if generated_metadata.get('format_version')!=RUNTIME_GENERATION_FORMATS['cache'] or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
+    if generated_metadata.get('format_version')!=target_generation_formats(args)['cache'] or generated_metadata.get('module')!={'id':'main','prefix':''}or generated_metadata.get('outputs',{}).get('program_manifest.json')!=sha(automatic_manifest_path):
         raise RuntimeError('Target generated cache/module identity mismatch; preserve build.')
+    if args.profile_seed_prepare:
+        generate_profile_seed_auxiliary_outputs(project,out,rom,expected,actual)
+        freeze_profile_seed_preparation(out,project,runtime,rom,expected,actual,target_sources,target_marker_digest,profile_inputs,profile_report,profile_snapshots,generated_metadata,automatic_manifest,args)
+        return
     if set(generated_metadata.get('outputs',{}))!=set(('bank00_v2.c', 'bank01_part00_v2.c', 'bank01_part01_v2.c', 'bank01_part02_v2.c', 'bank01_part03_v2.c', 'bank01_part06_v2.c', 'bank01_part08_v2.c', 'bank01_part09_v2.c', 'bank01_part0a_v2.c', 'bank01_part0b_v2.c', 'bank01_part0c_v2.c', 'bank01_part0d_v2.c', 'bank01_part0e_v2.c', 'bank02_v2.c', 'bank1c_v2.c', 'dispatch_v2.c', 'module_v2.c', 'native_regions.json', 'native_regions_v2.c', 'native_source_redirect.json', 'native_source_redirect_v2.c', 'native_task_resume.json', 'native_task_resume_v2.c', 'program_manifest.json', 'unresolved_stubs_v2.c')):raise RuntimeError('Source-first25 generated output allowlist differs.')
     for name,digest in generated_metadata.get('outputs',{}).items():
         if Path(name).is_absolute()or'..'in Path(name).parts:raise RuntimeError('Target generated output escapes build; preserve build.')
@@ -1810,6 +2769,7 @@ def main():
         if sha(output)!=digest:raise RuntimeError('Target generated output/cache mismatch; preserve build.')
     validate_selected_task_recipe(ROOT/'native/foundation/recomp')
     validate_source_redirect_recipe(ROOT/'native/foundation/recomp')
+    combined_source_population=prepare_combined_source_population(project/'src/gen',out,rom,runtime,project/'recomp')
     selected_task_metadata=validate_selected_task_outputs(project/'src/gen',generated_metadata,expected,rom)
     source_redirect_metadata=validate_source_redirect_outputs(project/'src/gen',generated_metadata,expected,rom)
     region_metadata_path=project/'src/gen/native_regions.json'
@@ -1867,194 +2827,86 @@ def main():
         or constructor_provenance.get('output_sha256')!=sha(project/'src/gen/constructor.generated.h')
         or constructor_provenance.get('sites_sha256')!=sha(project/'src/gen/constructor_sites.generated.h')):
         raise RuntimeError('Generated constructor provenance differs from authored snapshot and ROM.')
-    cmake=[args.cmake,'-S',project,'-B',out/'build','-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
-      '-DCMAKE_C_COMPILER='+args.cc,'-DCMAKE_CXX_COMPILER='+args.cxx,
-      '-DCMAKE_MAKE_PROGRAM='+str(Path(shutil.which(args.ninja)).resolve()),
-      '-DSNESRECOMP_ROOT='+str(runtime),'-DSNESRECOMP_FRAME_IMPL=HLE',
-      '-DSNESRECOMP_SDL_BACKEND=SDL3','-DSNESRECOMP_ENABLE_NET=OFF']
-    if args.sdl3_dir:cmake.append('-DSDL3_DIR='+str(args.sdl3_dir.resolve(strict=True)))
-    for name,cmd in [('configure',cmake),('build',[args.cmake,'--build',out/'build','-j'+str(args.jobs)])]:
-        print(name.capitalize()+'...',flush=True)
-        with (out/(name+'.log')).open('w',encoding='utf-8') as log:
-            r=subprocess.run(list(map(str,cmd)),cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
-        if r.returncode:raise RuntimeError(name+' failed; inspect '+str(out/(name+'.log')))
-    if any(sha(source/n)!=h or sha(project/n)!=h for n,h in actual.items()):
-        raise RuntimeError('Authored inputs changed during build; compilation retained unqualified.')
-    if profile_inputs is not None and any(sha(Path(path))!=digest for path,digest in profile_inputs['protected'].items()):
-        raise RuntimeError('Original profile/source identity changed during build; compilation retained unqualified.')
-    if sha(marker)!=target_marker_digest or any(sha(runtime/n)!=digest for n,digest in target_sources.items()):
-        raise RuntimeError('Target patched source identity changed during build; compilation retained unqualified.')
-    runtime_source_accounting(runtime,patch_names,new_patch_names)
-    binary=out/'build/SecretOfTheStarsSNESRecomp.exe'
-    if not binary.exists():raise RuntimeError('Windows executable missing after build.')
-    profile=out/'profile';profile.mkdir();shutil.copy2(binary,profile/binary.name)
-    (profile/'config.ini').write_text('[Graphics]\nRenderer=direct3d11\nFullscreen=0\nVSync=1\nNewRenderer=0\nWidescreen=0\n[Sound]\nEnableAudio=1\nAudioFreq=32040\nAudioChannels=2\nAudioSamples=512\n[General]\nAutosave=0\nSkipLauncher=1\n',encoding='ascii')
-    (profile/'foundation.ini').write_text('[Enhancements]\nEnhancedPixels=1\nBattleInfo=1\nFastMenus=1\nJournal=1\nNavigationMap=1\nNavigationMapObjective=1\nExperimentalFieldWide=0\nExperimentalFieldActors=0\nNativeClear=0\nNativeColumns=0\nHdMenuFrames=0\nXpMultiplierPercent=100\nGoldMultiplierPercent=100\nMovementSpeedPercent=200\nFastForwardToggle=0\nLegacyControllerGestures=1\n',encoding='ascii')
-    assert sha(rom)==expected
-    state_source=(project/'src/foundation_state.c').read_text()
-    schema=re.search(r'#define FOUNDATION_VERSION (\d+)u',state_source)
-    state_identity=re.search(r'FoundationStateIdentity\(void\).*?return "([^"]+)"',state_source)
-    if not schema or not state_identity or 'header[1] < 1 || header[1] > FOUNDATION_VERSION' not in state_source:
-        raise RuntimeError('Checkpoint contract changed; preserve this build and explicitly update its compatibility declaration before adoption.')
-    schema_version=int(schema.group(1))
-    result={'status':'compiled_unqualified','public_build':True,'executable_sha256':sha(binary),
-      'native_continuation_patch_sha256':sha(continuation_patch),
-      'native_continuation_source_binding_sha256':sha(CONTINUATION_BINDING),
-      'native_continuation_scope':continuation_binding()['scope'],
-      'memory_rmw_patch_sha256':sha(rmw_patch),
-      'memory_rmw_source_binding_sha256':sha(RMW_BINDING),
-      'memory_rmw_scope':rmw_binding()['scope'],
-      'memory_bits_patch_sha256':sha(memory_bits_patch),
-      'native_regions_patch_sha256':sha(native_regions_patch),
-          'native_leaf_regions_patch_sha256':sha(leaf_regions_patch),
-          'native_hook_handoff_patch_sha256':sha(hook_handoff_patch),
-          'native_stack_primitives_patch_sha256':sha(stack_primitives_patch),
-          'native_return_steps_patch_sha256':sha(return_steps_patch),
-          'native_prefix_instructions_patch_sha256':sha(prefix_instructions_patch),
-          'native_stack_controls_patch_sha256':sha(stack_controls_patch),
-          'selected_task_resume_patch_sha256':sha(selected_task_patch),
-      'memory_bits_source_binding_sha256':sha(MEMORY_BITS_BINDING),
-      'memory_bits_scope':memory_bits_binding()['scope'],
-      'native_regions_source_binding_sha256':sha(NATIVE_REGIONS_BINDING),
-      'native_regions_scope':native_regions_binding()['scope'],
-      'native_leaf_regions_source_binding_sha256':sha(LEAF_REGIONS_BINDING),
-      'native_leaf_regions_scope':leaf_regions_binding()['scope'],
-      'native_hook_handoff_source_binding_sha256':sha(HOOK_HANDOFF_BINDING),
-      'native_hook_handoff_scope':hook_handoff_binding()['scope'],
-      'native_stack_primitives_source_binding_sha256':sha(STACK_PRIMITIVES_BINDING),
-      'native_stack_primitives_scope':stack_primitives_binding()['scope'],
-      'native_return_steps_source_binding_sha256':sha(RETURN_STEPS_BINDING),
-      'native_return_steps_scope':return_steps_binding()['scope'],
-      'native_prefix_instructions_source_binding_sha256':sha(PREFIX_INSTRUCTIONS_BINDING),
-      'native_prefix_instructions_scope':prefix_instructions_binding()['scope'],
-      'native_stack_controls_source_binding_sha256':sha(STACK_CONTROLS_BINDING),
-      'native_stack_controls_scope':stack_controls_binding()['scope'],
-      'selected_task_resume_source_binding_sha256':sha(SELECTED_TASK_BINDING),
-      'selected_task_resume_scope':selected_task_binding()['scope'],
-      'source_redirect_patch_sha256':sha(source_redirect_patch),
-      'source_redirect_source_binding_sha256':sha(SOURCE_REDIRECT_BINDING),
-      'source_redirect_scope':source_redirect_binding()['scope'],
-      'indirect_y_patch_sha256':sha(indirect_y_patch),
-      'indirect_y_source_binding_sha256':sha(INDIRECT_Y_BINDING),
-      'indirect_y_scope':indirect_y_binding()['scope'],
-      'redirect_observer_idle_patch_sha256':sha(redirect_observer_idle_patch),
-      'redirect_observer_idle_source_binding_sha256':sha(REDIRECT_OBSERVER_IDLE_BINDING),
-      'selected_task_case_patch_sha256':sha(selected_case_patch),
-      'selected_task_case_source_binding_sha256':sha(SELECTED_CASE_BINDING),
-      'direct_call_prefix_patch_sha256':sha(direct_call_patch),
-      'direct_call_prefix_source_binding_sha256':sha(DIRECT_CALL_BINDING),
-      'redirect_observer_idle_scope':redirect_observer_idle_binding()['scope'],
-      'selected_task_case_scope':selected_case_binding()['scope'],
-      'direct_call_prefix_scope':direct_call_binding()['scope'],
-      'host_proof_idle_patch_sha256':sha(host_proof_idle_patch),
-      'host_proof_idle_source_binding_sha256':sha(HOST_PROOF_IDLE_BINDING),
-      'host_proof_idle_scope':host_proof_idle_binding()['scope'],
-      'stack_direct_patch_sha256':sha(stack_direct_patch),
-      'stack_direct_source_binding_sha256':sha(STACK_DIRECT_BINDING),
-      'stack_direct_scope':stack_direct_binding()['scope'],
-      'stack_direct_generation':stack_direct_metadata,
-      'task_callee_patch_sha256':sha(task_callee_patch),
-      'task_callee_source_binding_sha256':sha(TASK_CALLEE_BINDING),
-      'task_callee_scope':task_callee_binding()['scope'],
-      'indirect_y_generation':indirect_y_generation,
-      'source_redirect_generation':{'metadata_format':1,'mode_rows':len(source_redirect_metadata['rows']),'distinct_pcs':len({r['pc24']for r in source_redirect_metadata['rows']}),'metadata_sha256':sha(project/'src/gen/native_source_redirect.json'),'source_sha256':sha(project/'src/gen/native_source_redirect_v2.c'),'execution_qualified':False},
-      'selected_task_resume_generation':{'metadata_format':RUNTIME_GENERATION_FORMATS['task'],'mode_rows':len(selected_task_metadata['rows']),'distinct_pcs':len({r['pc24']for r in selected_task_metadata['rows']}),'metadata_sha256':sha(project/'src/gen/native_task_resume.json'),'source_sha256':sha(project/'src/gen/native_task_resume_v2.c'),'execution_qualified':False},
-      'direct_call_prefix_generation':direct_call_metadata,
-      'reset_bootstrap_generation':reset_bootstrap_generation,
-      'native_region_generation':{'cache_format':RUNTIME_GENERATION_FORMATS['cache'],'metadata_format':RUNTIME_GENERATION_FORMATS['normal'],'stack_control_contract':region_metadata['stack_control_contract'],'result_contract':region_metadata['result_contract'],'instruction_source':region_metadata['instruction_source'],'source_cfg_scheduler_rows':len(region_metadata['regions']),'metadata_sha256':sha(region_metadata_path),'source_sha256':sha(region_source_path),'diagnostic_disable':'SNESRECOMP_DISABLE_NATIVE_REGIONS=1','execution_qualified':False},
-      'runtime_accumulator_patch_sha256':sha(accumulator_patch),'runtime_accumulator_emitter_sha256':ACCUMULATOR_EMITTER_SHA256,'runtime_accumulator_source_review':{'offline_unit_report_sha256':ACCUMULATOR_UNIT_SHA256,'scope':'Pinned reviewed offline instruction/source proof; public Setup does not consume private fixtures or infer actual-artifact gameplay qualification.'},
-      'runtime_accumulator_source_lineage':accumulator_lineage,
-      'runtime_accumulator_patch_scope':'Exact one-byte ASL/LSR/ROL/ROR accumulator admission through existing faithful bodies. MemoryRMW/INC/DEC/refusals and original buses/timing/ABI remain.',
-      'version':(project/'VERSION').read_text().strip(),'rom_sha256':expected,'rom_copied':False,
-      'authored_inputs':actual,'matches_authored_snapshot':actual==manifest,
-      'runtime_pin':RUNTIME_PIN,'runtime_patch_sha256':sha(patch),
-      'runtime_extensions':runtime_extension_records(),
-      'runtime_source_provenance':{'runtime_dir':str(runtime),'runtime_cache_identity':cache_identity,'marker_sha256':target_marker_digest,'patched_sources':target_sources,'new_patched_sources':sorted(new_patch_names)},
-      'host_navigation_patch_sha256':sha(host_patch),
-          'faithful_instruction_patch_sha256':sha(faithful_patch),
-          'host_modal_audio_patch_sha256':sha(audio_patch),
-      'automatic_faithful_patch_sha256':sha(automatic_patch),
-      'lifecycle_patch_sha256':sha(lifecycle_patch),'prefix_patch_sha256':sha(prefix_patch),
-          'faithful_hook_boundary_patch_sha256':sha(hook_boundary_patch),
-          'reviewed_roots_patch_sha256':sha(reviewed_patch),
-          'converged_exit_patch_sha256':sha(converged_patch),
-      'reviewed_root_generation':reviewed_report,
-      'converged_exit_patch_scope':'Generic post-convergence double fresh-decode certificate for previously unstable exact exit facts. Structural masks, forced-original entries and unresolved, conflicting, recursive or unstable dependencies remain authoritative. No decoded opcode emission or runtime instruction changes.',
-      'reviewed_roots_patch_scope':'Strict metadata-only authored PC/M/X seeds through normal additional_roots; CFG masks and force-LLE remain authoritative. No decoded bodies, exit facts or eligibility override.',
-      'lifecycle_patch_scope':'Scoped paired host return-tag lifecycle in three original dispatch branches; no guest/checkpoint layout or instruction timing change.',
-      'faithful_hook_boundary_patch_scope':'Single interp_bridge pre-opcode hook boundary refusal preserves original callback producers; no generated opcode executes across that boundary and original transfer/timing remain authoritative.',
-      'prefix_patch_scope':'Distinct aot_prefix disposition with exact unknown-call stop and original hard masks; never guesses callee exit modes or full-function eligibility. Generator option is explicit and recorded separately.',
-      'automatic_faithful_patch_scope':'Upstream decoded instruction/IR emission with original bus transfers and internal clocks, per-instruction scheduler commits, cached effective addresses, native flag/return semantics and faithful unsupported continuation. No serialized guest fields or checkpoint/SRAM layout changes.',
-      'automatic_generation':{'mode':'upstream-faithful-instruction','cfg_roots':True,'host_root_scan':False,
-          'native_continuations':args.native_continuations,
-          'native_direct_call_prefix':args.native_direct_calls,'direct_call_generator_option':'--native-direct-call-prefix','direct_call_diagnostic_optout':'--no-native-direct-call-prefix',
-          'native_mode_successors':True,'mode_successor_generator_option':'--native-mode-successors',
-          'mode_successor_contract':region_metadata['mode_successor_contract'],
-          'native_continuation_certificates':len(automatic_manifest.get('native_continuations',[])),
-          'native_continuation_generator_option':'--certify-native-continuations',
-          'native_continuation_diagnostic_optout':'--no-native-continuations',
-          'faithful_prefixes':args.emit_proven_prefixes,'prefix_wrapper_option':'--emit-proven-prefixes','prefix_generator_option':'--faithful-prefixes',
-          'certify_converged_exits':args.certify_converged_exits,'converged_exit_generator_option':'--certify-converged-exits','converged_exit_diagnostic_optout':'--no-converged-exits',
-          'generation_commands':[list(map(str,cmd))for cmd in generates],
-          'generator_digest':generated_metadata['generator_digest'],'config_digest':generated_metadata['config_digest'],
-          'cache_sha256':sha(generated_cache),'emitted_output_hashes':generated_metadata['outputs'],
-          'manifest':automatic_manifest_path.relative_to(out).as_posix(),'manifest_sha256':sha(automatic_manifest_path),
-          'root_mode_contexts':len(automatic_manifest['roots']),'discovered_mode_nodes':len(automatic_manifest['nodes']),
-          'dispositions':dispositions,'eligibility_is_execution_coverage':False,
-          'guarded_clear_constructor_default':'Existing authored guarded islands remain enabled simultaneously in normal player launches; exact automatic-native qualification separately disables both using explicit environment controls.',
-          'original_byte_diagnostic':{'target_file':diagnostic_target_path.relative_to(out).as_posix(),
-              'target_file_sha256':sha(diagnostic_target_path),'unique_entry_targets':len(diagnostic_targets),
-              'manifest_unique_entry_targets':len(manifest_targets),'actual_dispatch_unique_entry_targets':len(dispatch_targets),
-              'actual_dispatch_rows':dispatch_rows,'dispatch_source_sha256':sha(dispatch_path),'target_policy':'Union of every actual manifest entry and strictly parsed generated DispatchEntry row, including original interrupt entries and aliases.',
-              'enabled_by_default':False,'environment':{
-                  'SNESRECOMP_LLE_INTERP_TARGET_FILE':'<absolute path to this generated target file>',
-                  'SNESRECOMP_DISABLE_NATIVE_CONTINUATIONS':'1',
-                  'SNESRECOMP_DISABLE_NATIVE_REGIONS':'1',
-                  'SNESRECOMP_FOUNDATION_GENERATED_CLEAR':'0','SNESRECOMP_FOUNDATION_GENERATED_CONSTRUCTOR':'0'},
-              'limits':'Diagnostic configuration only; actual compiled-call/instruction evidence must verify original-byte admission. Does not change normal profile settings.'}},
-      'host_navigation_patch_scope':'Appended map hotkey, parser/defaults and host dispatch only; existing command ids and serialized guest execution unchanged.',
-      'host_modal_audio_patch_scope':'Host playback pause/prefill resume and overlay request consumption only; no guest machine or checkpoint layout changes.',
-      'faithful_instruction_patch_scope':'Byte transaction wrapper/declaration only; existing bus/clock and checkpoint layout unchanged.',
-      'checkpoint_schema':{'identity':state_identity.group(1),'writes':schema_version,'reads':list(range(1,schema_version+1))},
-      'save_compatibility':'secret-of-the-stars-usa-sram-v1',
-      'execution_state_abi_sha256':hashlib.sha256(('\n'.join(actual[name] for name in ('src/foundation_state.c','src/foundation_state.h','src/game_rtl.c','src/game_rtl.h','src/variables.h'))+'\n'+RUNTIME_PIN+'\n'+sha(patch)).encode()).hexdigest(),
-      'private_generated_files':[p.relative_to(out).as_posix() for p in (project/'src/gen').rglob('*') if p.is_file()],
-      'generated_guest_islands':{'faithful_constructor':{
-          'generator_input':'tools/generate_constructor.py','generator_sha256':actual['tools/generate_constructor.py'],
-          'provenance_file':constructor_provenance_path.relative_to(out).as_posix(),'provenance_sha256':sha(constructor_provenance_path),
-          'generated_header':'project/src/gen/constructor.generated.h','generated_header_sha256':constructor_provenance['output_sha256'],
-          'sites_header':'project/src/gen/constructor_sites.generated.h','sites_header_sha256':constructor_provenance['sites_sha256'],
-          'instruction_bytes_sha256':constructor_provenance['instruction_bytes_sha256'],'entry_pcs':[node['pc'] for node in constructor_provenance['nodes']],
-          'default_variant':'guarded-outer-constructor','scope':constructor_provenance['scope']},'faithful_clear':{
-          'generator_input':'tools/generate_faithful_clear.py','generator_sha256':actual['tools/generate_faithful_clear.py'],
-          'provenance_file':clear_provenance_path.relative_to(out).as_posix(),'provenance_sha256':sha(clear_provenance_path),
-          'generated_header':'project/src/gen/faithful_clear.generated.h','generated_header_sha256':clear_provenance['output_sha256'],
-          'instruction_bytes_sha256':clear_provenance['instruction_bytes_sha256'],'entry_pcs':[node['pc'] for node in clear_provenance['nodes']],
-          'scope':'Complete guarded CB19-CB34 routine with original C45E call/CB34 RTS; existing scheduler frontend retained.',
-          'default_variant':'whole-routine','legacy_variant':'three-instruction','legacy_entry_pcs':[node['pc'] for node in clear_provenance['legacy_nodes']]}},
-      'profile':profile.relative_to(ROOT).as_posix() if profile.is_relative_to(ROOT) else str(profile),
-      'limits':'Fresh developer compilation only; gameplay qualification and owner installation remain separate.'}
-    if profile_inputs is not None:
-        generated_cache=project/'src/gen/.snesrecomp-cache.json'
-        generated_metadata=json.loads(generated_cache.read_bytes())
-        captured_roots=json.loads(profile_inputs['program'].read_bytes())['roots']
-        key=lambda item:(item['pc24'],item['m'],item['x'])
-        original_roots={key(item)for item in captured_roots}
-        result['local_profile_generation']={'enabled':True,'default':False,'capture_identity':profile_inputs['identity'],
-          'original_receipt_sha256':sha(profile_inputs['receipt']),'original_program_manifest_sha256':sha(profile_inputs['program']),
-          'original_generator_digest':profile_inputs['original_generator_digest'],'original_config_digest':profile_inputs['original_config_digest'],
-          'original_runtime_dir':str(profile_inputs['source_runtime']),
-          'analyzer_path':str(profile_inputs['analyzer']),'analyzer_sha256':sha(profile_inputs['analyzer']),
-          'capture_ids':profile_inputs['captures'],'profile_inputs':[{'original_path':str(original),'sha256':sha(copy),'snapshot':copy.relative_to(out).as_posix()}for original,copy in zip(profile_inputs['profiles'],profile_snapshots)],
-          'protected_source_provenance':profile_inputs['protected'],'ingest_report':'profile-ingest.json','ingest_sha256':sha(out/'profile-ingest.json'),
-          'target_generator_digest':generated_metadata['generator_digest'],'target_config_digest':generated_metadata['config_digest'],
-          'generated_cache_sha256':sha(generated_cache),'emitted_outputs':{p.relative_to(out).as_posix():sha(p)for p in(project/'src/gen').rglob('*')if p.is_file()},
-          'new_observed_root_contexts':[r for r in automatic_manifest['roots']if key(r)not in original_roots],
-          'admission_is_execution_qualification':False,'historical_or_legacy_import':False,
-          'limits':'Optional exact original-build local observations seed normal pinned analysis. CFG authority/force-LLE remain authoritative; observations and compiled source are not gameplay or release qualification. No captures are bundled into public source.'}
-    with(out/'source-build-receipt.json').open('x',encoding='utf-8')as receipt_file:receipt_file.write(json.dumps(result,indent=2)+'\n')
-    print('Built: '+str(binary));print('Fresh profile: '+str(profile))
-    print('Run from the fresh profile: SecretOfTheStarsSNESRecomp.exe --no-launcher --rom "<your original ROM path>"')
+    finalize_compilation(CompilationFinalizerContext(
+        accumulator_lineage=accumulator_lineage,
+        accumulator_patch=accumulator_patch,
+        actual=actual,
+        args=args,
+        audio_patch=audio_patch,
+        automatic_manifest=automatic_manifest,
+        automatic_manifest_path=automatic_manifest_path,
+        automatic_patch=automatic_patch,
+        cache_identity=cache_identity,
+        clear_provenance=clear_provenance,
+        clear_provenance_path=clear_provenance_path,
+        combined_source_population=combined_source_population,
+        constructor_provenance=constructor_provenance,
+        constructor_provenance_path=constructor_provenance_path,
+        continuation_patch=continuation_patch,
+        converged_patch=converged_patch,
+        diagnostic_target_path=diagnostic_target_path,
+        diagnostic_targets=diagnostic_targets,
+        direct_call_metadata=direct_call_metadata,
+        direct_call_patch=direct_call_patch,
+        dispatch_path=dispatch_path,
+        dispatch_rows=dispatch_rows,
+        dispatch_targets=dispatch_targets,
+        dispositions=dispositions,
+        expected=expected,
+        faithful_patch=faithful_patch,
+        generated_cache=generated_cache,
+        generated_metadata=generated_metadata,
+        generates=generates,
+        hook_boundary_patch=hook_boundary_patch,
+        hook_handoff_patch=hook_handoff_patch,
+        host_patch=host_patch,
+        host_proof_idle_patch=host_proof_idle_patch,
+        indirect_y_generation=indirect_y_generation,
+        indirect_y_patch=indirect_y_patch,
+        leaf_regions_patch=leaf_regions_patch,
+        lifecycle_patch=lifecycle_patch,
+        manifest=manifest,
+        manifest_targets=manifest_targets,
+        marker=marker,
+        memory_bits_patch=memory_bits_patch,
+        native_regions_patch=native_regions_patch,
+        new_patch_names=new_patch_names,
+        out=out,
+        patch=patch,
+        patch_names=patch_names,
+        prefix_instructions_patch=prefix_instructions_patch,
+        prefix_patch=prefix_patch,
+        profile_inputs=profile_inputs,
+        profile_policy=profile_policy,
+        profile_snapshots=profile_snapshots,
+        project=project,
+        redirect_observer_idle_patch=redirect_observer_idle_patch,
+        region_metadata=region_metadata,
+        region_metadata_path=region_metadata_path,
+        region_source_path=region_source_path,
+        reset_bootstrap_generation=reset_bootstrap_generation,
+        return_steps_patch=return_steps_patch,
+        reviewed_patch=reviewed_patch,
+        reviewed_report=reviewed_report,
+        rmw_patch=rmw_patch,
+        rom=rom,
+        runtime=runtime,
+        selected_case_patch=selected_case_patch,
+        selected_task_metadata=selected_task_metadata,
+        selected_task_patch=selected_task_patch,
+        source=source,
+        source_redirect_metadata=source_redirect_metadata,
+        source_redirect_patch=source_redirect_patch,
+        stack_controls_patch=stack_controls_patch,
+        stack_direct_metadata=stack_direct_metadata,
+        stack_direct_patch=stack_direct_patch,
+        stack_primitives_patch=stack_primitives_patch,
+        target_marker_digest=target_marker_digest,
+        target_sources=target_sources,
+        task_callee_patch=task_callee_patch,
+        task_scheduler_mode_rows=task_scheduler_scope_count(selected_task_metadata),
+        continuation_record=None,
+    ))
 
 
 # The sequential validation graph revisits earlier bindings. Cache its pure

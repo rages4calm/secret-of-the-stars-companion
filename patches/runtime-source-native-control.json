@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "6b3817f9c907b5fb58e8777868b9294afefd8a77a5704eb2447459f6850c5c83",
+  "predecessor_patch_sha256": "300071a8f546481e2cf46b6633b33f2e23aa7bdfa1c4fb6f1f6380faf1270e5c",
+  "predecessor_binding_sha256": "e56e0923bb869f5ec5f5d40107ab8158f2de4ee5ed907898b60bcf2bbf79ba28",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "72b9fe3a232ef2630b6b4a8a76b0857f782710461d461ccf578d1bfaae3dba90",
+      "final_sha256": "9e148dd333b095f7f6dec9fbb6e9a851c678ae2631ef5d9347745c5b414680a5",
+      "normalized_final_sha256": "4e20b60852db0bd11b3dec1cb3c8f51d9c46bbab8b4e36de8a0a3ef7bc5bf617"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "956bd938bbe585f30469c43b54fb7acb6c328a1059a4a7c30e056cf5e53b6fa9",
+      "final_sha256": "eee14931751ebcbe62d0fb108bc4c8753f2f775a0028759175947cb726d258d4",
+      "normalized_final_sha256": "45aa1cfed7bdc91e6fd5386d44ae0b9291f9adbfb128cbc5c6f0a74c90bf2e54"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "ad25aa1d2e63718b1573276005156f2317b8a8bdd37741350088b4c48ede5a8b",
+      "final_sha256": "8e885e5f8bb7e663783351435ea66444d495e9a5b8f35253e9ccad36f07ca03c",
+      "normalized_final_sha256": "54ea09803399e6fc0be3be337f79520d1525f8de14f177996fa1142a2d83c903"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "4fdcffd52e6c5aa649f7fed253808c7c9a3ecdfaf8bfdf4da5bf714368f03a31",
+      "final_sha256": "2157814b8cfbca6016e9616eda535b216c3378b40e46964d0b419f4c29071164",
+      "normalized_final_sha256": "6bfb253f27959de2fe21cca99cff8c97601f4d54d4aa0a8e6977e221825f0d58"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "518 original-supervisor source-registered JSR/JSL/RTS/RTL primitives and API only; no generated SDK/CFG/root/owner/exit facts or serialized state changes. Separate exact-artifact qualification required.",
+  "frozen518_handoff_sha256": "da4ad6a62da85bea175eabee06caed11e2b01a947d4eb12da714f9d833126223",
+  "new_control_receipt_sha256": "8d457727581240d112582907751def37cc3181d54c1030725d159c2dcc32861a"
+}

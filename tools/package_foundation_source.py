@@ -1,61 +1,30 @@
-"""Create an additive authored-source bundle, excluding private game data."""
+"""Package all Git-tracked ROM-free source, patches, notices and documentation."""
 from pathlib import Path
-import hashlib
-import json
-import time
-import zipfile
-
-ROOT = Path(__file__).resolve().parents[1]
-
+import argparse,hashlib,json,subprocess,sys,zipfile
+ROOT=Path(__file__).resolve().parents[1]
 
 def main():
-    source = ROOT/'native/foundation'
-    manifest = json.loads((source/'authored-files.json').read_text())
-    files = [source/name for name in manifest]
-    files += [source/'README.md', source/'authored-files.json', ROOT/'AGENTS.md',
-              ROOT/'HANDOFF-2026-10-08-Secret-of-the-Stars.md', ROOT/'.gitignore',
-              ROOT/'patches/runtime-foundation.patch', ROOT/'patches/runtime-navigation-map.patch',
-              ROOT/'patches/runtime-faithful-clear.patch', ROOT/'patches/runtime-modal-audio.patch']
-    files += [p for p in sorted((ROOT/'tools').glob('*.py'))
-              if p.name != 'build_battle_info_variant.py']
-    files += sorted((ROOT/'tools').glob('*.ps1'))
-    files += sorted((ROOT/'tools').glob('*.c')) + sorted((ROOT/'tools').glob('*.h'))
-    files += sorted((ROOT/'docs').glob('FOUNDATION-*.md'))
-    files += sorted((ROOT/'docs/porting-references').glob('*.md'))
-    files += sorted(ROOT.glob('Start*.cmd')) + sorted(ROOT.glob('Resume*.cmd'))
-    companion = ROOT/'Companion'
-    companion_manifest = json.loads((companion/'authored-files.json').read_text())
-    files += [companion/name for name in companion_manifest]
-    files += [companion/'authored-files.json']
-    files = sorted(set(files))
-    allowed = {'.c','.h','.cs','.csproj','.md','.py','.ps1','.cmd','.patch','.json','.toml','.cfg','.txt','.sh'}
-    entries={}
-    for p in files:
-        rel=p.relative_to(ROOT).as_posix()
-        assert not rel.startswith('local/') and '/src/gen/' not in rel, rel
-        assert p.suffix.lower() in allowed or p.name in {'CMakeLists.txt','VERSION','.gitmodules','.gitignore'}, rel
-        digest=hashlib.sha256(p.read_bytes()).hexdigest()
-        if p.is_relative_to(companion) and p.relative_to(companion).as_posix() in companion_manifest:
-            assert digest==companion_manifest[p.relative_to(companion).as_posix()], rel
-        if p.is_relative_to(source) and p.relative_to(source).as_posix() in manifest:
-            assert digest==manifest[p.relative_to(source).as_posix()], rel
-        entries[rel]=digest
-    out=ROOT/'local/packages'
-    out.mkdir(exist_ok=True)
-    archive=out/('secret-of-the-stars-authored-'+time.strftime('%Y%m%d-%H%M%S')+'.zip')
-    assert not archive.exists()
-    with zipfile.ZipFile(archive,'x',compression=zipfile.ZIP_DEFLATED) as z:
-        for p in files:z.write(p,p.relative_to(ROOT).as_posix())
-        z.writestr('BUNDLE-MANIFEST.json',json.dumps(entries,indent=2)+'\n')
-    with zipfile.ZipFile(archive) as z:
-        assert z.testzip() is None
-        for name,digest in entries.items():assert hashlib.sha256(z.read(name)).hexdigest()==digest
-    report={'archive':archive.relative_to(ROOT).as_posix(),'sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),
-            'authored_files':len(entries),'private_payloads_excluded':True,
-            'contents':'Authored source, tools, documentation and runtime patch; no game binary or original data',
-            'passed':True}
-    archive.with_suffix('.receipt.json').write_text(json.dumps(report,indent=2)+'\n')
-    print(json.dumps(report,indent=2))
-
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output',type=Path,required=True,help='New source ZIP, preferably in Temp; existing files preserved')
+    args=parser.parse_args();output=args.output.resolve()
+    if output.exists():raise ValueError('Output already exists; choose a fresh path.')
+    check=subprocess.run([sys.executable,'-B',str(ROOT/'tools/check_public_source.py')],cwd=ROOT,capture_output=True,text=True,check=True)
+    if not json.loads(check.stdout)['passed']:raise ValueError('Public source boundary did not pass.')
+    names=subprocess.check_output(['git','ls-files','-z'],cwd=ROOT).decode('utf8').split('\0');entries={}
+    for name in filter(None,names):
+        path=ROOT/name
+        if path.is_symlink()or not path.resolve().is_relative_to(ROOT.resolve()):raise ValueError('Linked or escaping source: '+name)
+        entries[name]=path.read_bytes()
+    digest=lambda data:hashlib.sha256(data).hexdigest()
+    manifest={name:digest(data)for name,data in sorted(entries.items())}
+    entries['BUNDLE-MANIFEST.json']=(json.dumps(manifest,indent=2)+'\n').encode('utf8')
+    output.parent.mkdir(parents=True,exist_ok=True)
+    with zipfile.ZipFile(output,'x',compression=zipfile.ZIP_DEFLATED)as archive:
+        for name,data in sorted(entries.items()):archive.writestr(name,data)
+    with zipfile.ZipFile(output)as archive:
+        assert sorted(archive.namelist())==sorted(entries)
+        assert all(archive.read(name)==data for name,data in entries.items())
+    result={'passed':True,'archive':str(output),'sha256':digest(output.read_bytes()),'source_files':len(manifest),'private_game_data_included':False,'scope':'Tracked authored source, reviewed documentation images and notices; no game binary.'}
+    output.with_suffix('.receipt.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf8');print(json.dumps(result,indent=2))
 
 if __name__=='__main__':main()

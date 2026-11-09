@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "3cdafbc3fe817663fc6ed28f308879c76043633fea169c8283a47819a5377c7c",
+  "predecessor_patch_sha256": "351e844aed03524d108657a4ed816f96f0a85c2228e7067eaff75ae9a5ae39e3",
+  "predecessor_binding_sha256": "80a039a00c4108c8e4ff69607e4c0fd5c9c4d01a55dbb07dcbeaa40d26d11b31",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "3adf549b98f251263c7b5b92ebcf1e08a8d6a16a3c85f4f308171e675043217d",
+      "final_sha256": "289184d5a3e391b592b877c07bf3d7bb800f6876ead63609340f1407a1901f0d",
+      "normalized_final_sha256": "dac6fa0285ff3c7c528be54bf03d63109eb835ecb70582fc0ca6419d0a65f4f2"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "32fd1d571620defebf3b2aba0f7e33170abbc7e478c88afd2a861254473e3125",
+      "final_sha256": "0047cb581026ebf35b769ce8f7b6d54b790a195c969b514e6942806dde7303cc",
+      "normalized_final_sha256": "b1c112b3aa5cdbbf502cf8a4438f834e69cd5ece248575453200d48ba8b3c26e"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "13162dc1dfbbc5e68925a851b7964298821fee55cf784763fca6ac591af85215",
+      "final_sha256": "8a579a1c8088d5a13493f34f0746b7f814e2504f9d179f9423aae36037e57be8",
+      "normalized_final_sha256": "f3bb9c411e5b69b34be26a79cadb4eb3df527f4616d6ec9cc6ba66c424cd61c9"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source642 exact-PC bounded battle paths with original STZ absolute-X body and original supervisor/bus/stack/timing ownership inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "frozen642_handoff_sha256": "ad92b09ff3aaf8db75a692b55b61a426c80ed5c2d1c3de473d506d1d25b9b56b",
+  "frozen642_source_pins_sha256": "ac4770d50ecbb3d741ab78ce12fd4c49fce051211977251884a1f16061053ad5"
+}

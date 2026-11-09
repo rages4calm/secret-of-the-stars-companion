@@ -1,0 +1,58 @@
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -2377,6 +2377,21 @@
+   uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
+   interp816_arch_dec_dp(cpu);
+   interp_bridge_source_call_interp_exit(cpu, source, 0xc6);
++  return cpu->cyclesUsed;
++}
++
++/* Original indexed zero-store CPU body shared verbatim. */
++static void interp816_arch_stz_abx(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAbx(cpu, &low, true);
++      interp816_stz(cpu, low, high);
++}
++int interp816_native_stz_abx(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x9e)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x9e];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_stz_abx(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x9e);
+   return cpu->cyclesUsed;
+ }
+ 
+@@ -3275,9 +3290,7 @@
+       break;
+     }
+     case 0x9e: { // stz abx
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAbx(cpu, &low, true);
+-      interp816_stz(cpu, low, high);
++      interp816_arch_stz_abx(cpu);
+       break;
+     }
+     case 0x9f: { // sta alx
+diff --git a/runner/src/snes/interp816.h b/runner/src/snes/interp816.h
+--- a/runner/src/snes/interp816.h
++++ b/runner/src/snes/interp816.h
+@@ -182,6 +182,7 @@
+ int      interp816_native_dec_abs(Interp816 *cpu);
+ int      interp816_native_and_dp(Interp816 *cpu);
+ int      interp816_native_dec_dp(Interp816 *cpu);
++int      interp816_native_stz_abx(Interp816 *cpu);
+ int      interp816_runOpcode(Interp816 *cpu);   /* runs one opcode; returns cycles */
+ uint8_t  interp816_getFlags(Interp816 *cpu);
+ void     interp816_setFlags(Interp816 *cpu, uint8_t val);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -730,6 +730,7 @@
+     case 0xc6:step=interp816_native_dec_dp;expected=2;break;
+     case 0x5a:step=interp816_native_phy;expected=1;break;
+     case 0x7a:step=interp816_native_ply;expected=1;break;
++    case 0x9e:step=interp816_native_stz_abx;expected=3;break;
+     default:return false;
+     }
+     if(length!=expected)return false;

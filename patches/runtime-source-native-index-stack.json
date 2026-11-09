@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "d80baf717f828c9cc6b3d3837acca93af59dee81251a5892f301a992cd9f1d17",
+  "predecessor_patch_sha256": "19833ff9d0a0581cf0c51fb28ca415159cdd3b39b5d7a7474a82eea2a5e4837f",
+  "predecessor_binding_sha256": "b0eb1df49de4abdc206d954dedf9b3a6def10002f338e44162c5f1efd7a8a838",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "809a7ae1bd2a7c554d8d71a39954edaa421aac36328bd6925ed65783af425c77",
+      "final_sha256": "e923b470db291112b3807d262fd0b149f80992590f014cc1dda250d7e81d54b3",
+      "normalized_final_sha256": "d92a74842c50687f0c0f10d158fd33b3e3c439332c1835b75c9f3fd062e6bb8c"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "75a9825eea1e49883219387bc263c399ad60b7b767ee079c2e7c4770c67aa7ae",
+      "final_sha256": "fe54c1540948b82a0739f2ee5bde7b211eea173af8413c27cfdd9e002b752a18",
+      "normalized_final_sha256": "bc7ac2ff8000b8379159f7490382b6adeb2ba02f19736c039d309ee1fda7d69d"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "677a9cc16f0a41bd84d1fe3880c65c19a23afaa67136d9b701091ac9a076b7cf",
+      "final_sha256": "b5c8c9b80bc7b2c136e4a11e97fdd6007287110f23dd435b56bcc63b5d42414f",
+      "normalized_final_sha256": "312f8b686abce6cbabc6d6bfadb7f0496383d40d21da82fc56ea1c17764a14b0"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "b46bd208f6a9993dd6b3546b7f122572430eb498e4bbedf9b6d77eaa4f615822",
+      "final_sha256": "0d440bc8037a580719a6f5ad1c0e7b972a7c7de3ad0c761bc1a64209bf24c832",
+      "normalized_final_sha256": "bbdb46a8db2f858f28099116dfeecf457f9a2f1e1ff3702ad7a183b9ee94d5e1"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "547 source-registered PHY/PLY and twelve bank02 title sites through original supervisor and original primitives; no generated SDK/CFG/root/owner/exit facts or serialized state changes.",
+  "frozen547_handoff_sha256": "df9e4a9a26242ad8886390b86619f6e87f7540d8b02f5bfa1a62c96f8f0d6cd2",
+  "frozen547_source_pins_sha256": "fca35f879a832abe986eff3ebbc197ede4b0fafa13a95135af6d238b30442057"
+}

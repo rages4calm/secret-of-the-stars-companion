@@ -1,0 +1,69 @@
+{
+  "patch_sha256": "f56312d53e80e3d98cf03ba731ee405a963f50c3bb2488fcd5e503de531b86fe",
+  "predecessor_patch_sha256": "f282b1b84704020de50091065c4eb942cf7736278a6769166b18d8ca49c9aa2c",
+  "predecessor_binding_sha256": "6644647c74ee47442d622716ed734f6d0e88e64c278d82a0efa5f7a9ab426f91",
+  "files": {
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "40101ec8a53a42412a513cd80d0ca6282a8438e7c6edb61c286f857f08329fca",
+      "final_sha256": "7b2559e41177344b1e8e3a226ce3df07ad58ef6c01e8ab12c192073346d0578b",
+      "normalized_final_sha256": "7b2559e41177344b1e8e3a226ce3df07ad58ef6c01e8ab12c192073346d0578b"
+    },
+    "recompiler/v2/architecture_emission_policy.py": {
+      "predecessor_sha256": "2fc95598a949796eadbe9e0536d734ea8f28b0b69e642b69c68d824f946dca48",
+      "final_sha256": "ba1c5e9a954a8f6bc9d998efcf0aa343e07a44514070ced9d73429f072783013",
+      "normalized_final_sha256": "ba1c5e9a954a8f6bc9d998efcf0aa343e07a44514070ced9d73429f072783013"
+    },
+    "recompiler/v2/architecture_initial_task_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "7ddbb1a77b694c28540ae5dfa950afbae1938447b0dc80fc1e0d8c4c55211f53",
+      "normalized_final_sha256": "7ddbb1a77b694c28540ae5dfa950afbae1938447b0dc80fc1e0d8c4c55211f53"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "da677da0416209d47de4890d53cfd281138cac971a5ef8fd42029af2361261fb",
+      "final_sha256": "e2002800f4412ce76c331e3bfcb78e507f8286c37d6858622df5ff8c75e0d5a7",
+      "normalized_final_sha256": "e2002800f4412ce76c331e3bfcb78e507f8286c37d6858622df5ff8c75e0d5a7"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "feb6b56750a83b5d54f7bb20fbef5040e4e660317a73c32ec1d7e0571dbafff5",
+      "final_sha256": "1e9d1e101f1ebd61f013ba484d5c8faa6c8f4a813664b53c6691992622db52e4",
+      "normalized_final_sha256": "1e9d1e101f1ebd61f013ba484d5c8faa6c8f4a813664b53c6691992622db52e4"
+    },
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": "31958ec0c4a46993919eedc299c948d529686168429116f6f58f8e67380b9dc5",
+      "final_sha256": "fec8c7ece1d9a77a1bb4909b3ed08605101be66bc25552f1f6dd0002396b6082",
+      "normalized_final_sha256": "fec8c7ece1d9a77a1bb4909b3ed08605101be66bc25552f1f6dd0002396b6082"
+    },
+    "recompiler/v2/task_selected_member_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "238f0a3166a5ae5bc7134900ba0cfebfb8ef4e049fb0b6028a278afb98527637",
+      "normalized_final_sha256": "238f0a3166a5ae5bc7134900ba0cfebfb8ef4e049fb0b6028a278afb98527637"
+    },
+    "runner/src/snes/bridge_task_helpers.inc": {
+      "predecessor_sha256": "fc8a7938fc70bf6140daae58624a30e5476e9929d940d0e5dd59e82df12d9626",
+      "final_sha256": "8a6c866299515b2e07dee0c3415f97739bb467b29f74f4478d6a000267581e4f",
+      "normalized_final_sha256": "8a6c866299515b2e07dee0c3415f97739bb467b29f74f4478d6a000267581e4f"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "64c1f75c43a08456ae730d1b1720a1da04120a3478eb1d6aac45eca245a81bd7",
+      "final_sha256": "92c5867ce010ae6e966f60bdaf26971b0e7af4c5c43d92a412202a6a439ac096",
+      "normalized_final_sha256": "92c5867ce010ae6e966f60bdaf26971b0e7af4c5c43d92a412202a6a439ac096"
+    },
+    "runner/src/task_selected_member_contract.h": {
+      "predecessor_sha256": null,
+      "final_sha256": "4f3db86ee09124ec1d89583aa79120e81358cf40efe5becee71d4d99c4d74520",
+      "normalized_final_sha256": "4f3db86ee09124ec1d89583aa79120e81358cf40efe5becee71d4d99c4d74520"
+    }
+  },
+  "cache_format": 47,
+  "normal_metadata": 32,
+  "task_metadata": 7,
+  "redirect_metadata": 1,
+  "source_proposal_sha256": "0d3756b7c8f4cf1958b63971e16d2ae732533f7862eddb030bd6a7f6b563d8e3",
+  "source_accounting_sha256": "fac019064185ecaed8dad0e1eb0d0c594771a59e60102e7e54b813f1a1e8a1c7",
+  "root_review195_sha256": "bdf33dfaf22b04c70c5bfd57bd26e69684b6d54dd719e82bb23d05c2a816db01",
+  "root_review200_sha256": "7bfd62248db8c7632417e92be52b9d730edb2e4d0d1ea77f74e8629d500e7ca4",
+  "root_review201_sha256": "fd04340f81324698fb549d9a78316326205143267fd3fd578db68b3653477ae1",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Original-owned reset/FF00/status2 initial-task source children and distinct selected-owner NONCALL wrapper members. Prior roots/caller/exit/owner/CPU/clock/serialized state unchanged; expected metadata compositional, not actual merged production."
+}

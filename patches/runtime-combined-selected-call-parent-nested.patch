@@ -1,0 +1,976 @@
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -111,7 +111,11 @@
+     if program_call_stream is not None:
+         from .architecture_initial_task_sources import derive as derive_initial_tasks
+         initial_task_rows,initial_task_graphs=derive_initial_tasks(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows)])
++    nested_initial_rows=[];nested_initial_graphs=None
++    if program_call_stream is not None:
++        from .architecture_nested_initial_task_sources import derive as derive_nested_initial
++        nested_initial_rows,nested_initial_graphs=derive_nested_initial(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
++    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows)])
+     metadata['return_instruction_graphs']=return_graphs
+     metadata['callee_instruction_graphs']=callee_graphs
+     metadata['mode_instruction_graphs']=mode_graphs
+@@ -128,6 +132,7 @@
+     metadata['task_architecture_graphs']=pure_task_graphs
+     metadata['task_member_graphs']=task_member_graphs
+     metadata['initial_task_graphs']=initial_task_graphs
++    metadata['nested_initial_task_graphs']=nested_initial_graphs
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/architecture_emission_policy.py b/recompiler/v2/architecture_emission_policy.py
+--- a/recompiler/v2/architecture_emission_policy.py
++++ b/recompiler/v2/architecture_emission_policy.py
+@@ -59,6 +59,10 @@
+     return view
+ 
+ def _record_graph(stream,view,rom,graph,bank,start,m,x,options,role):
++    from .architecture_nested_initial_task_sources import _NestedInitialChildPolicy
++    if type(view)is _NestedInitialChildPolicy:
++        view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
++        return
+     from .architecture_initial_task_sources import _InitialChildPolicy
+     if type(view)is _InitialChildPolicy:
+         view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
+diff --git a/recompiler/v2/architecture_initial_task_sources.py b/recompiler/v2/architecture_initial_task_sources.py
+--- a/recompiler/v2/architecture_initial_task_sources.py
++++ b/recompiler/v2/architecture_initial_task_sources.py
+@@ -195,10 +195,13 @@
+     if reg is None:return [],{'contract':CONTRACT,'initializers':[],'refused':[{'reason':'no actual original producer receipts'}],'graphs':[]}
+     if type(reg)is not _InitialRegistry or reg._used:raise ValueError('foreign/reused initial-task namespace')
+     reg.seal(rom,parsed,stream);reg._used=True
++    from .architecture_nested_initial_task_sources import _begin_observation,_observe_queue,_complete_original
++    observation=_begin_observation(_ISSUER,reg,stream,rom,parsed)
+     pieces=reg._pieces;initializers=[];refused=[];rows={};graphs=[];pending={};seen=set();origins={};depths={}
+     masks=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
+     def queue(pc,m,x,origin,depth):
+         reg.validate(rom,parsed,stream)
++        _observe_queue(observation,_ISSUER,reg,pc,m,x,origin,depth)
+         if depth>MAX_DEPTH:refused.append({'start':pc,'m':m,'x':x,'reason':'8edge source bound'});return
+         entry=(pc,m,x)
+         if not _mapped(rom,pc)or _mask(parsed,pc,1):refused.append({'start':pc,'m':m,'x':x,'reason':'unmapped/masked source start'});return
+@@ -268,6 +271,7 @@
+             if r.get('original_scheduler_call')and not enable_native_call_prefix:continue
+             if identity in rows and rows[identity]!=r:raise ValueError('unequal initial-task independent body')
+             rows[identity]=r;out.append(list(identity))
++        _complete_original(observation,_ISSUER,reg,scope,actual,allowed,entry,depths[entry],origins[entry])
+         graphs.append({'entry':list(entry),'origins':origins[entry],'source_graph_sha256':_graph_digest(rom,actual),'instruction_keys':out,'unknown_calls':[list(v)for v in actual.unknown_callee_exit_sites],'barriers':barriers,'depth':depths[entry]})
+     reg._child_seal=_digest([(i,id(g),d)for i,(g,d)in sorted(reg._children.items())]);reg.validate(rom,parsed,stream)
+     return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'initializers':initializers,'graphs':graphs,'refused':refused,'source_piece_sha256':_digest([(kind,[g.entry.pc,g.entry.m,g.entry.x],d,p,role,opts,[(k.pc,k.m,k.x)for k in keys])for kind,parent,g,d,p,role,opts,keys,pairs in reg._pieces]),'start_contexts':len(seen),'graph_bound':MAX_INSNS,'start_bound':MAX_STARTS,'depth_bound':MAX_DEPTH,'frame_bytes':5,'source_receiving_instructions_only':True,'FF03_elevenbyte_permit_added':False,'callee_exit_modes_added':False,'caller_owner_added':False,'task_ownership_changed':False,'ordinary_roots_added':False,'saved_P_history_exported':False,'new_runtime_dispatch':False}
+diff --git a/recompiler/v2/architecture_nested_initial_task_sources.py b/recompiler/v2/architecture_nested_initial_task_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_nested_initial_task_sources.py
+@@ -0,0 +1,259 @@
++"""Sealed source-only nested initializers; original bank issuer stays original-only."""
++import weakref,hashlib
++from snes65816 import decode_insn,rom_offset
++from .decoder import FunctionDecodeGraph,decode_function,DecodeKey
++from .architecture_emission_policy import _EmissionPolicy,_digest,_graph_digest
++from . import architecture_initial_task_sources as initial
++_ISSUER=object();_ISSUED=weakref.WeakSet();_SCOPES=weakref.WeakSet();_RECEIPTS=weakref.WeakSet()
++CONTRACT='source-nested-fivebyte-initial-task-instructions-v1'
++
++
++def _bank_options(o,bank,expected=None):
++    # Validate the actual issued original bank, including destinations absent
++    # from initial-task writer/selector pieces. Never compare two mutable aliases.
++    from .architecture_emission_policy import _options
++    view=o.stream._views.get(bank)
++    options=_options(o.stream,o.rom,o.parsed,bank)
++    if type(view)is not _EmissionPolicy or options is None or(expected is not None and view is not expected):raise ValueError('foreign/mutated original nested destination bank')
++    return view,options
++
++class _Receipt:
++    __slots__=('owner','entry','graph','graph_sha','pairs','pairs_sha','allowed','parents','depth','scope','seal','__weakref__')
++    def __init__(self,issuer,owner,entry,scope,graph,pairs,allowed,parents,depth):
++        if issuer is not _ISSUER:raise ValueError('private nested parent receipt')
++        _RECEIPTS.add(self)
++        self.owner=owner;self.entry=entry;self.scope=scope;self.graph=graph;self.graph_sha=_graph_digest(owner.rom,graph)
++        self.pairs=pairs;self.pairs_sha=_digest(repr(pairs));self.allowed=frozenset(allowed);self.parents=tuple(parents);self.depth=depth;self.seal=self.digest()
++    def digest(self):return _digest((id(self.owner),self.entry,id(self.scope),id(self.graph),self.graph_sha,id(self.pairs),self.pairs_sha,sorted((k.pc,k.m,k.x)for k in self.allowed),[(id(p),e)for p,e in self.parents],self.depth))
++    def validate(self,_visiting=None,_done=None):
++        _visiting=set()if _visiting is None else _visiting;_done=set()if _done is None else _done
++        if id(self)in _visiting:raise ValueError('nested ancestry cycle')
++        if id(self)in _done:return
++        _visiting.add(id(self))
++        o=self.owner
++        if self not in _RECEIPTS or o not in _ISSUED or o.receipts.get(id(self.graph))is not self or self.seal!=self.digest()or self.graph_sha!=_graph_digest(o.rom,self.graph)or self.pairs_sha!=_digest(repr(self.pairs)):raise ValueError('nested child graph/IR/ancestry mutation')
++        scope=self.scope
++        _bank_options(o,self.entry[0]>>16,scope._bank if type(scope)is _NestedInitialChildPolicy else scope._parent)
++        if scope._entry!=self.entry or scope._graph is not self.graph or scope._stream is not o.stream or _digest(scope._options)!=scope._option_sha or _digest(scope._role)!=scope._role_sha:raise ValueError('nested receipt scope identity/mutation')
++        if type(scope)is initial._InitialChildPolicy:
++            if scope not in initial._CHILDREN or not scope._used or scope._registry is not o.reg:raise ValueError('unissued original child scope')
++        elif type(scope)is not _NestedInitialChildPolicy or scope not in _SCOPES or not scope._used:raise ValueError('unissued nested child scope')
++        if not 0<=self.depth<=initial.MAX_DEPTH or len(self.graph.insns)>=initial.MAX_INSNS:raise ValueError('nested parent depth/graph bound')
++        if not self.parents:raise ValueError('missing nested ancestry')
++        depths=[]
++        for parent,edge in self.parents:
++            if parent is None:
++                if not o.root_edge(self.entry,edge):raise ValueError('foreign original initializer root')
++                depths.append(0)
++            else:
++                parent.validate(_visiting,_done)
++                if not o.edge(parent,self.entry,edge):raise ValueError('forged nested source edge')
++                depths.append(parent.depth+1)
++        if self.depth not in depths:raise ValueError('guessed nested ancestry depth')
++        _visiting.remove(id(self));_done.add(id(self))
++
++class _Observation:
++    def __init__(self,issuer,reg,stream,rom,parsed):
++        if issuer is not initial._ISSUER or type(reg)is not initial._InitialRegistry or not reg._sealed or not reg._used:raise ValueError('genuine initial producer required')
++        reg.validate(rom,parsed,stream);_ISSUED.add(self);self.reg=reg;self.stream=stream;self.rom=rom;self.parsed=parsed
++        self.attempts={};self.attempt_sha=_digest({});self.ir={};self.ir_seal=_digest([]);self.receipts={};self.receipt_seal=_digest([]);self.pending={};self.used=False;self.original_done=False;self.original_attempts=None
++    def validate(self):
++        if self not in _ISSUED or getattr(self.stream,'_nested_initial_observation',None)is not self or self.attempt_sha!=_digest(self.attempts):raise ValueError('foreign/mutated nested source ledger')
++        self.reg.validate(self.rom,self.parsed,self.stream)
++        if self.ir_seal!=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(self.ir.items())])or self.receipt_seal!=_digest([(i,id(r))for i,r in sorted(self.receipts.items())]):raise ValueError('observed child IR/receipt registry mutated')
++        done=set()
++        for r in self.receipts.values():r.validate(set(),done)
++    def root_edge(self,entry,edge):
++        if edge.get('kind')!='initial_fivebyte_frame':return False
++        for kind,_parent,g,_d,p,_role,_opts,keys,pairs in self.reg._pieces:
++            if kind=='initializer'and keys[0].pc==edge.get('producer')and entry==(p['target'],0,0)and initial._initializer(self.rom,g,pairs,keys[0])==(list(keys),p):return bool(self.protocol(p))
++        return False
++    def protocol(self,p):
++        writers=[v for v in self.reg._pieces if v[0]=='writer'and v[4]['callee']==p['callee']and v[4]['record_S_base']==p['record_S_base']]
++        selectors=[v for v in self.reg._pieces if v[0]=='selector'and v[4]['record_S_base']==p['record_S_base']and v[4]['record_bound']>p['record_index']]
++        for w in writers:
++            for s in selectors:
++                if w[4]['status_base']==s[4]['status_base']and w[4]['delay_base']==w[4]['status_base']+1:return w,s
++        return None
++    def edge(self,parent,entry,edge):
++        if parent.owner is not self:return False
++        source=edge.get('source_key');hits=[k for k in parent.allowed if [k.pc,k.m,k.x]==source]
++        if len(hits)!=1:return False
++        k=hits[0];di=parent.graph.insns[k];i=di.insn
++        if not initial._typed(self.rom,parent.graph,parent.pairs,k)or edge.get('source_graph')!=parent.graph_sha:return False
++        if edge['kind']=='architectural_call_numeric_fall':
++            off=rom_offset(k.pc>>16,k.pc&65535)
++            return i.opcode in(0x20,0x22)and entry[0]==(k.pc&0xff0000)|((k.pc+i.length)&65535)and edge.get('source_bytes')==self.rom[off:off+i.length].hex()and (k.pc&65535)+i.length<65536
++        if edge['kind']=='source_owned_live_P_frontier':return i.opcode==0x28 and entry[0]==k.pc+1 and k.pc&65535<65535
++        if edge['kind']=='nested_fivebyte_frame':
++            match=initial._initializer(self.rom,parent.graph,parent.pairs,k)
++            if not match:return False
++            ks,p=match
++            return set(ks)<=parent.allowed and entry==(p['target'],0,0)and edge.get('parameters')==p and bool(self.protocol(p))
++        return False
++    def reserve(self,entry,origin,depth,original):
++        if depth<0:raise ValueError('negative nested source depth')
++        value=(dict(origin),depth)
++        values=self.attempts.setdefault(entry,[])
++        if value not in values:values.append(value)
++        self.attempt_sha=_digest(self.attempts)
++        if not original and len(self.attempts)>initial.MAX_STARTS:raise ValueError('shared512 initial source starts exhausted')
++    def complete(self,scope,graph,allowed,entry,depth,origins):
++        item=self.ir.get(id(scope))
++        if item is None or item[0]is not graph or item[2]!=_digest(repr(item[1])):raise ValueError('missing actual child emitter IR receipt')
++        if scope._graph is not graph:raise ValueError('foreign emitted child')
++        if type(scope)is _NestedInitialChildPolicy:
++            if _graph_digest(self.rom,graph)!=scope._graph_sha:raise ValueError('nested graph mutated')
++        elif scope._registry._children.get(id(graph),(None,))[0]is not graph:raise ValueError('original graph receipt absent')
++        pairs=item[1];parents=[]
++        for edge in origins:
++            if edge.get('kind')=='initial_fivebyte_frame':
++                if self.root_edge(entry,edge)and depth==0:parents.append((None,dict(edge)))
++            else:
++                for r in self.receipts.values():
++                    if r.depth+1==depth and self.edge(r,entry,edge):parents.append((r,dict(edge)))
++        if not parents:raise ValueError('child edge finalized before actual allowed parent receipt')
++        if not any((edge,depth)in self.attempts.get(entry,[])for _p,edge in parents):raise ValueError('child absent actual queue reservation')
++        receipt=_Receipt(_ISSUER,self,entry,scope,graph,pairs,allowed,parents,depth);self.receipts[id(graph)]=receipt;self.receipt_seal=_digest([(i,id(r))for i,r in sorted(self.receipts.items())]);receipt.validate();return receipt
++
++
++def _begin_observation(issuer,reg,stream,rom,parsed):
++    if getattr(stream,'_nested_initial_observation',None)is not None:raise ValueError('nested source producer reuse')
++    o=_Observation(issuer,reg,stream,rom,parsed);stream._nested_initial_observation=o;return o
++
++def _observe_queue(o,issuer,reg,pc,m,x,origin,depth):
++    if issuer is not initial._ISSUER or o not in _ISSUED or reg is not o.reg or o.original_done:raise ValueError('foreign initial queue observer')
++    o.validate();o.reserve((pc,m,x),origin,depth,True)
++
++def _capture_child_ir(stream,scope,rom,graph,pairs):
++    if type(scope)not in(initial._InitialChildPolicy,_NestedInitialChildPolicy):return
++    o=getattr(stream,'_nested_initial_observation',None)
++    if o not in _ISSUED or rom is not o.rom or scope._stream is not stream or scope._graph is not graph or id(scope)in o.ir:raise ValueError('foreign/reused child IR producer')
++    if type(scope)is initial._InitialChildPolicy and(scope not in initial._CHILDREN or not scope._used or scope._registry is not o.reg):raise ValueError('unissued child IR scope')
++    if type(scope)is _NestedInitialChildPolicy and(scope not in _SCOPES or not scope._used):raise ValueError('unissued nested IR scope')
++    o.ir[id(scope)]=(graph,pairs,_digest(repr(pairs)))
++    o.ir_seal=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(o.ir.items())])
++
++def _complete_original(o,issuer,reg,scope,graph,allowed,entry,depth,origins):
++    if issuer is not initial._ISSUER or o not in _ISSUED or reg is not o.reg or type(scope)is not initial._InitialChildPolicy or o.original_done:raise ValueError('original child completion issuer')
++    o.validate();o.complete(scope,graph,allowed,entry,depth,origins)
++
++class _NestedInitialChildPolicy:
++    _target_only=True
++    def __init__(self,issuer,o,entry,parent,edge,depth,options,role):
++        if issuer is not _ISSUER or o not in _ISSUED or parent.owner is not o or parent.depth+1!=depth or depth>initial.MAX_DEPTH:raise ValueError('private bounded nested source child')
++        o.validate();parent.validate()
++        if not o.edge(parent,entry,edge)or (edge,depth)not in o.attempts.get(entry,[]):raise ValueError('nested child missing sealed source edge')
++        self._owner=o;self._stream=o.stream;self._rom=o.rom;self._entry=entry;self._parent_receipt=parent;self._edge=dict(edge);self._depth=depth;self._options=options;self._option_sha=_digest(options);self._role=role;self._role_sha=_digest(role);self._used=False;self._graph=None;self._graph_sha=None;_SCOPES.add(self)
++        bank,_original_options=_bank_options(o,entry[0]>>16)
++        self._bank=bank
++        for f in('exclude_ranges','hle_func','hle_spc_upload','hle_dispatch','forced'):
++            if _digest(options.get(f))!=_digest(bank._options.get(f)):raise ValueError('nested weakened original policy')
++        if any(mask not in(options.get('data_regions')or())for mask in(bank._options.get('data_regions')or()))or _digest(role.get('sibling_entry_pcs'))!=_digest(frozenset(p&65535 for p,_m,_x in bank._entries)):raise ValueError('nested weakened mask/sibling policy')
++    def record_graph(self,stream,rom,graph,bank,start,m,x,options,role):
++        o=self._owner;o.validate();self._parent_receipt.validate()
++        _bank_options(o,self._entry[0]>>16,self._bank)
++        if self not in _SCOPES or self._used or stream is not o.stream or rom is not o.rom or type(graph)is not FunctionDecodeGraph or (bank<<16|start,m,x)!=self._entry or _digest(options)!=self._option_sha or _digest(role)!=self._role_sha or not o.edge(self._parent_receipt,self._entry,self._edge):raise ValueError('foreign/mutated/reused nested scope')
++        if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=initial.MAX_INSNS:raise ValueError('nested original128/data/indirect barrier')
++        self._used=True;self._graph=graph;self._graph_sha=_graph_digest(rom,graph)
++
++
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++    from .architecture_eligibility import _mask,_independent
++    from .emit_function import emit_function
++    from .lowering import lower
++    from .native_regions import collect_stack_control
++    from snes_cycles import instr_cpu_cycles
++    o=getattr(stream,'_nested_initial_observation',None)
++    if o is None:return [],{'contract':CONTRACT,'graphs':[],'initializers':[],'refused':[{'reason':'no actual initial child producer'}]}
++    if o not in _ISSUED or o.used or rom is not o.rom or parsed is not o.parsed or stream is not o.stream:raise ValueError('foreign/reused nested source namespace')
++    o.validate();o.original_done=True;o.original_attempts=len(o.attempts);o.used=True
++    pending={};seen=set();rows={};graphs=[];initializers=[];refused=[];matched=set();root_receipts=list(o.receipts.values())
++    masks=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++    def queue(entry,parent,edge):
++        parent.validate();depth=parent.depth+1
++        if not o.edge(parent,entry,edge):raise ValueError('new nested queue edge absent source')
++        o.reserve(entry,edge,depth,False)
++        if depth>initial.MAX_DEPTH:refused.append({'entry':list(entry),'reason':'shared8 source ancestry depth'});return
++        if not initial._mapped(rom,entry[0])or _mask(parsed,entry[0],1):refused.append({'entry':list(entry),'reason':'original unmapped/masked start'});return
++        if any(r.entry==entry for r in o.receipts.values()):return
++        old=pending.get(entry)
++        if old is None or depth<old[2]:pending[entry]=(parent,edge,depth)
++    def scan(receipt):
++        receipt.validate()
++        for key in sorted(receipt.allowed,key=lambda k:(k.pc,k.m,k.x)):
++            if receipt.graph.insns[key].insn.opcode!=0x8b:continue
++            match=initial._initializer(rom,receipt.graph,receipt.pairs,key)
++            if not match:continue
++            ks,p=match
++            if not set(ks)<=receipt.allowed or not o.protocol(p):continue
++            identity=(id(receipt),key.pc,key.m,key.x,_digest(p))
++            if identity in matched:continue
++            matched.add(identity)
++            # Repeated ancestor initializer identity is a source proof cycle.
++            todo=[receipt];ancestor_sources=set()
++            while todo:
++                ancestor=todo.pop()
++                for prior,edge in ancestor.parents:
++                    if edge['kind']=='nested_fivebyte_frame':ancestor_sources.add(tuple(edge['source_key']))
++                    if prior is not None:todo.append(prior)
++            if (key.pc,key.m,key.x)in ancestor_sources:refused.append({'source':[key.pc,key.m,key.x],'reason':'nested initializer ancestry cycle'});continue
++            edge={'kind':'nested_fivebyte_frame','source_key':[key.pc,key.m,key.x],'source_graph':receipt.graph_sha,'parameters':dict(p)}
++            protocol=o.protocol(p);initializers.append({'source_key':edge['source_key'],'source_graph':receipt.graph_sha,'parent_entry':list(receipt.entry),'parent_depth':receipt.depth,'depth':receipt.depth+1,'parameters':dict(p),'writer_graph_sha256':protocol[0][3],'selector_graph_sha256':protocol[1][3]})
++            queue((p['target'],0,0),receipt,edge)
++    for receipt in root_receipts:scan(receipt)
++    while pending:
++        entry=min(pending,key=lambda e:(pending[e][2],e));parent,edge,depth=pending.pop(entry)
++        if entry in seen:continue
++        seen.add(entry);pc,m,x=entry
++        if type(stream._views.get(pc>>16))is not _EmissionPolicy:refused.append({'entry':list(entry),'reason':'no original bank policy'});continue
++        bank,options=_bank_options(o,pc>>16)
++        options['data_regions']=list(options.get('data_regions')or())
++        for mask in masks:
++            if mask not in options['data_regions']:options['data_regions'].append(mask)
++        siblings=frozenset(p&65535 for p,_m,_x in bank._entries)
++        if pc&65535 in siblings:refused.append({'entry':list(entry),'reason':'original sibling namespace'});continue
++        role={'sibling_entry_pcs':siblings,'source_instruction_only':False,'entry_range_end':None}
++        try:g=decode_function(rom,pc>>16,pc&65535,m,x,max_insns=initial.MAX_INSNS,data_regions=options['data_regions'],hle_dispatch=options['hle_dispatch'],sibling_entry_pcs=siblings,hle_entry_pcs=set(options['hle_func']or())|set(options['hle_spc_upload']or()),stop_on_unknown_callee_exit=True)
++        except RuntimeError as e:
++            if 'max_insns=128'not in str(e):raise
++            refused.append({'entry':list(entry),'reason':'original128 pergraph source bound'});continue
++        if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=initial.MAX_INSNS:refused.append({'entry':list(entry),'reason':'original128/data/indirect barrier'});continue
++        scope=_NestedInitialChildPolicy(_ISSUER,o,entry,parent,edge,depth,options,role);local=[];calls=[]
++        emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedNestedInitialTaskSource',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
++        if scope._graph is None or scope._graph_sha!=_graph_digest(rom,g):raise ValueError('nested actual emitter/decode mismatch')
++        actual=scope._graph;candidates={tuple(r[k]for k in('pc24','m','x')):r for r in local+calls};todo=[actual.entry];allowed=set();barriers=[];out=[]
++        while todo:
++            key=todo.pop()
++            if key in allowed:continue
++            di=actual.insns.get(key)
++            if di is None:continue
++            ins=di.insn;ident=(key.pc,key.m,key.x);r=candidates.get(ident)
++            if ins.mnem not in initial.ALLOWED or ins.mnem in initial.FORBIDDEN or r is None or not o.reg.role_ok(key.pc,key.m,key.x,ins.length)or not _independent(rom,parsed,r)or getattr(ins,'const_z_fold_unconditional',False)or any(getattr(ins,n,None)for n in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr')):barriers.append([key.pc,key.m,key.x,ins.mnem]);continue
++            allowed.add(key)
++            # Edges finalized only AFTER complete() seals actual allowed membership.
++            if ins.mnem in('JSR','JSL','PLP'):continue
++            todo.extend(di.successors)
++        receipt=o.complete(scope,actual,allowed,entry,depth,[edge])
++        for key in sorted(allowed,key=lambda k:(k.pc,k.m,k.x)):
++            ins=actual.insns[key].insn;r=candidates[(key.pc,key.m,key.x)];ident=(key.pc,key.m,key.x)
++            if ins.mnem in('JSR','JSL'):
++                if not r.get('original_scheduler_call'):raise ValueError('nested canonical original call missing')
++                if (key.pc&65535)+ins.length>=65536:barriers.append([key.pc,key.m,key.x,'source call fall wrap']);continue
++                for cm,cx in((0,0),(0,1),(1,0),(1,1)):queue(((key.pc&0xff0000)|((key.pc+ins.length)&65535),cm,cx),receipt,{'kind':'architectural_call_numeric_fall','source_key':list(ident),'source_bytes':r['bytes'],'source_graph':receipt.graph_sha})
++            elif ins.mnem=='PLP':
++                for cm,cx in((0,0),(0,1),(1,0),(1,1)):
++                    off=rom_offset(key.pc>>16,key.pc&65535);fresh=decode_insn(rom,off,key.pc&65535,key.pc>>16,cm,cx);fresh.m_flag,fresh.x_flag=cm,cx
++                    pr=collect_stack_control(rom,DecodeKey(key.pc,cm,cx),fresh,lower(fresh,value_factory=lambda:None),instr_cpu_cycles(fresh.opcode,m=cm,x=cx,e=0))
++                    if pr and o.reg.role_ok(key.pc,cm,cx,1)and _independent(rom,parsed,pr):
++                        pk=(key.pc,cm,cx)
++                        if pk in rows and rows[pk]!=pr:raise ValueError('unequal nested PLP body')
++                        rows[pk]=pr
++                    if key.pc&65535<65535:queue((key.pc+1,cm,cx),receipt,{'kind':'source_owned_live_P_frontier','source_key':list(ident),'source_graph':receipt.graph_sha})
++            if r.get('original_scheduler_call')and not enable_native_call_prefix:continue
++            if ident in rows and rows[ident]!=r:raise ValueError('unequal nested independent body')
++            rows[ident]=r;out.append(list(ident))
++        scan(receipt)
++        graphs.append({'entry':list(entry),'parent_entry':list(parent.entry),'origin':edge,'depth':depth,'source_graph_sha256':receipt.graph_sha,'instruction_keys':out,'unknown_calls':[list(v)for v in actual.unknown_callee_exit_sites],'barriers':barriers,'typed_instruction_count':len(actual.insns)})
++    o.validate()
++    return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'initializers':initializers,'graphs':graphs,'refused':refused,'original_attempted_starts':o.original_attempts,'total_attempted_starts':len(o.attempts),'nested_processed_starts':len(seen),'graph_bound':initial.MAX_INSNS,'start_bound':initial.MAX_STARTS,'depth_bound':initial.MAX_DEPTH,'original_issuer_unchanged':True,'callee_exit_modes_added':False,'ordinary_roots_added':False,'caller_owner_added':False,'saved_P_history_exported':False,'runtime_dispatch_added':False}
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -892,6 +892,8 @@
+         _capture_original(_program_call_stream,_program_policy_scope,rom,graph,block_per_insn_ir)
+         from .architecture_initial_task_sources import _capture_original as _capture_initial_task
+         _capture_initial_task(_program_call_stream,_program_policy_scope,rom,graph,block_per_insn_ir)
++        from .architecture_nested_initial_task_sources import _capture_child_ir
++        _capture_child_ir(_program_call_stream,_program_policy_scope,rom,graph,block_per_insn_ir)
+ 
+     # ── Non-local-return idiom detection ────────────────────────────────
+     # A basic block is an NLR-block if its IR has the shape
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 47
++CACHE_FORMAT_VERSION = 48
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1082,7 +1082,11 @@
+     task_member_view=_new_member_view(rom,parsed,manifest)
+     from .task_selected_member_sources import _new_selected_view,_seal_selected_view,derive as derive_selected_members,emit_source as emit_selected_members
+     selected_member_view=_new_selected_view(rom,parsed,manifest)
+-    task_rows,task_recipe,task_graphs=derive_task_resume(rom,parsed,module_prefix,_instruction_view=task_instruction_view,_member_view=task_member_view,_selected_view=selected_member_view)
++    from .task_selected_call_sources import _new_selected_call_view,_seal_selected_call_view,derive as derive_selected_calls,emit_source as emit_selected_calls
++    selected_call_view=_new_selected_call_view(rom,parsed,manifest)
++    from .task_parent_member_sources import _new_parent_view,_seal_parent_view,derive as derive_parent_members,emit_source as emit_parent_members
++    parent_member_view=_new_parent_view(rom,parsed,manifest)
++    task_rows,task_recipe,task_graphs=derive_task_resume(rom,parsed,module_prefix,_instruction_view=task_instruction_view,_member_view=task_member_view,_selected_view=selected_member_view,_selected_call_view=selected_call_view,_parent_view=parent_member_view)
+     from .source_redirect import derive as derive_redirect
+     redirect_rows,redirect_recipe=derive_redirect(rom,parsed,manifest,module_prefix)
+     continuations = _native_continuation_rows(manifest)
+@@ -1374,9 +1378,13 @@
+         regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_instruction_view,task_member_view=task_member_view)
+         _seal_selected_view(selected_member_view,rom,parsed,manifest)
+         selected_rows,selected_recipe=derive_selected_members(rom,parsed,selected_member_view,task_rows)
++        _seal_selected_call_view(selected_call_view,rom,parsed,manifest)
++        selected_call_rows,selected_call_recipe=derive_selected_calls(rom,parsed,selected_call_view,task_rows,selected_rows,enable_native_call_prefix=enable_native_call_prefix)
++        _seal_parent_view(parent_member_view,rom,parsed,manifest)
++        parent_rows,parent_recipe=derive_parent_members(rom,parsed,parent_member_view,task_rows+selected_rows+selected_call_rows)
+         from .task_resume import emit_source as emit_task_resume
+-        write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix)+emit_selected_members(selected_rows,task_rows,module_prefix))
+-        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':7,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows,'selected_architectural_members':{'rows':selected_rows,'recipe':selected_recipe}},indent=2,sort_keys=True)+'\n')
++        write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix)+emit_selected_members(selected_rows,task_rows,module_prefix)+emit_selected_calls(selected_call_rows,task_rows,selected_rows,module_prefix)+emit_parent_members(parent_rows,parent_recipe,task_rows+selected_rows+selected_call_rows,module_prefix))
++        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':8,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows,'selected_architectural_members':{'rows':selected_rows,'recipe':selected_recipe},'selected_architectural_calls':{'rows':selected_call_rows,'recipe':selected_call_recipe},'retained_parent_architectural_members':{'rows':parent_rows,'recipe':parent_recipe}},indent=2,sort_keys=True)+'\n')
+         from .native_bootstrap import derive as derive_reset_bootstrap
+         try:
+             reset_bootstrap=derive_reset_bootstrap(rom,parsed)
+@@ -1385,7 +1393,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':32, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':33, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+diff --git a/recompiler/v2/task_parent_member_sources.py b/recompiler/v2/task_parent_member_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/task_parent_member_sources.py
+@@ -0,0 +1,196 @@
++"""Original retained-parent NONCALL members under an existing selected owner.
++
++The original paired pop/retained-owner publisher owns the arrival fields. This
++module only proves their source namespace is unambiguous and emits independent
++instructions. It never publishes, copies or extends a runtime owner receipt.
++"""
++import hashlib,re,weakref
++from pathlib import Path
++from snes65816 import rom_offset
++from .architecture_task_member_sources import _new_member_view,_record_task_graph,_seal_member_view,derive as derive_members
++from .architecture_emission_policy import _digest
++from .native_regions import emit as emit_regions
++_ISSUER=object()
++_ISSUED=weakref.WeakSet()
++_CONTEXTS=weakref.WeakKeyDictionary()
++ROLE='actual_original_call_retained_parent'
++CONTRACT='source-retained-parent-owner-noncall-instruction-v1'
++EXCLUDED=frozenset({'JSR','JSL','RTS','RTL','RTI','TCS','TXS','XCE','BRK','COP','WAI','STP'})
++_WRITER_TOKENS=re.compile(r'\b(?:TaskResumeSnapshot|s_task_active|s_task_proof|actual_landing|actual_p)\b')
++# Explicit frozen original+207 identities. Filled by preparation, never learned
++# or accepted from the current runtime during production.
++WRITER_PINS={'runner/src/snes/bridge_task_call.inc': 'a195e6caeca12e37040bd8036f5038445d65db3cd553d094fc202256f102e1db', 'runner/src/snes/bridge_task_helpers.inc': '2cab02f6c5ecaba124b165f9589ccad705787a80703a0aae65707c780aff283f', 'runner/src/snes/bridge_task_original_runtime.inc': '7c107128c2a533aa34aa65fa1bfd0ee1e01e7aa73ffaed2a14ea3017e47aa115', 'runner/src/snes/bridge_task_suspend.inc': 'd2c7aa39ffdedb078fbbfb2102ad4ff293fa733b304e82a933de0f3e40d06a63', 'runner/src/snes/interp_bridge.c': 'd88c10fe1eb986389c35663fdda53274bbbba390773cc71cc38d4c8b639cedde', 'runner/src/task_original_call_contract.h': '6509eb2fd752de81ddb90daa3c3a7f36d1d2b1279b02cf107e1696fdef784b54', 'runner/src/task_original_call_contract.inc': '77e1d2424764e16de977b041c1cd51ccd4b9d1a6bc1dacc0447e9e0e6f676057', 'runner/src/task_resume_contract.h': 'b18b8e10fe16a18ccbcd84785106852a5899fa1e599277840e417f45177f4c3d', 'runner/src/task_resume_contract.inc': 'c7e7168f763b879b096b7f54d219e3946819582ef8866342750e514ff6a5d57e', 'runner/src/task_suspend_lineage.h': '239b459b1411b7883a1fbd8841f0c3a50ed3d49bc4a2bb14d7c23508c790e53e', 'runner/src/task_suspend_lineage.inc': 'e6b00537b177a7fc39e596bfb1153f61d761fcbde600d960078b3c5c6f331aa0'}
++ORIGIN_GETTER='''bool cpu_source_task_parent_origin(CpuState *c,uint32 pc,uint8 mx,uint32 *arrival,uint8 *arrival_mx) {
++ if(!arrival||!arrival_mx||!task_pre_opcode(c,pc,mx))return false;
++ *arrival=s_task_active.actual_landing;
++ *arrival_mx=(uint8)(((s_task_active.actual_p>>5)&1u)*2u+((s_task_active.actual_p>>4)&1u));
++ return true;
++}
++'''
++RUNTIME_FRAGMENT='''#include "../task_parent_member_contract.h"
++__attribute__((weak)) bool cpu_source_task_parent_member(uint32 pc,uint8 mx){(void)pc;(void)mx;return false;}
++__attribute__((weak)) bool cpu_source_task_parent_admitted(CpuState *c,uint32 pc,uint8 mx){(void)c;(void)pc;(void)mx;return false;}
++__attribute__((weak)) bool cpu_source_task_parent_step(CpuState *c,uint32 pc,uint8 mx,uint32 *next){(void)c;(void)pc;(void)mx;(void)next;return false;}
++'''+ORIGIN_GETTER
++DISPATCH_FRAGMENT='''
++        const int source_parent_dispatch=source_task_dispatch &&
++          !cpu_source_task_region_member(pc_before,coverage_mx) &&
++          !cpu_source_task_selected_member(pc_before,coverage_mx) &&
++          !cpu_source_task_selected_call_member(pc_before,coverage_mx) &&
++          cpu_source_task_parent_member(pc_before,coverage_mx);
++        if(source_parent_dispatch)region_dispatch=cpu_source_task_parent_step;'''
++
++def _text_sha(text):return hashlib.sha256(text.encode()).hexdigest()
++
++def _check_writer_inventory(found):
++    if not WRITER_PINS or found!=WRITER_PINS:raise ValueError('unknown or changed selected snapshot writer/source inventory')
++    return found
++
++def _writer_identity(root,overlay=None):
++    root=Path(root);found={};paths={}
++    # Source-only checks can read the actual authored overlay without copying
++    # a runtime checkout. Every resulting byte is still checked against pins.
++    for base in [root]+([Path(overlay)]if overlay is not None else[]):
++        for path in sorted((base/'runner/src').rglob('*')):
++            if path.suffix in('.c','.h','.inc') and path.is_file():paths[path.relative_to(base).as_posix()]=path
++    for rel,path in sorted(paths.items()):
++        text=path.read_text(encoding='utf-8')
++        if not _WRITER_TOKENS.search(text):continue
++        if rel=='runner/src/snes/bridge_task_helpers.inc':
++            if text.count(RUNTIME_FRAGMENT)>1:raise ValueError('duplicate parent origin reader')
++            text=text.replace(RUNTIME_FRAGMENT,'')
++        if rel=='runner/src/snes/interp_bridge.c':
++            if text.count(DISPATCH_FRAGMENT)>1:raise ValueError('duplicate parent dispatch selection')
++            text=text.replace(DISPATCH_FRAGMENT,'')
++        found[rel]=_text_sha(text)
++    return _check_writer_inventory(found)
++
++def _call(rom,source,target,fall):
++    if any(type(v)is not int or not 0<=v<=0xffffff for v in(source,target,fall)):raise ValueError('original call source address')
++    offset=rom_offset(source>>16,source&65535)
++    if source>>16 in(0x7e,0x7f) or source&65535<0x8000 or (source&65535)+4>65536 or offset<0 or offset+4>len(rom):raise ValueError('original call source ROM span')
++    if rom[offset:offset+4]!=b'\x22'+target.to_bytes(3,'little') or fall!=(source&0xff0000)|((source+4)&65535):raise ValueError('original numericfall/call bytes changed')
++    return (source,target,3,fall)
++
++class _ParentView:
++    def __init__(self,issuer,rom,parsed,manifest,writer_root,writer_overlay=None):
++        if issuer is not _ISSUER:raise ValueError('private original parent issuer required')
++        _ISSUED.add(self);self._issuer=issuer;self._inner=_new_member_view(rom,parsed,manifest);self._issued_inner=self._inner
++        self._writer_root=Path(writer_root);self._writer_overlay=Path(writer_overlay)if writer_overlay is not None else None;self._issued_root=(self._writer_root,self._writer_overlay);self._writers=_writer_identity(writer_root,writer_overlay)
++        self._family=None;self._cases=None;self._subcall=None;self._context_sha=None;self._issued_context_sha=None;self._descriptors=();self._associations={};self._sealed=False;self._used=False;self._seal=None
++    def _context(self):return (self._family,self._cases,self._subcall)
++    def _state(self):return (self._descriptors,sorted(self._associations.items()),self._context_sha,self._writers)
++    def validate(self,rom,parsed,manifest=None):
++        if self not in _ISSUED or self._issuer is not _ISSUER or self._inner is not self._issued_inner or (self._writer_root,self._writer_overlay)!=self._issued_root:raise ValueError('foreign or mutated original parent view')
++        self._inner._validate(rom,parsed,manifest)
++        if _writer_identity(self._writer_root,self._writer_overlay)!=self._writers:raise ValueError('parent writer identity changed')
++        if self._family is not None and (_digest(self._context())!=self._context_sha or self._context_sha!=self._issued_context_sha):raise ValueError('original parent source descriptor context changed')
++        if self._family is not None:
++            issued=_CONTEXTS.get(self)
++            if issued is None or issued!=(id(self._family),id(self._cases),self._subcall,self._context_sha,self._descriptors):raise ValueError('issued original parent context identity changed')
++            for entry,descriptor in self._associations.items():
++                if descriptor not in self._descriptors or descriptor[3]!=entry[0]:raise ValueError('parent graph source association changed')
++        if any(role[0]!=ROLE for _g,_d,role in self._inner._graphs.values()):raise ValueError('nonparent role in original parent view')
++        if self._sealed and _digest(self._state())!=self._seal:raise ValueError('sealed parent associations changed')
++
++def _new_parent_view(rom,parsed,manifest,*,writer_root=None,writer_overlay=None):
++    if writer_root is None:writer_root=Path(__file__).resolve().parents[2]
++    return _ParentView(_ISSUER,rom,parsed,manifest,writer_root,writer_overlay)
++
++def _producer(view,producer,rom,parsed):
++    from .task_resume import _TASK_INSTRUCTION_PRODUCER
++    if type(view)is not _ParentView or producer is not _TASK_INSTRUCTION_PRODUCER or view._sealed or view._used:raise ValueError('open actual original parent producer required')
++    view.validate(rom,parsed)
++
++def _record_parent_context(view,producer,rom,parsed,family,cases,subcall):
++    _producer(view,producer,rom,parsed)
++    if view._family is not None or type(family)is not dict or type(cases)is not list or not cases or type(subcall)is not tuple or len(subcall)!=3:raise ValueError('single actual original parent context required')
++    calls=family.get('calls');graphs=family.get('graphs')
++    if type(calls)is not list or not calls or type(graphs)is not list or not graphs:raise ValueError('original source call family required')
++    descriptors=tuple(_call(rom,c['source'],c['target'],c['fall'])for c in calls)
++    falls=[d[3]for d in descriptors]
++    if len(set(falls))!=len(falls) or len(set(d[0]for d in descriptors))!=len(descriptors):raise ValueError('ambiguous original call numericfall')
++    # These are actual initial publication cases, not synthesized empty domains.
++    publications=[]
++    for case in cases:
++        if type(case)is not dict or not {'callsite','landing','p_mask','p_value'}<=case.keys():raise ValueError('original selected publication source case required')
++        offset=rom_offset(case['callsite']>>16,case['callsite']&65535)
++        if offset<0 or offset+4>len(rom):raise ValueError('selected publication ROM span')
++        _call(rom,case['callsite'],int.from_bytes(rom[offset+1:offset+4],'little'),case['landing'])
++        publications.append(case['landing'])
++    subsite,subtarget,subfall=subcall;offset=rom_offset(subsite>>16,subsite&65535)
++    if min(subcall)<0 or max(subcall)>0xffffff or subsite>>16!=subtarget>>16 or subsite>>16!=subfall>>16 or subfall!=subsite+3 or offset<0 or offset+3>len(rom) or rom[offset:offset+3]!=b'\x20'+(subtarget&65535).to_bytes(2,'little'):raise ValueError('dedicated subordinate original source domain changed')
++    if set(falls)&set(publications+[subfall]):raise ValueError('parent fall collides with another authenticated publisher')
++    view._family=family;view._cases=cases;view._subcall=subcall;view._descriptors=descriptors
++    view._context_sha=_digest(view._context());view._issued_context_sha=view._context_sha
++    _CONTEXTS[view]=(id(family),id(cases),subcall,view._context_sha,descriptors)
++
++def _record_parent_graph(view,producer,rom,parsed,graph,role):
++    _producer(view,producer,rom,parsed)
++    if role!=ROLE or view._family is None or graph is None or len(graph.insns)>16:raise ValueError('actual bounded retained parent graph required')
++    entry=(graph.entry.pc,graph.entry.m,graph.entry.x)
++    matches=[d for d in view._descriptors if d[3]==entry[0]]
++    if len(matches)!=1:raise ValueError('parent entry lacks unique original source numericfall')
++    _record_task_graph(view._inner,producer,rom,parsed,graph,role)
++    view._associations[entry]=matches[0]
++
++def _seal_parent_view(view,rom,parsed,manifest):
++    if type(view)is not _ParentView or view._sealed or view._used:raise ValueError('parent source seal reuse or foreign view')
++    view.validate(rom,parsed,manifest)
++    if not view._associations or view._family is None:raise ValueError('missing original parent source graphs/context')
++    entries={(g.entry.pc,g.entry.m,g.entry.x)for g,_d,_r in view._inner._graphs.values()}
++    if entries!=set(view._associations):raise ValueError('parent graph association scope mismatch')
++    _seal_member_view(view._inner,rom,parsed,manifest);view._seal=_digest(view._state());view._sealed=True
++
++def derive(rom,parsed,view,priority_rows):
++    if type(view)is not _ParentView or not view._sealed or view._used:raise ValueError('sealed one-use original parent source required')
++    view.validate(rom,parsed);view._used=True
++    candidates,source=derive_members(rom,parsed,view._inner,enable_native_call_prefix=False)
++    prior={(r['pc24'],r['m'],r['x'])for r in priority_rows};rows=[];covered=[]
++    for row in candidates:
++        key=(row['pc24'],row['m'],row['x'])
++        if row['mnemonic']in EXCLUDED or row.get('original_scheduler_call')or row.get('source_return_contract'):continue
++        if key in prior:covered.append(list(key));continue
++        rows.append(row)
++    keys={(r['pc24'],r['m'],r['x'])for r in rows};origins=[]
++    for item in source['origins']:
++        if tuple(item['key'])not in keys:continue
++        arrivals=[]
++        for origin in item['original_graphs']:
++            if origin[3]!=ROLE or tuple(origin[:3])not in view._associations:raise ValueError('unbound original parent member origin')
++            arrivals.append({'entry':origin[:3],'call':list(view._associations[tuple(origin[:3])])})
++        origins.append({'key':item['key'],'arrivals':arrivals})
++    recipe={'contract':CONTRACT,'source':source,'parent_origins':origins,'original_call_descriptors':[list(d)for d in view._descriptors],'source_context_sha256':view._context_sha,'writer_sources':view._writers,'priority_keys_sha256':_digest(sorted(prior)),'covered_keys':covered,'rows_sha256':_digest(rows),'NONCALL_only':True,'current_selected_proof_required':True,'readonly_existing_authenticated_arrival':True,'fresh_current_scope_each_opcode':True,'consumed_pop_receipt_reused':False,'new_owner_or_lineage_storage':False,'ordinary_retry':False}
++    recipe['emission_binding_sha256']=_digest(recipe)
++    return rows,recipe
++
++def _membership(rows):
++    keys=sorted({(r['pc24']<<2)|(r['m']<<1)|r['x']for r in rows})
++    return '\n'.join(['bool cpu_source_task_parent_member(uint32 pc,uint8 mx){',' if(mx>3u||pc>0xffffffu)return false;switch(((pc&0x7fffffu)<<2)|mx){']+[f' case {k}u:return true;'for k in keys]+[' default:return false;}','}',''])
++
++def emit_source(rows,recipe,priority_rows,module_prefix=None):
++    if module_prefix:return ''
++    binding={k:v for k,v in recipe.items()if k!='emission_binding_sha256'}
++    if recipe.get('contract')!=CONTRACT or _digest(binding)!=recipe.get('emission_binding_sha256') or _digest(rows)!=recipe.get('rows_sha256'):raise ValueError('parent canonical emission binding changed')
++    prior={(r['pc24'],r['m'],r['x'])for r in priority_rows}
++    if recipe['priority_keys_sha256']!=_digest(sorted(prior)) or any((r['pc24'],r['m'],r['x'])in prior for r in rows):raise ValueError('prior task/selected/CALL case priority changed')
++    if any(r['mnemonic']in EXCLUDED or r.get('original_scheduler_call')or r.get('source_return_contract')for r in rows):raise ValueError('parent wrapper NONCALL only')
++    bykey={tuple(o['key']):o['arrivals']for o in recipe['parent_origins']}
++    if set(bykey)!={(r['pc24'],r['m'],r['x'])for r in rows}:raise ValueError('parent origins/canonical row scope changed')
++    admitted=['bool cpu_source_task_parent_admitted(CpuState *cpu,uint32 pc,uint8 mx){',' uint32 arrival;uint8 arrival_mx;',' if(mx>3u||pc>0xffffffu||!cpu_source_task_parent_origin(cpu,pc,mx,&arrival,&arrival_mx))return false;',' switch(((pc&0x7fffffu)<<2)|mx){']
++    for key,arrivals in sorted(bykey.items()):
++        if not arrivals:raise ValueError('parent member lacks original source arrival')
++        tests=[]
++        for item in arrivals:
++            entry=item['entry'];call=item['call']
++            if call not in recipe['original_call_descriptors'] or len(call)!=4 or call[2]!=3 or call[3]!=entry[0]:raise ValueError('parent emission source association changed')
++            tests.append(f'(arrival=={entry[0]}u&&arrival_mx=={entry[1]*2+entry[2]}u)')
++        admitted.append(f' case {(key[0]<<2)|(key[1]<<1)|key[2]}u:return '+ '||'.join(tests)+';')
++    admitted+=[' default:return false;}','}','']
++    code=emit_regions(rows,bootstrap_owner=False).replace('cpu_native_region_step','cpu_source_task_parent_step')
++    code=code.replace('extern SnesProgramModule g_program_module;','extern SnesProgramModule g_program_module;\n#include "task_parent_member_contract.h"')
++    for row in rows:
++        marker=f"    case {(row['pc24']<<2)|(row['m']<<1)|row['x']}u: {{"
++        if code.count(marker)!=1:raise ValueError('parent canonical source case layout changed')
++        code=code.replace(marker,marker+'\n      if(!cpu_source_task_parent_admitted(cpu,pc24,mx))return false;',1)
++    return '\n#include "task_parent_member_contract.h"\n'+_membership(rows)+'\n'.join(admitted)+code
+diff --git a/recompiler/v2/task_resume.py b/recompiler/v2/task_resume.py
+--- a/recompiler/v2/task_resume.py
++++ b/recompiler/v2/task_resume.py
+@@ -8,7 +8,7 @@
+ from .task_suspend import derive_suspend_child,emit_suspend_recipe
+ _TASK_INSTRUCTION_PRODUCER=object()
+ 
+-def derive_named_case(rom,spec,callee,data,forced,module_prefix=None,*,_instruction_view=None,_source_parsed=None,_member_view=None,_selected_view=None):
++def derive_named_case(rom,spec,callee,data,forced,module_prefix=None,*,_instruction_view=None,_source_parsed=None,_member_view=None,_selected_view=None,_selected_call_view=None):
+  if spec!=(0x01e000,0x01e056,0x01e05a,1,0) or module_prefix or callee!=0x00ff03:
+   raise ValueError('unreviewed named selected-task case')
+  entry,call,landing,m,x=spec
+@@ -45,6 +45,9 @@
+  if _selected_view is not None:
+   from .task_selected_member_sources import _record_selected_graph
+   _record_selected_graph(_selected_view,_TASK_INSTRUCTION_PRODUCER,rom,_source_parsed,graph,'named_selected_task_case',bounds=(landing,0x01e171))
++ if _selected_call_view is not None:
++  from .task_selected_call_sources import _record_selected_call_graph
++  _record_selected_call_graph(_selected_call_view,_TASK_INSTRUCTION_PRODUCER,rom,_source_parsed,graph,'named_selected_task_case',bounds=(landing,0x01e171))
+  local=[]
+  emit_function(rom,1,landing&65535,m,x,end=0xe184,func_name='NamedTaskSourceDerivation',data_regions=data,
+   exclude_ranges=[(p&65535,(p&65535)+1)for p in forced if p>>16==1],native_region_collector=local,
+@@ -62,7 +65,7 @@
+   rows.append(row)
+  return rows,{'callsite':call,'landing':landing,'p_mask':0x30,'p_value':0x20},spans,{'landing':landing,'m':m,'x':x,'decoded_rows':len(internal),'call_barriers':[v for v in graph.unknown_callee_exit_sites if landing<=v[0]<0x01e171],'original_tail_barrier':0x01e171,'external_rows_not_admitted':len(graph.insns)-len(internal)}
+ 
+-def derive(rom,parsed,module_prefix=None,*,_instruction_view=None,_member_view=None,_selected_view=None):
++def derive(rom,parsed,module_prefix=None,*,_instruction_view=None,_member_view=None,_selected_view=None,_selected_call_view=None,_parent_view=None):
+  specs=[s for _b,_p,c in parsed for s in getattr(c,'source_task_resumes',())]
+  named=[s for _b,_p,c in parsed for s in getattr(c,'source_task_cases',())]
+  if len(named)>1 or named and not specs:raise ValueError('named selected-task recipe count/base refusal')
+@@ -126,6 +129,9 @@
+    if _selected_view is not None:
+     from .task_selected_member_sources import _record_selected_graph
+     _record_selected_graph(_selected_view,_TASK_INSTRUCTION_PRODUCER,rom,parsed,graph,'selected_task_case')
++   if _selected_call_view is not None:
++    from .task_selected_call_sources import _record_selected_call_graph
++    _record_selected_call_graph(_selected_call_view,_TASK_INSTRUCTION_PRODUCER,rom,parsed,graph,'selected_task_case')
+    local=[]
+    # Actual20 faithful-line snapshot and architectural branch collector.
+    emit_function(rom,bank,landing&65535,1,x,end=end,func_name='TaskSourceDerivation',data_regions=data,
+@@ -146,7 +152,7 @@
+    graphs.append({'landing':landing,'m':1,'x':x,'decoded_rows':len(graph.insns),'call_barriers':graph.unknown_callee_exit_sites})
+  cases=[{'callsite':c,'landing':c+4,'p_mask':0x20,'p_value':0x20}for c in (call0,call1)]
+  for spec in named:
+-  new_rows,case,new_spans,new_graph=derive_named_case(rom,spec,callee,data,forced,module_prefix,_instruction_view=_instruction_view,_source_parsed=parsed,_member_view=_member_view,_selected_view=_selected_view)
++  new_rows,case,new_spans,new_graph=derive_named_case(rom,spec,callee,data,forced,module_prefix,_instruction_view=_instruction_view,_source_parsed=parsed,_member_view=_member_view,_selected_view=_selected_view,_selected_call_view=_selected_call_view)
+   rows.extend(new_rows);cases.append(case);spans.extend(new_spans);graphs.append(new_graph)
+  unique={}
+  # The four call sites are derived from the already declared FF03 source
+@@ -155,6 +161,9 @@
+  if call0!=0x01d878:raise ValueError('unreviewed original-call selected source caller')
+  original_sites=[(call0-0x20,0x01d809),(call0-0x16,0x01d803),(call0-0x0c,0x01d806),(call0-8,0x01d80c)]
+  original_family=derive_original_calls(rom,original_sites,data,forced)
++ if _parent_view is not None:
++  from .task_parent_member_sources import _record_parent_context
++  _record_parent_context(_parent_view,_TASK_INSTRUCTION_PRODUCER,rom,parsed,original_family,cases,(0x01d80f,0x01d87f,0x01d812))
+  for landing,end,m,xs in [(0x01d85c,0xd878,1,(0,1)),(0x01d866,0xd878,1,(0,1)),(0x01d874,0xd878,0,(0,))]:
+   for x in xs:
+    local=[]
+@@ -162,6 +171,9 @@
+    if _member_view is not None:
+     from .architecture_task_member_sources import _record_task_graph
+     _record_task_graph(_member_view,_TASK_INSTRUCTION_PRODUCER,rom,parsed,graph,'actual_original_call_retained_parent')
++   if _parent_view is not None:
++    from .task_parent_member_sources import _record_parent_graph
++    _record_parent_graph(_parent_view,_TASK_INSTRUCTION_PRODUCER,rom,parsed,graph,'actual_original_call_retained_parent')
+    emit_function(rom,1,landing&65535,m,x,end=end,func_name='OriginalCallArrivalDerivation',data_regions=data,
+     exclude_ranges=[(p&65535,(p&65535)+1)for p in forced if p>>16==1],native_region_collector=local,
+     source_task_resume_stops=graph.unknown_callee_exit_sites)
+diff --git a/recompiler/v2/task_selected_call_sources.py b/recompiler/v2/task_selected_call_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/task_selected_call_sources.py
+@@ -0,0 +1,71 @@
++"""Selected-owner architectural CALL instruction bodies from fresh original graph receipts.
++
++Source membership and current runtime owner permission remain separate. This
++module issues neither a selected publication nor a callable/return capability.
++"""
++import weakref
++from .architecture_task_member_sources import _new_member_view,_record_task_graph,_seal_member_view,derive as derive_members
++from .architecture_emission_policy import _digest
++from .native_regions import emit as emit_regions
++_ISSUER=object()
++_ISSUED=weakref.WeakSet()
++ROLES=frozenset({'selected_task_case','named_selected_task_case'})
++EXCLUDED=frozenset({'JSR','JSL','RTS','RTL','RTI','TCS','TXS','XCE','BRK','COP','WAI','STP'})
++CONTRACT='source-selected-owner-cached-call-instruction-v1'
++
++class _SelectedCallView:
++    def __init__(self,issuer,rom,parsed,manifest):
++        if issuer is not _ISSUER:raise ValueError('private selected source issuer required')
++        _ISSUED.add(self);self._issuer=issuer;self._inner=_new_member_view(rom,parsed,manifest);self._issued_inner=self._inner;self._sealed=False;self._used=False
++    def validate(self,rom,parsed,manifest=None):
++        if self not in _ISSUED or self._issuer is not _ISSUER or self._inner is not self._issued_inner:raise ValueError('foreign/mutated selected source view')
++        self._inner._validate(rom,parsed,manifest)
++        if any(role[0]not in ROLES for _g,_d,role in self._inner._graphs.values()):raise ValueError('nonselected owner role forbidden')
++
++def _new_selected_call_view(rom,parsed,manifest):return _SelectedCallView(_ISSUER,rom,parsed,manifest)
++
++def _record_selected_call_graph(view,producer,rom,parsed,graph,role,*,bounds=None):
++    if type(view)is not _SelectedCallView or view._sealed or view._used or role not in ROLES:raise ValueError('actual selected graph role/open view required')
++    view.validate(rom,parsed)
++    _record_task_graph(view._inner,producer,rom,parsed,graph,role,bounds=bounds)
++
++def _seal_selected_call_view(view,rom,parsed,manifest):
++    if type(view)is not _SelectedCallView or view._sealed or view._used:raise ValueError('selected view seal reuse/foreign')
++    view.validate(rom,parsed,manifest);_seal_member_view(view._inner,rom,parsed,manifest);view._sealed=True
++
++def derive(rom,parsed,view,original_task_rows,noncall_rows,*,enable_native_call_prefix=True):
++    if type(view)is not _SelectedCallView or not view._sealed or view._used:raise ValueError('sealed one-use selected CALL source view required')
++    view.validate(rom,parsed);view._used=True
++    candidates,source=derive_members(rom,parsed,view._inner,enable_native_call_prefix=True)
++    oldkeys={(r['pc24'],r['m'],r['x'])for r in original_task_rows}
++    noncallkeys={(r['pc24'],r['m'],r['x'])for r in noncall_rows};rows=[];covered=[]
++    for row in candidates:
++        if row['mnemonic']not in('JSR','JSL')or row.get('original_scheduler_call')is not True or row.get('contract')!='source-direct-call-architectural-prefix-v1':continue
++        key=(row['pc24'],row['m'],row['x'])
++        if key in oldkeys or key in noncallkeys:covered.append(list(key));continue
++        if enable_native_call_prefix:rows.append(row)
++    origins=[v for v in source['origins']if tuple(v['key'])in{(r['pc24'],r['m'],r['x'])for r in rows}]
++    if any(origin[3]not in ROLES for item in origins for origin in item['original_graphs']):raise ValueError('retained-parent source cannot grant selected CALL steps')
++    return rows,{'contract':CONTRACT,'source':source,'selected_origins':origins,'original_task_keys_sha256':_digest(sorted(oldkeys)),'NONCALL_keys_sha256':_digest(sorted(noncallkeys)),'old_task_case_priority':True,'NONCALL_case_priority':True,'covered_keys':covered,'direct_call_prefix':bool(enable_native_call_prefix),'current_selected_proof_required':True,'dispatch_selected_before_scope':True,'precall_observer_original_phase0_once':True,'selected_active_reset_on_completion':True,'ordinary_retry':False,'selected_publication_or_owner_created':False,'callee_or_exit_authority_added':False,'retained_parent_roles_accepted':False}
++
++
++def _membership(name,rows):
++    keys=sorted({(r['pc24']<<2)|(r['m']<<1)|r['x']for r in rows})
++    out=[f'bool {name}(uint32 pc,uint8 mx){{',
++         ' if(mx>3u || pc>0xffffffu)return false; switch(((pc&0x7fffffu)<<2)|mx){']
++    out.extend(f' case {key}u:return true;'for key in keys)
++    out.extend([' default:return false;}','}',''])
++    return '\n'.join(out)
++
++def emit_source(rows,original_task_rows,noncall_rows,module_prefix=None):
++    if module_prefix:return ''
++    if any(r['mnemonic']not in('JSR','JSL')or r.get('original_scheduler_call')is not True or r.get('contract')!='source-direct-call-architectural-prefix-v1'for r in rows):raise ValueError('selected CALL wrapper requires existing canonical call prefix')
++    oldkeys={(r['pc24'],r['m'],r['x'])for r in original_task_rows+noncall_rows}
++    if any((r['pc24'],r['m'],r['x'])in oldkeys for r in rows):raise ValueError('old task/NONCALL case must retain priority')
++    code=emit_regions(rows,bootstrap_owner=False).replace('cpu_native_region_step','cpu_source_task_selected_call_step')
++    code=code.replace('extern SnesProgramModule g_program_module;','extern SnesProgramModule g_program_module;\n#include "task_selected_call_contract.h"\nextern bool cpu_source_task_resume_active(CpuState *,uint32,uint8);')
++    for row in rows:
++        marker=f"    case {(row['pc24']<<2)|(row['m']<<1)|row['x']}u: {{"
++        if code.count(marker)!=1:raise ValueError('selected CALL source case layout changed')
++        code=code.replace(marker,marker+'\n      if(!cpu_source_task_resume_active(cpu,pc24,mx)) return false;',1)
++    return '\n'+_membership('cpu_source_task_selected_call_member',rows)+code
+diff --git a/runner/src/snes/bridge_task_call.inc b/runner/src/snes/bridge_task_call.inc
+--- a/runner/src/snes/bridge_task_call.inc
++++ b/runner/src/snes/bridge_task_call.inc
+@@ -63,6 +63,42 @@
+ static void task_call_pre_cpu(CpuState *c,uint32 source){
+  if(!s_task_call.phase)return;TaskResumeState v=task_cpu_view(c,source);task_call_pre_view(c,&v,source);
+ }
++/* Private synchronous original-scheduler receipt. No call/callee/owner grant. */
++static bool selected_call_prepare_begin(CpuState *c,uint32 pc,unsigned length,
++    unsigned cycles,const SchedulerRegionScope *scope,const SchedulerHookHandoff *handoff){
++ s_selected_call_begin.pending=false;
++ if(scope->dispatch!=cpu_source_task_selected_call_step)return true;
++ if(!c||!handoff||scope->cpu!=c||scope->pc24!=pc||
++    (scope->opcode!=0x20u&&scope->opcode!=0x22u)||
++    length!=(scope->opcode==0x22u?4u:3u)||cycles!=(scope->opcode==0x22u?8u:6u))return false;
++ s_selected_call_begin.scope=*scope;s_selected_call_begin.handoff=*handoff;
++ s_selected_call_begin.task=s_task_active;s_selected_call_begin.before=task_cpu_view(c,pc);
++ s_selected_call_begin.length=length;s_selected_call_begin.cycles=cycles;
++ s_selected_call_begin.depth=(unsigned)s_interp_bridge_depth;s_selected_call_begin.pending=true;
++ return true;
++}
++static bool selected_call_pre_taken(CpuState *c,uint32 pc,unsigned length,
++    unsigned cycles,const SelectedCallBegin *take){
++ const SchedulerRegionScope *q=&take->scope;const SchedulerHookHandoff *h=&take->handoff;
++ TaskResumeState v=task_cpu_view(c,pc);const TaskResumeState *b=&take->before;
++ const uint8 mx=(uint8)((c->m_flag?2u:0u)|(c->x_flag?1u:0u));
++ if(!take->pending||q->cpu!=c||q->pc24!=pc||q->dispatch!=cpu_source_task_selected_call_step||q->mx!=mx||
++    pc!=(((uint32)c->PB<<16)|(pc&65535u))||c->emulation||length!=take->length||cycles!=take->cycles||
++    (q->opcode!=0x20u&&q->opcode!=0x22u)||length!=(q->opcode==0x22u?4u:3u)||cycles!=(q->opcode==0x22u?8u:6u)||
++    q->generation!=s_pre_opcode_hook_generation||q->lifecycle!=s_scheduler_hook_lifecycle||
++    q->state_generation!=RtlStateGeneration()||q->dispatch_epoch!=s_scheduler_region_dispatch_epoch||
++    q->host_frame!=snes_frame_counter||s_scheduler_hook_epoch_exhausted||g_watchdog_tripped||s_pre_opcode_callback_cpu||
++    q->callback_instance!=h->callback_instance||
++    (q->callback_instance?scheduler_callback_instance_completed(q->callback_instance)!=q->callback_instance:h->observed_hooks)||
++    (h->observed_hooks&&(h->cpu!=c||h->dispatch!=q->dispatch||h->pc24!=(pc&0x7fffffu)||h->opcode!=q->opcode||
++       h->generation!=q->generation||h->lifecycle!=q->lifecycle||h->state_generation!=q->state_generation||h->host_frame!=q->host_frame))||
++    take->depth!=(unsigned)s_interp_bridge_depth||v.cpu!=b->cpu||v.module!=b->module||v.owner!=b->owner||
++    v.owner_epoch!=b->owner_epoch||v.generation!=b->generation||v.frame!=b->frame||!task_call_registers(&v,b)||
++    !task_pre_opcode(c,pc,mx)||memcmp(&take->task,&s_task_active,sizeof take->task)!=0)return false;
++ /* Same original observer once; ordinary native phase0 behavior stays. */
++ task_call_pre_view(c,&v,pc);return true;
++}
++
+ static void task_call_commit_view(CpuState *c,uint32 source,const TaskResumeState *v){
+  SourceTaskCall *p=&s_task_call;if(!p->phase)return;
+  if(p->phase==1){
+diff --git a/runner/src/snes/bridge_task_helpers.inc b/runner/src/snes/bridge_task_helpers.inc
+--- a/runner/src/snes/bridge_task_helpers.inc
++++ b/runner/src/snes/bridge_task_helpers.inc
+@@ -1,6 +1,7 @@
+ /* Private source-selected task observer; original guest/runtime ownership wins. */
+ #include "../task_resume_contract.h"
+ #include "../task_selected_member_contract.h"
++#include "../task_selected_call_contract.h"
+ #include "../task_resume_contract.inc"
+ #include "cart.h"
+ #include "../program_module.h"
+@@ -12,6 +13,8 @@
+ __attribute__((weak)) bool cpu_source_task_region_member(uint32 pc,uint8 mx){(void)pc;(void)mx;return false;}
+ __attribute__((weak)) bool cpu_source_task_selected_member(uint32 pc,uint8 mx){(void)pc;(void)mx;return false;}
+ __attribute__((weak)) bool cpu_source_task_selected_step(CpuState *cpu,uint32 pc,uint8 mx,uint32 *next){(void)cpu;(void)pc;(void)mx;(void)next;return false;}
++__attribute__((weak)) bool cpu_source_task_selected_call_member(uint32 pc,uint8 mx){(void)pc;(void)mx;return false;}
++__attribute__((weak)) bool cpu_source_task_selected_call_step(CpuState *cpu,uint32 pc,uint8 mx,uint32 *next){(void)cpu;(void)pc;(void)mx;(void)next;return false;}
+ extern SnesProgramModule g_program_module;
+ static TaskResumeSnapshot s_task_proof,s_task_active;
+ static uint64_t s_task_owner_serial,s_task_next_serial;
+@@ -20,6 +23,7 @@
+ static TaskResumeState s_task_from;
+ static uint32 s_task_prepared_source,s_task_prepared_target;
+ void interp_bridge_source_task_reset(void) {
++ s_selected_call_begin.pending=false;
+  task_original_runtime_reset();
+  task_call_reset();
+  task_resume_reset(&s_task_proof);task_resume_reset(&s_task_active);
+@@ -106,3 +110,13 @@
+  if(!completed){task_resume_reset(&s_task_active);return;}
+  s_task_active.actual=task_cpu_view(c,actual);
+ }
++#include "../task_parent_member_contract.h"
++__attribute__((weak)) bool cpu_source_task_parent_member(uint32 pc,uint8 mx){(void)pc;(void)mx;return false;}
++__attribute__((weak)) bool cpu_source_task_parent_admitted(CpuState *c,uint32 pc,uint8 mx){(void)c;(void)pc;(void)mx;return false;}
++__attribute__((weak)) bool cpu_source_task_parent_step(CpuState *c,uint32 pc,uint8 mx,uint32 *next){(void)c;(void)pc;(void)mx;(void)next;return false;}
++bool cpu_source_task_parent_origin(CpuState *c,uint32 pc,uint8 mx,uint32 *arrival,uint8 *arrival_mx) {
++ if(!arrival||!arrival_mx||!task_pre_opcode(c,pc,mx))return false;
++ *arrival=s_task_active.actual_landing;
++ *arrival_mx=(uint8)(((s_task_active.actual_p>>5)&1u)*2u+((s_task_active.actual_p>>4)&1u));
++ return true;
++}
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -20,6 +20,8 @@
+ #include "cosim.h"  /* cosim_insn â€” instruction-granular lockstep (no-op unless SNES_COSIM) */
+ #include "common_cpu_infra.h"  /* cpu_take_tailcall_return_context â€” swallow a stale
+                                 * tail-armed context on the LLE yield unwind */
++#include "../task_selected_call_contract.h"
++#include "../task_resume_contract.h"
+ #include "ppu_dma_trace.h"      /* ppudma_note_interrupt â€” per-frame tally */
+ 
+ /* Guest-time-anchored APU (Rockman X JP gate #3 / audio pacing): the interp
+@@ -454,6 +456,14 @@
+ } SchedulerRegionScope;
+ static SchedulerRegionScope s_scheduler_region_scope;
+ static uint64_t s_scheduler_region_dispatch_epoch;
++typedef struct SelectedCallBegin {
++ SchedulerRegionScope scope;SchedulerHookHandoff handoff;
++ TaskResumeSnapshot task;TaskResumeState before;
++ unsigned length,cycles,depth;bool pending;
++} SelectedCallBegin;
++static SelectedCallBegin s_selected_call_begin;
++static bool selected_call_prepare_begin(CpuState *,uint32,unsigned,unsigned,const SchedulerRegionScope *,const SchedulerHookHandoff *);
++static bool selected_call_pre_taken(CpuState *,uint32,unsigned,unsigned,const SelectedCallBegin *);
+ /* 029 causal composed-callback receipt. Its serial never resets or wraps.
+  * This is readonly provenance, not a second native admission authorization. */
+ static uint64_t s_scheduler_callback_instance_serial;
+@@ -606,16 +616,19 @@
+ static ResetBootstrapBegin s_reset_bootstrap_begin;
+ 
+ static bool scheduler_region_begin(CpuState *cpu,uint32 pc,unsigned length,
+-    unsigned cycles,bool reset_bootstrap) {
++    unsigned cycles,bool reset_bootstrap,const SchedulerRegionScope *scope,const SchedulerHookHandoff *handoff) {
+   s_reset_bootstrap_begin = (ResetBootstrapBegin){0};
++  if(!selected_call_prepare_begin(cpu,pc,length,cycles,scope,handoff))return false;
+   if (reset_bootstrap)
+     s_reset_bootstrap_begin = (ResetBootstrapBegin){cpu,pc,length,cycles};
+   const bool begun = cpu_aot_begin(cpu,pc,length,cycles);
++  s_selected_call_begin.pending = false;
+   s_reset_bootstrap_begin = (ResetBootstrapBegin){0};
+   return begun;
+ }
+ 
+ void cpu_native_region_reset(void) {
++  s_selected_call_begin.pending = false;
+   s_reset_bootstrap_begin = (ResetBootstrapBegin){0};
+   interp_bridge_source_redirect_reset();
+   s_scheduler_region_scope = (SchedulerRegionScope){0};
+@@ -628,6 +641,7 @@
+ bool cpu_aot_begin_scheduler_region(CpuState *cpu, uint32 pc, unsigned length,
+     unsigned cycles, const uint8 *expected,
+     bool (*dispatch)(CpuState *, uint32, uint8, uint32 *)) {
++  s_selected_call_begin.pending = false; /* abandoned/refused scope cannot retain a take */
+   s_reset_bootstrap_begin = (ResetBootstrapBegin){0};
+   const SchedulerRegionScope scope = s_scheduler_region_scope;
+   s_scheduler_region_scope = (SchedulerRegionScope){0}; /* consume before any fetch */
+@@ -660,7 +674,7 @@
+       if (!rom || *rom != expected[byte]) return false;
+     }
+   }
+-  if (!hooked && !s_scheduler_hook_handoff.observed_hooks) return scheduler_region_begin(cpu, pc, length, cycles, reset_bootstrap);
++  if (!hooked && !s_scheduler_hook_handoff.observed_hooks) return scheduler_region_begin(cpu, pc, length, cycles, reset_bootstrap,&scope,&s_scheduler_hook_handoff);
+   const SchedulerHookHandoff handoff = s_scheduler_hook_handoff;
+   s_scheduler_hook_handoff.cpu = NULL; /* attempt consumes the handoff */
+   if (s_scheduler_hook_epoch_exhausted || g_watchdog_tripped || s_pre_opcode_callback_cpu || handoff.cpu != cpu ||
+@@ -681,7 +695,7 @@
+   const uint32_t previous_pc = s_scheduler_hook_begin_pc;
+   s_scheduler_hook_begin_cpu = cpu;
+   s_scheduler_hook_begin_pc = key;
+-  const bool begun = scheduler_region_begin(cpu, pc, length, cycles, reset_bootstrap);
++  const bool begun = scheduler_region_begin(cpu, pc, length, cycles, reset_bootstrap,&scope,&handoff);
+   s_scheduler_hook_begin_cpu = (CpuState *)previous_cpu;
+   s_scheduler_hook_begin_pc = previous_pc;
+   return begun;
+@@ -698,6 +712,10 @@
+ static void suspend_callable_begin(CpuState *,uint32);
+ static void suspend_callable_commit(CpuState *,uint32);
+ bool cpu_aot_begin(CpuState *cpu,uint32 pc,unsigned length,unsigned cycles) {
++  const bool selected_call_pending = s_selected_call_begin.pending;
++  SelectedCallBegin selected_call;
++  if(selected_call_pending)selected_call=s_selected_call_begin;
++  s_selected_call_begin.pending = false; /* take before any callback or refusal */
+   const ResetBootstrapBegin bootstrap = s_reset_bootstrap_begin;
+   s_reset_bootstrap_begin = (ResetBootstrapBegin){0}; /* take before any callback/refusal */
+   const bool reset_bootstrap = cpu && cpu->emulation==1 && cpu->m_flag==1 &&
+@@ -714,7 +732,9 @@
+     if (s_pre_opcode_hooks[i].pc24 == hook_pc &&
+         (s_scheduler_hook_begin_cpu != cpu || s_scheduler_hook_begin_pc != hook_pc))
+       return false;
+-  task_call_pre_cpu(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
++  if(selected_call_pending){
++    if(!selected_call_pre_taken(cpu,pc,length,cycles,&selected_call))return false;
++  }else task_call_pre_cpu(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
+   task_original_pre_cpu(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
+   suspend_callable_begin(cpu,((uint32)cpu->PB<<16)|(pc&0xffffu));
+   s_aot_instruction=cpu;s_aot_cycles=cycles;s_aot_pc=((uint32)cpu->PB<<16)|(pc&0xffff);
+@@ -3116,6 +3136,17 @@
+         if(source_task_dispatch && !cpu_source_task_region_member(pc_before,coverage_mx) &&
+             cpu_source_task_selected_member(pc_before,coverage_mx))
+             region_dispatch=cpu_source_task_selected_step;
++        const int source_selected_call_dispatch=source_task_dispatch &&
++            !cpu_source_task_region_member(pc_before,coverage_mx) &&
++            !cpu_source_task_selected_member(pc_before,coverage_mx) &&
++            cpu_source_task_selected_call_member(pc_before,coverage_mx);
++        if(source_selected_call_dispatch)region_dispatch=cpu_source_task_selected_call_step;
++        const int source_parent_dispatch=source_task_dispatch &&
++          !cpu_source_task_region_member(pc_before,coverage_mx) &&
++          !cpu_source_task_selected_member(pc_before,coverage_mx) &&
++          !cpu_source_task_selected_call_member(pc_before,coverage_mx) &&
++          cpu_source_task_parent_member(pc_before,coverage_mx);
++        if(source_parent_dispatch)region_dispatch=cpu_source_task_parent_step;
+         const int source_redirect_dispatch=!source_task_dispatch&&!source_original_dispatch&&redirect_pre_opcode(cpu,pc_before,coverage_mx);
+         if(source_redirect_dispatch)region_dispatch=cpu_source_redirect_region_step;
+         const SchedulerHookHandoff previous_handoff = s_scheduler_hook_handoff;
+@@ -3170,7 +3201,7 @@
+         }
+         if(source_redirect_dispatch)redirect_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed);
+         redirect_committed_local(cpu,pc_before,&in,((uint32)in.k<<16)|in.pc);
+-        if(source_task_dispatch)task_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed);
++        if(source_task_dispatch)task_step_finished(cpu,((uint32)in.k<<16)|in.pc,region_completed&&!source_selected_call_dispatch);
+         if(pc_before==g_native_task_resume_recipe.select_pc||pc_before==g_native_task_resume_recipe.return_pc) {
+             const TaskResumeState task_view=task_local_view(cpu,&in,((uint32)in.k<<16)|in.pc);
+             task_committed_view(cpu,pc_before,&task_view);
+diff --git a/runner/src/task_parent_member_contract.h b/runner/src/task_parent_member_contract.h
+new file mode 100644
+--- /dev/null
++++ b/runner/src/task_parent_member_contract.h
+@@ -0,0 +1,11 @@
++#ifndef TASK_PARENT_MEMBER_CONTRACT_H
++#define TASK_PARENT_MEMBER_CONTRACT_H
++#include "cpu_state.h"
++/* Static membership is availability only. The reader proves the current owner
++ * first; admission matches its authenticated arrival to original source graphs.
++ * Each step consumes a fresh original scope bound to its own dispatch identity. */
++bool cpu_source_task_parent_origin(CpuState *,uint32,uint8,uint32 *,uint8 *);
++bool cpu_source_task_parent_member(uint32,uint8);
++bool cpu_source_task_parent_admitted(CpuState *,uint32,uint8);
++bool cpu_source_task_parent_step(CpuState *,uint32,uint8,uint32 *);
++#endif
+diff --git a/runner/src/task_selected_call_contract.h b/runner/src/task_selected_call_contract.h
+new file mode 100644
+--- /dev/null
++++ b/runner/src/task_selected_call_contract.h
+@@ -0,0 +1,8 @@
++#ifndef TASK_SELECTED_CALL_CONTRACT_H
++#define TASK_SELECTED_CALL_CONTRACT_H
++#include "cpu_state.h"
++/* Static source membership never grants an owner, target or callable entry.
++ * Only the original scheduler may issue this dispatch's one-use begin scope. */
++bool cpu_source_task_selected_call_member(uint32 pc,uint8 mx);
++bool cpu_source_task_selected_call_step(CpuState *,uint32,uint8,uint32 *);
++#endif

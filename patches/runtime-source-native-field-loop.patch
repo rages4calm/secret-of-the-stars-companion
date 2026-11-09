@@ -1,0 +1,219 @@
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -1369,6 +1369,56 @@
+   uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
+   interp816_arch_jmp_abs(cpu);
+   interp_bridge_source_call_interp_exit(cpu, source, 0x4c);
++  return cpu->cyclesUsed;
++}
++
++/* Field architectural bodies shared verbatim with original opcode cases. */
++static void interp816_arch_lda_imm(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrImm(cpu, &low, false);
++      interp816_lda(cpu, low, high);
++}
++int interp816_native_lda_imm(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xa9)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xa9];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_lda_imm(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xa9);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_lda_abs(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAbs(cpu, &low);
++      interp816_lda(cpu, low, high);
++}
++int interp816_native_lda_abs(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xad)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xad];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_lda_abs(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xad);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_bmi(Interp816 *cpu) {
++      interp816_doBranch(cpu, interp816_readOpcode(cpu), cpu->n);
++}
++int interp816_native_bmi(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x30)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x30];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_bmi(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x30);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_beq(Interp816 *cpu) {
++      interp816_doBranch(cpu, interp816_readOpcode(cpu), cpu->z);
++}
++int interp816_native_beq(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xf0)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xf0];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_beq(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xf0);
+   return cpu->cyclesUsed;
+ }
+ 
+@@ -1700,7 +1750,7 @@
+       break;
+     }
+     case 0x30: { // bmi rel
+-      interp816_doBranch(cpu, interp816_readOpcode(cpu), cpu->n);
++      interp816_arch_bmi(cpu);
+       break;
+     }
+     case 0x31: { // and idy(r)
+@@ -2421,9 +2471,7 @@
+       break;
+     }
+     case 0xa9: { // lda imm(m)
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrImm(cpu, &low, false);
+-      interp816_lda(cpu, low, high);
++      interp816_arch_lda_imm(cpu);
+       break;
+     }
+     case 0xaa: { // tax imp
+@@ -2441,9 +2489,7 @@
+       break;
+     }
+     case 0xad: { // lda abs
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAbs(cpu, &low);
+-      interp816_lda(cpu, low, high);
++      interp816_arch_lda_abs(cpu);
+       break;
+     }
+     case 0xae: { // ldx abs
+@@ -2840,7 +2886,7 @@
+       break;
+     }
+     case 0xf0: { // beq rel
+-      interp816_doBranch(cpu, interp816_readOpcode(cpu), cpu->z);
++      interp816_arch_beq(cpu);
+       break;
+     }
+     case 0xf1: { // sbc idy(r)
+diff --git a/runner/src/snes/interp816.h b/runner/src/snes/interp816.h
+--- a/runner/src/snes/interp816.h
++++ b/runner/src/snes/interp816.h
+@@ -107,6 +107,10 @@
+ int      interp816_native_sbc_imm(Interp816 *cpu);
+ int      interp816_native_sta_sr(Interp816 *cpu);
+ int      interp816_native_jmp_abs(Interp816 *cpu);
++int      interp816_native_lda_imm(Interp816 *cpu);
++int      interp816_native_lda_abs(Interp816 *cpu);
++int      interp816_native_bmi(Interp816 *cpu);
++int      interp816_native_beq(Interp816 *cpu);
+ int      interp816_runOpcode(Interp816 *cpu);   /* runs one opcode; returns cycles */
+ uint8_t  interp816_getFlags(Interp816 *cpu);
+ void     interp816_setFlags(Interp816 *cpu, uint8_t val);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -499,7 +499,7 @@
+     const int *enabled; uint64_t completed; int (*step)(Interp816 *);
+     uint8_t stack_mode; /*0legacycontrol,1M0,2M1,3PHP/PLP anyM*/
+ } NativeControlSite;
+-static NativeControlSite s_native_control_sites[64];
++static NativeControlSite s_native_control_sites[128];
+ static unsigned s_native_control_site_count;
+ bool interp_bridge_add_native_control_site(uint32_t pc, const uint8_t *bytes,
+                                            unsigned length, const int *enabled) {
+@@ -508,7 +508,7 @@
+         length != (bytes[0] == 0x22 ? 4u : bytes[0] == 0x20 ? 3u :
+                   bytes[0] == 0x60 || bytes[0] == 0x6b ? 1u : 0u) ||
+         !length || (pc & 0xffff) + length > 0x10000 ||
+-        s_native_control_site_count == 64 || s_pre_opcode_callback_cpu ||
++        s_native_control_site_count == 128 || s_pre_opcode_callback_cpu ||
+         s_native_instruction_cpu || s_interp_bus_timing_active) return false;
+     for (unsigned n=0;n<s_native_control_site_count;++n)
+         if (s_native_control_sites[n].pc24 == pc) return false;
+@@ -527,7 +527,7 @@
+         (pc>>16)==0x7e || (pc>>16)==0x7f ||
+         ((opcode==0x48 || opcode==0x68) ? m>1 :
+          (opcode==0x08 || opcode==0x28) ? m!=2 : true) ||
+-        s_native_control_site_count==64 || s_pre_opcode_callback_cpu ||
++        s_native_control_site_count==128 || s_pre_opcode_callback_cpu ||
+         s_native_instruction_cpu || s_interp_bus_timing_active) return false;
+     for(unsigned n=0;n<s_native_control_site_count;++n)
+         if(s_native_control_sites[n].pc24==pc)return false;
+@@ -544,7 +544,7 @@
+     if(!enabled || pc>0xffffff || (pc&0xffff)<0x8000 ||
+        (pc>>16)==0x7e || (pc>>16)==0x7f ||
+        (opcode!=0x5a && opcode!=0x7a) || x>1 ||
+-       s_native_control_site_count==64 || s_pre_opcode_callback_cpu ||
++       s_native_control_site_count==128 || s_pre_opcode_callback_cpu ||
+        s_native_instruction_cpu || s_interp_bus_timing_active)return false;
+     for(unsigned n=0;n<s_native_control_site_count;++n)
+         if(s_native_control_sites[n].pc24==pc)return false;
+@@ -555,14 +555,14 @@
+     return true;
+ }
+ /* Tags6+mask are dispatcher-only widths; old tags0..5 retain their meaning.
+- * The bounded private registry is deliberately64 slots (30old+23new=53).
++ * The bounded private registry is128 slots (53prior+18field=71).
+  * Selection below happens once at source registration, never opcode dispatch. */
+ bool interp_bridge_add_native_dispatcher_site(uint32_t pc,const uint8_t *bytes,
+                           unsigned length,unsigned mask,const int *enabled) {
+     if(!bytes || !enabled || pc>0xffffff || (pc&0xffff)<0x8000 ||
+        (pc>>16)==0x7e || (pc>>16)==0x7f || !mask || (mask&~15u) ||
+        !length || length>3 || (pc&0xffff)+length>0x10000 ||
+-       s_native_control_site_count==64 || s_pre_opcode_callback_cpu ||
++       s_native_control_site_count==128 || s_pre_opcode_callback_cpu ||
+        s_native_instruction_cpu || s_interp_bus_timing_active)return false;
+     int (*step)(Interp816 *)=NULL;unsigned expected=1;
+     switch(bytes[0]) {
+@@ -589,6 +589,34 @@
+     default:return false;
+     }
+     if(length!=expected || ((bytes[0]==0x29 || bytes[0]==0xe9) && (mask&~3u)))return false;
++    for(unsigned n=0;n<s_native_control_site_count;++n)
++        if(s_native_control_sites[n].pc24==pc)return false;
++    NativeControlSite *site=&s_native_control_sites[s_native_control_site_count++];
++    site->pc24=pc;site->length=(uint8_t)length;site->enabled=enabled;
++    memcpy(site->bytes,bytes,length);site->step=step;site->stack_mode=(uint8_t)(6+mask);
++    return true;
++}
++/* Registration selects a direct architecture body once; no opcode decoder
++ * or policy authority is bypassed at execution. Private bounded128-slot pool. */
++bool interp_bridge_add_native_field_site(uint32_t pc,const uint8_t *bytes,
++                          unsigned length,unsigned mask,const int *enabled) {
++    if(!bytes || !enabled || pc>0xffffff || (pc&0xffff)<0x8000 ||
++       (pc>>16)==0x7e || (pc>>16)==0x7f || !mask || (mask&~15u) ||
++       !length || length>3 || (pc&0xffff)+length>0x10000 ||
++       s_native_control_site_count==128 || s_pre_opcode_callback_cpu ||
++       s_native_instruction_cpu || s_interp_bus_timing_active)return false;
++    int (*step)(Interp816 *)=NULL;unsigned expected=2;
++    switch(bytes[0]) {
++    case 0xe2:step=interp816_native_sep;break;
++    case 0xa9:step=interp816_native_lda_imm;break;
++    case 0xad:step=interp816_native_lda_abs;expected=3;break;
++    case 0x29:step=interp816_native_and_imm;break;
++    case 0x30:step=interp816_native_bmi;break;
++    case 0xf0:step=interp816_native_beq;break;
++    case 0x4c:step=interp816_native_jmp_abs;expected=3;break;
++    default:return false;
++    }
++    if(length!=expected || ((bytes[0]==0xa9 || bytes[0]==0x29) && (mask&~12u)))return false;
+     for(unsigned n=0;n<s_native_control_site_count;++n)
+         if(s_native_control_sites[n].pc24==pc)return false;
+     NativeControlSite *site=&s_native_control_sites[s_native_control_site_count++];
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -332,4 +332,10 @@
+ bool interp_bridge_add_native_dispatcher_site(uint32_t pc24, const uint8_t *bytes,
+                            unsigned length, unsigned mx_mask, const int *enabled);
+ 
++/* Exact field instructions at original fallback slot, no owner/exit grant.
++ * A9/29 require M1-only mask and two-byte immediate; other accepted forms
++ * retain their original architecture and exact source bytes/live width mask. */
++bool interp_bridge_add_native_field_site(uint32_t pc24,const uint8_t *bytes,
++                          unsigned length,unsigned mx_mask,const int *enabled);
++
+ #endif /* INTERP_BRIDGE_H */

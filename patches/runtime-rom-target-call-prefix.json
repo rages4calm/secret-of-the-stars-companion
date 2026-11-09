@@ -1,0 +1,39 @@
+{
+  "patch_sha256": "7a3b65e47761554b1590836b53528b0026805489b01019e05bb1140b5252c768",
+  "predecessor_patch_sha256": "67c5f7480b217eb3acad1422fde383ea4aa19407a822a634c7993ca6222109e7",
+  "predecessor_binding_sha256": "c16a77be2650dc006267ef0a6972ea0132d20ebf569164c563750c9647e7f01a",
+  "cache_format": 56,
+  "normal_metadata": 41,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_rom_stack_dispatch_sources.py": {
+      "predecessor_sha256": "c10139c276bebcabbf93489fd844180da585c0bc771a14d816823b41d5fa1c01",
+      "final_sha256": "9fcd005088a968d22167e4796dd86e7ea850a17e06b5f8798c3d3fc1aba5444c",
+      "normalized_final_sha256": "9fcd005088a968d22167e4796dd86e7ea850a17e06b5f8798c3d3fc1aba5444c"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "0ed57abac1a669ca24a3d19e8566ab9810f334eda0603c644531ad48d0226fd8",
+      "final_sha256": "815a413f281fe241c6ad9a852d341ebf17d3b4cc505215d3f8df72d5a9f5f12f",
+      "normalized_final_sha256": "815a413f281fe241c6ad9a852d341ebf17d3b4cc505215d3f8df72d5a9f5f12f"
+    },
+    "recompiler/v2/architecture_baseline_view.py": {
+      "predecessor_sha256": "97b9e130ac812d45f64d1ad2f7df028c0bb230b245a6a5851feb7cf154fc61ed",
+      "final_sha256": "b9877b6c4c7960196bda1ffadd8dd42329f015cd3aa23e325ad09efc1399f41c",
+      "normalized_final_sha256": "b9877b6c4c7960196bda1ffadd8dd42329f015cd3aa23e325ad09efc1399f41c"
+    },
+    "recompiler/v2/architecture_rom_stack_call_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "1d71ab2e3add03dd5eef635abb7e1aa2b2424653ff5a9fe8c27d27403247942f",
+      "normalized_final_sha256": "1d71ab2e3add03dd5eef635abb7e1aa2b2424653ff5a9fe8c27d27403247942f"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "00744b2e22b0952d381fa2abc37877686f1bcffb12399add3a5ae5a916e4a585",
+      "final_sha256": "3a4cc87fe2937206b83658bd33e9baf0517e81087740d0e36c4bd55023bed37a",
+      "normalized_final_sha256": "3a4cc87fe2937206b83658bd33e9baf0517e81087740d0e36c4bd55023bed37a"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "358v2 original-issued ROMtarget SEP30/directJSR architectural prefix only; source-certified original collector, no new roots/owner/exits/history."
+}

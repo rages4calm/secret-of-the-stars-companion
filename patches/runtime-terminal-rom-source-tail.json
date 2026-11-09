@@ -1,0 +1,39 @@
+{
+  "patch_sha256": "67c5f7480b217eb3acad1422fde383ea4aa19407a822a634c7993ca6222109e7",
+  "predecessor_patch_sha256": "baf5f1888836c49b988606e4533981d17db5d4f616e1cebd43ad2b0e38eb5d57",
+  "predecessor_binding_sha256": "043f5f603bbf883bbd14dc5a020a4f8f83371e45027f19068d14fccd7edbf639",
+  "cache_format": 54,
+  "normal_metadata": 39,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_baseline_view.py": {
+      "predecessor_sha256": "ed4c2d14c38e12ffcc4b8932e6194e62b5c9c43fee5d7106aed88eb48688775d",
+      "final_sha256": "97b9e130ac812d45f64d1ad2f7df028c0bb230b245a6a5851feb7cf154fc61ed",
+      "normalized_final_sha256": "97b9e130ac812d45f64d1ad2f7df028c0bb230b245a6a5851feb7cf154fc61ed"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "d462de77536601603ae04133ad7119eca57abbff82ef93406e00a008d714fb79",
+      "final_sha256": "0ed57abac1a669ca24a3d19e8566ab9810f334eda0603c644531ad48d0226fd8",
+      "normalized_final_sha256": "0ed57abac1a669ca24a3d19e8566ab9810f334eda0603c644531ad48d0226fd8"
+    },
+    "recompiler/v2/architecture_rom_stack_dispatch_sources.py": {
+      "predecessor_sha256": "7e3adb0e3abbd7922795d211821283a7f1402b3a8b75404ce6297f621af20870",
+      "final_sha256": "c10139c276bebcabbf93489fd844180da585c0bc771a14d816823b41d5fa1c01",
+      "normalized_final_sha256": "c10139c276bebcabbf93489fd844180da585c0bc771a14d816823b41d5fa1c01"
+    },
+    "recompiler/v2/architecture_rom_stack_tail_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "6db16a2d9db5c298aa4c8450b68af0955ea507688fee0bdd37bd13a745eba918",
+      "normalized_final_sha256": "6db16a2d9db5c298aa4c8450b68af0955ea507688fee0bdd37bd13a745eba918"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "986af0cd9af57c2490ad42baaedb2f93a08c8e1ac6b2c9a1de17603a55e2c260",
+      "final_sha256": "00744b2e22b0952d381fa2abc37877686f1bcffb12399add3a5ae5a916e4a585",
+      "normalized_final_sha256": "00744b2e22b0952d381fa2abc37877686f1bcffb12399add3a5ae5a916e4a585"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Original-issued ROM-word dispatch typed SEP20/PLA/PLA/RTS terminal subset only; mathematical read domain is not declared data. Original pure family/masks/roles/canonical collectors/return validation/E0 runtime guards/bounds128/512/8 preserved. Absent original collector refuses entire tail and retains interpreter; malformed positive proofs fail closed. No root/callee-exit/owner/history/savedP grants. Current actual rows and native execution unknown."
+}

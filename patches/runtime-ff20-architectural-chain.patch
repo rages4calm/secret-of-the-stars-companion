@@ -1,0 +1,694 @@
+diff --git a/recompiler/v2/architecture_baseline_view.py b/recompiler/v2/architecture_baseline_view.py
+--- a/recompiler/v2/architecture_baseline_view.py
++++ b/recompiler/v2/architecture_baseline_view.py
+@@ -64,7 +64,7 @@
+     if type(capture)is not _Capture:raise ValueError('foreign baseline capture type')
+     proof=_PROOFS.get(capture)
+     if type(capture)is not _Capture or capture not in _ISSUED or not _ACTIVE or proof is None or proof['phase']!='capturing' or capture.phase!='capturing' or rom is not proof['rom']or parsed is not proof['parsed']or stream is not proof['stream']or stream is not capture.stream or not stream._sealed:raise ValueError('foreign/reused baseline source capture')
+-    if len(sources)!=24 or sources[-3][0]!='source_ROM_stack_terminal_tail_instructions' or sources[-2][0]!='source_ROM_stack_direct_call_prefix_instructions' or sources[-1][0]!='source_ROM_stack_numeric_aftercall_instructions' or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
++    if len(sources)!=25 or sources[-4][0]!='source_ROM_stack_terminal_tail_instructions' or sources[-3][0]!='source_ROM_stack_direct_call_prefix_instructions' or sources[-2][0]!='source_ROM_stack_numeric_aftercall_instructions' or sources[-1][0]!='source_original_FF20_architectural_chain_instructions' or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
+     capture.sources=tuple((origin,tuple(rows))for origin,rows in sources);capture.recipes=dict(recipes)
+     capture.seal=_digest((capture.sources,capture.recipes));capture.phase='sealed'
+     proof.update(phase='sealed',sources=capture.sources,recipes=capture.recipes,seal=capture.seal)
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -119,6 +119,10 @@
+     if program_call_stream is not None:
+         from .architecture_ff20_byte_dispatch_sources import derive as derive_ff20_bytes
+         ff20_byte_rows,ff20_byte_graphs=derive_ff20_bytes(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
++    ff20_architectural_rows=[];ff20_architectural_recipe=None
++    if program_call_stream is not None:
++        from .architecture_ff20_architectural_sources import derive as derive_ff20_architectural
++        ff20_architectural_rows,ff20_architectural_recipe=derive_ff20_architectural(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+     declared_rows=[];declared_recipe=None
+     if declared_call_view is not None:
+         from .architecture_declared_wait_call_sources import derive as derive_declared_wait
+@@ -135,7 +139,7 @@
+     if program_call_stream is not None:
+         from .architecture_rom_stack_call_sources import derive as derive_rom_stack_calls
+         target_call_rows,target_call_recipe=derive_rom_stack_calls(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+-    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows),('source_declared_wait_call_instructions',declared_rows),('source_ROM_stack_terminal_tail_instructions',tail_rows),('source_ROM_stack_direct_call_prefix_instructions',target_call_rows),('source_ROM_stack_numeric_aftercall_instructions',target_aftercall_rows)]
++    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows),('source_declared_wait_call_instructions',declared_rows),('source_ROM_stack_terminal_tail_instructions',tail_rows),('source_ROM_stack_direct_call_prefix_instructions',target_call_rows),('source_ROM_stack_numeric_aftercall_instructions',target_aftercall_rows),('source_original_FF20_architectural_chain_instructions',ff20_architectural_rows)]
+     if _baseline_capture is None:
+         output,metadata=merge_source_union(rom,parsed,ordinary,sources)
+     else:
+@@ -162,6 +166,7 @@
+     metadata['rom_stack_terminal_tail_source']=tail_recipe
+     metadata['rom_stack_direct_call_prefix_source']=target_call_recipe
+     metadata['rom_stack_numeric_aftercall_source']=target_aftercall_recipe
++    metadata['ff20_architectural_chain_source']=ff20_architectural_recipe
+     if _baseline_capture is not None:
+         from .architecture_baseline_view import _finish_capture
+         return None,_finish_capture(_baseline_capture,rom,parsed,program_call_stream,sources,metadata)
+diff --git a/recompiler/v2/architecture_emission_policy.py b/recompiler/v2/architecture_emission_policy.py
+--- a/recompiler/v2/architecture_emission_policy.py
++++ b/recompiler/v2/architecture_emission_policy.py
+@@ -60,9 +60,15 @@
+     if inline_arg_map is not _INLINE_UNSET:
+         from .architecture_rom_stack_aftercall_sources import _capture_original_inline_policy
+         _capture_original_inline_policy(_ISSUER,stream,view,rom,manifest,inline_arg_map)
++        from .architecture_ff20_architectural_sources import _capture_original_inline_policy as capture_ff20_inline
++        capture_ff20_inline(_ISSUER,stream,view,rom,manifest,inline_arg_map)
+     return view
+ 
+ def _record_graph(stream,view,rom,graph,bank,start,m,x,options,role):
++    from .architecture_ff20_architectural_sources import _FF20ArchitecturalPolicy
++    if type(view)is _FF20ArchitecturalPolicy:
++        view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
++        return
+     from .architecture_ff20_byte_dispatch_sources import _FF20TargetPolicy
+     if type(view)is _FF20TargetPolicy:
+         view.record_graph(stream,rom,graph,bank,start,m,x,options,role)
+diff --git a/recompiler/v2/architecture_ff20_architectural_sources.py b/recompiler/v2/architecture_ff20_architectural_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_ff20_architectural_sources.py
+@@ -0,0 +1,547 @@
++"""Same-invocation original FF20 PHP/call prefixes and bounded CPU continuations.
++
++No return-mode, arrival, task owner, PHP history or callable-root authority.
++"""
++import weakref
++from snes65816 import rom_bank_mirror
++from .architecture_emission_policy import _digest,_graph_digest,_options
++from . import architecture_ff20_byte_dispatch_sources as original
++from . import architecture_initial_task_sources as initial
++
++CONTRACT='source-original-FF20-PHP-call-live-P-architectural-chain-v1'
++_ISSUER=object()
++_STATES=weakref.WeakKeyDictionary();_STATE_PROOFS=weakref.WeakKeyDictionary()
++_SCOPES=weakref.WeakKeyDictionary();_RECEIPTS=weakref.WeakKeyDictionary()
++_INLINE=weakref.WeakKeyDictionary();_UNAVAILABLE=weakref.WeakKeyDictionary()
++_RESULTS=weakref.WeakKeyDictionary();_CONSUMED=weakref.WeakSet()
++_QUEUED=weakref.WeakSet();_EMITTING=weakref.WeakSet()
++_VALIDATING=weakref.WeakKeyDictionary()
++
++
++def _capture_original_inline_policy(issuer,stream,view,rom,manifest,source_map):
++    from .architecture_emission_policy import _EmissionPolicy,_ISSUER as bank_issuer
++    from . import decoder
++    if issuer is not bank_issuer or type(view)is not _EmissionPolicy or view in _INLINE or view in _UNAVAILABLE or view._issuer is not bank_issuer or view._closed or stream._sealed or stream._views.get(view._bank)is not view or rom is not stream._rom_object or rom is not view._rom or manifest is not stream._manifest or manifest is not view._manifest or view._parsed is not stream._parsed:raise ValueError('actual original FF20 inline capture required')
++    active=decoder._ACTIVE_INLINE_ARG_MAP
++    if type(source_map)is not dict or(active is not None and type(active)is not dict)or any(type(k)is not int or not 0<=k<=0xffffff or type(v)is not int or v<0 for mapping in(source_map,active or {})for k,v in mapping.items())or _digest(source_map)!=_digest(active or {}):
++        _UNAVAILABLE[view]='unavailable/nonmatching original inline capture; NEW family refused'
++        return
++    _INLINE[view]=(stream,rom,manifest,stream._parsed,source_map,_digest(source_map),active,_digest(manifest.to_dict()))
++
++
++def _inline_status(state,cert,target=None):
++    from . import decoder
++    view=cert.wrapper.parent;proof=_INLINE.get(view)
++    if proof is None:return _UNAVAILABLE.get(view,'authenticated original inline policy unavailable')
++    stream,rom,manifest,parsed,source_map,sha,active,manifest_sha=proof;r=state.registry
++    if stream is not r.stream or rom is not r.rom or parsed is not r.parsed or manifest is not r.manifest or manifest is not view._manifest or stream._views.get(view._bank)is not view or view._parsed is not parsed or _digest(manifest.to_dict())!=manifest_sha or _digest(source_map)!=sha or decoder._ACTIVE_INLINE_ARG_MAP is not active or _digest(active or {})!=sha:raise ValueError('authenticated original FF20 inline proof mutated')
++    if target is not None:
++        skip=source_map.get(target)
++        if skip is None and rom_bank_mirror((target>>16)&255)is not None:skip=source_map.get(target^0x800000)
++        if skip:return 'authenticated nonzero inline arguments; numeric fall refused'
++    return None
++
++
++def _key(k):return k.pc,k.m,k.x
++
++
++def _source_ok(state,cert,graph,pairs,k,row):
++    from .architecture_eligibility import _mask,_independent
++    ins=graph.insns[k].insn;r=state.registry
++    if not initial._typed(r.rom,graph,pairs,k):return False
++    if ins.mnem not in initial.ALLOWED or ins.mnem in initial.FORBIDDEN or getattr(ins,'const_z_fold_unconditional',False)or any(getattr(ins,f,None)for f in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr')):return False
++    if _mask(r.parsed,k.pc,ins.length)or not cert.role_ok(k.pc,k.m,k.x,ins.length):return False
++    if row is None:return False # absence of a whole canonical collector is a soft barrier
++    if ins.mnem in('JSR','JSL'):
++        fields={'pc24','m','x','length','cycles','bytes','next_pc','body','mnemonic','contract','original_scheduler_call','frame_bytes','runtime_adapter'}
++        if type(row)is not dict or set(row)!=fields:raise ValueError('present FF20 architectural CALL requires exact original13 fields')
++    if tuple(row.get(f)for f in('pc24','m','x'))!=_key(k)or(row.get('mnemonic'),row.get('length'),row.get('bytes'))!=(ins.mnem,ins.length,original._raw(r.rom,k.pc,ins.length).hex())or not _independent(r.rom,r.parsed,row):raise ValueError('present FF20 canonical collector malformed')
++    if ins.mnem in('JSR','JSL'):
++        target=ins.operand if ins.mnem=='JSL'else(k.pc&0xff0000)|ins.operand
++        if row.get('contract')!='source-direct-call-architectural-prefix-v1'or row.get('original_scheduler_call')is not True or row.get('frame_bytes')!=(3 if ins.mnem=='JSL'else 2)or row.get('next_pc')!=target or row.get('runtime_adapter')!='cached original fetched operands; architectural scheduler admission only; no closed-call authority':raise ValueError('actual architectural FF20 call frame/operand contract changed')
++    return True
++
++
++def _prefix_shape(graph):
++    # Generic source pattern: a linear original target, exactly one PHP, then
++    # typed width/pure steps, ending in an actual unknown direct JSL barrier.
++    # No literal observed PC or callee address selects a source start.
++    keys=[];seen=set();k=graph.entry;php=False
++    while k not in seen:
++        seen.add(k);di=graph.insns.get(k)
++        if di is None:return None
++        ins=di.insn;keys.append(k)
++        if ins.mnem=='PHP':
++            if php:return None
++            php=True
++        elif ins.mnem=='JSL':
++            if not php or di.successors or len(seen)!=len(graph.insns)or (k.pc,ins.operand,k.m,k.x)not in graph.unknown_callee_exit_sites:return None
++            return tuple(keys)
++        elif ins.mnem not in original.PURE_OPS:return None
++        if len(di.successors)!=1:return None
++        k=next(iter(di.successors))
++    return None
++
++
++class _Receipt:
++    def __init__(self,issuer,state,scope,graph,pairs,allowed,rows,depth,parent=None,edge=None):
++        if issuer is not _ISSUER:raise ValueError('private FF20 receipt issuer')
++        self.state=state;self.scope=scope;self.graph=graph;self.pairs=pairs;self.allowed=frozenset(allowed);self.rows=rows;self.depth=depth;self.parent=parent;self.edge=edge;self.cert=scope.certificate
++        self.graph_sha=_graph_digest(state.registry.rom,graph);self.pair_sha=_digest(repr(pairs));self.row_sha=_digest(rows)
++        _RECEIPTS[self]=self.digest()
++    def digest(self):return _digest((id(self.state),id(self.scope),id(self.graph),id(self.pairs),self.allowed,id(self.rows),[(key,id(row),row)for key,row in sorted(self.rows.items())],self.depth,id(self.parent),self.edge,id(self.cert),self.graph_sha,self.pair_sha,self.row_sha))
++    def validate(self):
++        _validate_current(self.state,receipts=(self,))
++    def _validate_local(self,invocation):
++        invocation.require_active(self.state)
++        r=self.state.registry
++        if _RECEIPTS.get(self)!=self.digest()or _graph_digest(r.rom,self.graph)!=self.graph_sha or _digest(repr(self.pairs))!=self.pair_sha or _digest(self.rows)!=self.row_sha:raise ValueError('FF20 actual source receipt mutated')
++        if self.parent is None:
++            if type(self.scope)is not original._FF20TargetPolicy or self.depth!=self.scope.depth or self.depth!=1 or r.scopes.get((id(self.cert),self.scope.entry))is not self.scope or r.ir.get(id(self.scope),(None,None,None))!=(self.graph,self.pairs,self.pair_sha):raise ValueError('original FF20 depth/IR issuer changed')
++            self.scope.validate()
++        else:
++            if type(self.scope)is not _FF20ArchitecturalPolicy or self.parent.depth+1!=self.depth or self.scope.parent is not self.parent or self.scope.edge!=self.edge:raise ValueError('FF20 child ancestry changed')
++            invocation.require_checked('policy',self.scope)
++        if not 1<=self.depth<=original.MAX_DEPTH or len(self.graph.insns)>=original.MAX_INSNS:raise ValueError('FF20 source bounds changed')
++        for k in self.allowed:
++            if k not in self.graph.insns or not _source_ok(self.state,self.cert,self.graph,self.pairs,k,self.rows.get(_key(k))):raise ValueError('authenticated FF20 allowed member lost source proof')
++
++
++class _State:
++    def __init__(self,issuer,r,enabled):
++        if issuer is not original._ISSUER or r in _STATES or not r.sealed or not r.used:raise ValueError('one original FF20 invocation required')
++        if (original.MAX_INSNS,original.MAX_STARTS,original.MAX_DEPTH)!=(128,504,8)or type(enabled)is not bool:raise ValueError('unchanged original FF20 bounds/feature policy required')
++        self.registry=r;self.enabled=enabled;self.seeds=[];self.refused=[];self.receipts=[];self.policies=[];self.original=None;self.added={};self.spent=None;self.phase='original';self.rows={};self.graphs=[]
++        _STATES[r]=self;self.refresh()
++    def digest(self):return _digest((id(self.registry),self.enabled,[(id(x),_RECEIPTS.get(x))for x in self.seeds],self.refused,[(id(x),_RECEIPTS.get(x))for x in self.receipts],[(id(x),_SCOPES.get(x))for x in self.policies],self.original,self.added,self.spent,self.phase,self.rows,self.graphs))
++    def refresh(self):_STATE_PROOFS[self]=self.digest()
++    def ledger(self):
++        r=self.registry
++        if (original.MAX_INSNS,original.MAX_STARTS,original.MAX_DEPTH)!=(128,504,8):raise ValueError('original FF20 bound policy mutated')
++        if _STATES.get(r)is not self or _STATE_PROOFS.get(self)!=self.digest()or self.phase not in('original','children','complete'):raise ValueError('FF20 purpose registry/state seal changed')
++        if self.original is None:
++            if self.phase!='original'or self.added or self.spent is not None:raise ValueError('FF20 original reservation phase changed')
++            return
++        # Do not relax old reservation rules: every frozen original key keeps
++        # its exact certificate-domain entry and depth1 seal. New keys use an
++        # explicit separate purpose branch and cannot replace any old key.
++        if set(self.original)&set(self.added)or r.reservations!={**self.original,**self.added}or len(r.reservations)>original.MAX_STARTS:raise ValueError('shared FF20 ledger prefix/total mutated')
++        certs={id(c):c for c in r.certificates}
++        for (cid,entry),value in self.original.items():
++            cert=certs.get(cid)
++            if cert is None or entry[0]not in cert.targets or entry[1]not in(0,1)or entry[2]not in(0,1)or value!=(1,cert.seal_digest):raise ValueError('old FF20 reservation validation changed')
++        for (cid,entry),value in self.added.items():
++            cert=certs.get(cid)
++            if cert is None or type(value)is not tuple or len(value)!=3 or value[0]not in('FF20_ARCHITECTURAL_CHILD','FF20_ARCHITECTURAL_DEPTH_REFUSAL')or value[2]!=cert.seal_digest or entry[1]not in(0,1)or entry[2]not in(0,1):raise ValueError('new FF20 purpose reservation invalid')
++            if value[0]=='FF20_ARCHITECTURAL_CHILD'and not 2<=value[1]<=original.MAX_DEPTH:raise ValueError('new FF20 child depth invalid')
++            if value[0]=='FF20_ARCHITECTURAL_DEPTH_REFUSAL'and value[1]!=original.MAX_DEPTH+1:raise ValueError('new FF20 depth-refusal ledger invalid')
++        if self.spent!={entry for _cid,entry in r.reservations}:raise ValueError('shared global typed spent set changed')
++    def validate(self):
++        _validate_current(self,receipts=tuple(self.receipts),policies=tuple(self.policies))
++
++
++def _validate_shared_registry(r):
++    state=_STATES.get(r)
++    if state is not None:state.ledger() # no registry recursion or broad catch
++
++
++def _begin_original(issuer,r,*,enabled):return _State(issuer,r,enabled)
++
++
++def _queue_original(issuer,state,scope,local,calls):
++    if issuer is not original._ISSUER or _STATES.get(state.registry)is not state or state.phase!='original':raise ValueError('actual original FF20 completion required')
++    state.validate()
++    if not state.enabled:return
++    r=state.registry;scope.validate();g=scope.graph;item=r.ir.get(id(scope))
++    if type(scope)is not original._FF20TargetPolicy or item is None or item[0]is not g or item[2]!=_digest(repr(item[1])):raise ValueError('original FF20 completion missing actual IR')
++    if scope in _QUEUED:raise ValueError('original FF20 architectural completion reused')
++    _QUEUED.add(scope)
++    members=r.rows.get(id(g))
++    if members is None or any(members.get(tuple(row[f]for f in('pc24','m','x')),(None,None))!=(row,_digest(row))or members[tuple(row[f]for f in('pc24','m','x'))][0]is not row for row in local):raise ValueError('original FF20 collector seal/identity changed')
++    keys=_prefix_shape(g)
++    if keys is None:return
++    reason=_inline_status(state,scope.certificate)
++    if reason is not None:
++        state.refused.append({'entry':list(scope.entry),'reason':reason});state.refresh();return
++    candidates={}
++    for row in local+calls:
++        identity=tuple(row[f]for f in('pc24','m','x'))
++        if identity in candidates:raise ValueError('ambiguous original FF20 collector')
++        candidates[identity]=row
++    missing=[]
++    for k in keys:
++        if not _source_ok(state,scope.certificate,g,item[1],k,candidates.get(_key(k))):missing.append(list(_key(k)))
++    if missing:
++        state.refused.append({'entry':list(scope.entry),'reason':'whole original PHP/call canonical prefix unavailable','missing_keys':missing});state.refresh();return
++    rows={_key(k):candidates[_key(k)]for k in keys}
++    receipt=_Receipt(_ISSUER,state,scope,g,item[1],keys,rows,scope.depth)
++    state.seeds.append(receipt);state.receipts.append(receipt);state.refresh()
++
++
++def _edge(parent,k,kind):
++    return _validate_current(parent.state,receipts=(parent,),edge=(parent,k,kind))
++
++
++def _edge_local(invocation,parent,k,kind):
++    invocation.require_checked('receipt',parent)
++    g=parent.graph;ins=g.insns[k].insn;pc=k.pc
++    if k not in parent.allowed:raise ValueError('FF20 edge outside actual allowed parent')
++    if kind=='architectural_call_numeric_fall':
++        if ins.opcode not in(0x20,0x22)or(pc&65535)+ins.length>=65536:raise ValueError('original numeric call fall source/wrap')
++        target=parent.rows[_key(k)]['next_pc'];reason=_inline_status(parent.state,parent.cert,target)
++        if reason is not None:return None,reason
++        return {'kind':kind,'source_key':list(_key(k)),'source_graph_sha256':parent.graph_sha,'source_bytes':original._raw(parent.state.registry.rom,pc,ins.length).hex(),'start':pc+ins.length},None
++    if kind=='source_owned_live_P_frontier':
++        if ins.opcode!=0x28 or pc&65535==65535:raise ValueError('original live-P source/wrap')
++        return {'kind':kind,'source_key':list(_key(k)),'source_graph_sha256':parent.graph_sha,'source_bytes':'28','start':pc+1},None
++    raise ValueError('unknown FF20 source-only edge kind')
++
++
++class _FF20ArchitecturalPolicy:
++    _target_only=True
++    def __init__(self,issuer,state,parent,edge,entry):
++        if issuer is not _ISSUER or state.phase!='children':raise ValueError('private live FF20 child issuer required')
++        parent.validate();self.state=state;self.parent=parent;self.edge=dict(edge);self.entry=entry;self.depth=parent.depth+1;self.certificate=parent.cert;self.used=False;self.graph=None;self.pairs=None;self.rows=None
++        self.options=dict(parent.scope.options);self.options['data_regions']=list(parent.scope.options.get('data_regions')or());self.role=dict(parent.scope.role)
++        self.option_sha=_digest(self.options);self.role_sha=_digest(self.role);self.graph_sha=None;self.pair_sha=None;self.row_sha=None
++        _SCOPES[self]=self.digest();state.policies.append(self);state.refresh();self.validate()
++    def digest(self):return _digest((id(self.state),id(self.parent),self.edge,self.entry,self.depth,id(self.certificate),self.options,self.role,self.option_sha,self.role_sha,self.used,id(self.graph),self.graph_sha,id(self.pairs),self.pair_sha,self.rows,self.row_sha))
++    def refresh(self):_SCOPES[self]=self.digest();self.state.refresh()
++    def validate(self):
++        _validate_current(self.state,policies=(self,))
++    def _validate_local(self,invocation):
++        invocation.require_active(self.state)
++        if _SCOPES.get(self)!=self.digest()or self not in self.state.policies or not 2<=self.depth<=original.MAX_DEPTH or self.depth!=self.parent.depth+1 or self.certificate is not self.parent.cert or self.entry[0]!=self.edge['start']or self.entry[1]not in(0,1)or self.entry[2]not in(0,1):raise ValueError('FF20 purpose context/ancestry seal mutated')
++        self.state.ledger();invocation.require_checked('receipt',self.parent);r=self.state.registry
++        identity=(id(self.certificate),self.entry)
++        if r.reservations.get(identity)!=('FF20_ARCHITECTURAL_CHILD',self.depth,self.certificate.seal_digest)or self.state.added.get(identity)!=r.reservations[identity]:raise ValueError('FF20 purpose reservation absent')
++        hits=[k for k in self.parent.allowed if list(_key(k))==self.edge['source_key']]
++        if len(hits)!=1:raise ValueError('FF20 edge parent member absent')
++        edge,reason=_edge_local(invocation,self.parent,hits[0],self.edge['kind'])
++        if reason is not None or edge!=self.edge:raise ValueError('authenticated FF20 numeric/live-P edge changed')
++        base=_options(r.stream,r.rom,r.parsed,self.entry[0]>>16)
++        if r.stream._views.get(self.entry[0]>>16)is not self.certificate.wrapper.parent or base is None or _digest(self.options)!=self.option_sha or _digest(self.role)!=self.role_sha or _digest(self.options)!=_digest(self.parent.scope.options)or _digest(self.role)!=_digest(self.parent.scope.role):raise ValueError('FF20 child weakened original same-bank masks/roles')
++        if self.used and(self.graph is None or _graph_digest(r.rom,self.graph)!=self.graph_sha):raise ValueError('FF20 child graph mutated')
++        if self.pairs is not None and _digest(repr(self.pairs))!=self.pair_sha:raise ValueError('FF20 child typed IR mutated')
++        if self.rows is not None and _digest(self.rows)!=self.row_sha:raise ValueError('FF20 child canonical rows mutated')
++    def record_graph(self,stream,rom,graph,bank,start,m,x,options,role):
++        from .decoder import FunctionDecodeGraph
++        if self in _EMITTING:raise ValueError('FF20 architectural emitter already consumed/in progress')
++        _EMITTING.add(self) # burn before original source validation callbacks
++        self.validate();r=self.state.registry
++        if self.used or stream is not r.stream or rom is not r.rom or type(graph)is not FunctionDecodeGraph or(bank<<16|start,m,x)!=self.entry or _key(graph.entry)!=self.entry or _digest(options)!=self.option_sha or _digest(role)!=self.role_sha:raise ValueError('foreign/reused FF20 purpose emitter graph')
++        if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=original.MAX_INSNS:raise ValueError('FF20 purpose128/data/indirect barrier')
++        self.used=True;self.graph=graph;self.graph_sha=_graph_digest(rom,graph);self.refresh()
++
++
++class _RawBoundary:
++    """Narrow source-data signature: exact builtins and declared SDK records.
++
++    No repr, normal attribute lookup, user iteration/equality/hash or property
++    getter runs while signature() reads the source data. Unsupported shapes
++    fail closed; this is not a general Python-object serializer.
++    """
++    def __init__(self):
++        import types,pathlib
++        from . import decoder,ir,program_analysis,cfg_loader,emit_bank
++        from . import architecture_initial_task_sources as initial_records
++        from . import architecture_nested_initial_task_sources as nested_records
++        from . import architecture_rom_stack_dispatch_sources as stack_records
++        from .architecture_program_call_sources import _ProgramCallStream
++        from .architecture_emission_policy import _EmissionPolicy
++        from snes65816 import Insn
++        self.types=types;self.decoder=decoder
++        self.type_dict=type.__dict__['__dict__'];self.type_mro=type.__dict__['__mro__']
++        self.module_dict=types.ModuleType.__dict__['__dict__']
++        classes=(_State,_Receipt,_FF20ArchitecturalPolicy,original._Registry,original._OriginalRecord,original._Certificate,original._FF20TargetPolicy,_EmissionPolicy,_ProgramCallStream,Insn,
++            initial_records._InitialRegistry,initial_records._InitialChildPolicy,nested_records._Observation,nested_records._Receipt,nested_records._NestedInitialChildPolicy,stack_records._ProducerCertificate,
++            decoder.DecodeKey,decoder.DecodedInsn,decoder.SuppressedIndirectCall,decoder.DispatchTargetSuppressed,decoder.UnresolvedIndirect,decoder.ConstZFold,decoder.FunctionDecodeGraph,
++            program_analysis.ProgramManifest,program_analysis.VariantKey,program_analysis.NodeSummary,program_analysis.DemandEdge,program_analysis.NodeDisposition,program_analysis.EdgeKind,program_analysis.EdgeResolution,
++            cfg_loader.BankCfg,cfg_loader.NameDecl,cfg_loader.RamRoutine,emit_bank.BankEntry,
++            ir.Reg,ir.SegKind,ir.SegRef,ir.Value,ir.IROp,ir.Read,ir.Write,ir.ReadReg,ir.WriteReg,ir.ConstI,ir.AluOp,ir.Alu,ir.ShiftOp,ir.Shift,ir.IncReg,ir.IncMem,ir.BitTest,ir.BitSetMem,ir.BitClearMem,ir.SetFlag,ir.SetNZ,ir.RepFlags,ir.SepFlags,ir.XCE,ir.Push,ir.Pull,ir.PushReg,ir.PullReg,ir.BlockMove,ir.CondBranch,ir.Goto,ir.IndirectGoto,ir.Call,ir.Return,ir.Transfer,ir.XBA,ir.Nop,ir.Break,ir.Stop,ir.PushEffectiveAddress,ir.IRBlock,
++            pathlib.Path,pathlib.PurePath,pathlib.WindowsPath,pathlib.PureWindowsPath,pathlib.PosixPath,pathlib.PurePosixPath)
++        self.layouts={};self.class_ids={id(c)for c in classes};self.class_ids.update((id(dict),id(list),id(tuple),id(set),id(frozenset)))
++        for cls in classes:
++            dictionary=None;slots=[]
++            for base in tuple.__iter__(self.type_mro.__get__(cls,type)):
++                namespace=self.type_dict.__get__(base,type)
++                for name,descriptor in types.MappingProxyType.items(namespace):
++                    if type(name)is not str:raise ValueError('unsupported SDK class namespace')
++                    if name=='__dict__'and dictionary is None and type(descriptor)is types.GetSetDescriptorType:dictionary=descriptor
++                    if type(descriptor)is types.MemberDescriptorType:slots.append((name,descriptor))
++            self.layouts[id(cls)]=(cls,dictionary,tuple(slots))
++        # Weak namespace projections read their raw C-backed instance dict,
++        # exact underlying data containers and exact C weak references only.
++        self.weak_dict=weakref.WeakKeyDictionary.__dict__['__dict__']
++        self.weak_set=weakref.WeakSet.__dict__['__dict__']
++    def raw_dict(self,value,descriptor):
++        result=self.raw_read(descriptor,value,type(value))
++        if type(result)is not dict:raise ValueError('SDK raw instance dictionary required')
++        return result
++    def raw_read(self,descriptor,value,cls):
++        kind=type(descriptor)
++        if kind is self.types.GetSetDescriptorType:return self.types.GetSetDescriptorType.__get__(descriptor,value,cls)
++        if kind is self.types.MemberDescriptorType:return self.types.MemberDescriptorType.__get__(descriptor,value,cls)
++        raise ValueError('known C data descriptor required')
++    def module_namespace(self,module):
++        if type(module)is not self.types.ModuleType:raise ValueError('exact original SDK module required')
++        return self.raw_read(self.module_dict,module,self.types.ModuleType)
++    def signature(self,state):
++        # All accumulated tokens and comparisons contain exact builtin atoms.
++        # ids are keys in our own dicts; foreign objects are never hashed.
++        tape=[];seen={};keep=[];work=[state];layouts=self.layouts;T=self.types
++        def drain():
++            while work:
++                value=list.pop(work);kind=type(value)
++                if value is None:list.append(tape,('none',));continue
++                if kind is bool:list.append(tape,('bool',value));continue
++                if kind is int:list.append(tape,('int',value));continue
++                if kind is str:list.append(tape,('str',value));continue
++                if kind is bytes:list.append(tape,('bytes',value));continue
++                if kind is float:list.append(tape,('float',float.hex(value)));continue
++                identity=id(value)
++                if identity in self.class_ids:list.append(tape,('declared_class',identity));continue
++                if kind is object:list.append(tape,('opaque_object',identity));list.append(keep,value);continue
++                if identity in seen:list.append(tape,('ref',identity));continue
++                seen[identity]=True;list.append(keep,value)
++                if kind is bytearray:list.append(tape,('bytearray',identity,bytes(value)));continue
++                if kind is tuple or kind is list:
++                    iterator=tuple.__iter__(value)if kind is tuple else list.__iter__(value)
++                    children=[item for item in iterator];list.append(tape,('tuple'if kind is tuple else'list',identity,len(children)))
++                    list.extend(work,list.__reversed__(children));continue
++                if kind is dict:
++                    children=[]
++                    for key,item in dict.items(value):list.append(children,key);list.append(children,item)
++                    list.append(tape,('dict',identity,dict.__len__(value)));list.extend(work,list.__reversed__(children));continue
++                if kind is set or kind is frozenset:
++                    iterator=set.__iter__(value)if kind is set else frozenset.__iter__(value)
++                    children=[item for item in iterator];list.append(tape,('set'if kind is set else'frozenset',identity,len(children)));list.extend(work,list.__reversed__(children));continue
++                layout=dict.get(layouts,id(kind))
++                if layout is None or layout[0]is not kind:raise ValueError('unsupported foreign shape at callback-free FF20 boundary')
++                cls,dictionary,slots=layout;children=[]
++                if dictionary is not None:list.append(children,self.raw_dict(value,dictionary))
++                for name,descriptor in tuple.__iter__(slots):
++                    list.append(tape,('slot',identity,name,id(descriptor)))
++                    try:child=T.MemberDescriptorType.__get__(descriptor,value,cls)
++                    except AttributeError:list.append(tape,('unset_slot',));continue
++                    list.append(children,child)
++                list.append(tape,('sdk_record',identity,id(cls),id(dictionary),len(children)));list.extend(work,list.__reversed__(children))
++        drain()
++        old=self.module_namespace(original);new=globals();decoder=self.module_namespace(self.decoder)
++        # Binding and entire current namespace contents, rather than to_dict(),
++        # are signed. State->registry->stream reaches original ROM, manifest,
++        # parsed cfg/path, every bank view/certificate/graph/IR/row and ledger.
++        for name in('_INSTRUCTION_AUTHORITY','_AUTHORITY_DATA','_ACTIVE_INLINE_ARG_MAP'):
++            list.append(tape,('decoder_namespace',name));list.append(work,dict.__getitem__(decoder,name));drain()
++        for namespace,names in((old,('_ISSUER','MAX_INSNS','MAX_STARTS','MAX_DEPTH','_Registry','_OriginalRecord','_Certificate','_FF20TargetPolicy')),(new,('_ISSUER','_State','_Receipt','_FF20ArchitecturalPolicy'))):
++            for name in names:
++                list.append(tape,('issuer_type_bound_namespace',name));list.append(work,dict.__getitem__(namespace,name));drain()
++        namespaces=((old,('_REGISTRIES','_ISSUED','_CERTIFICATES','_TARGETS','_PROOFS','_SCOPE_PROOFS','_RECORD_PROOFS')),(new,('_STATES','_STATE_PROOFS','_SCOPES','_RECEIPTS','_INLINE','_UNAVAILABLE','_RESULTS','_CONSUMED','_QUEUED','_EMITTING')))
++        # Primary state closure is fixed before table projection; unrelated
++        # concurrent namespaces cannot supply authority to this invocation.
++        relevant=dict.copy(seen)
++        for namespace,names in namespaces:
++            for name in names:
++                table=dict.__getitem__(namespace,name);kind=type(table);list.append(tape,('proof_namespace',name,id(table)))
++                if kind is weakref.WeakKeyDictionary:
++                    data=dict.__getitem__(self.raw_dict(table,self.weak_dict),'data')
++                    if type(data)is not dict:raise ValueError('exact weak proof dictionary required')
++                    for reference,item in dict.items(data):
++                        if type(reference)is not weakref.ReferenceType:raise ValueError('exact weak proof key required')
++                        target=weakref.ReferenceType.__call__(reference)
++                        if id(target)in relevant:list.append(tape,('proof_entry',id(target)));list.append(work,item);drain()
++                elif kind is weakref.WeakSet:
++                    data=dict.__getitem__(self.raw_dict(table,self.weak_set),'data')
++                    if type(data)is not set:raise ValueError('exact weak proof membership set required')
++                    for reference in set.__iter__(data):
++                        if type(reference)is not weakref.ReferenceType:raise ValueError('exact weak membership key required')
++                        target=weakref.ReferenceType.__call__(reference)
++                        if id(target)in relevant:list.append(tape,('issued_member',id(target)))
++                else:raise ValueError('unsupported proof namespace container')
++        return tuple(tape),keep
++
++
++class _ValidationInvocation:
++    """Fresh private traversal capability; never an across-call proof cache."""
++    def __init__(self,issuer,state):
++        if issuer is not _ISSUER or type(state)is not _State or _STATES.get(state.registry)is not state or state in _VALIDATING:raise ValueError('private non-reentrant FF20 validation invocation required')
++        self.issuer=issuer;self.state=state;self.before={};self.done=set();self.visiting=set();self.closed=False;self.state_sha=None
++        _VALIDATING[state]=self
++    def require_active(self,state):
++        if self.issuer is not _ISSUER or self.closed or state is not self.state or _VALIDATING.get(state)is not self:raise ValueError('inactive/foreign FF20 validation capability')
++    def snapshot(self,kind,node):
++        self.require_active(self.state)
++        if kind=='receipt':
++            if type(node)is not _Receipt or node not in _RECEIPTS or node.state is not self.state or node not in self.state.receipts or _RECEIPTS[node]!=node.digest():raise ValueError('foreign/mutated FF20 receipt before ancestry walk')
++            r=self.state.registry
++            return (node.digest(),_graph_digest(r.rom,node.graph),_digest(repr(node.pairs)),_digest(node.rows))
++        if kind=='policy':
++            if type(node)is not _FF20ArchitecturalPolicy or node not in _SCOPES or node.state is not self.state or node not in self.state.policies or _SCOPES[node]!=node.digest():raise ValueError('foreign/mutated FF20 policy before ancestry walk')
++            r=self.state.registry
++            return (node.digest(),_graph_digest(r.rom,node.graph)if node.graph is not None else None,_digest(repr(node.pairs))if node.pairs is not None else None,_digest(node.rows)if node.rows is not None else None)
++        raise ValueError('unknown FF20 validation node kind')
++    def require_checked(self,kind,node):
++        self.require_active(self.state);key=(kind,node)
++        if key not in self.done or key not in self.before or self.snapshot(kind,node)!=self.before[key]:raise ValueError('current same-invocation FF20 parent proof required')
++    def inline_current(self):
++        for seed in self.state.seeds:
++            if type(seed)is not _Receipt or seed not in _RECEIPTS or seed.state is not self.state or seed.parent is not None:raise ValueError('foreign FF20 inline seed')
++            if _inline_status(self.state,seed.cert)is not None:raise ValueError('issued FF20 seed lost authenticated inline proof')
++    def run(self,receipts,policies,edge):
++        self.require_active(self.state);state=self.state
++        raw_boundary=_RawBoundary()
++        raw_before,raw_keep=raw_boundary.signature(state)
++        state.ledger();state.registry.validate();self.inline_current();self.state_sha=state.digest()
++        todo=[('policy',p,False)for p in reversed(policies)]+[('receipt',r,False)for r in reversed(receipts)]
++        while todo:
++            kind,node,leaving=todo.pop();key=(kind,node)
++            self.require_active(state)
++            if leaving:
++                if key not in self.visiting or self.snapshot(kind,node)!=self.before[key]:raise ValueError('FF20 ancestry node changed during parent validation')
++                node._validate_local(self)
++                if self.snapshot(kind,node)!=self.before[key]:raise ValueError('FF20 ancestry local validation mutated source proof')
++                self.visiting.remove(key);self.done.add(key)
++                continue
++            if key in self.visiting:raise ValueError('FF20 validation ancestry cycle')
++            if key in self.done:
++                self.require_checked(kind,node)
++                continue
++            self.before[key]=self.snapshot(kind,node);self.visiting.add(key);todo.append((kind,node,True))
++            if kind=='receipt':
++                if node.parent is not None:
++                    # Follow only the exact issued scope/parent relationship;
++                    # no foreign node can fabricate an alternate shallow root.
++                    if type(node.scope)is not _FF20ArchitecturalPolicy or node.scope.parent is not node.parent or node.scope.state is not state or node.scope.depth!=node.depth or node.parent.depth+1!=node.depth:raise ValueError('FF20 receipt ancestry association changed')
++                    todo.append(('policy',node.scope,False))
++                elif type(node.scope)is not original._FF20TargetPolicy or node.depth!=1:raise ValueError('FF20 ancestry root is not original depth1 issuer')
++            else:
++                if type(node.parent)is not _Receipt or node.parent.state is not state or node.depth!=node.parent.depth+1 or node.certificate is not node.parent.cert:raise ValueError('FF20 policy ancestry association changed')
++                todo.append(('receipt',node.parent,False))
++        result=None
++        if edge is not None:
++            parent,k,kind=edge;result=_edge_local(self,parent,k,kind)
++        # Run original current root/registry/inline validators unchanged BEFORE
++        # the final content/association postflight, so callback mutation cannot
++        # be hidden by a prior visited node or by refreshing a proof seal.
++        for kind,node in self.before:
++            if kind=='receipt'and node.parent is None:node.scope.validate()
++        state.registry.validate();self.inline_current();state.ledger()
++        if state.digest()!=self.state_sha:raise ValueError('FF20 validation invocation changed current state')
++        for(kind,node),snapshot in self.before.items():
++            if (kind,node)not in self.done or self.snapshot(kind,node)!=snapshot:raise ValueError('FF20 proof/content/association changed during validation callbacks')
++        self.require_active(state)
++        # Cleanup may itself touch Python weak containers. Close BEFORE the
++        # FINAL callback-free comparison, not after it. Strong local raw_keep
++        # retains the entire preflight graph until the comparison completes.
++        self.close()
++        raw_after,raw_keep_final=raw_boundary.signature(state)
++        if raw_after!=raw_before:raise ValueError('callback-free FF20 source/namespace boundary changed')
++        return result
++    def close(self):
++        if self.closed:return
++        state=self.state
++        if _VALIDATING.get(state)is self:del _VALIDATING[state]
++        self.closed=True;self.before.clear();self.done.clear();self.visiting.clear();self.state=None;self.state_sha=None
++
++
++def _validate_current(state,*,receipts=(),policies=(),edge=None):
++    # No caller-supplied skip flag or claimed-valid set. Every public call
++    # creates and disposes its own full current-ancestry validation invocation.
++    invocation=_ValidationInvocation(_ISSUER,state)
++    try:return invocation.run(receipts,policies,edge)
++    finally:invocation.close()
++
++
++def _capture_child_ir(stream,scope,rom,graph,pairs):
++    if type(scope)is not _FF20ArchitecturalPolicy:return
++    scope.validate();r=scope.state.registry
++    if stream is not r.stream or rom is not r.rom or not scope.used or graph is not scope.graph or scope.pairs is not None:raise ValueError('actual one-use FF20 purpose IR required')
++    scope.pairs=pairs;scope.pair_sha=_digest(repr(pairs));scope.refresh()
++
++
++def _reserve(state,parent,edge,entry):
++    state.validate();r=state.registry;depth=parent.depth+1
++    if entry in state.spent:return None,'global typed start already spent, including original refusals'
++    if len(r.reservations)>=original.MAX_STARTS:return None,'same original504 exhausted'
++    # Depth refusals consume their typed attempt too, without creating a scope.
++    identity=(id(parent.cert),entry);value=('FF20_ARCHITECTURAL_DEPTH_REFUSAL'if depth>original.MAX_DEPTH else'FF20_ARCHITECTURAL_CHILD',depth,parent.cert.seal_digest)
++    r.reservations[identity]=value;state.added[identity]=value;state.spent.add(entry);state.refresh();r.refresh()
++    if depth>original.MAX_DEPTH:return None,'original8 ancestry bound; typed refusal charged, no child scope'
++    return _FF20ArchitecturalPolicy(_ISSUER,state,parent,edge,entry),None
++
++
++def _emit_child(state,parent,edge,entry):
++    from .architecture_eligibility import _mask
++    from .decoder import decode_function
++    from .emit_function import emit_function
++    scope,reason=_reserve(state,parent,edge,entry)
++    if scope is None:return None,reason
++    r=state.registry;pc,m,x=entry;options=scope.options;siblings=scope.role['sibling_entry_pcs']
++    if not original._mapped(r.rom,pc)or _mask(r.parsed,pc,1)or pc&65535 in(siblings or()):return None,'original mapped/mask/sibling barrier'
++    try:g=decode_function(r.rom,pc>>16,pc&65535,m,x,max_insns=original.MAX_INSNS,data_regions=options['data_regions'],hle_dispatch=options['hle_dispatch'],sibling_entry_pcs=siblings,hle_entry_pcs=set(options['hle_func']or())|set(options['hle_spc_upload']or()),stop_on_unknown_callee_exit=True)
++    except RuntimeError as error:
++        if 'max_insns=128'not in str(error):raise
++        return None,'original128 graph bound'
++    if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=original.MAX_INSNS:return None,'original128/data/indirect barrier'
++    local=[];calls=[]
++    emit_function(r.rom,pc>>16,pc&65535,m,x,func_name='DiscardedFF20ArchitecturalSource',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls,_native_collector_only=True,_program_call_stream=r.stream,_program_policy_scope=scope)
++    scope.validate()
++    if scope.graph is None or scope.graph_sha!=_graph_digest(r.rom,g)or scope.pairs is None:raise ValueError('actual FF20 purpose emitter/decode/IR proof absent')
++    candidates={}
++    for row in local+calls:
++        key=tuple(row[f]for f in('pc24','m','x'))
++        if key in candidates:raise ValueError('ambiguous FF20 child canonical collector')
++        candidates[key]=row
++    scope.rows=candidates;scope.row_sha=_digest(candidates);scope.refresh();actual=scope.graph;todo=[actual.entry];allowed=set();barriers=[]
++    while todo:
++        k=todo.pop()
++        if k in allowed:continue
++        di=actual.insns.get(k)
++        if di is None:continue
++        if not _source_ok(state,parent.cert,actual,scope.pairs,k,candidates.get(_key(k))):barriers.append([*_key(k),di.insn.mnem]);continue
++        allowed.add(k)
++        if di.insn.mnem not in('JSR','JSL','PLP'):todo.extend(di.successors)
++    receipt=_Receipt(_ISSUER,state,scope,actual,scope.pairs,allowed,{_key(k):candidates[_key(k)]for k in allowed},scope.depth,parent,dict(edge))
++    state.receipts.append(receipt);state.graphs.append({'entry':list(entry),'parent_entry':list(_key(parent.graph.entry)),'origin':dict(edge),'depth':scope.depth,'source_graph_sha256':receipt.graph_sha,'instruction_keys':[list(_key(k))for k in sorted(allowed,key=_key)],'barriers':barriers,'typed_instructions':len(actual.insns)})
++    state.refresh();return receipt,None
++
++
++def _complete_original(issuer,state):
++    if issuer is not original._ISSUER or state.phase!='original':raise ValueError('one original FF20 completion required')
++    state.validate();r=state.registry;state.original=dict(r.reservations);state.spent={entry for _cid,entry in state.original};state.phase='children';state.refresh()
++    # Explicit stack: depth first by authentic original-parent order; mode
++    # variants are separate attempts. Every old attempt/refusal retains priority.
++    todo=[('receipt',seed)for seed in reversed(state.seeds)]
++    while todo:
++        kind,value=todo.pop()
++        if kind=='child':
++            parent,edge,entry=value;receipt,reason=_emit_child(state,parent,edge,entry)
++            if receipt is None:
++                state.refused.append({'entry':list(entry),'parent_entry':list(_key(parent.graph.entry)),'depth':parent.depth+1,'reason':reason});state.refresh();continue
++        else:receipt=value
++        receipt.validate()
++        for key,row in receipt.rows.items():
++            if key in state.rows and state.rows[key]!=row:raise ValueError('unequal FF20 architectural body')
++            state.rows[key]=row
++        state.refresh();requests=[]
++        for k in sorted(receipt.allowed,key=_key):
++            ins=receipt.graph.insns[k].insn
++            if ins.mnem not in('JSR','JSL','PLP'):continue
++            edge,reason=_edge(receipt,k,'source_owned_live_P_frontier'if ins.mnem=='PLP'else'architectural_call_numeric_fall')
++            if edge is None:
++                state.refused.append({'source_key':list(_key(k)),'reason':reason});state.refresh();continue
++            for m,x in((0,0),(0,1),(1,0),(1,1)):requests.append(('child',(receipt,edge,(edge['start'],m,x))))
++        todo.extend(reversed(requests))
++    state.phase='complete';state.refresh();state.validate()
++    recipe={'contract':CONTRACT,'enabled':state.enabled,'original_attempted_starts':len(state.original),'new_attempted_starts':len(state.added),'total_attempted_starts':len(r.reservations),'graph_bound':original.MAX_INSNS,'start_bound':original.MAX_STARTS,'ancestry_bound':original.MAX_DEPTH,'seed_entries':[list(_key(s.graph.entry))for s in state.seeds],'graphs':state.graphs,'refused':state.refused,'order':'all original targets first; deterministic parent-order depth-first new children','ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False,'saved_P_history_exported':False,'runtime_dispatch_changed':False,'old_FF20_pure_family_changed':False}
++    output=[state.rows[k]for k in sorted(state.rows)]
++    _RESULTS[r.stream]=(state,output,recipe,_digest((output,recipe)))
++
++
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++    if stream in _CONSUMED or not stream._sealed or stream._rom_object is not rom or stream._parsed is not parsed:raise ValueError('sealed one-use FF20 architectural consumer required')
++    _CONSUMED.add(stream);item=_RESULTS.pop(stream,None)
++    if item is None:return [],{'contract':CONTRACT,'enabled':enable_native_call_prefix,'graphs':[],'refused':[{'reason':'no original FF20 invocation'}]}
++    state,rows,recipe,sha=item;state.validate()
++    if state.phase!='complete'or state.enabled is not enable_native_call_prefix or _digest((rows,recipe))!=sha:raise ValueError('completed FF20 family/context mutated')
++    return rows,recipe
+diff --git a/recompiler/v2/architecture_ff20_byte_dispatch_sources.py b/recompiler/v2/architecture_ff20_byte_dispatch_sources.py
+--- a/recompiler/v2/architecture_ff20_byte_dispatch_sources.py
++++ b/recompiler/v2/architecture_ff20_byte_dispatch_sources.py
+@@ -87,6 +87,8 @@
+                 if _digest(row)!=d:raise ValueError('FF20 actual emitted row mutated')
+         for g,d in self.children.values():
+             if _graph_digest(self.rom,g)!=d:raise ValueError('FF20 target child graph mutated')
++        from .architecture_ff20_architectural_sources import _validate_shared_registry
++        _validate_shared_registry(self)
+     def seal(self,rom,parsed,stream):
+         if self.sealed or not stream._sealed or rom is not self.rom or parsed is not self.parsed or stream is not self.stream:raise ValueError('one-use actual original FF20 namespace seal')
+         self.validate();self.sealed=True;self.refresh()
+@@ -179,7 +181,10 @@
+         self.used=True;self.graph=graph;d=_graph_digest(rom,graph);_RECORD_PROOFS[self]=(id(graph),d,_SCOPE_PROOFS[self]);self.registry.children[id(self)]=(graph,d);self.registry.refresh()
+ 
+ def _capture_child_ir(stream,scope,rom,graph,pairs):
+-    if type(scope)is not _FF20TargetPolicy:return
++    if type(scope)is not _FF20TargetPolicy:
++        from .architecture_ff20_architectural_sources import _capture_child_ir as capture_architectural_ir
++        capture_architectural_ir(stream,scope,rom,graph,pairs)
++        return
+     scope.validate();r=scope.registry
+     if stream is not r.stream or rom is not r.rom or graph is not scope.graph or not scope.used or id(scope)in r.ir:raise ValueError('actual oneuse FF20 child IR required')
+     r.ir[id(scope)]=(graph,pairs,_digest(repr(pairs)));r.refresh()
+@@ -211,7 +216,10 @@
+     if r is None:return [],{'contract':CONTRACT,'source_cases':['D0/E0_mapped_ROM_only'],'D1_source_case':'unknown_original_barrier','producer_domains':[],'graphs':[],'refused':[]}
+     r.seal(rom,parsed,stream)
+     if r.used:raise ValueError('FF20 source namespace reuse')
+-    r.used=True;r.refresh();rows={};graphs=[];refused=[];domains=[];masks=[x for _b,_p,c in parsed for x in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++    r.used=True;r.refresh()
++    from .architecture_ff20_architectural_sources import _begin_original,_queue_original,_complete_original
++    architectural=_begin_original(_ISSUER,r,enabled=enable_native_call_prefix)
++    rows={};graphs=[];refused=[];domains=[];masks=[x for _b,_p,c in parsed for x in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
+     for cert in r.certificates:
+         domains.append({'caller_entry':[cert.caller.graph.entry.pc,1,1],'caller_predicate_keys':[[k.pc,k.m,k.x]for k in cert.caller.keys],'wrapper_entry':[cert.wrapper.graph.entry.pc,1,1],'wrapper_keys':[[k.pc,k.m,k.x]for k in cert.wrapper.keys],'original_graph_sha256':[cert.caller.graph_sha,cert.wrapper.graph_sha],'selector_domain':[0,125],'saved_return':cert.return_pc,'mathematical_reads':[list(v)for v in cert.reads],'unique_targets':sorted(cert.targets),'intentional_table_cardinality':None,'discovery_D':0,'runtime_entry_D_guard':False})
+         for pc in sorted(cert.targets):
+@@ -230,8 +238,8 @@
+                     if 'max_insns=128'not in str(e):raise
+                     refused.append({'entry':list(entry),'reason':'original128 graph bound'});continue
+                 if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=MAX_INSNS:refused.append({'entry':list(entry),'reason':'original128/data/indirect barrier'});continue
+-                scope=_FF20TargetPolicy(_ISSUER,r,cert,entry,options,role);local=[]
+-                emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedOriginalFF20Source',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
++                scope=_FF20TargetPolicy(_ISSUER,r,cert,entry,options,role);local=[];calls=[]
++                emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedOriginalFF20Source',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls if enable_native_call_prefix else None,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
+                 scope.validate()
+                 if scope.graph is None or _graph_digest(rom,scope.graph)!=_graph_digest(rom,g):raise ValueError('actual FF20 child emitter/decoder differs')
+                 actual=scope.graph;item=r.ir.get(id(scope))
+@@ -252,5 +260,8 @@
+                     if ident in rows and rows[ident]!=row:raise ValueError('unequal independent FF20 source bodies')
+                     rows[ident]=row;out.append(list(ident))
+                 graphs.append({'entry':list(entry),'depth':1,'instruction_keys':out,'barriers':barriers,'source_graph_sha256':_graph_digest(rom,actual),'typed_instructions':len(actual.insns)})
++                _queue_original(_ISSUER,architectural,scope,local,calls)
+     r.validate()
+-    return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'source_cases':['D0/E0_mapped_ROM_only'],'D1_source_case':'unknown_original_barrier','producer_domains':domains,'graphs':graphs,'refused':refused,'attempted_starts':len(r.reservations),'graph_bound':MAX_INSNS,'start_bound':MAX_STARTS,'ancestry_bound':MAX_DEPTH,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False,'runtime_entry_D_guard':False,'native_calls_or_returns_added':False,'actual_original_dispatch_changed':False}
++    original_attempted_starts=len(r.reservations)
++    _complete_original(_ISSUER,architectural)
++    return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'source_cases':['D0/E0_mapped_ROM_only'],'D1_source_case':'unknown_original_barrier','producer_domains':domains,'graphs':graphs,'refused':refused,'attempted_starts':original_attempted_starts,'graph_bound':MAX_INSNS,'start_bound':MAX_STARTS,'ancestry_bound':MAX_DEPTH,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False,'runtime_entry_D_guard':False,'native_calls_or_returns_added':False,'actual_original_dispatch_changed':False}
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 57
++CACHE_FORMAT_VERSION = 59
+ 
+ # â”€â”€ Program modules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1070,8 +1070,8 @@
+         rom_sha256_hex = hashlib.sha256(rom).hexdigest()
+     if rom_size is None:
+         rom_size = len(rom)
+-    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 58
+-    output_normal_format=42 if architecture_baseline is None else 43
++    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 60
++    output_normal_format=44 if architecture_baseline is None else 45
+     from .faithful_prefix import prefix_contracts
+     from .emit_function import set_faithful_prefix_contracts
+     set_faithful_prefix_contracts(prefix_contracts(manifest, parsed))

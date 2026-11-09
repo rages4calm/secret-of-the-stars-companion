@@ -1,0 +1,53 @@
+{
+  "patch_sha256": "f282b1b84704020de50091065c4eb942cf7736278a6769166b18d8ca49c9aa2c",
+  "predecessor_patch_sha256": "d29219e692a2b7f4f3050ca1aecaae6d3666ae1b402ab70b62dc15b4d5387aa8",
+  "predecessor_binding_sha256": "f703651bda6e515bc9db1e116dd31e11d49eb049bf9b4f1320348fdd1c06da69",
+  "files": {
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "d255aecafa253fbfc172c4234a028ff73663d24c4ffdc685852e885d6b1c59e0",
+      "final_sha256": "40101ec8a53a42412a513cd80d0ca6282a8438e7c6edb61c286f857f08329fca",
+      "normalized_final_sha256": "40101ec8a53a42412a513cd80d0ca6282a8438e7c6edb61c286f857f08329fca"
+    },
+    "recompiler/v2/architecture_emission_policy.py": {
+      "predecessor_sha256": "3750d35323c1dde3a22163d54b815d905043fd3ca1969b45a81e0b81262384b0",
+      "final_sha256": "2fc95598a949796eadbe9e0536d734ea8f28b0b69e642b69c68d824f946dca48",
+      "normalized_final_sha256": "2fc95598a949796eadbe9e0536d734ea8f28b0b69e642b69c68d824f946dca48"
+    },
+    "recompiler/v2/architecture_rom_stack_dispatch_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "7e3adb0e3abbd7922795d211821283a7f1402b3a8b75404ce6297f621af20870",
+      "normalized_final_sha256": "7e3adb0e3abbd7922795d211821283a7f1402b3a8b75404ce6297f621af20870"
+    },
+    "recompiler/v2/architecture_task_member_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "f7221d42492de9cefbfa6c144f4ff2d929f55edbd056f962941832e30cc0bd11",
+      "normalized_final_sha256": "f7221d42492de9cefbfa6c144f4ff2d929f55edbd056f962941832e30cc0bd11"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "7aeaa852955b7ffc00227929b951246853e867ca0ad60fe3e7e2ad7416b5fec3",
+      "final_sha256": "da677da0416209d47de4890d53cfd281138cac971a5ef8fd42029af2361261fb",
+      "normalized_final_sha256": "da677da0416209d47de4890d53cfd281138cac971a5ef8fd42029af2361261fb"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "7ec0ceb9a7da852b2b0e8e4be598ab1d477802d3812549787ed13ab4e0c6491e",
+      "final_sha256": "feb6b56750a83b5d54f7bb20fbef5040e4e660317a73c32ec1d7e0571dbafff5",
+      "normalized_final_sha256": "feb6b56750a83b5d54f7bb20fbef5040e4e660317a73c32ec1d7e0571dbafff5"
+    },
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": "dabbc8102aa203baef0bda29e7bbcb211164c8c8e894f2bee7d4b1e8e2b61d09",
+      "final_sha256": "31958ec0c4a46993919eedc299c948d529686168429116f6f58f8e67380b9dc5",
+      "normalized_final_sha256": "31958ec0c4a46993919eedc299c948d529686168429116f6f58f8e67380b9dc5"
+    }
+  },
+  "cache_format": 46,
+  "normal_metadata": 31,
+  "task_metadata": 6,
+  "redirect_metadata": 1,
+  "source_proposal_sha256": "b6e9654149f5d4e78a4ebde06c83d403ab9767b34805584ffdc6184cbfa6af85",
+  "source_accounting_sha256": "a4eaac76d7e542a15608b91612bb4b95fdc911a2f5a5d76e463b7ff803db4475",
+  "root_review187_sha256": "5836d560df1d39564f2f0e70791bf801e4579f3ae2d8c6e8978fca440526ade7",
+  "root_review189_sha256": "a1b38e25ea4ba69fd7496697c65d117c61e0072bf57f78f6abec377b9355ead9",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "ROMword/DEC/PHA/RTS observational source target scopes and actual taskgraph canonical members; original roots/caller/exit/owner/CPU/clock/serialized state unchanged; expected metadata is compositional, not actual merged production."
+}

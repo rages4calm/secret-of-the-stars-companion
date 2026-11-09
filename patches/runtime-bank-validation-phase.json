@@ -1,0 +1,25 @@
+{
+  "patch_sha256": "300071a8f546481e2cf46b6633b33f2e23aa7bdfa1c4fb6f1f6380faf1270e5c",
+  "files": {
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "b01524a5dde6c6dc33c2f1c892c7472f972a91f0283c4c27657911c7b70a9487",
+      "final_sha256": "1ce84550475017f307203febbc2628c24f1947eb315e2e447688e086faceac42",
+      "normalized_final_sha256": "1ce84550475017f307203febbc2628c24f1947eb315e2e447688e086faceac42"
+    },
+    "recompiler/v2/architecture_emission_policy.py": {
+      "predecessor_sha256": "03b03cc98b0f5ff00cd782e676ad297fab63e3cf37140be83f1262f0c56782ce",
+      "final_sha256": "b443753488f60ac655a018f774a9b5d2193321efc8b8cbc95afa56e25034ca3f",
+      "normalized_final_sha256": "b443753488f60ac655a018f774a9b5d2193321efc8b8cbc95afa56e25034ca3f"
+    }
+  },
+  "predecessor_patch_sha256": "fd2b196c1d2438c3f499ebafd7afd21e210e6f6b8fb3212bef5c6d2740363498",
+  "predecessor_binding_sha256": "ccac7e4fe464432f34de70db4597e8f708ca5a4758d1fc9f48cef22a965ed77c",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "scope": "Reviewed502 bank validation batching only; original guards/owner/exit/bounds unchanged.",
+  "transport_note": "Added git diff file headers required by public-helper path verification; hunk content and reviewed source bytes unchanged."
+}

@@ -40,6 +40,7 @@ include(${SNESRECOMP_ROOT}/runner/runner.cmake)
 add_executable(SecretOfTheStarsSNESRecomp
     ${SNESRECOMP_RUNNER_SOURCES}
     src/main.c
+    src/foundation_native_backend.c
     src/host_contract.c
     src/game_rtl.c
     src/foundation_state.c
@@ -48,6 +49,7 @@ add_executable(SecretOfTheStarsSNESRecomp
     src/foundation_scale2x.c
     src/foundation_rules.c
     src/foundation_qol.c
+    src/foundation_shop.c
     src/foundation_hotkeys.c
     src/foundation_menu.c
     src/foundation_journal.c
@@ -135,3 +137,12 @@ snesrecomp_target_rom_cache(SecretOfTheStarsSNESRecomp)
 
 # Netplay is not built into this target.
 # No multitap: two seats, one controller per port.
+
+# Additional generated architectural program. Copyrighted generated game code
+# remains in the private build output; the original src/gen remains unchanged.
+set(SOTS_ARCH_NATIVE_SOURCE "" CACHE FILEPATH "Private architectural native program")
+if(NOT EXISTS "${SOTS_ARCH_NATIVE_SOURCE}")
+    message(FATAL_ERROR "Use tools/build_public_foundation.py to generate the architectural native program from your ROM")
+endif()
+target_sources(SecretOfTheStarsSNESRecomp PRIVATE "${SOTS_ARCH_NATIVE_SOURCE}")
+set_source_files_properties("${SOTS_ARCH_NATIVE_SOURCE}" PROPERTIES COMPILE_OPTIONS "-O1")

@@ -1,0 +1,21 @@
+{
+  "patch_sha256": "351e844aed03524d108657a4ed816f96f0a85c2228e7067eaff75ae9a5ae39e3",
+  "predecessor_patch_sha256": "2e46821d3759967fadc56c890d39e2928c99a197a9f517f97adb9be795f01d52",
+  "predecessor_binding_sha256": "e11538c1f2dbfc13a643eb1f8552c0e3c9f221a3f9e2f0bacce4b91d466a449c",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "a6c862d747c861dcec51249a78a99a1dd4ca68492c6a4448bcdfd6471d285b51",
+      "final_sha256": "13162dc1dfbbc5e68925a851b7964298821fee55cf784763fca6ac591af85215",
+      "normalized_final_sha256": "38162df6bf18120df1407037464d8855020e70a83c64df8316e34cfac03c9c02"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source626 exact-PC bounded item continuation architecture using existing physical stack bodies and real selector/capacity changes inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "frozen626_handoff_sha256": "9059e1cb1fc302a974a6a105b4a59fcd813c0f470747e917a9408ee0afd6f6be",
+  "frozen626_source_pins_sha256": "a2aedae1c6f49b790932bce4f45868c97816f602d1b6f4424f765e4517c5b34f"
+}

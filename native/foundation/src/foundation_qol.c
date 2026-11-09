@@ -2,6 +2,7 @@
  * ordinary player-walk operands. No global RAM-gain watcher, coordinate jump,
  * scheduler overclock or changed NPC/cutscene/music clock. */
 #include "foundation_qol.h"
+#include "foundation_shop.h"
 #include "foundation_hotkeys.h"
 #include "common_rtl.h"
 #include "cpu_state.h"
@@ -47,7 +48,9 @@ static void BeforeRandomEncounterBranch(CpuState *cpu, uint32_t pc) {
      * alter an encounter counter. This supports the routine's actual operand
      * semantics, while unsupported banks/modes/context retain original behavior. */
     int qualified = canonical == 0x019fc0 && (cpu->PB & 0x7f) == 1 &&
-        (cpu->DB & 0x7f) == 1 && !cpu->emulation && cpu->m_flag && cpu->x_flag &&
+        /* Observed DB01/02 (and81/82) read the same source-proved low WRAM mirror. */
+        ((cpu->DB & 0x7f) == 1 || (cpu->DB & 0x7f) == 2) &&
+        !cpu->emulation && cpu->m_flag && cpu->x_flag &&
         !cpu->_flag_D && cpu->D <= 0x1fde && g_ram[0x20] == 1 &&
         (g_ram[0x50f] & 0x80) && !(g_ram[0x409] & 0xc0) &&
         !(g_ram[cpu->D+0x21] & 0x80) && terrain < 16 && cpu->X == terrain;
@@ -99,6 +102,77 @@ static void BeforeVictory(CpuState *cpu, uint32_t pc) {
         "[foundation_qol_victory] frame=%d pc=%06X D=%04X DB=%02X M=%u Xf=%u mode=%u original_xp=%u scaled_xp=%u xp_percent=%u original_gold=%u scaled_gold=%u gold_percent=%u qualified=%d S=%04X\n",
         snes_frame_counter,pc,cpu->D,cpu->DB,cpu->m_flag,cpu->x_flag,g_ram[0x20],
         original_xp,scaled_xp,xp_percent,original_gold,scaled_gold,gold_percent,qualified,cpu->S);
+}
+
+/* The original B015 walk task calls B071 once before BOTH fixed-point
+ * integrators, and B044/B057..B06B ends/clears the exact tile step.  Keep a
+ * coherent per-frame delta in those original producer-owned vector fields.
+ * Snapshot/rollback therefore already carries the phase and selected delta;
+ * there is no unsaved host latch or new WRAM allocation. */
+static int32_t WalkVector(unsigned at) {
+    uint32_t v = g_ram[at] | (uint32_t)g_ram[at+1] << 8 |
+        (uint32_t)g_ram[at+2] << 16;
+    return (v & 0x800000) ? (int32_t)(v | 0xff000000u) : (int32_t)v;
+}
+static void SetWalkVectors(CpuState *cpu, unsigned at, int32_t x, int32_t y) {
+    uint32_t ux = (uint32_t)x & 0xffffffu, uy = (uint32_t)y & 0xffffffu;
+    /* Exactly the original three word destinations, including the word which
+     * straddles x sign/y fraction; never clobber an independent phase field. */
+    cpu_write16(cpu,0,(uint16_t)at,(uint16_t)ux);
+    cpu_write16(cpu,0,(uint16_t)(at+2),(uint16_t)((ux>>16) | (uy<<8)));
+    cpu_write16(cpu,0,(uint16_t)(at+4),(uint16_t)(uy>>8));
+}
+static void BeforeCoherentWalkVectors(CpuState *cpu, uint32_t pc) {
+    unsigned mode = g_ram[0x452], direction = g_ram[0x408] & 3;
+    int active_secondary = mode == 0x81 || mode == 0x82;
+    int qualified = movement_ready && pc == 0x01b071 &&
+        (mode == 0 || active_secondary) && g_ram[0x20] == 1 &&
+        cpu->D == 0x0b00 && cpu->DB == 1 && (cpu->PB & 0x7f) == 1 &&
+        !cpu->emulation && cpu->x_flag && !cpu->_flag_D &&
+        (g_ram[0x408] & 0xfc) == 0x80 && !g_ram[0x409] &&
+        g_ram[0x451] == 0x80 &&
+        g_ram[0x50c] == 0x80 &&
+        g_ram[0x50d] == (active_secondary ? 0x80 : 0);
+    if (!qualified) return;
+    unsigned axis = direction >= 2, at = axis ? 0x45c : 0x459;
+    int sign = (direction & 1) ? -1 : 1;
+    int32_t primary = WalkVector(at);
+    int32_t units = primary * sign;
+    /* Only integer 1..3-pixel ordinary vectors issued by this route. Other
+     * fractional/special/scripted vectors keep the original consumers. */
+    qualified = (units == 256 || units == 512 || units == 768) &&
+        !WalkVector(axis ? 0x459 : 0x45c);
+    unsigned divisor = mode == 0x82 ? 4 : 2;
+    if (active_secondary) qualified = qualified &&
+        WalkVector(axis ? 0x462 : 0x45f) == primary / (int32_t)divisor &&
+        !WalkVector(axis ? 0x45f : 0x462);
+    if (!qualified) return;
+    /* A lock/current can appear after a boosted frame. Coherent ordinary
+     * vectors must first return to their original unit value; declining boost
+     * must not leave yesterday's larger vector in the original consumer. */
+    int can_boost = !(g_ram[0x543] & 0x80) && !(g_ram[0x542] & 0x80) &&
+        !g_ram[0x527] && !Word(0x471) && !Word(0x473);
+    unsigned step = 1;
+    if (can_boost && FoundationHotkeysMovementHeld() && movement_percent > 100) {
+        uint64_t frame = (unsigned)snes_frame_counter;
+        step = (unsigned)(((frame+1)*movement_percent/100) -
+                          (frame*movement_percent/100));
+        unsigned position = Word(axis ? 0x2af : 0x2ad) & 15;
+        unsigned remaining = sign > 0 ? 16-position : position ? position : 16;
+        if (step > remaining) step = remaining;
+    }
+    int32_t desired = sign * (int32_t)step * 256;
+    /* Unheld/unit input does not write guest state at all. A release after a
+     * boosted frame normalizes before either consumer, preserving both phases. */
+    if (primary != desired) {
+        SetWalkVectors(cpu,0x459,axis ? 0 : desired,axis ? desired : 0);
+        if (active_secondary)
+            SetWalkVectors(cpu,0x45f,axis ? 0 : desired/(int32_t)divisor,
+                axis ? desired/(int32_t)divisor : 0);
+    }
+    if (trace) fprintf(stderr,
+        "[foundation_qol_coherent_walk] frame=%d pc=%06X mode=%02X direction=%u step=%u held=%d\n",
+        snes_frame_counter,pc,mode,direction,step,FoundationHotkeysMovementHeld());
 }
 
 static void BeforeWalkOperand(CpuState *cpu, uint32_t pc) {
@@ -171,6 +245,7 @@ static unsigned Environment(const char *name, unsigned value, unsigned maximum) 
 void FoundationQolInit(void) {
     if (initialized) return;
     initialized = 1;
+    FoundationShopInit();
     FILE *file = fopen("foundation.ini", "r");
     char line[160], key[80]; unsigned value;
     if (file) {
@@ -199,10 +274,26 @@ void FoundationQolInit(void) {
         (xp_percent == 100 && gold_percent == 100 && !trace ? 1 :
          interp_bridge_add_pre_opcode_hook(0x00ae9b,BeforeVictory));
     if (!reward_ready) xp_percent = gold_percent = 100;
-    movement_ready = OriginalBytes(0x01b073,x_code,sizeof(x_code)) &&
+    static const unsigned char walk_entry[] = {0xc2,0x20,0xad,0x5a,0x04};
+    static const unsigned char walk_primary_producer[] = {
+        0xc2,0x20,0xa5,0x00,0x8d,0x59,0x04,0xa5,0x02,0x8d,0x5b,0x04,0xa5,0x04,0x8d,0x5d,0x04,0xe2,0x20};
+    static const unsigned char walk_secondary_producer[] = {
+        0xe2,0x20,0xad,0x52,0x04,0xc9,0x82,0xf0,0x06,0xc2,0x20,0x06,0x00,0x06,0x03,
+        0xc2,0x20,0xa5,0x00,0x8d,0x5f,0x04,0xa5,0x02,0x8d,0x61,0x04,0xa5,0x04,0x8d,0x63,0x04,0x60};
+    static const unsigned char walk_unit_vectors[] = {1,0,255,255,0,0,0,0,1,0,255,255};
+    static const unsigned char walk_call[] = {0xad,0x27,0x05,0xd0,0xf1,0x22,0x03,0xb0,0x01};
+    static const unsigned char walk_completion[] = {0xbd,0xad,0x02,0x29,0x0f,0xd0,0x23,0xa9,0xff,0x8d,0x08,0x04};
+    movement_ready = OriginalBytes(0x01b071,walk_entry,sizeof(walk_entry)) &&
+        OriginalBytes(0x01b01f,walk_call,sizeof(walk_call)) &&
+        OriginalBytes(0x01b044,walk_completion,sizeof(walk_completion)) &&
+        OriginalBytes(0x019252,walk_primary_producer,sizeof(walk_primary_producer)) &&
+        OriginalBytes(0x019294,walk_secondary_producer,sizeof(walk_secondary_producer)) &&
+        OriginalBytes(0x0192b5,walk_unit_vectors,sizeof(walk_unit_vectors)) &&
+        OriginalBytes(0x01b073,x_code,sizeof(x_code)) &&
         OriginalBytes(0x01b0ac,y_code,sizeof(y_code)) &&
         OriginalBytes(0x01b137,secondary_x_code,sizeof(secondary_x_code)) &&
         OriginalBytes(0x01b13f,secondary_y_code,sizeof(secondary_y_code)) &&
+        interp_bridge_add_pre_opcode_hook(0x01b071,BeforeCoherentWalkVectors) &&
         interp_bridge_add_pre_opcode_hook(0x01b076,BeforeWalkOperand) &&
         interp_bridge_add_pre_opcode_hook(0x01b0af,BeforeWalkOperand) &&
         interp_bridge_add_pre_opcode_hook(0x01b139,BeforeWalkOperand) &&

@@ -1,0 +1,44 @@
+{
+  "patch_sha256": "c5a298a4f6bac9f9c95747047901f73ea9422c4ff234bfab0530b7e537010d5a",
+  "predecessor_patch_sha256": "fcd51c1bb5860e0f236ba96df4e5c73e0dc0094e739ddfc9af055b07665be4b6",
+  "predecessor_binding_sha256": "a350b2a2f8af298d4f344999ac4c3540130ca442bb2fedd15f9fb86fd9ebbb8c",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_baseline_view.py": {
+      "predecessor_sha256": "92a8421e334c4abedf4bf6f22119a36ca0b3b22a3cd1feea34332e07f5122ab9",
+      "final_sha256": "aeb1c31f32d2a1e6a002939b71abc0475406a5733cc338e4024270aed00bd8fd",
+      "normalized_final_sha256": "aeb1c31f32d2a1e6a002939b71abc0475406a5733cc338e4024270aed00bd8fd"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "9176de41ab28da31d61528ba74296683ce4705c9996e109c2d6da6e9709e3124",
+      "final_sha256": "b01524a5dde6c6dc33c2f1c892c7472f972a91f0283c4c27657911c7b70a9487",
+      "normalized_final_sha256": "b01524a5dde6c6dc33c2f1c892c7472f972a91f0283c4c27657911c7b70a9487"
+    },
+    "recompiler/v2/architecture_emission_policy.py": {
+      "predecessor_sha256": "6cc7de850ef4d0aa54b23ade5afd87576f765d9566d4706584669775ed357150",
+      "final_sha256": "03b03cc98b0f5ff00cd782e676ad297fab63e3cf37140be83f1262f0c56782ce",
+      "normalized_final_sha256": "03b03cc98b0f5ff00cd782e676ad297fab63e3cf37140be83f1262f0c56782ce"
+    },
+    "recompiler/v2/architecture_ff20_architectural_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "96716cda187f0cdf4013d50c7370eab00a3d6910a29f32d3f0d226456bd4b57c",
+      "normalized_final_sha256": "96716cda187f0cdf4013d50c7370eab00a3d6910a29f32d3f0d226456bd4b57c"
+    },
+    "recompiler/v2/architecture_ff20_byte_dispatch_sources.py": {
+      "predecessor_sha256": "4184f42c10f04ee31fe605aca1496099cb1dd416c7a126aad13e331ad6c9aea7",
+      "final_sha256": "93c490ba45f897109e92ee9e67968a629c0cc0d6f02ed05a677f54829518f44c",
+      "normalized_final_sha256": "93c490ba45f897109e92ee9e67968a629c0cc0d6f02ed05a677f54829518f44c"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "109e83f3d7c89c79a74ee6e870cb0ebae2180cd60ede0cfa14af0ac08a77ef02",
+      "final_sha256": "a3842e4598d5678f88f7b0aada2a6977926818a94a4d1a7a6c448a28d27ac14e",
+      "normalized_final_sha256": "a3842e4598d5678f88f7b0aada2a6977926818a94a4d1a7a6c448a28d27ac14e"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "383v5 original issued FF20 architectural-chain source; same128/504/depth8 ledger and raw current-source validation; original masks, producer/packet/DMA/raster and task ownership preserved, no new root/callee-exit/owner/history authority. Population unknown."
+}

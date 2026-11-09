@@ -1,0 +1,189 @@
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -376,6 +376,64 @@
+   uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
+   interp816_arch_rtl(cpu);
+   interp_bridge_source_call_interp_exit(cpu, source, 0x6b);
++  return cpu->cyclesUsed;
++}
++
++/* Original stack opcode bodies shared verbatim. No saved-P reconstruction,
++ * synthetic frame, return certificate or future history/owner grant. */
++static void interp816_arch_php(Interp816 *cpu) {
++      interp816_pushByte(cpu, interp816_getFlags(cpu));
++}
++static void interp816_arch_pha(Interp816 *cpu) {
++      if(cpu->mf) {
++        interp816_pushByte(cpu, (uint8_t)cpu->a);
++      } else {
++        cpu->cyclesUsed++; // m = 0: 1 extra cycle
++        interp816_pushWord(cpu, cpu->a);
++      }
++}
++static void interp816_arch_pla(Interp816 *cpu) {
++      if(cpu->mf) {
++        cpu->a = (cpu->a & 0xff00) | interp816_pullByte(cpu);
++      } else {
++        cpu->cyclesUsed++; // 16-bit m: 1 extra cycle
++        cpu->a = interp816_pullWord(cpu);
++      }
++      interp816_setZN(cpu, cpu->a, cpu->mf);
++}
++static void interp816_arch_plp(Interp816 *cpu) {
++      interp816_setFlags(cpu, interp816_pullByte(cpu));
++}
++int interp816_native_php(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x08)) return 0;
++  cpu->cyclesUsed = 3;
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_php(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x08);
++  return cpu->cyclesUsed;
++}
++int interp816_native_pha(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x48)) return 0;
++  cpu->cyclesUsed = 3;
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_pha(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x48);
++  return cpu->cyclesUsed;
++}
++int interp816_native_pla(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x68)) return 0;
++  cpu->cyclesUsed = 4;
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_pla(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x68);
++  return cpu->cyclesUsed;
++}
++int interp816_native_plp(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x28)) return 0;
++  cpu->cyclesUsed = 4;
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_plp(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x28);
+   return cpu->cyclesUsed;
+ }
+ 
+@@ -1165,7 +1223,7 @@
+       break;
+     }
+     case 0x08: { // php imp
+-      interp816_pushByte(cpu, interp816_getFlags(cpu));
++      interp816_arch_php(cpu);
+       break;
+     }
+     case 0x09: { // ora imm(m)
+@@ -1351,7 +1409,7 @@
+       break;
+     }
+     case 0x28: { // plp imp
+-      interp816_setFlags(cpu, interp816_pullByte(cpu));
++      interp816_arch_plp(cpu);
+       break;
+     }
+     case 0x29: { // and imm(m)
+@@ -1554,12 +1612,7 @@
+       break;
+     }
+     case 0x48: { // pha imp
+-      if(cpu->mf) {
+-        interp816_pushByte(cpu, (uint8_t)cpu->a);
+-      } else {
+-        cpu->cyclesUsed++; // m = 0: 1 extra cycle
+-        interp816_pushWord(cpu, cpu->a);
+-      }
++      interp816_arch_pha(cpu);
+       break;
+     }
+     case 0x49: { // eor imm(m)
+@@ -1756,13 +1809,7 @@
+       break;
+     }
+     case 0x68: { // pla imp
+-      if(cpu->mf) {
+-        cpu->a = (cpu->a & 0xff00) | interp816_pullByte(cpu);
+-      } else {
+-        cpu->cyclesUsed++; // 16-bit m: 1 extra cycle
+-        cpu->a = interp816_pullWord(cpu);
+-      }
+-      interp816_setZN(cpu, cpu->a, cpu->mf);
++      interp816_arch_pla(cpu);
+       break;
+     }
+     case 0x69: { // adc imm(m)
+diff --git a/runner/src/snes/interp816.h b/runner/src/snes/interp816.h
+--- a/runner/src/snes/interp816.h
++++ b/runner/src/snes/interp816.h
+@@ -85,6 +85,10 @@
+ int      interp816_native_jsl(Interp816 *cpu);
+ int      interp816_native_rts(Interp816 *cpu);
+ int      interp816_native_rtl(Interp816 *cpu);
++int      interp816_native_php(Interp816 *cpu);
++int      interp816_native_pha(Interp816 *cpu);
++int      interp816_native_pla(Interp816 *cpu);
++int      interp816_native_plp(Interp816 *cpu);
+ int      interp816_runOpcode(Interp816 *cpu);   /* runs one opcode; returns cycles */
+ uint8_t  interp816_getFlags(Interp816 *cpu);
+ void     interp816_setFlags(Interp816 *cpu, uint8_t val);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -497,6 +497,7 @@
+ typedef struct NativeControlSite {
+     uint32_t pc24; uint8_t bytes[4], length;
+     const int *enabled; uint64_t completed; int (*step)(Interp816 *);
++    uint8_t stack_mode; /*0legacycontrol,1M0,2M1,3PHP/PLP anyM*/
+ } NativeControlSite;
+ static NativeControlSite s_native_control_sites[32];
+ static unsigned s_native_control_site_count;
+@@ -518,6 +519,25 @@
+                bytes[0]==0x60?interp816_native_rts:interp816_native_rtl;
+     return true;
+ }
++/* Only source-registered stack instructions, never implicit general decoding.
++ * Legacy CALL/return registrations remain unchanged with stack_mode=0. */
++bool interp_bridge_add_native_stack_site(uint32_t pc, uint8_t opcode,
++                                         unsigned m, const int *enabled) {
++    if (!enabled || pc>0xffffff || (pc&0xffff)<0x8000 ||
++        (pc>>16)==0x7e || (pc>>16)==0x7f ||
++        ((opcode==0x48 || opcode==0x68) ? m>1 :
++         (opcode==0x08 || opcode==0x28) ? m!=2 : true) ||
++        s_native_control_site_count==32 || s_pre_opcode_callback_cpu ||
++        s_native_instruction_cpu || s_interp_bus_timing_active) return false;
++    for(unsigned n=0;n<s_native_control_site_count;++n)
++        if(s_native_control_sites[n].pc24==pc)return false;
++    NativeControlSite *site=&s_native_control_sites[s_native_control_site_count++];
++    site->pc24=pc;site->bytes[0]=opcode;site->length=1;site->enabled=enabled;
++    site->stack_mode=(uint8_t)(m+1);
++    site->step=opcode==0x08?interp816_native_php:opcode==0x48?interp816_native_pha:
++               opcode==0x68?interp816_native_pla:interp816_native_plp;
++    return true;
++}
+ uint64_t interp_bridge_native_control_site_count(uint32_t pc) {
+     for (unsigned n=0;n<s_native_control_site_count;++n)
+         if (s_native_control_sites[n].pc24==pc)return s_native_control_sites[n].completed;
+@@ -530,6 +550,8 @@
+     for (unsigned n=0;n<s_native_control_site_count;++n) {
+         NativeControlSite *site=&s_native_control_sites[n];
+         if (site->pc24!=pc || *site->enabled!=1 || site->bytes[0]!=opcode)continue;
++        if(site->stack_mode && site->stack_mode<3 &&
++           (in->mf?1u:0u)!=(unsigned)(site->stack_mode-1))return 0;
+         const uint8_t *source=RomPtr(pc);
+         if(!source || memcmp(source,site->bytes,site->length))return 0;
+         int cycles=site->step(in);
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -316,4 +316,10 @@
+                                            unsigned length, const int *enabled);
+ uint64_t interp_bridge_native_control_site_count(uint32_t pc24);
+ 
++/* Exact one-byte PHP/PHA/PLA/PLP source sites. expected_m=0/1 is mandatory
++ * for PHA/PLA; expected_m=2 for input-width-independent PHP/PLP. Full original
++ * supervisor and physical bus/stack helpers are retained. Static gate lifetime. */
++bool interp_bridge_add_native_stack_site(uint32_t pc24, uint8_t opcode,
++                                         unsigned expected_m, const int *enabled);
++
+ #endif /* INTERP_BRIDGE_H */

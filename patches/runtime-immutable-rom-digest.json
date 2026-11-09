@@ -1,0 +1,19 @@
+{
+  "patch_sha256": "baf5f1888836c49b988606e4533981d17db5d4f616e1cebd43ad2b0e38eb5d57",
+  "predecessor_patch_sha256": "3898eff444223ab0662a84f20f5b9c87bf763c5ca5539c4c527a024999184add",
+  "predecessor_binding_sha256": "2e843d5216d0e0790103f0de4b234a171652508d791d9a8592bbf10e4594a727",
+  "cache_format": 52,
+  "normal_metadata": 37,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_initial_task_sources.py": {
+      "predecessor_sha256": "0fe1b7380fd3db5f863fd30e9ac3e45d8ea12e02db48863a4cb4a6a751a47c2b",
+      "final_sha256": "fba1ffa36404665b1b054a041a9f6f3c106ca61750d3e9b996a0de0a237da8db",
+      "normalized_final_sha256": "fba1ffa36404665b1b054a041a9f6f3c106ca61750d3e9b996a0de0a237da8db"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Per-issued-registry exact builtin immutable bytes ROM digest reuse only, at original validation position. Mutable/subclass buffers retain fresh hash; all mutable graph/policy/manifest/IR/role/owner/receipt validation unchanged. No source admission or runtime C/ABI changes."
+}

@@ -1,0 +1,113 @@
+diff --git a/runner/src/common_rtl.c b/runner/src/common_rtl.c
+--- a/runner/src/common_rtl.c
++++ b/runner/src/common_rtl.c
+@@ -2224,7 +2224,7 @@
+ void RtlAudioSetFastForwardCadence(double speed) {
+   if (!isfinite(speed)) speed=1.0;
+   if (speed<0.1) speed=0.1;
+-  if (speed>2.0) speed=2.0;
++  if (speed>4.0) speed=4.0;
+   RtlApuLock();
+   g_audio_ff_target=g_audio_fast_forward ? speed : 1.0;
+   RtlApuUnlock();
+@@ -2372,7 +2372,7 @@
+   /* Natives to advance per output frame: the rate ratio, trimmed by the servo. */
+   g_audio_ff_speed=rtl_audio_tempo_step(g_audio_ff_speed,g_audio_ff_target,frames,s_render_output_rate);
+   double ratio = (RTL_AUDIO_NATIVE_RATE / s_render_output_rate) * servo * g_audio_ff_speed;
+-  if(g_audio_fast_forward) ratio=fmin(ratio,2.0*RTL_AUDIO_NATIVE_RATE/s_render_output_rate);
++  if(g_audio_fast_forward) ratio=fmin(ratio,4.0*RTL_AUDIO_NATIVE_RATE/s_render_output_rate);
+ 
+   /* Natives spanned by this request, including the carried phase. The last
+    * output frame interpolates between floor(pos) and floor(pos)+1, so one
+diff --git a/runner/src/common_rtl.h b/runner/src/common_rtl.h
+--- a/runner/src/common_rtl.h
++++ b/runner/src/common_rtl.h
+@@ -302,7 +302,7 @@
+  * synchronization is automatic inside RtlRunFrame; clients only supply the
+  * presentation policy needed to discard stale PCM after fast-forward. */
+ void RtlAudioSetFastForward(bool active);
+-/* Output-only audible turbo; actual completed guest cadence, clamped to2x. */
++/* Output-only audible turbo; completed cadence excluding host audio-ring waits, clamped to4x. */
+ void RtlAudioSetFastForwardCadence(double speed);
+ /* Reset the netplay frame-locked SPC sample accumulator (call on session start). */
+ void RtlNetplayAudioReset(void);
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -253,21 +253,35 @@
+ static bool g_fast_forward_toggle;
+ /* Turbo remains one original guest frame per execution, with bounded host
+  * scheduling and independently timed latest-frame presentation. */
+-typedef struct HostTurboCadence { double start,periods; } HostTurboCadence;
++#define HOST_TURBO_SPEED 4.0
++/* Only the main-thread producer updates this host-output wait total. The
++ * callback has its own thread-local producer flag and never enters that wait. */
++static double g_audio_backpressure_seconds;
++typedef struct HostTurboCadence { double start,periods,audio_wait_start; } HostTurboCadence;
+ static unsigned g_audio_timeline_epoch;
+ static void HostTurboCadenceReset(HostTurboCadence *c,double now) {
+-  *c=(HostTurboCadence){now,0};
++  *c=(HostTurboCadence){now,0,g_audio_backpressure_seconds};
+ }
+ static double HostTurboCadenceCompleted(HostTurboCadence *c,double now,double periods,double hz) {
+   c->periods+=periods;
+   double elapsed=now-c->start;
+   if(elapsed<0.05)return 0;
+-  double speed=c->periods/(elapsed*hz);
++  /* Ring backpressure is caused by the current output tempo. Feeding that
++   * wait back as a throughput limit can hold turbo near its previous tempo.
++   * Exclude ONLY time actually spent waiting on that ring; ordinary frame
++   * deadlines, guest work, raster capture and display cost still count. */
++  double audio_wait=fmax(0.0,g_audio_backpressure_seconds-c->audio_wait_start);
++  double work_elapsed=fmax(0.000001,elapsed-audio_wait);
++  double speed=c->periods/(work_elapsed*hz);
++  if (HostGetenv("TURBO_CADENCE_TRACE"))
++    fprintf(stderr,"[turbo_cadence] target=%.3f wall_speed=%.6f audio_wait_seconds=%.6f audio_tempo=%.6f periods=%.6f seconds=%.6f\n",
++        HOST_TURBO_SPEED,c->periods/(elapsed*hz),audio_wait,
++        fmax(0.1,fmin(HOST_TURBO_SPEED,speed)),c->periods,elapsed);
+   HostTurboCadenceReset(c,now);
+-  return fmax(0.1,fmin(2.0,speed));
++  return fmax(0.1,fmin(HOST_TURBO_SPEED,speed));
+ }
+ static void HostTurboSimulationDone(SnesHostClock *c,double now,double periods) {
+-  /* No repayment burst, and no extra sleep after a host that cannot meet2x.
++  /* No repayment burst, and no extra sleep after a host that cannot meet the turbo target.
+    * Ordinary slow-frame debt policy is intentionally unchanged. */
+   double deadline=c->next_simulation+periods/c->simulation_hz;
+   snes_host_clock_simulation_done(c,now,false,periods);
+@@ -2251,7 +2265,8 @@
+     /* Fast hosts can generate a multi-frame loader's PCM in milliseconds.
+      * Let the device drain it before the bounded ring overflows. Always
+      * release the mutex while waiting, and stop waiting if the device stalls. */
+-    double limit = MonotonicSeconds() + 0.25;
++    double wait_started = MonotonicSeconds();
++    double limit = wait_started + 0.25;
+     while (dsp_available(g_snes->apu->dsp) > HOST_AUDIO_HIGH_WATER) {
+       SDL_UnlockMutex(g_audio_mutex);
+       SDL_Delay(1);
+@@ -2265,6 +2280,7 @@
+         break;
+       }
+     }
++    g_audio_backpressure_seconds += fmax(0.0,MonotonicSeconds()-wait_started);
+   }
+   SDL_UnlockMutex(g_audio_mutex);
+ }
+@@ -2510,7 +2526,7 @@
+       RtlAudioSetFastForward(*video_turbo);
+       RtlAudioSetFastForwardCadence(1.0);
+       HostTurboCadenceReset(turbo_cadence,video_now);
+-      snes_host_clock_reset(video_clock,video_now,g_simulation_hz*(*video_turbo?2.0:1.0),*video_turbo?60.0:presentation_hz);
++      snes_host_clock_reset(video_clock,video_now,g_simulation_hz*(*video_turbo?HOST_TURBO_SPEED:1.0),*video_turbo?60.0:presentation_hz);
+       if(g_renderer) snesrecomp_sdl_set_render_vsync(g_renderer,VSyncInterval());
+       snesrecomp_opengl_set_vsync(VSyncInterval());
+       if(g_config.output_method==kOutputMethod_OpenGL) SDL_GL_SetSwapInterval(VSyncInterval());
+@@ -4223,7 +4239,7 @@
+       next_display_check = video_now + 0.25;
+     }
+     if (g_reset_clock) {
+-      snes_host_clock_reset(&video_clock, video_now, g_simulation_hz*(g_turbo?2.0:1.0),g_turbo?60.0:presentation_hz);
++      snes_host_clock_reset(&video_clock, video_now, g_simulation_hz*(g_turbo?HOST_TURBO_SPEED:1.0),g_turbo?60.0:presentation_hz);
+       HostTurboCadenceReset(&turbo_cadence,video_now);
+       RtlAudioSetFastForward(g_turbo);
+       RtlAudioSetFastForwardCadence(1.0);

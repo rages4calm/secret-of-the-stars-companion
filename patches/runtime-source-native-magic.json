@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "180832ebe3ca609374a0e6190506173d75d03bacb1e10dafab57c28c9fae0cc4",
+  "predecessor_patch_sha256": "0835e0fdf4590c44c6076324ac2c58696290ce4b6f9035c0139e639a17a01444",
+  "predecessor_binding_sha256": "9829338a6d40212466a5f8f0b780f6347b123fbc3fbca0f65698ddfb8aa3a923",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "0fe3926500ee40725820cb812795b62a898e7df7365603b922227fb0c2787dbb",
+      "final_sha256": "6752fba37a0000b0ab834f4312b33a71ff3ee479edb5dec090f4836ca008af06",
+      "normalized_final_sha256": "d404eb2b07a2a6fe360eb896c579d51c965e3681463c0c8a8da4496e56de1998"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "bc17579137f49098d12c6bacfdddddda263c8af4bb13a2d4c20aca2a8969772b",
+      "final_sha256": "b1e5208583c974ef7a334e350142d5387b2d7c67258a38807dea618b216434f3",
+      "normalized_final_sha256": "a92699d741ce6c3d7c42137ef8a6f47141f1cb52ea23033a287b3961488040c7"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "53f32ed0f440f505d8b37e022c090319c55146b409b345dd6e5ebbbede402e52",
+      "final_sha256": "8378c0df68ff23fdbbd11268782160cfe1ce59363a6943f82f1e90f244bcbe51",
+      "normalized_final_sha256": "f6e56f92ba2ad38c5e55d527d7453e328d63165f08b55fd80e1af9f5aca5e414"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source685 bounded magic controller/rank/cost/target/cast helpers with original AND long,X and ADC long,X bodies. Original supervisor, physical bus/stack/timing, task/redirect owners and refusal rules retained. Existing677 explicit disjoint-mode and per-gate counter APIs remain unchanged. No generator/serialized/five-file execution ABI/CFG/root/owner/exit changes. Source-only branches remain separate from exact-artifact execution.",
+  "frozen685_handoff_sha256": "f812771847dbd805a0951d99d1b163eb8d4f57e2d7f552a59eb60f4adb1ba1aa",
+  "frozen685_source_pins_sha256": "85eba6362aa70e6de7b908fa972428f0f1a92234c9ae1ff0a0aee705e07d1650"
+}

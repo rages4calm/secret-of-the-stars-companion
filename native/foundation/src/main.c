@@ -40,6 +40,7 @@
 #include "foundation_column_lookup.h"
 #include "foundation_wide_actors.h"
 #include "foundation_hotkeys.h"
+#include "foundation_native_backend.h"
 #include "snesrecomp_rom_identity.h"  /* generated from rom_identity.txt */
 
 #ifndef __ANDROID__
@@ -81,6 +82,7 @@ static void FoundationBeforeFrame(void) {
     FoundationClearBeforeFrame();
     FoundationColumnLookupBeforeFrame();
     FoundationWideActorsBeforeFrame();
+    FoundationNativeBackendBeforeFrame();
 }
 static void FoundationAfterFrame(const SnesDesktopHostFrameStats *stats) {
     FoundationPresentationAfterFrame(stats);
@@ -89,6 +91,7 @@ static void FoundationAfterFrame(const SnesDesktopHostFrameStats *stats) {
     FoundationMapPointsAfterFrame((int)FoundationJournalDestinationState(g_ram, 0x20000));
 }
 static void FoundationReset(void) {
+    FoundationNativeBackendReset();
     FoundationHotkeysReset();
     FoundationPresentationReset();
     FoundationJournalReset();
@@ -121,6 +124,7 @@ static const SnesDesktopHostGame kGameHost = {
     .game_info           = &kGameInfo,
     .num_players         = 1,
     .after_config        = FoundationAfterConfig,
+    .on_rom_loaded       = FoundationNativeBackendOnRom,
     .before_run_frame    = FoundationBeforeFrame,
     .on_reset            = FoundationReset,
     .on_shutdown         = FoundationShutdown,
@@ -141,6 +145,7 @@ static const SnesDesktopHostGame kGameHost = {
 #endif
 int main(int argc, char **argv)
 {
+    FoundationNativeBackendConfigure();
     ConfigUseFoundationHotkeyDefaults();
     return snesrecomp_desktop_main(&kGameHost, argc, argv);
 }

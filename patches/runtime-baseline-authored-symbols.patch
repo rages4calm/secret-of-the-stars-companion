@@ -1,0 +1,23 @@
+diff --git a/tools/v2_emit.py b/tools/v2_emit.py
+--- a/tools/v2_emit.py
++++ b/tools/v2_emit.py
+@@ -401,8 +401,8 @@
+         enable_native_mode_successors=args.native_mode_successors,
+     )
+     if args.architecture_discovery_baseline:
+-        if not args.profile_manifest or not args.cfg_roots or not args.no_host_root_scan or host_roots or ram_routine_roots or symbol_roots or args.disassembly_entry_modes:
+-            parser.error('baseline architecture requires explicit profiles+CFG roots, no host/RAM/symbol/disassembly extra roots')
++        if not args.profile_manifest or not args.cfg_roots or not args.no_host_root_scan or host_roots or ram_routine_roots or args.disassembly_entry_modes:
++            parser.error('baseline architecture requires explicit profiles+CFG roots, no host/RAM/disassembly extra roots; original authored symbol roots retained')
+         analysis_input_digest=hashlib.sha256((analysis_input_digest+'\0architecture-baseline-source-v1').encode()).hexdigest()
+     cached = None if args.architecture_discovery_baseline else _verified_cached_stats(out_dir, analysis_input_digest)
+     if cached is not None and not args.no_link_closure_check:
+@@ -446,7 +446,7 @@
+     architecture_baseline=None
+     if args.architecture_discovery_baseline:
+         from v2.architecture_baseline_view import prepare_from_original_source
+-        architecture_baseline=prepare_from_original_source(rom=rom,rom_path=args.rom,cfg_dir=cfg_dir,parsed=parsed,profiled=manifest,profiled_helpers=helpers,profiled_inline_args=inline_args,baseline_roots=tuple(reviewed.roots)if reviewed else (),reviewed_source_sha256=reviewed.source_sha256 if reviewed else None,native_executable=native_path,all_cfg_roots=args.cfg_roots,force_lle=profile_force_lle,max_insns=args.max_insns,max_nodes=args.max_nodes,certify_converged_exits=args.certify_converged_exits,certify_native_continuations=args.certify_native_continuations,faithful_prefixes=args.faithful_prefixes,enable_hle=not args.no_hle,enable_native_call_prefix=args.native_direct_call_prefix,enable_native_mode_successors=args.native_mode_successors)
++        architecture_baseline=prepare_from_original_source(rom=rom,rom_path=args.rom,cfg_dir=cfg_dir,parsed=parsed,profiled=manifest,profiled_helpers=helpers,profiled_inline_args=inline_args,baseline_roots=tuple(sorted(set(symbol_roots)|(set(reviewed.roots)if reviewed else set()))),reviewed_source_sha256=reviewed.source_sha256 if reviewed else None,native_executable=native_path,all_cfg_roots=args.cfg_roots,force_lle=profile_force_lle,max_insns=args.max_insns,max_nodes=args.max_nodes,certify_converged_exits=args.certify_converged_exits,certify_native_continuations=args.certify_native_continuations,faithful_prefixes=args.faithful_prefixes,enable_hle=not args.no_hle,enable_native_call_prefix=args.native_direct_call_prefix,enable_native_mode_successors=args.native_mode_successors)
+     result = emit_program(
+         rom=rom,
+         parsed=parsed,

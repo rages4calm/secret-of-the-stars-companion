@@ -1,0 +1,40 @@
+{
+  "patch_sha256": "71c532452f0a21978c360efe920bdfe94c66e621a4a430dc9453c97c2b8b72c7",
+  "files": {
+    "snesrecomp_cli.py": {
+      "predecessor_sha256": "9ba8a35b1062d64970f9a194dd1bc70578e0f2a6ccf675afdd94874aba561b8b",
+      "final_sha256": "cad23b7116741ebe7ecd205912a83186d2da52c07f30b3d5e94f0dc3552e09ae",
+      "normalized_final_sha256": "cad23b7116741ebe7ecd205912a83186d2da52c07f30b3d5e94f0dc3552e09ae"
+    },
+    "tools/build_native_analyzer.py": {
+      "predecessor_sha256": "e222ce5e5a0ae8318e4e96a2e5333e8a8cbd3b4bc550771da6c339f61f2298d5",
+      "final_sha256": "9f0eef08ad1232b763eab565fe0f16866e0d9dfa2d50e240a15683d077bec1a5",
+      "normalized_final_sha256": "9f0eef08ad1232b763eab565fe0f16866e0d9dfa2d50e240a15683d077bec1a5"
+    },
+    "tools/native_analyzer_identity.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "4ab6c1f6c1cb089a300b48433129bf4a454dbd73966e25fcf8a7c5f393394372",
+      "normalized_final_sha256": "4ab6c1f6c1cb089a300b48433129bf4a454dbd73966e25fcf8a7c5f393394372"
+    },
+    "tools/v2_analyze.py": {
+      "predecessor_sha256": "a6822404005b08641ba2f2ff217acf4e721c2409eb48401c8560b40a8123924f",
+      "final_sha256": "169683de80a6e78edf8f9ab17b09fc51269acf4ca041eef78d04b8946e73fe7b",
+      "normalized_final_sha256": "169683de80a6e78edf8f9ab17b09fc51269acf4ca041eef78d04b8946e73fe7b"
+    }
+  },
+  "upstream": {
+    "pr": 210,
+    "merge_commit": "68896b6fa93b47c9fa1ca68f0c9c2ef889969839",
+    "selected_only": true
+  },
+  "predecessor_patch_sha256": "5905a828635eab8e4d38726008efb15c066539c637ffc639ac11547d46dce4ad",
+  "predecessor_binding_sha256": "bf04e845fb54ef3842add245868dfff6d95e47650e6b7f76505390beda97991e",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "scope": "Selective original upstream PR210 analyzer source identity/CLI correction only; no analyzer algorithm, emitter, owner, root, ROM, native CPU body or execution ABI changes.",
+  "transport_note": "Exact official core.autocrlf checkout raw predecessor; existing helper normalizes only after authenticating rawbytes. Source hunks/finals unchanged."
+}

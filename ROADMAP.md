@@ -1,6 +1,6 @@
 # Roadmap
 
-The [0.5.4 update](docs/FOUNDATION-NATIVE-CALLABLE-PROGRESS-2026-10-14.md) advances original-owned native call/return execution and callable progress. Full native/AOT conversion remains unfinished; finite exact-artifact checks and delivery stay separate.
+The [native 0.5.6 WIP update](docs/NATIVE-PROGRESS-0.5.6.md) advances original game execution through native update 105 / source 134. The complete late-game laboratory event now runs without the 103 fallback calls found in its preceding build, with exact state, clocks and audio preserved. Separate staged checks cover four growing-town layouts and original builder recruitment without fallback. Full native/AOT conversion remains unfinished; players provide campaign feedback.
 
 The target is a polished, editable Windows PC edition with attractive original
 pixels, true wider scenery/actors, reliable controls/audio and a useful journal.
@@ -8,7 +8,7 @@ The port recompiles original instructions through the pinned whole-program
 analyzer/emitter and retains original execution where it cannot yet prove a
 supported path. Reviewed entry metadata and proved prefixes now broaden that
 automatic generation through normal Setup. Complete native/AOT execution
-remains a major unfinished task; authored presentation and guidance features
+remains unfinished; authored presentation and guidance features
 have their own bounded coverage.
 
 The [native0.5.1 continuation/effect bundle](docs/FOUNDATION-NATIVE-TRAVEL-CONTINUATIONS-2026-10-12.md) adds source-certified stack/return/addressing and selected-task/redirect continuations, authenticated active82 variable effects and dormant observer performance repair. Exact finite execution, visible rendering, keyboard/indexed-pad, paced audio, installation and source-profile checks remain separate. Complete native/AOT and remaining rendering/native work are unfinished.
@@ -91,7 +91,7 @@ The navigation map retains original area terrain, player position, towns and ind
 
 ## 4. Audio and presentation polish
 
-Companion 0.3.3 adds exact Auto/720p–4K window selection and original CRT/square-pixel/square-frame shape controls, preserving custom values and unrelated settings. The installed modal/audio repair uses genuine guest DSP prefill and one-shot keyboard rewind requests; nine modal routes pass. Separate pacing qualifies 15 distinct routes in 19 attempts: 13 passed initially, then the two failed routes and two controls passed unchanged-artifact repeats. Initial failures remain retained without an inferred cause. Extend finite scene/cutscene coverage and complete the separately recorded ROM-free package stage.
+Companion 0.3.3 adds exact Auto/720pâ€“4K window selection and original CRT/square-pixel/square-frame shape controls, preserving custom values and unrelated settings. The installed modal/audio repair uses genuine guest DSP prefill and one-shot keyboard rewind requests; nine modal routes pass. Separate pacing qualifies 15 distinct routes in 19 attempts: 13 passed initially, then the two failed routes and two controls passed unchanged-artifact repeats. Initial failures remain retained without an inferred cause. Extend finite scene/cutscene coverage and complete the separately recorded ROM-free package stage.
 
 Keep enhanced original pixels and experimental widescreen moving toward a
 consistent whole-game presentation. A replacement HD world/sprite pack is
@@ -103,19 +103,18 @@ Extend the standard analyzer and faithful backend from authentic original
 entry/mode evidence. Preserve hard data exclusions, unknown-call returns,
 registered producer hooks, original instruction/bus timing and complete
 checkpoint equality. Qualify new supported contexts with original/native
-comparisons across both parties, town changes and story transitions. The
-current generated contexts, prefixes and 18 continuation certificates describe
-generation only;
-full game execution and the remaining backend/refusal cases are still open.
+comparisons across both parties, town changes and story transitions. Published native keys and source certificates describe supported guarded contexts,
+not a whole-game percentage. Continue from newly observed original paths; keep
+source-only additions distinct from executed and exact-artifact-qualified work.
 
 ## 6. Player testing and focused developer checks
 
 The owner and play testers verify the campaign, navigation directions, party
 progression and evolving town during play. Report a checkpoint context and the
 incorrect step when possible. Developers implement corrections and run focused
-rendering, input, restoration and playback checks on protected copies.
+rendering, input, restoration and playback checks in isolated test profiles.
 
 Physical controller variation, listening, long sessions and broad story/effect
 coverage remain open. A manually complete guide and player-selected marker do not certify full campaign
 execution or every renderer context. Keep observed failures and tested coverage
-separate, and preserve owner data.
+separate. Development checkpoints can be build-specific.

@@ -1,0 +1,340 @@
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -1710,6 +1710,110 @@
+   uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
+   interp816_arch_stz_abs(cpu);
+   interp_bridge_source_call_interp_exit(cpu, source, 0x9c);
++  return cpu->cyclesUsed;
++}
++
++/* Message/window architecture shared verbatim with original cases. */
++static void interp816_arch_clc(Interp816 *cpu) {
++      cpu->c = false;
++}
++int interp816_native_clc(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x18)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x18];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_clc(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x18);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_adc_imm(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrImm(cpu, &low, false);
++      interp816_adc(cpu, low, high);
++}
++int interp816_native_adc_imm(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x69)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x69];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_adc_imm(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x69);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_ldx_dp(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrDp(cpu, &low);
++      interp816_ldx(cpu, low, high);
++}
++int interp816_native_ldx_dp(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xa6)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xa6];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_ldx_dp(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xa6);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_sta_abs(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAbs(cpu, &low);
++      interp816_sta(cpu, low, high);
++}
++int interp816_native_sta_abs(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x8d)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x8d];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_sta_abs(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x8d);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_lda_idl(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrIdl(cpu, &low);
++      interp816_lda(cpu, low, high);
++}
++int interp816_native_lda_idl(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xa7)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xa7];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_lda_idl(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xa7);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_jsr_axi(Interp816 *cpu) {
++      uint16_t value = interp816_adrIax(cpu);
++      interp816_pushWord(cpu, cpu->pc - 1);
++      cpu->pc = value;
++}
++int interp816_native_jsr_axi(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xfc)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xfc];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_jsr_axi(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xfc);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_inc_abs(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAbs(cpu, &low);
++      interp816_inc(cpu, low, high);
++}
++int interp816_native_inc_abs(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xee)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xee];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_inc_abs(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xee);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_and_abs(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAbs(cpu, &low);
++      interp816_and(cpu, low, high);
++}
++int interp816_native_and_abs(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x2d)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x2d];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_and_abs(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x2d);
+   return cpu->cyclesUsed;
+ }
+ 
+@@ -1899,7 +2003,7 @@
+       break;
+     }
+     case 0x18: { // clc imp
+-      cpu->c = false;
++      interp816_arch_clc(cpu);
+       break;
+     }
+     case 0x19: { // ora aby(r)
+@@ -2021,9 +2125,7 @@
+       break;
+     }
+     case 0x2d: { // and abs
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAbs(cpu, &low);
+-      interp816_and(cpu, low, high);
++      interp816_arch_and_abs(cpu);
+       break;
+     }
+     case 0x2e: { // rol abs
+@@ -2383,9 +2485,7 @@
+       break;
+     }
+     case 0x69: { // adc imm(m)
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrImm(cpu, &low, false);
+-      interp816_adc(cpu, low, high);
++      interp816_arch_adc_imm(cpu);
+       break;
+     }
+     case 0x6a: { // rora imp
+@@ -2587,9 +2687,7 @@
+       break;
+     }
+     case 0x8d: { // sta abs
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAbs(cpu, &low);
+-      interp816_sta(cpu, low, high);
++      interp816_arch_sta_abs(cpu);
+       break;
+     }
+     case 0x8e: { // stx abs
+@@ -2727,15 +2825,11 @@
+       break;
+     }
+     case 0xa6: { // ldx dp
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrDp(cpu, &low);
+-      interp816_ldx(cpu, low, high);
++      interp816_arch_ldx_dp(cpu);
+       break;
+     }
+     case 0xa7: { // lda idl
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrIdl(cpu, &low);
+-      interp816_lda(cpu, low, high);
++      interp816_arch_lda_idl(cpu);
+       break;
+     }
+     case 0xa8: { // tay imp
+@@ -3121,9 +3215,7 @@
+       break;
+     }
+     case 0xee: { // inc abs
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAbs(cpu, &low);
+-      interp816_inc(cpu, low, high);
++      interp816_arch_inc_abs(cpu);
+       break;
+     }
+     case 0xef: { // sbc abl
+@@ -3208,9 +3300,7 @@
+       break;
+     }
+     case 0xfc: { // jsr iax
+-      uint16_t value = interp816_adrIax(cpu);
+-      interp816_pushWord(cpu, cpu->pc - 1);
+-      cpu->pc = value;
++      interp816_arch_jsr_axi(cpu);
+       break;
+     }
+     case 0xfd: { // sbc abx(r)
+diff --git a/runner/src/snes/interp816.h b/runner/src/snes/interp816.h
+--- a/runner/src/snes/interp816.h
++++ b/runner/src/snes/interp816.h
+@@ -133,6 +133,14 @@
+ int      interp816_native_sta_alx(Interp816 *cpu);
+ int      interp816_native_dex(Interp816 *cpu);
+ int      interp816_native_stz_abs(Interp816 *cpu);
++int      interp816_native_clc(Interp816 *cpu);
++int      interp816_native_adc_imm(Interp816 *cpu);
++int      interp816_native_ldx_dp(Interp816 *cpu);
++int      interp816_native_sta_abs(Interp816 *cpu);
++int      interp816_native_lda_idl(Interp816 *cpu);
++int      interp816_native_jsr_axi(Interp816 *cpu);
++int      interp816_native_inc_abs(Interp816 *cpu);
++int      interp816_native_and_abs(Interp816 *cpu);
+ int      interp816_runOpcode(Interp816 *cpu);   /* runs one opcode; returns cycles */
+ uint8_t  interp816_getFlags(Interp816 *cpu);
+ void     interp816_setFlags(Interp816 *cpu, uint8_t val);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -499,23 +499,23 @@
+     const int *enabled; uint64_t completed; int (*step)(Interp816 *);
+     uint8_t stack_mode; /*0legacycontrol,1M0,2M1,3PHP/PLP anyM*/
+ } NativeControlSite;
+-static NativeControlSite s_native_control_sites[512];
++static NativeControlSite s_native_control_sites[1024];
+ static unsigned s_native_control_site_count;
+ bool interp_bridge_add_native_control_site(uint32_t pc, const uint8_t *bytes,
+                                            unsigned length, const int *enabled) {
+     if (!bytes || !enabled || pc > 0xffffff || (pc & 0xffff) < 0x8000 ||
+         (pc >> 16) == 0x7e || (pc >> 16) == 0x7f ||
+-        length != (bytes[0] == 0x22 ? 4u : bytes[0] == 0x20 ? 3u :
++        length != (bytes[0] == 0x22 ? 4u : (bytes[0] == 0x20 || bytes[0] == 0xfc) ? 3u :
+                   bytes[0] == 0x60 || bytes[0] == 0x6b ? 1u : 0u) ||
+         !length || (pc & 0xffff) + length > 0x10000 ||
+-        s_native_control_site_count == 512 || s_pre_opcode_callback_cpu ||
++        s_native_control_site_count == 1024 || s_pre_opcode_callback_cpu ||
+         s_native_instruction_cpu || s_interp_bus_timing_active) return false;
+     for (unsigned n=0;n<s_native_control_site_count;++n)
+         if (s_native_control_sites[n].pc24 == pc) return false;
+     NativeControlSite *site=&s_native_control_sites[s_native_control_site_count++];
+     site->pc24=pc;site->length=(uint8_t)length;site->enabled=enabled;
+     memcpy(site->bytes,bytes,length);
+-    site->step=bytes[0]==0x20?interp816_native_jsr:bytes[0]==0x22?interp816_native_jsl:
++    site->step=bytes[0]==0xfc?interp816_native_jsr_axi:bytes[0]==0x20?interp816_native_jsr:bytes[0]==0x22?interp816_native_jsl:
+                bytes[0]==0x60?interp816_native_rts:interp816_native_rtl;
+     return true;
+ }
+@@ -527,7 +527,7 @@
+         (pc>>16)==0x7e || (pc>>16)==0x7f ||
+         ((opcode==0x48 || opcode==0x68) ? m>1 :
+          (opcode==0x08 || opcode==0x28) ? m!=2 : true) ||
+-        s_native_control_site_count==512 || s_pre_opcode_callback_cpu ||
++        s_native_control_site_count==1024 || s_pre_opcode_callback_cpu ||
+         s_native_instruction_cpu || s_interp_bus_timing_active) return false;
+     for(unsigned n=0;n<s_native_control_site_count;++n)
+         if(s_native_control_sites[n].pc24==pc)return false;
+@@ -544,7 +544,7 @@
+     if(!enabled || pc>0xffffff || (pc&0xffff)<0x8000 ||
+        (pc>>16)==0x7e || (pc>>16)==0x7f ||
+        (opcode!=0x5a && opcode!=0x7a) || x>1 ||
+-       s_native_control_site_count==512 || s_pre_opcode_callback_cpu ||
++       s_native_control_site_count==1024 || s_pre_opcode_callback_cpu ||
+        s_native_instruction_cpu || s_interp_bus_timing_active)return false;
+     for(unsigned n=0;n<s_native_control_site_count;++n)
+         if(s_native_control_sites[n].pc24==pc)return false;
+@@ -555,14 +555,14 @@
+     return true;
+ }
+ /* Tags6+mask are dispatcher-only widths; old tags0..5 retain their meaning.
+- * The bounded private registry is512 slots for reviewed source families.
++ * The bounded private registry is1024 slots for reviewed source families.
+  * Selection below happens once at source registration, never opcode dispatch. */
+ bool interp_bridge_add_native_dispatcher_site(uint32_t pc,const uint8_t *bytes,
+                           unsigned length,unsigned mask,const int *enabled) {
+     if(!bytes || !enabled || pc>0xffffff || (pc&0xffff)<0x8000 ||
+        (pc>>16)==0x7e || (pc>>16)==0x7f || !mask || (mask&~15u) ||
+        !length || length>3 || (pc&0xffff)+length>0x10000 ||
+-       s_native_control_site_count==512 || s_pre_opcode_callback_cpu ||
++       s_native_control_site_count==1024 || s_pre_opcode_callback_cpu ||
+        s_native_instruction_cpu || s_interp_bus_timing_active)return false;
+     int (*step)(Interp816 *)=NULL;unsigned expected=1;
+     switch(bytes[0]) {
+@@ -597,13 +597,13 @@
+     return true;
+ }
+ /* Registration selects a direct architecture body once; no opcode decoder
+- * or policy authority is bypassed at execution. Private bounded512-slot pool. */
++ * or policy authority is bypassed at execution. Private bounded1024-slot pool. */
+ bool interp_bridge_add_native_field_site(uint32_t pc,const uint8_t *bytes,
+                           unsigned length,unsigned mask,const int *enabled) {
+     if(!bytes || !enabled || pc>0xffffff || (pc&0xffff)<0x8000 ||
+        (pc>>16)==0x7e || (pc>>16)==0x7f || !mask || (mask&~15u) ||
+        !length || length>3 || (pc&0xffff)+length>0x10000 ||
+-       s_native_control_site_count==512 || s_pre_opcode_callback_cpu ||
++       s_native_control_site_count==1024 || s_pre_opcode_callback_cpu ||
+        s_native_instruction_cpu || s_interp_bus_timing_active)return false;
+     int (*step)(Interp816 *)=NULL;unsigned expected=2;
+     switch(bytes[0]) {
+@@ -631,7 +631,7 @@
+     if(!bytes || !enabled || pc>0xffffff || (pc&0xffff)<0x8000 ||
+        (pc>>16)==0x7e || (pc>>16)==0x7f || !mask || (mask&~15u) ||
+        !length || length>4 || (pc&0xffff)+length>0x10000 ||
+-       s_native_control_site_count==512 || s_pre_opcode_callback_cpu ||
++       s_native_control_site_count==1024 || s_pre_opcode_callback_cpu ||
+        s_native_instruction_cpu || s_interp_bus_timing_active)return false;
+     int (*step)(Interp816 *)=NULL;unsigned expected=2;
+     switch(bytes[0]) {
+@@ -666,10 +666,21 @@
+     case 0x9c:step=interp816_native_stz_abs;expected=3;break;
+     case 0x4c:step=interp816_native_jmp_abs;expected=3;break;
+     case 0x30:step=interp816_native_bmi;expected=2;break;
++    case 0x18:step=interp816_native_clc;expected=1;break;
++    case 0x69:step=interp816_native_adc_imm;expected=((mask&~3u)?2u:3u);break;
++    case 0xa6:step=interp816_native_ldx_dp;expected=2;break;
++    case 0x8d:step=interp816_native_sta_abs;expected=3;break;
++    case 0xa7:step=interp816_native_lda_idl;expected=2;break;
++    case 0xee:step=interp816_native_inc_abs;expected=3;break;
++    case 0x2d:step=interp816_native_and_abs;expected=3;break;
++    case 0xe9:step=interp816_native_sbc_imm;expected=((mask&~3u)?2u:3u);break;
++    case 0x38:step=interp816_native_sec;expected=1;break;
++    case 0x29:step=interp816_native_and_imm;expected=((mask&~3u)?2u:3u);break;
++    case 0xa8:step=interp816_native_tay;expected=1;break;
+     default:return false;
+     }
+     if(length!=expected)return false;
+-    if((bytes[0]==0x09||bytes[0]==0xa9||bytes[0]==0xc9||bytes[0]==0x29) &&
++    if((bytes[0]==0x09||bytes[0]==0xa9||bytes[0]==0xc9||bytes[0]==0x29||bytes[0]==0x69||bytes[0]==0xe9) &&
+        (mask&3u)&&(mask&12u))return false;
+     if(bytes[0]==0xa0 && (mask&5u)&&(mask&10u))return false;
+     for(unsigned n=0;n<s_native_control_site_count;++n)
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -308,7 +308,7 @@
+ void interp_bridge_source_task_committed(CpuState *,uint32_t,uint32_t);
+ bool cpu_source_task_resume_active(CpuState *,uint32,uint8);
+ 
+-/* Exact source-registered primary CPU JSR/JSL/RTS/RTL only. The enabled pointer
++/* Exact source-registered primary CPU JSR/JSR(abs,X)/JSL/RTS/RTL only. The enabled pointer
+  * must have static lifetime. Sites are immutable copied records; registration
+  * grants no callee exit/history or owner facts. All original supervisor logic
+  * remains responsible for the actual completed instruction. */

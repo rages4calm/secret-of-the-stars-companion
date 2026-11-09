@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "dafb89b12a40702e65aea8412ee22fc17dc557aec83463864540b95e70446872",
+  "predecessor_patch_sha256": "43a4b8d74c0b902121ebed533583821b3f2f04a5fa19325e8a5c001b5d943141",
+  "predecessor_binding_sha256": "e3801d3c363e9a03cd41e92b5405403738207c334f74743efadd501c9a126957",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "b821c453797674b527a388dabd8696b6691ecfbc1948fc27131a134694a9774c",
+      "final_sha256": "640fd7bd2e05fdbec33502567cf15e9dad80f1b6818b30d1e3570172f7c8be99",
+      "normalized_final_sha256": "5bb2b8c972241161e68d623f69c64c09f4b48b6b61f95a3ff13a013a9c3ec674"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "af6ff8f5cc797ca98aae91a860cdf859822d3db58e37074fefcc1377283bfbd8",
+      "final_sha256": "fe5f88c67ad6979a379ae93d200e4c5461b9b2fdce6a34600220ec2dc8e0fa09",
+      "normalized_final_sha256": "c571f613ebf17d417779ee6abf017933d7ed66a00e120238f39ac3c5fcf8345a"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "ec9f1b2a79eb4d4946325dc2030dd5d4ab7859633bc75133c37366f37cdd88de",
+      "final_sha256": "94b61da5ab4e8c6a1618071aa7ade8954d29be5bdd15bdb6c54310a1db8bd00f",
+      "normalized_final_sha256": "fdd5763fe8f329c58685369006f4426ec3643f72bfb437c060993049f0a1cda4"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source668 exact-PC bounded item-effect paths with original CMP [dp],Y body and original supervisor/bus/stack/timing ownership inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "frozen668_handoff_sha256": "039e5a4f231746452f8455f64de9b49e95536ebd49ad53a2fe18161dec0abbcd",
+  "frozen668_source_pins_sha256": "f08a147d948d2500dd91ad6a40fc7a5a8fa246d34f80d6644b308b839091208d"
+}

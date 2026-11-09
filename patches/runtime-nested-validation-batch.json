@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "5905a828635eab8e4d38726008efb15c066539c637ffc639ac11547d46dce4ad",
+  "predecessor_patch_sha256": "c5a298a4f6bac9f9c95747047901f73ea9422c4ff234bfab0530b7e537010d5a",
+  "predecessor_binding_sha256": "c1dde23669dd0fb1690179ee645d4d0ed3cdeb425d275db66913cfeabd3e7c78",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_nested_initial_task_sources.py": {
+      "predecessor_sha256": "a9b458bc06ac9192a82de98ded910f1e69024ba976eca70ef48246591a0629da",
+      "final_sha256": "46a92e7a84899a32b3805f0f2cd4613c5b1f7fd5de6a4df879a0b89e56c95f3d",
+      "normalized_final_sha256": "46a92e7a84899a32b3805f0f2cd4613c5b1f7fd5de6a4df879a0b89e56c95f3d"
+    },
+    "recompiler/v2/architecture_ff20_architectural_sources.py": {
+      "predecessor_sha256": "96716cda187f0cdf4013d50c7370eab00a3d6910a29f32d3f0d226456bd4b57c",
+      "final_sha256": "3dcc1622e1b4dc763ad77b22e7fd43281adcee55917a982ed70436c6a27fbca3",
+      "normalized_final_sha256": "3dcc1622e1b4dc763ad77b22e7fd43281adcee55917a982ed70436c6a27fbca3"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "441v2 DATA traversal +494 original task collection +497 whole nested and FF20 expansion batching. Fresh local source/parent/graphIR/ledger checks; global validation only genuine pre/post/publication/consume boundaries, caps closed before full checks. No source authority, recipes, roots, exit modes, bounds, runtimeC, feature or ABI change."
+}

@@ -1,0 +1,1058 @@
+diff --git a/recompiler/v2/emit_native_blocks.py b/recompiler/v2/emit_native_blocks.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/emit_native_blocks.py
+@@ -0,0 +1,506 @@
++"""Additive typed-IR native reset blocks, independent of CPU interpretation.
++
++First finite backend: the actual reset graph from start to an explicit stop.
++Runtime dispatch uses PC/M/X/E/profile keys, never an opcode switch. Ordinary
++IR lowers through the established v2 emitter; architectural branches and block
++boundaries use an iterative next-PC ABI. Unsupported semantics fail generation.
++This prototype intentionally does not change emit_function/codegen or claim
++native closure beyond the declared graph.
++"""
++from __future__ import annotations
++import argparse
++from dataclasses import dataclass
++import hashlib
++import itertools
++import json
++from pathlib import Path
++import re
++import sys
++
++RECOMPILER=Path(__file__).resolve().parents[1]
++if str(RECOMPILER) not in sys.path:sys.path.insert(0,str(RECOMPILER))
++from v2.decoder import decode_function
++from v2.cfg import build_cfg
++from v2.lowering import lower
++from v2.codegen import emit_op, _reg, _v
++from v2.ir import (Value, CondBranch, SetFlag, Reg, XCE, Goto, IndirectGoto, Call, Return,
++    PushReg, PullReg, RepFlags, SepFlags, Read, Write, SegKind, IncMem, BitSetMem, BitClearMem, Nop, Transfer, PushEffectiveAddress, BlockMove)
++from snes65816 import rom_offset, decode_insn, LONG
++from snes_cycles import instr_cpu_cycles, instr_runtime_charges
++
++ALLOWED_IR=frozenset({'ConstI','ReadReg','WriteReg','Read','Write','Alu','SetFlag',
++    'SetNZ','IncReg','Transfer','PushReg','PullReg','RepFlags','SepFlags','XBA','XCE',
++    'CondBranch','Goto','IndirectGoto','Call','Return','Shift','IncMem','BitTest',
++    'BitSetMem','BitClearMem','Nop','PushEffectiveAddress','BlockMove'})
++
++@dataclass(frozen=True)
++class Block:
++    pc: int
++    m: int
++    x: int
++    e: int
++    insn: object
++    ops: tuple
++    p_mask: int
++    p_value: int
++
++def architecture_blocks(rom: bytes, keys):
++    """Compile explicit source/mode discovery keys without inferring callers.
++
++    Keys are (pc24,m,x,e). They do not assert observed I/D/C values. Runtime
++    transfers produce their actual next key, including an explicit MISSING
++    result for targets not in this source profile. A caller may iteratively
++    supply newly discovered keys; this never decodes an opcode at runtime.
++    Approved patched images must be separate explicit profile inputs.
++    """
++    blocks=[]
++    for pc,m,x,e in sorted(set(tuple(key) for key in keys)):
++        if not 0<=pc<=0xffffff or any(v not in (0,1) for v in (m,x,e)) or (e and (not m or not x)):
++            raise ValueError('Invalid architectural native key')
++        offset=rom_offset(pc>>16,pc&65535)
++        if offset is None or offset<0 or offset>=len(rom):raise ValueError('Unmaterialized source key')
++        try:insn=decode_insn(rom,offset,pc&65535,pc>>16,m,x)
++        except IndexError as error:raise ValueError('Truncated native source') from error
++        if insn is None:raise ValueError('Unknown native opcode')
++        insn.m_flag=m;insn.x_flag=x
++        counter=itertools.count();ops=tuple(lower(insn,value_factory=lambda:Value(next(counter))))
++        if not ops or any(type(op).__name__ not in ALLOWED_IR for op in ops):
++            raise ValueError(f'Unsupported architectural IR at {pc:06X}')
++        if e and any(isinstance(op,Return) and op.interrupt for op in ops):
++            raise ValueError('E1 RTI requires independent architectural frame qualification')
++        if e and any(isinstance(op,Transfer) and op.dst==Reg.S for op in ops):
++            raise ValueError('E1 stack-pointer transfer requires independent architectural reference')
++        if any(isinstance(op,Nop) for op in ops) and insn.opcode not in (0xea,0x42):
++            raise ValueError('Unmodeled instruction is not an architectural NOP')
++        if e and any(isinstance(op,CondBranch) for op in ops) and (((pc+insn.length)^insn.operand)&0xff00):
++            raise ValueError('Emulation page-cross branch requires independent clock qualification')
++        blocks.append(Block(pc,m,x,e,insn,ops,0,0))
++    if not blocks:raise ValueError('Empty architectural native profile')
++    return blocks
++
++def _address(block,seg):
++    """Emit one ordered effective-address evaluation from the typed SegRef.
++
++    Explicit low/high addresses preserve bank0 wrap for DP/stack and full24
++    carry for DB/long data. Indirection is sequenced once, never duplicated
++    through unspecified C argument evaluation order.
++    """
++    k=seg.kind;o=seg.offset
++    idx='cpu->Y' if k==SegKind.STACK_REL_INDIRECT_Y else (_reg(seg.index) if seg.index else '0')
++    out=[];wrapped=False;cross_base=None
++    if k==SegKind.DIRECT:base=f'(uint16_t)(cpu->D+0x{o:04x}u+{idx})';wrapped=True
++    elif k==SegKind.STACK:base=f'(uint16_t)(cpu->S+0x{o:04x}u)';wrapped=True
++    elif k==SegKind.ABS_BANK:
++        base=f'(((uint32_t)cpu->DB<<16)+0x{o:04x}u+{idx})&0xffffffu'
++        if seg.index:cross_base=f'0x{o:04x}u'
++    elif k==SegKind.LONG:base=f'(0x{((seg.bank or 0)<<16)|o:06x}u+{idx})&0xffffffu'
++    elif k in (SegKind.DP_INDIRECT,SegKind.DP_INDIRECT_X,SegKind.DP_INDIRECT_LONG,SegKind.STACK_REL_INDIRECT_Y):
++        if k==SegKind.STACK_REL_INDIRECT_Y:pointer=f'(uint16_t)(cpu->S+0x{o:04x}u)'
++        elif k==SegKind.DP_INDIRECT_X:pointer=f'(uint16_t)(cpu->D+0x{o:04x}u+cpu->X)'
++        else:pointer=f'(uint16_t)(cpu->D+0x{o:04x}u)'
++        out += [f'uint16_t pointer={pointer};',
++                'uint32_t indirect=nb69_read_pointer(scope,cpu,pointer,(uint16_t)(pointer+1));']
++        if k==SegKind.DP_INDIRECT_LONG:
++            out.append('indirect|=(uint32_t)nb69_read8(scope,cpu,0,(uint16_t)(pointer+2))<<16;')
++            base=f'(indirect+{idx})&0xffffffu'
++        else:
++            base=f'(((uint32_t)cpu->DB<<16)+indirect+{idx})&0xffffffu'
++            if k==SegKind.DP_INDIRECT and seg.index:cross_base='indirect'
++    else:raise ValueError(f'Unqualified native memory address kind {k}')
++    out.append(f'uint32_t low={base};')
++    out.append('uint32_t high=(uint16_t)(low+1);' if wrapped else 'uint32_t high=(low+1)&0xffffffu;')
++    if instr_runtime_charges(block.insn.opcode,block.x).get('xcross'):
++        if cross_base is None:raise ValueError('Missing indexed crossing predicate')
++        out.append(f'if(({cross_base}>>8)!=(({cross_base}+{idx})>>8))scope->cpu_cycles+=1;')
++    return out
++
++def _stack_width(block,reg):
++    if reg==Reg.A:return 1 if block.m else 2
++    if reg in (Reg.X,Reg.Y):return 1 if block.x else 2
++    return 2 if reg==Reg.D else 1
++
++def materialize_profile(rom: bytes, patches):
++    """Apply explicit before/after spans; never infer approval from live bytes.
++
++    Each JSON-compatible row is {rom_offset:int, original:hex, runtime:hex}.
++    Spans are equal-length, nonempty, disjoint and fully source-attested.
++    The original whole-ROM digest remains the program's registration identity.
++    """
++    image=bytearray(rom);normalized=[];last_end=0
++    for row in sorted(patches,key=lambda r:r['rom_offset']):
++        offset=row['rom_offset']
++        if type(offset) is not int or offset<0:raise ValueError('Invalid profile patch offset')
++        try:before=bytes.fromhex(row['original']);after=bytes.fromhex(row['runtime'])
++        except (TypeError,ValueError) as error:raise ValueError('Invalid profile patch bytes') from error
++        if not before or len(before)!=len(after) or offset+len(before)>len(rom):
++            raise ValueError('Invalid profile patch span')
++        if offset<last_end:raise ValueError('Overlapping profile patch spans')
++        if rom[offset:offset+len(before)]!=before:raise ValueError('Original profile patch bytes differ')
++        if before==after:raise ValueError('Profile patch must declare an actual source difference')
++        normalized.append((offset,before,after));image[offset:offset+len(after)]=after
++        last_end=offset+len(before)
++    return bytes(image),normalized
++
++def reset_blocks(rom: bytes, bank=0, start=0x8013, end=0x8059):
++    """Build source-authoritative instruction blocks; no runtime CPU decoder.
++
++    Current finite admission supports the real cold-reset CLC/XCE transition.
++    A compile-time carry proof admits XCE only with C=0. Extra E1 entries before
++    that transition cover actual architectural cold boot. This is not a claim
++    that arbitrary E1 code after XCE has already been qualified.
++    """
++    graph=decode_function(rom,bank,start,1,1,end=end)
++    if graph.authority_conflict:raise ValueError('Conflicting instruction/data authority')
++    cfg=build_cfg(graph,instruction_blocks=True)
++    if not cfg.blocks:raise ValueError('Empty native block graph')
++    blocks=[]
++    for key,block in sorted(cfg.blocks.items(),key=lambda row:(row[0].pc,row[0].m,row[0].x)):
++        if len(block.insns)!=1:raise ValueError('Expected exact instruction blocks')
++        di=block.insns[0];insn=di.insn
++        counter=itertools.count()
++        ops=tuple(lower(insn,value_factory=lambda:Value(next(counter))))
++        unknown=[type(op).__name__ for op in ops if type(op).__name__ not in ALLOWED_IR]
++        if unknown:raise ValueError(f'Unsupported native IR at {insn.addr:06X}: {unknown}')
++        if any(getattr(op,'noreturn',False) for op in ops):raise ValueError('Unsupported control policy')
++        for op in ops:
++            # Reset's pushes/pulls are byte-width and occur after leaving E1.
++            if type(op).__name__ in ('PushReg','PullReg') and getattr(op,'reg',None)==Reg.A and getattr(op,'static_m',None)!=1:
++                raise ValueError('Word stack bus ordering not qualified in this finite slice')
++        pc=insn.addr&0xffffff
++        e_values=[0]
++        p_mask,p_value=0x0c,4   # observed cold-reset contract: I=1, decimal clear
++        if isinstance(ops[0],XCE):
++            previous=graph.insns.get(next((k for k in graph.insns if k.pc==key.pc-1 and k.m==key.m and k.x==key.x),None))
++            if not previous or previous.insn.mnem!='CLC':raise ValueError('XCE needs a proven cold-reset CLC predecessor')
++            p_mask|=1
++            e_values=[0,1]
++        elif key.pc==start:
++            if len(ops)!=1 or not isinstance(ops[0],SetFlag) or ops[0].flag!=Reg.C or ops[0].value!=0:
++                raise ValueError('Cold reset must begin with actual CLC')
++            e_values=[0,1]
++        charges=instr_runtime_charges(insn.opcode,key.x)
++        if charges.get('xcross'):raise ValueError('Indexed read cycle proof outside current reset slice')
++        for e in e_values:
++            if e and (key.m!=1 or key.x!=1):raise ValueError('Invalid emulation width key')
++            blocks.append(Block(pc,key.m,key.x,e,insn,ops,p_mask,p_value))
++    return sorted(blocks,key=lambda b:(b.pc,b.m,b.x,b.e))
++
++def _effect(block: Block):
++    out=[];addressed=False
++    for op in block.ops:
++        if isinstance(op,PushEffectiveAddress):
++            # Source-known PEA/PER literal or PEI direct-page word. Each
++            # instruction pushes high then low through the real stack bus.
++            if block.insn.opcode in (0xf4,0x62):
++                out.append(f'uint16_t value=0x{block.insn.operand&65535:04x}u;')
++            elif block.insn.opcode==0xd4:
++                out += [f'uint16_t pointer=(uint16_t)(cpu->D+0x{block.insn.operand:04x}u);',
++                        'uint16_t value=nb69_read_pointer(scope,cpu,pointer,(uint16_t)(pointer+1));']
++            else:raise ValueError('Unknown effective-address push opcode')
++            out += ['nb69_push(scope,cpu,(uint8_t)(value>>8));',
++                    'nb69_push(scope,cpu,(uint8_t)value);']
++            continue
++        if isinstance(op,BlockMove):
++            # One original MVN/MVP iteration per architectural step. Returning
++            # the same actual PC makes deadline/IRQ admission interruptible.
++            if op.direction not in ('mvn','mvp'):raise ValueError('Unknown block-move direction')
++            delta=1 if op.direction=='mvn' else -1
++            out += [f'cpu->DB=0x{op.dst_bank:02x}u;',
++                    f'uint8_t value=nb69_read8(scope,cpu,0x{op.src_bank:02x}u,cpu->X);',
++                    f'nb69_write8(scope,cpu,0x{op.dst_bank:02x}u,cpu->Y,value);',
++                    'cpu->A=(uint16_t)(cpu->A-1);',
++                    f'cpu->X=(uint16_t)(cpu->X+({delta}));cpu->Y=(uint16_t)(cpu->Y+({delta}));',
++                    f'if(cpu->A!=0xffffu)scope->next_pc24=0x{block.pc:06x}u;',
++                    'if(cpu->x_flag){cpu->X&=255;cpu->Y&=255;}']
++            continue
++        if isinstance(op,Nop):
++            if block.insn.opcode not in (0xea,0x42):raise ValueError('Unmodeled NOP fallthrough')
++            continue
++        if block.p_mask==0 and isinstance(op,XCE):
++            out += ['uint8_t old_e=cpu->emulation;cpu->emulation=cpu->_flag_C;cpu->_flag_C=old_e;',
++                    'if(cpu->emulation){cpu->m_flag=cpu->x_flag=1;cpu->X&=255;cpu->Y&=255;cpu->S=(cpu->S&255)|0x100;}']
++            continue
++        if block.e and isinstance(op,(RepFlags,SepFlags)):
++            expr=f'cpu->P&~0x{op.mask:02x}u' if isinstance(op,RepFlags) else f'cpu->P|0x{op.mask:02x}u'
++            out += [f'cpu->P=(uint8_t)({expr})|0x30u;cpu_p_to_mirrors(cpu);']
++            continue
++        if block.e and isinstance(op,Transfer) and op.dst==Reg.S:
++            out.append(f'cpu->S=({_reg(op.src)}&255)|0x100;')
++            continue
++        if block.p_mask==0 and isinstance(op,(PushReg,PullReg)):
++            field=_reg(op.reg);width=_stack_width(block,op.reg)
++            if isinstance(op,PushReg):
++                if op.reg==Reg.P:out.append('cpu_mirrors_to_p(cpu);')
++                if width==2:out.append(f'nb69_push(scope,cpu,(uint8_t)({field}>>8));')
++                out.append(f'nb69_push(scope,cpu,(uint8_t){field});')
++            else:
++                out.append('uint16_t value=nb69_pull(scope,cpu);')
++                if width==2:out.append('value|=(uint16_t)nb69_pull(scope,cpu)<<8;')
++                if op.reg==Reg.P:
++                    out += ['cpu->P=(uint8_t)value;if(cpu->emulation)cpu->P|=0x30;cpu_p_to_mirrors(cpu);']
++                else:
++                    if op.reg==Reg.A and width==1:out.append('cpu->A=(cpu->A&0xff00)|value;')
++                    else:out.append(f'{field}=value;')
++                    out += ['cpu->_flag_Z=value==0;',f'cpu->_flag_N=(value&0x{(0x80 if width==1 else 0x8000):04x}u)!=0;']
++            continue
++        if block.p_mask==0 and isinstance(op,(Read,Write,IncMem,BitSetMem,BitClearMem)):
++            if not addressed:
++                out+=_address(block,op.seg);out.append('(void)high;');addressed=True
++            read='nb69_read8(scope,cpu,(uint8_t)(low>>16),(uint16_t)low)' if op.width==1 else 'nb69_read_pointer(scope,cpu,low,high)'
++            reversed_write=any(type(v).__name__=='Shift' for v in block.ops) or isinstance(op,(IncMem,BitSetMem,BitClearMem))
++            def write(value):
++                if op.width==1:return f'nb69_write8(scope,cpu,(uint8_t)(low>>16),(uint16_t)low,(uint8_t)({value}));'
++                return f'nb69_write_pair(scope,cpu,low,high,(uint16_t)({value}),{"true" if reversed_write else "false"});'
++            if isinstance(op,Read):out.append(f'uint{op.width*8}_t {_v(op.out)}={read};')
++            elif isinstance(op,Write):out.append(write(_v(op.src)))
++            else:
++                out.append(f'uint{op.width*8}_t value={read};')
++                if isinstance(op,IncMem):
++                    out += [f'value=(uint{op.width*8}_t)(value+({op.delta}));',
++                            'cpu->_flag_Z=value==0;',f'cpu->_flag_N=(value&0x{(0x80 if op.width==1 else 0x8000):04x}u)!=0;']
++                else:
++                    out.append('cpu->_flag_Z=(value&cpu->A)==0;')
++                    expr='value|cpu->A' if isinstance(op,BitSetMem) else 'value&~cpu->A'
++                    out.append(f'value=(uint{op.width*8}_t)({expr});')
++                out.append(write('value'))
++            continue
++        if isinstance(op,Return):
++            if op.interrupt:
++                if block.e:raise ValueError('E1 RTI has no qualified architectural frame lowering')
++                out += ['cpu->P=nb69_pull(scope,cpu);cpu_p_to_mirrors(cpu);',
++                        'uint16_t target=nb69_pull(scope,cpu);',
++                        'target|=(uint16_t)nb69_pull(scope,cpu)<<8;',
++                        'cpu->PB=nb69_pull(scope,cpu);',
++                        'scope->next_pc24=((uint32_t)cpu->PB<<16)|target;']
++                continue
++            out += ['uint16_t target=nb69_pull(scope,cpu);',
++                    'target|=(uint16_t)nb69_pull(scope,cpu)<<8;',
++                    'target=(uint16_t)(target+1);']
++            if op.long:out.append('cpu->PB=nb69_pull(scope,cpu);')
++            out.append('scope->next_pc24=((uint32_t)cpu->PB<<16)|target;')
++            continue
++        if isinstance(op,Call):
++            if op.indirect:
++                out += [f'uint16_t pointer=(uint16_t)(0x{op.table_base:04x}u+cpu->X);',
++                        'uint16_t target=nb69_read_pointer(scope,cpu,((uint32_t)cpu->PB<<16)|pointer,((uint32_t)cpu->PB<<16)|(uint16_t)(pointer+1));']
++            if op.long:out.append('nb69_push(scope,cpu,cpu->PB);')
++            ret=(block.pc+block.insn.length-1)&65535
++            out += [f'nb69_push(scope,cpu,0x{ret>>8:02x}u);',f'nb69_push(scope,cpu,0x{ret&255:02x}u);']
++            if op.indirect:out.append('scope->next_pc24=((uint32_t)cpu->PB<<16)|target;')
++            else:
++                out.append(f'scope->next_pc24=0x{op.target:06x}u;')
++                if op.long:out.append(f'cpu->PB=0x{op.target>>16:02x}u;')
++            continue
++        if isinstance(op,IndirectGoto):
++            # Original JMP(abs)/JML[abs] pointers are in bank0; indexed
++            # JMP(abs,X) pointer bytes are in the actual program bank.
++            pointer=block.insn.operand&65535
++            if block.insn.opcode==0x7c:
++                out += [f'uint16_t pointer=(uint16_t)(0x{pointer:04x}u+cpu->X);',
++                        'uint32_t low=((uint32_t)cpu->PB<<16)|pointer;',
++                        'uint32_t high=((uint32_t)cpu->PB<<16)|(uint16_t)(pointer+1);']
++            elif block.insn.opcode in (0x6c,0xdc):
++                out += [f'uint32_t low=0x{pointer:04x}u,high=0x{(pointer+1)&65535:04x}u;']
++            else:raise ValueError('Unknown indirect architectural jump')
++            out.append('uint16_t target=nb69_read_pointer(scope,cpu,low,high);')
++            if block.insn.opcode==0xdc:out.append(f'cpu->PB=nb69_read8(scope,cpu,0,0x{(pointer+2)&65535:04x}u);')
++            out.append('scope->next_pc24=((uint32_t)cpu->PB<<16)|target;')
++            continue
++        if isinstance(op,Goto):
++            target=block.insn.operand
++            if block.insn.mode!=LONG:target=(block.pc&0xff0000)|(target&65535)
++            out.append(f'scope->next_pc24=0x{target:06x}u;')
++            if block.insn.mode==LONG:out.append(f'cpu->PB=0x{target>>16:02x}u;')
++            continue
++        if isinstance(op,CondBranch):
++            fall=(block.pc+block.insn.length)&0xffffff
++            target=(block.pc&0xff0000)|(block.insn.operand&65535)
++            out += [f'if ({_reg(op.flag)} == {op.take_if}) {{',
++                    f'  scope->next_pc24 = 0x{target:06x}u;',
++                    '  scope->cpu_cycles += 1;',
++                    ('  if (cpu->emulation) scope->cpu_cycles += 1;' if ((fall^target)&0xff00) else f'  if (cpu->emulation && ((0x{fall&65535:04x}u ^ 0x{target&65535:04x}u) & 0xff00u)) scope->cpu_cycles += 1;'),
++                    '}']
++            continue
++        lines=emit_op(op,block.pc)
++        if any(any(bad in line for bad in ('TODO','UNHANDLED','interp_','cpu_dispatch','RecompReturn','goto L_')) for line in lines):
++            raise ValueError(f'Unsupported lowering output at {block.pc:06X}')
++        for line in lines:
++            for name in ('read8','read16','write8','write16'):
++                line=line.replace(f'cpu_{name}(',f'nb69_{name}(scope, ')
++            out.append(line)
++    return out
++
++COMMON=r'''
++static uint64_t nb69_key(NativeBlockKey k) {
++  return ((uint64_t)k.profile << 27) | ((uint64_t)k.pc24 << 3) | ((uint64_t)k.m << 2) | ((uint64_t)k.x << 1) | k.e;
++}
++static NativeBlockKey nb69_next(CpuState *cpu, uint32_t pc, uint32_t profile) {
++  NativeBlockKey k={0}; k.pc24=pc; k.profile=profile; k.m=cpu->m_flag; k.x=cpu->x_flag; k.e=cpu->emulation; return k;
++}
++static uint8_t nb69_read8(NativeBlockScope *s,CpuState *cpu,uint8_t bank,uint16_t address) {
++  uint32_t a=((uint32_t)bank<<16)|address;
++  uint32_t speed=s->host->region_speed(s->host->context,a);
++  uint8_t value=s->host->read8(s->host->context,cpu,a);
++  s->data_extra+=speed-6; cpu->open_bus=value; return value;
++}
++static void nb69_write8(NativeBlockScope *s,CpuState *cpu,uint8_t bank,uint16_t address,uint8_t value) {
++  uint32_t a=((uint32_t)bank<<16)|address;
++  uint32_t speed=s->host->region_speed(s->host->context,a);
++  s->host->write8(s->host->context,cpu,a,value);
++  s->data_extra+=speed-6; cpu->open_bus=value;s->wrote_memory=true;
++}
++static int nb69_mode(CpuState *cpu,NativeBlockKey key) {
++  if(!cpu||!cpu->ram||key.pc24>0xffffffu||key.m>1||key.x>1||key.e>1||cpu->PB!=(key.pc24>>16)||
++     cpu->m_flag!=key.m||cpu->x_flag!=key.x||cpu->emulation!=key.e||
++     cpu->_flag_N>1||cpu->_flag_V>1||cpu->_flag_Z>1||cpu->_flag_C>1||cpu->_flag_I>1||cpu->_flag_D>1||
++     (key.x&&(cpu->X>255||cpu->Y>255)))return 0;
++  uint8_t p=(cpu->m_flag?32:0)|(cpu->x_flag?16:0)|(cpu->_flag_N?128:0)|(cpu->_flag_V?64:0)|
++      (cpu->_flag_Z?2:0)|(cpu->_flag_C?1:0)|(cpu->_flag_I?4:0)|(cpu->_flag_D?8:0);
++  return p==cpu->P&&(!key.e||(key.m&&key.x&&cpu->S>=0x100&&cpu->S<=0x1ff&&cpu->X<=255&&cpu->Y<=255));
++}
++static NativeBlockResult nb69_result(NativeBlockKey key,NativeBlockAction action,NativeBlockFault fault,uint64_t count) {
++  NativeBlockResult r={0};r.next=key;r.action=action;r.fault=fault;r.executed=count;return r;
++}
++static NativeBlockResult nb69_step(const NativeBlockProgram *program,const NativeBlockHost *host,
++                                  CpuState *cpu,NativeBlockKey key,uint64_t deadline) {
++  if(!program||!host||!host->admit||!host->mapping||!host->read8||!host->write8||!host->region_speed||
++     !host->begin||!host->commit||!host->end)return nb69_result(key,NATIVE_BLOCK_REJECTED,NATIVE_BLOCK_FAULT_ABI,0);
++  if(!nb69_mode(cpu,key)||key.profile!=program->profile)return nb69_result(key,NATIVE_BLOCK_REJECTED,NATIVE_BLOCK_FAULT_MODE,0);
++  uint64_t wanted=nb69_key(key);size_t lo=0,hi=program->instruction_count;
++  while(lo<hi){size_t mid=lo+(hi-lo)/2;uint64_t have=nb69_key(program->instructions[mid].key);if(have<wanted)lo=mid+1;else hi=mid;}
++  if(lo==program->instruction_count||nb69_key(program->instructions[lo].key)!=wanted)
++    return nb69_result(key,NATIVE_BLOCK_MISSING,NATIVE_BLOCK_FAULT_NONE,0);
++  const NativeBlockInstruction *instruction=program->instructions+lo;
++  if((cpu->P&instruction->required_p_mask)!=instruction->required_p_value)
++    return nb69_result(key,NATIVE_BLOCK_REJECTED,NATIVE_BLOCK_FAULT_CONTEXT,0);
++  if(!host->admit(host->context,program,cpu,instruction))return nb69_result(key,NATIVE_BLOCK_REJECTED,NATIVE_BLOCK_FAULT_SOURCE,0);
++  if(!host->mapping(host->context,cpu,instruction))return nb69_result(key,NATIVE_BLOCK_REJECTED,NATIVE_BLOCK_FAULT_MAPPING,0);
++  if(deadline&&cpu->master_cycles>=deadline)return nb69_result(key,NATIVE_BLOCK_DEADLINE,NATIVE_BLOCK_FAULT_NONE,0);
++  NativeBlockScope scope={0};scope.host=host;scope.instruction=instruction;scope.prior_master=cpu->master_cycles;
++  scope.cpu_cycles=instruction->base_cpu_cycles;scope.next_pc24=(key.pc24&0xff0000u)|((key.pc24+instruction->length)&0xffffu);
++  host->begin(host->context,cpu,instruction,scope.prior_master);
++  uint64_t fetch_extra=0;
++  for(unsigned i=0;i<instruction->length;i++)fetch_extra+=host->region_speed(host->context,((key.pc24&0xff0000)|((key.pc24+i)&65535)))-6;
++  cpu->coprocessor_master_cycles=scope.prior_master;cpu->open_bus=instruction->bytes[instruction->length-1];
++  instruction->execute(cpu,&scope);cpu_mirrors_to_p(cpu);
++  uint64_t opcode_master=(uint64_t)scope.cpu_cycles*6+scope.data_extra+fetch_extra;
++  cpu->cycles+=scope.cpu_cycles;cpu->master_cycles+=opcode_master;
++  host->commit(host->context,cpu,instruction,scope.prior_master,opcode_master,scope.wrote_memory);
++  host->end(host->context,cpu,instruction);
++  return nb69_result(nb69_next(cpu,scope.next_pc24,key.profile),scope.action,NATIVE_BLOCK_FAULT_NONE,1);
++}
++static NativeBlockResult nb69_run(const NativeBlockProgram *program,const NativeBlockHost *host,
++                                 CpuState *cpu,NativeBlockKey key,uint64_t deadline,uint64_t limit) {
++  uint64_t count=0;
++  while(count<limit){NativeBlockResult r=program->step(program,host,cpu,key,deadline);count+=r.executed;key=r.next;
++    if(r.action!=NATIVE_BLOCK_CONTINUE){r.executed=count;return r;}}
++  return nb69_result(key,NATIVE_BLOCK_STEP_LIMIT,NATIVE_BLOCK_FAULT_NONE,count);
++}
++'''
++
++def emit_native_blocks(rom: bytes, *, bank=0,start=0x8013,end=0x8059,symbol='lagoon_reset69',profile=0,keys=None,include_reset=False,patches=()):
++    if not re.fullmatch(r'[A-Za-z_]\w*',symbol):raise ValueError('Invalid C symbol')
++    if not 0<=profile<=0xffffffff:raise ValueError('Invalid profile')
++    source_digest=hashlib.sha256(rom).hexdigest()
++    rom,patches=materialize_profile(rom,patches)
++    if patches and profile==0:raise ValueError('Overlay requires an explicit nonzero profile')
++    if keys is None:blocks=reset_blocks(rom,bank,start,end)
++    elif include_reset:
++        blocks=reset_blocks(rom,bank,start,end)
++        owned={(b.pc,b.m,b.x,b.e) for b in blocks}
++        remaining=[tuple(key) for key in keys if tuple(key) not in owned]
++        if remaining:blocks+=architecture_blocks(rom,remaining)
++        blocks.sort(key=lambda b:(b.pc,b.m,b.x,b.e))
++    else:blocks=architecture_blocks(rom,keys)
++    text=['/* Generated typed-IR native blocks. No CPU interpreter or opcode replay. */',
++          '#include "native_blocks.h"','#include "cpu_trace.h"',COMMON]
++    all_ops=[op for b in blocks for op in b.ops]
++    if any(isinstance(op,(Call,PushEffectiveAddress)) or (b.p_mask==0 and isinstance(op,PushReg)) for b in blocks for op in b.ops):
++        text.append('''static void nb69_push(NativeBlockScope *s,CpuState *cpu,uint8_t value) {
++  nb69_write8(s,cpu,0,cpu->S,value);cpu->S=(uint16_t)(cpu->S-1);
++  if(cpu->emulation)cpu->S=(cpu->S&255)|0x100;
++}''')
++    if any(isinstance(op,Return) or (b.p_mask==0 and isinstance(op,PullReg)) for b in blocks for op in b.ops):
++        text.append('''static uint8_t nb69_pull(NativeBlockScope *s,CpuState *cpu) {
++  cpu->S=(uint16_t)(cpu->S+1);if(cpu->emulation)cpu->S=(cpu->S&255)|0x100;
++  return nb69_read8(s,cpu,0,cpu->S);
++}''')
++    memory_ops=[op for b in blocks if b.p_mask==0 for op in b.ops if isinstance(op,(Read,Write,IncMem,BitSetMem,BitClearMem))]
++    indirect_memory=(SegKind.DP_INDIRECT,SegKind.DP_INDIRECT_X,SegKind.DP_INDIRECT_LONG,SegKind.STACK_REL_INDIRECT_Y)
++    needs_word_read=any(op.seg.kind in indirect_memory or
++        (isinstance(op,(Read,IncMem,BitSetMem,BitClearMem)) and op.width==2) for op in memory_ops)
++    if needs_word_read or any(isinstance(op,PushEffectiveAddress) and b.insn.opcode==0xd4 for b in blocks for op in b.ops) or any(isinstance(op,IndirectGoto) or (isinstance(op,Call) and op.indirect) for op in all_ops):
++        text.append('''static uint16_t nb69_read_pointer(NativeBlockScope *s,CpuState *cpu,uint32_t low,uint32_t high) {
++  uint16_t value;
++  uint32_t extra=s->host->region_speed(s->host->context,low)-6+s->host->region_speed(s->host->context,high)-6;
++  if(s->host->read16&&s->host->read16(s->host->context,cpu,low,high,&value)) {
++    s->data_extra+=extra;
++    cpu->open_bus=(uint8_t)(value>>8);return value;
++  }
++  uint8_t lo=nb69_read8(s,cpu,(uint8_t)(low>>16),(uint16_t)low);
++  return lo|((uint16_t)nb69_read8(s,cpu,(uint8_t)(high>>16),(uint16_t)high)<<8);
++}''')
++    if any(isinstance(op,(Write,IncMem,BitSetMem,BitClearMem)) and op.width==2 for op in memory_ops):
++        text.append('''static void nb69_write_pair(NativeBlockScope *s,CpuState *cpu,uint32_t low,uint32_t high,uint16_t value,bool reversed) {
++  uint32_t extra=s->host->region_speed(s->host->context,low)-6+s->host->region_speed(s->host->context,high)-6;
++  if(s->host->write16&&s->host->write16(s->host->context,cpu,low,high,value,reversed)) {
++    s->data_extra+=extra;
++    cpu->open_bus=reversed?(uint8_t)value:(uint8_t)(value>>8);s->wrote_memory=true;return;
++  }
++  if(reversed)nb69_write8(s,cpu,(uint8_t)(high>>16),(uint16_t)high,(uint8_t)(value>>8));
++  nb69_write8(s,cpu,(uint8_t)(low>>16),(uint16_t)low,(uint8_t)value);
++  if(!reversed)nb69_write8(s,cpu,(uint8_t)(high>>16),(uint16_t)high,(uint8_t)(value>>8));
++}''')
++    for number,b in enumerate(blocks):
++        text.append(f'static void nb69_block_{number}(CpuState *cpu,NativeBlockScope *scope) {{')
++        charges=instr_runtime_charges(b.insn.opcode,b.x)
++        if charges.get('dp'):text.append('  if(cpu->D&255)scope->cpu_cycles+=1;')
++        lines=_effect(b)
++        if not any('cpu' in line for line in lines):text.append('  (void)cpu;')
++        if not any('scope' in line for line in lines) and not charges.get('dp'):text.append('  (void)scope;')
++        text.extend('  '+line for line in lines)
++        text.append('}')
++    text.append('static const NativeBlockInstruction nb69_instructions[]={')
++    for number,b in enumerate(blocks):
++        offset=rom_offset(b.pc>>16,b.pc&65535)
++        if offset is None or offset<0:raise ValueError('Source outside materialized ROM')
++        data=rom[offset:offset+b.insn.length]
++        if len(data)!=b.insn.length or not 1<=len(data)<=4:raise ValueError('Truncated instruction')
++        values=','.join(f'0x{v:02x}'for v in data)
++        cycles=instr_cpu_cycles(b.insn.opcode,m=b.m,x=b.x,e=b.e)
++        transfer='NONE'
++        for op in b.ops:
++            if isinstance(op,Call):transfer='CALL_LONG' if op.long else 'CALL_SHORT'
++            elif isinstance(op,Return):transfer='RETURN_INTERRUPT' if op.interrupt else ('RETURN_LONG' if op.long else 'RETURN_SHORT')
++            elif isinstance(op,CondBranch):transfer='BRANCH'
++            elif isinstance(op,(Goto,IndirectGoto)):transfer='JUMP'
++        text.append(f' {{{{0x{b.pc:06x}u,{profile}u,{b.m},{b.x},{b.e}}},0x{offset:x}u,{cycles},{len(data)},{{{values}}},0x{b.p_mask:x},0x{b.p_value:x},nb69_block_{number},NATIVE_BLOCK_TRANSFER_{transfer}}},')
++    text.append('};')
++    if patches:
++        for n,(offset,before,after) in enumerate(patches):
++            for kind,data in (('original',before),('runtime',after)):
++                text.append(f'static const uint8_t nb69_patch_{n}_{kind}[]={{{",".join(f"0x{v:02x}"for v in data)}}};')
++        text.append('static const NativeBlockPatch nb69_patches[]={')
++        for n,(offset,before,after) in enumerate(patches):
++            text.append(f' {{0x{offset:x}u,{len(before)}u,nb69_patch_{n}_original,nb69_patch_{n}_runtime}},')
++        text.append('};')
++    patch_ref='nb69_patches' if patches else 'NULL'
++    text += [f'/* Materialized compilation image SHA256: {hashlib.sha256(rom).hexdigest()} */',
++             f'const NativeBlockProgram {symbol}_program={{"{symbol}","{source_digest}",{profile}u,nb69_instructions,sizeof(nb69_instructions)/sizeof(*nb69_instructions),nb69_step,nb69_run,{patch_ref},{len(patches)}}};','']
++    return '\n'.join(text)
++
++def main():
++    parser=argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--rom',required=True,type=Path);parser.add_argument('--out',required=True,type=Path)
++    parser.add_argument('--symbol',default='sots_arch78')
++    parser.add_argument('--keys',type=Path,help='Explicit JSON list of [pc24,m,x,e] architectural discovery keys; absent means frozen reset slice')
++    parser.add_argument('--profile',type=int,default=0,help='Explicit runtime source-profile identity')
++    parser.add_argument('--include-reset',action='store_true',help='Compose explicit discovery keys after the qualified reset39 entry set')
++    parser.add_argument('--patches',type=Path,help='Explicit approved original/runtime patch spans JSON; original input still attested')
++    args=parser.parse_args()
++    keys=json.loads(args.keys.read_text(encoding='utf-8')) if args.keys else None
++    patches=json.loads(args.patches.read_text(encoding='utf-8')) if args.patches else ()
++    source=emit_native_blocks(args.rom.read_bytes(),symbol=args.symbol,profile=args.profile,keys=keys,include_reset=args.include_reset,patches=patches)
++    args.out.parent.mkdir(parents=True,exist_ok=True);args.out.write_text(source,encoding='utf-8')
++
++if __name__=='__main__':main()
+diff --git a/runner/src/native_blocks.h b/runner/src/native_blocks.h
+new file mode 100644
+--- /dev/null
++++ b/runner/src/native_blocks.h
+@@ -0,0 +1,135 @@
++#ifndef SNESRECOMP_NATIVE_BLOCKS_H
++#define SNESRECOMP_NATIVE_BLOCKS_H
++
++/* Additive architectural native-block ABI. These callbacks do not admit an
++ * interpreter source callback or manufacture a paired host return frame. */
++#include "cpu_state.h"
++#include <stdbool.h>
++#include <stddef.h>
++#include <stdint.h>
++
++typedef struct NativeBlockKey {
++    uint32_t pc24;
++    uint32_t profile;
++    uint8_t m, x, e;
++} NativeBlockKey;
++
++typedef enum NativeBlockAction {
++    NATIVE_BLOCK_CONTINUE = 0,
++    NATIVE_BLOCK_DEADLINE,
++    NATIVE_BLOCK_MISSING,
++    NATIVE_BLOCK_REJECTED,
++    NATIVE_BLOCK_STEP_LIMIT,
++    NATIVE_BLOCK_WAI,
++    NATIVE_BLOCK_STP,
++    NATIVE_BLOCK_INTERRUPT
++} NativeBlockAction;
++
++typedef enum NativeBlockFault {
++    NATIVE_BLOCK_FAULT_NONE = 0,
++    NATIVE_BLOCK_FAULT_ABI,
++    NATIVE_BLOCK_FAULT_MODE,
++    NATIVE_BLOCK_FAULT_SOURCE,
++    NATIVE_BLOCK_FAULT_MAPPING,
++    NATIVE_BLOCK_FAULT_CONTEXT
++} NativeBlockFault;
++
++typedef struct NativeBlockResult {
++    NativeBlockKey next;
++    NativeBlockAction action;
++    NativeBlockFault fault;
++    uint64_t executed;
++} NativeBlockResult;
++
++struct NativeBlockScope;
++typedef void (*NativeBlockFunction)(CpuState*, struct NativeBlockScope*);
++
++typedef enum NativeBlockTransfer {
++    NATIVE_BLOCK_TRANSFER_NONE = 0,
++    NATIVE_BLOCK_TRANSFER_BRANCH,
++    NATIVE_BLOCK_TRANSFER_JUMP,
++    NATIVE_BLOCK_TRANSFER_CALL_SHORT,
++    NATIVE_BLOCK_TRANSFER_CALL_LONG,
++    NATIVE_BLOCK_TRANSFER_RETURN_SHORT,
++    NATIVE_BLOCK_TRANSFER_RETURN_LONG,
++    NATIVE_BLOCK_TRANSFER_RETURN_INTERRUPT
++} NativeBlockTransfer;
++typedef struct NativeBlockInstruction {
++    NativeBlockKey key;
++    uint32_t rom_offset;
++    uint16_t base_cpu_cycles;
++    uint8_t length;
++    uint8_t bytes[4];
++    uint8_t required_p_mask, required_p_value;
++    NativeBlockFunction execute;
++    NativeBlockTransfer transfer;
++} NativeBlockInstruction;
++
++struct NativeBlockProgram;
++typedef struct NativeBlockHost {
++    void *context;
++    /* Refuse BEFORE any guest state changes. Bind the primary CPU, original
++     * source image/profile and generation. Mapping checks every fetch byte
++     * against its actual current physical mapping and exact expected value.
++     * Refused predicates must not mutate guest state or clocks. */
++    bool (*admit)(void*, const struct NativeBlockProgram*, CpuState*, const NativeBlockInstruction*);
++    bool (*mapping)(void*, CpuState*, const NativeBlockInstruction*);
++    /* Bus operations are total once admitted. They preserve actual device
++     * effects/stalls. The generated scope owns regional data-access extras;
++     * these callbacks MUST NOT charge those CPU bus cycles a second time. */
++    uint8_t (*read8)(void*, CpuState*, uint32_t address);
++    void (*write8)(void*, CpuState*, uint32_t address, uint8_t value);
++    uint32_t (*region_speed)(void*, uint32_t address);
++    /* Publish/restore exact source read context and timing epoch. begin/end
++     * are observers: they must not execute a guest instruction or charge it.
++     * commit runs ONCE after the full actual instruction. opcode_master is
++     * CPU/fetch/data time only; device stalls already on CpuState are not
++     * repriced or added to this value. commit owns refresh, beam/coproc/APU
++     * cadence and progress/write epochs, using its valid native capability. */
++    void (*begin)(void*, CpuState*, const NativeBlockInstruction*, uint64_t prior_master);
++    void (*commit)(void*, CpuState*, const NativeBlockInstruction*, uint64_t prior_master,
++                   uint64_t opcode_master, bool wrote_memory);
++    void (*end)(void*, CpuState*, const NativeBlockInstruction*);
++    /* Optional atomic word bus path, with the same contract as the original
++     * bus read_word callback. False means NO effects occurred and the emitted
++     * scope must fall back to two ordered byte reads. True preserves actual
++     * atomic device behavior; regional extras remain owned by the scope. */
++    bool (*read16)(void*, CpuState*, uint32_t low, uint32_t high, uint16_t *value);
++    bool (*write16)(void*, CpuState*, uint32_t low, uint32_t high, uint16_t value, bool reversed);
++} NativeBlockHost;
++
++typedef struct NativeBlockScope {
++    const NativeBlockHost *host;
++    const NativeBlockInstruction *instruction;
++    uint64_t prior_master, data_extra;
++    uint32_t cpu_cycles, next_pc24;
++    NativeBlockAction action;
++    bool wrote_memory;
++} NativeBlockScope;
++
++/* Explicit approved source overlay. The original input is still attested by
++ * source_sha256; registration verifies every original byte and derives each
++ * descriptor's runtime bytes only through these nonoverlapping spans. Bind
++ * and per-op mapping checks retain the exact expected runtime bytes. */
++typedef struct NativeBlockPatch {
++    uint32_t rom_offset;
++    uint32_t length;
++    const uint8_t *original_bytes;
++    const uint8_t *runtime_bytes;
++} NativeBlockPatch;
++
++typedef struct NativeBlockProgram {
++    const char *name;
++    const char *source_sha256;
++    uint32_t profile;
++    const NativeBlockInstruction *instructions;
++    size_t instruction_count;
++    NativeBlockResult (*step)(const struct NativeBlockProgram*, const NativeBlockHost*,
++                              CpuState*, NativeBlockKey, uint64_t deadline);
++    NativeBlockResult (*run)(const struct NativeBlockProgram*, const NativeBlockHost*,
++                             CpuState*, NativeBlockKey, uint64_t deadline, uint64_t step_limit);
++    const NativeBlockPatch *patches;
++    size_t patch_count;
++} NativeBlockProgram;
++
++#endif
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -8,6 +8,7 @@
+ #include <time.h>
+ #include "interp_bridge.h"
+ #include "interp816.h"
++#include "sha256.h"
+ #include "tier2_capture.h"
+ #include "snes.h"   /* Snes, apuCatchupCycles, snes_catchupApu */
+ #include "apu.h"
+@@ -2322,6 +2323,335 @@
+ #endif
+ 
+ #include "bridge_callable_progress120.inc"
++
++/* Additive architectural blocks adapted from Lagoon native69. These use a
++ * distinct transient capability, not the old pre-op or generated-region token. */
++typedef struct NativeProgramBinding {
++    const NativeBlockProgram *program;
++    NativeBlockProgram header;
++    size_t source_size;
++    uint8_t source_digest[32], runtime_digest[32];
++    const uint8_t *image;
++    Snes *machine;
++    void *cart;
++    uint64_t serial, bound_serial, generation;
++} NativeProgramBinding;
++static NativeProgramBinding s_native_program;
++enum { kNativeProgramCatalogCapacity=8, kNativeProgramPatchCapacity=256 };
++typedef struct NativeProgramAttestation {
++    const NativeBlockProgram *program;
++    NativeBlockProgram header;
++} NativeProgramAttestation;
++static NativeProgramAttestation s_native_catalog[kNativeProgramCatalogCapacity];
++static size_t s_native_catalog_count;
++typedef struct NativeRuntimeScope {
++    const NativeBlockInstruction *instruction;
++    CpuState *cpu;
++    Interp816 *interp;
++    uint64_t generation, serial, cycles_before, bus_master;
++    unsigned bus_cycles, return_count;
++    uint8_t returned[3];
++    uint16_t stack_before;
++    int active, committed, saved_timing, pop_observed;
++    uint32_t saved_source_pc, saved_wlog_pc;
++    struct NativeRuntimeScope *previous_scope;
++} NativeRuntimeScope;
++static NativeRuntimeScope *s_native_runtime;
++static InterpNativeProgramStats s_native_program_stats;
++void interp_bridge_native_program_stats_get(InterpNativeProgramStats *out) {
++    if(out)*out=s_native_program_stats;
++}
++static void native_program_summary(void) {
++    fprintf(stderr,"[native-arch78] executed=%llu missing=%llu rejected=%llu interpreted=%llu\n",
++        (unsigned long long)s_native_program_stats.executed,
++        (unsigned long long)s_native_program_stats.missing,
++        (unsigned long long)s_native_program_stats.rejected,
++        (unsigned long long)s_native_program_stats.interpreted);
++}
++static void native_program_report_init(void) {
++    static int initialized;
++    if(initialized)return;initialized=1;
++    const char *e=getenv("SOTS_ARCH_NATIVE_REPORT");
++    if(e && !strcmp(e,"1"))atexit(native_program_summary);
++}
++static int native_program_strict(void) {
++    static int enabled=-1;
++    if(enabled<0){const char *e=getenv("SNESRECOMP_NATIVE_ONLY");enabled=e && !strcmp(e,"1");}
++    return enabled;
++}
++static void native_block_fatal(const char *reason) {
++    fprintf(stderr,"[native-arch78] fatal reason=%s\n",reason);
++    fflush(stderr);_Exit(87);
++}
++void interp_bridge_clear_native_program(void) {
++    native_program_report_init();
++    if(s_native_runtime)native_block_fatal("registration-during-execution");
++    uint64_t serial=s_native_program.serial+1;
++    memset(&s_native_program,0,sizeof s_native_program);
++    memset(s_native_catalog,0,sizeof s_native_catalog);s_native_catalog_count=0;
++    s_native_program.serial=serial;
++}
++static bool native_header_matches(const NativeBlockProgram *p,const NativeBlockProgram *h) {
++    return p && p->name==h->name && p->source_sha256==h->source_sha256 &&
++        p->profile==h->profile && p->instructions==h->instructions &&
++        p->instruction_count==h->instruction_count && p->step==h->step && p->run==h->run &&
++        p->patches==h->patches && p->patch_count==h->patch_count;
++}
++static bool native_program_header_valid(void) {
++    return native_header_matches(s_native_program.program,&s_native_program.header);
++}
++static uint64_t native_arch_key(const NativeBlockKey *key) {
++    return ((uint64_t)key->pc24<<3)|((uint64_t)key->m<<2)|((uint64_t)key->x<<1)|key->e;
++}
++static bool native_attest_program(const NativeBlockProgram *p,const uint8_t *source,size_t size,const char *hex) {
++    if(!p || !p->name || !p->source_sha256 || strlen(p->source_sha256)!=64 ||
++        strcmp(hex,p->source_sha256) || !p->instructions || !p->instruction_count || !p->step ||
++        p->patch_count>kNativeProgramPatchCapacity ||
++        (p->patch_count && (!p->patches || !p->profile)))return false;
++    for(size_t n=0;n<p->patch_count;n++) {
++        const NativeBlockPatch *patch=&p->patches[n];
++        if(!patch->length || !patch->original_bytes || !patch->runtime_bytes ||
++            patch->rom_offset>size || patch->length>size-patch->rom_offset ||
++            memcmp(source+patch->rom_offset,patch->original_bytes,patch->length))return false;
++        for(size_t j=0;j<n;j++) {
++            const NativeBlockPatch *prior=&p->patches[j];
++            if(patch->rom_offset<(uint64_t)prior->rom_offset+prior->length &&
++                prior->rom_offset<(uint64_t)patch->rom_offset+patch->length)return false;
++        }
++    }
++    for(size_t n=0;n<p->instruction_count;n++) {
++        const NativeBlockInstruction *i=&p->instructions[n];
++        if(!i->execute || !i->length || i->length>4 || !i->base_cpu_cycles ||
++            i->transfer>NATIVE_BLOCK_TRANSFER_RETURN_INTERRUPT ||
++            (i->transfer==NATIVE_BLOCK_TRANSFER_RETURN_INTERRUPT && i->key.e) ||
++            i->key.pc24>0xffffff || i->key.m>1 || i->key.x>1 || i->key.e>1 ||
++            (i->key.e && (!i->key.m || !i->key.x)) ||
++            i->key.profile!=p->profile || i->rom_offset>size || i->length>size-i->rom_offset ||
++            (n && native_arch_key(&p->instructions[n-1].key)>=native_arch_key(&i->key)))return false;
++        for(unsigned j=0;j<i->length;j++) {
++            uint32_t offset=i->rom_offset+j;uint8_t expected=source[offset];
++            for(size_t k=0;k<p->patch_count;k++) {
++                const NativeBlockPatch *patch=&p->patches[k];
++                if(offset>=patch->rom_offset && offset-patch->rom_offset<patch->length){expected=patch->runtime_bytes[offset-patch->rom_offset];break;}
++            }
++            if(i->bytes[j]!=expected)return false;
++        }
++    }
++    return true;
++}
++bool interp_bridge_register_native_programs(const NativeBlockProgram *const *programs,size_t count,
++                                             const uint8_t *source,size_t size) {
++    native_program_report_init();interp_bridge_clear_native_program();
++    if(!source || !size || !programs || !count || count>kNativeProgramCatalogCapacity)return false;
++    uint8_t hash[32];char hex[65];sha256_compute(source,size,hash);
++    for(unsigned i=0;i<32;i++)sprintf(hex+i*2,"%02x",hash[i]);
++    for(size_t n=0;n<count;n++) {
++        const NativeBlockProgram *p=programs[n];
++        if(!native_attest_program(p,source,size,hex))return false;
++        for(size_t j=0;j<n;j++)if(p==programs[j] || p->profile==programs[j]->profile)return false;
++    }
++    for(size_t n=0;n<count;n++){s_native_catalog[n].program=programs[n];s_native_catalog[n].header=*programs[n];}
++    s_native_catalog_count=count;s_native_program.program=programs[0];s_native_program.header=*programs[0];
++    s_native_program.source_size=size;memcpy(s_native_program.source_digest,hash,32);
++    return true;
++}
++bool interp_bridge_register_native_program(const NativeBlockProgram *p,const uint8_t *source,size_t size) {
++    return interp_bridge_register_native_programs(&p,1,source,size);
++}
++bool interp_bridge_bind_native_program(const NativeBlockProgram *p,const uint8_t *image,size_t size,uint64_t generation) {
++    if(s_native_runtime)return false;
++    const NativeProgramAttestation *attested=NULL;
++    for(size_t n=0;n<s_native_catalog_count;n++)if(s_native_catalog[n].program==p){attested=&s_native_catalog[n];break;}
++    if(!attested || !native_header_matches(p,&attested->header) ||
++        !g_snes || !g_snes->cart || image!=g_rom || image!=g_snes->cart->rom ||
++        size!=g_snes->cart->romImageSize || size!=s_native_program.source_size ||
++        generation!=RtlStateGeneration())goto refused;
++    for(size_t n=0;n<p->patch_count;n++) {
++        const NativeBlockPatch *patch=&p->patches[n];
++        if(!patch->length || !patch->runtime_bytes || patch->rom_offset>size ||
++            patch->length>size-patch->rom_offset || memcmp(image+patch->rom_offset,patch->runtime_bytes,patch->length))goto refused;
++    }
++    for(size_t n=0;n<p->instruction_count;n++) {
++        const NativeBlockInstruction *i=&p->instructions[n];
++        if(!i->length || i->length>4 || i->rom_offset>size || i->length>size-i->rom_offset || memcmp(image+i->rom_offset,i->bytes,i->length))goto refused;
++    }
++    if(s_native_program.program==p && s_native_program.image==image && s_native_program.machine==g_snes &&
++        s_native_program.cart==g_snes->cart && s_native_program.bound_serial==s_native_program.serial &&
++        s_native_program.generation==generation)return true;
++    s_native_program.program=p;s_native_program.header=attested->header;
++    s_native_program.image=image;s_native_program.machine=g_snes;s_native_program.cart=g_snes->cart;
++    s_native_program.bound_serial=s_native_program.serial;s_native_program.generation=generation;
++    sha256_compute(image,size,s_native_program.runtime_digest);return true;
++refused:
++    s_native_program.image=NULL;s_native_program.machine=NULL;s_native_program.cart=NULL;s_native_program.bound_serial=0;return false;
++}
++static bool native_runtime_bound(void) {
++    return native_program_header_valid() && g_snes && g_snes==s_native_program.machine &&
++        g_snes->cart && g_snes->cart==s_native_program.cart &&
++        g_rom==s_native_program.image && g_snes->cart->rom==g_rom &&
++        g_snes->cart->romImageSize==s_native_program.source_size &&
++        s_native_program.serial==s_native_program.bound_serial && RtlStateGeneration()==s_native_program.generation;
++}
++static bool native_host_admit(void *opaque,const NativeBlockProgram *p,CpuState *cpu,const NativeBlockInstruction *i) {
++    NativeRuntimeScope *s=opaque;
++    if(!native_runtime_bound() || p!=s_native_program.program || cpu!=&g_cpu || cpu!=s->cpu || cpu->ram!=g_ram ||
++        s->serial!=s_native_program.serial || s->generation!=RtlStateGeneration())return false;
++    uintptr_t lo=(uintptr_t)p->instructions,ptr=(uintptr_t)i;
++    if(ptr<lo || (ptr-lo)%sizeof(*i) || (ptr-lo)/sizeof(*i)>=p->instruction_count)return false;
++    return i->key.profile==p->profile && i->length && i->length<=4 && i->execute &&
++        i->transfer<=NATIVE_BLOCK_TRANSFER_RETURN_INTERRUPT &&
++        (i->transfer!=NATIVE_BLOCK_TRANSFER_RETURN_INTERRUPT || !i->key.e) &&
++        i->key.m==cpu->m_flag && i->key.x==cpu->x_flag && i->key.e==cpu->emulation &&
++        i->rom_offset<=s_native_program.source_size && i->length<=s_native_program.source_size-i->rom_offset;
++}
++static bool native_host_mapping(void *opaque,CpuState *cpu,const NativeBlockInstruction *i) {
++    if(!native_host_admit(opaque,s_native_program.program,cpu,i))return false;
++    for(unsigned j=0;j<i->length;j++) {
++        uint32_t logical=(i->key.pc24&0xff0000u)|((i->key.pc24+j)&0xffffu);
++        if(!cpu_aot_rom_mapping_matches(logical,i->rom_offset+j,1) || s_native_program.image[i->rom_offset+j]!=i->bytes[j])return false;
++    }
++    return true;
++}
++static NativeRuntimeScope *native_host_require(void *opaque,CpuState *cpu) {
++    NativeRuntimeScope *s=opaque;
++    if(s!=s_native_runtime || !s->active || s->cpu!=cpu || !native_runtime_bound() ||
++        s->serial!=s_native_program.serial || s->generation!=RtlStateGeneration())native_block_fatal("expired-native-capability");
++    return s;
++}
++static void native_bus_observe(NativeRuntimeScope *s,uint32_t address,uint8_t value,bool read) {
++    s->bus_cycles++;s->bus_master+=cpu_region_speed(address);
++    NativeBlockTransfer transfer=s->instruction->transfer;
++    if(read && (transfer==NATIVE_BLOCK_TRANSFER_RETURN_SHORT || transfer==NATIVE_BLOCK_TRANSFER_RETURN_LONG)) {
++        unsigned wanted=transfer==NATIVE_BLOCK_TRANSFER_RETURN_LONG?3:2;
++        if(s->return_count<wanted) {
++            uint16_t expected=s->instruction->key.e ? (uint16_t)(0x100u|((s->stack_before+s->return_count+1u)&255u)) : (uint16_t)(s->stack_before+s->return_count+1u);
++            if(address!=expected)native_block_fatal("return-stack-bus-order");
++            s->returned[s->return_count++]=value;
++            if(s->return_count==wanted) {
++                /* Publish the original pop observer immediately after its last
++                 * real stack read, before any instruction clock/device commit. */
++                uint16_t word=(uint16_t)(s->returned[0]|((uint16_t)s->returned[1]<<8));
++                uint8_t bank=wanted==3?s->returned[2]:s->cpu->PB;
++                sync_cpu_to_interp(s->cpu,s->interp);
++                s->interp->k=bank;s->interp->pc=(uint16_t)(word+1);
++                interp_bridge_source_call_interp_pop(s->interp,s->instruction->key.pc24,
++                    s->instruction->bytes[0],s->stack_before,word,bank);
++                s->pop_observed=1;
++            }
++        }
++    }
++}
++static uint8_t native_host_read8(void *opaque,CpuState *cpu,uint32_t address) {
++    NativeRuntimeScope *s=native_host_require(opaque,cpu);uint8_t value=bridge_bus_read(cpu,address);
++    native_bus_observe(s,address,value,true);return value;
++}
++static bool native_host_read16(void *opaque,CpuState *cpu,uint32_t low,uint32_t high,uint16_t *value) {
++    NativeRuntimeScope *s=native_host_require(opaque,cpu);if(!value)native_block_fatal("null-native-word-result");
++    if(!bridge_bus_read_word(cpu,low,high,value))return false;
++    native_bus_observe(s,low,(uint8_t)*value,true);native_bus_observe(s,high,(uint8_t)(*value>>8),true);return true;
++}
++static void native_host_write8(void *opaque,CpuState *cpu,uint32_t address,uint8_t value) {
++    NativeRuntimeScope *s=native_host_require(opaque,cpu);bridge_bus_write(cpu,address,value);native_bus_observe(s,address,value,false);
++}
++static bool native_host_write16(void *opaque,CpuState *cpu,uint32_t low,uint32_t high,uint16_t value,bool reversed) {
++    NativeRuntimeScope *s=native_host_require(opaque,cpu);
++    if(!bridge_bus_write_word(cpu,low,high,value,reversed))return false;
++    native_bus_observe(s,low,(uint8_t)value,false);native_bus_observe(s,high,(uint8_t)(value>>8),false);return true;
++}
++static uint32_t native_host_speed(void *opaque,uint32_t address) {
++    NativeRuntimeScope *s=opaque;native_host_require(opaque,s->cpu);return cpu_region_speed(address);
++}
++static void native_host_begin(void *opaque,CpuState *cpu,const NativeBlockInstruction *i,uint64_t prior) {
++    NativeRuntimeScope *s=opaque;
++    if(s->active || cpu->master_cycles!=prior || !native_host_mapping(opaque,cpu,i))native_block_fatal("invalid-native-begin");
++    s->instruction=i;s->active=1;s->previous_scope=s_native_runtime;s_native_runtime=s;s->cycles_before=cpu->cycles;
++    s->saved_source_pc=g_interp816_cur_pc;s->saved_wlog_pc=g_interp_wlog_pc24;
++    g_interp816_cur_pc=i->key.pc24;g_interp_wlog_pc24=i->key.pc24;
++    s->saved_timing=s_interp_bus_timing_active;s_interp_bus_timing_active=0;
++    interp_bridge_source_call_interp_enter(s->interp);
++    /* The emitter prices these fetches once. This scope preserves their real
++     * ROM bus/open-bus path without also accumulating interpreter bus price. */
++    for(unsigned n=0;n<i->length;n++) {
++        uint32_t address=(i->key.pc24&0xff0000u)|((i->key.pc24+n)&0xffffu);
++        uint8_t actual=bridge_bus_read(cpu,address);
++        if(actual!=i->bytes[n])native_block_fatal("source-changed-after-admission");
++        s->bus_cycles++;s->bus_master+=cpu_region_speed(address);
++    }
++    s->interp->pc=(uint16_t)(i->key.pc24+i->length);
++    if(i->transfer==NATIVE_BLOCK_TRANSFER_CALL_SHORT && i->bytes[0]==0x20u) {
++        uint32_t target=(i->key.pc24&0xff0000u)|i->bytes[1]|((uint32_t)i->bytes[2]<<8);
++        interp_bridge_source_call_interp_fetched(s->interp,i->key.pc24,target,2u);
++    } else if(i->transfer==NATIVE_BLOCK_TRANSFER_CALL_LONG && i->bytes[0]==0x22u) {
++        uint32_t target=i->bytes[1]|((uint32_t)i->bytes[2]<<8)|((uint32_t)i->bytes[3]<<16);
++        interp_bridge_source_call_interp_fetched(s->interp,i->key.pc24,target,3u);
++    }
++}
++static void native_host_commit(void *opaque,CpuState *cpu,const NativeBlockInstruction *i,
++                               uint64_t prior,uint64_t opcode_master,bool wrote) {
++    NativeRuntimeScope *s=native_host_require(opaque,cpu);(void)wrote;
++    if(s->instruction!=i || s->committed || cpu->master_cycles<prior || cpu->master_cycles-prior<opcode_master)native_block_fatal("invalid-native-commit");
++    s->committed=1;
++    /* Identical device/APU completion policy to bridge_charge_instruction;
++     * generated code has already added CPU/fetch/data clocks. */
++    snes_refresh_charge();cpu->coprocessor_master_cycles=cpu->master_cycles;
++    if(g_snes)snes_sync_master_clock(g_snes,cpu->master_cycles);
++    if(g_snes && g_snes->cart)cart_sync_coprocessors(g_snes->cart,cpu->master_cycles);
++#ifdef SNES_COSIM
++    if(!cosim_apu_shared_clock())
++#endif
++    {
++        if(rtl_apu_extended_frame_timing() || !interp_bridge_use_absolute_apu_timeline(
++            rtl_apu_frame_timeline_active(),g_snes && cart_has_sa1(g_snes->cart),false)) {
++            s_apu_pending_master+=opcode_master;
++            if(s_apu_pending_master>=bridge_bounce_flush_thresh())bridge_apu_flush(cpu);
++        }
++    }
++    s_native_program_stats.executed++;
++}
++static void native_host_end(void *opaque,CpuState *cpu,const NativeBlockInstruction *i) {
++    NativeRuntimeScope *s=native_host_require(opaque,cpu);
++    if(i!=s->instruction || !s->committed)native_block_fatal("invalid-native-end");
++    private_instruction_trace(cpu,i->key.pc24,'n',(unsigned)(cpu->cycles-s->cycles_before),s->bus_cycles,s->bus_master);
++    g_interp816_cur_pc=s->saved_source_pc;g_interp_wlog_pc24=s->saved_wlog_pc;
++    s_interp_bus_timing_active=s->saved_timing;s->active=0;s_native_runtime=s->previous_scope;
++}
++static int native_program_step(CpuState *cpu,Interp816 *in) {
++    native_program_report_init();
++    if(!native_runtime_bound() || cpu!=&g_cpu || in->stopped || in->waiting || in->nmiWanted || (!in->i && in->irqWanted))return 0;
++    NativeBlockKey key={((uint32_t)in->k<<16)|in->pc,s_native_program.program->profile,in->mf,in->xf,in->e};
++    CpuState saved=*cpu;sync_interp_to_cpu(in,cpu);
++    NativeRuntimeScope scope={0};scope.cpu=cpu;scope.interp=in;scope.generation=RtlStateGeneration();scope.serial=s_native_program.serial;scope.stack_before=in->sp;
++    NativeBlockHost host={0};host.context=&scope;host.admit=native_host_admit;host.mapping=native_host_mapping;
++    host.read8=native_host_read8;host.write8=native_host_write8;host.region_speed=native_host_speed;
++    host.begin=native_host_begin;host.commit=native_host_commit;host.end=native_host_end;host.read16=native_host_read16;host.write16=native_host_write16;
++    NativeBlockResult r=s_native_program.program->step(s_native_program.program,&host,cpu,key,0);
++    if(!r.executed) {
++        if(scope.active || scope.committed)native_block_fatal("incomplete-native-result");
++        if(r.action==NATIVE_BLOCK_MISSING)s_native_program_stats.missing++;else s_native_program_stats.rejected++;
++        *cpu=saved;return 0;
++    }
++    if(r.executed!=1 || scope.active || !scope.committed || r.fault!=NATIVE_BLOCK_FAULT_NONE ||
++        r.action!=NATIVE_BLOCK_CONTINUE || r.next.profile!=key.profile || r.next.pc24>0xffffff ||
++        r.next.m!=cpu->m_flag || r.next.x!=cpu->x_flag || r.next.e!=cpu->emulation)native_block_fatal("unsupported-native-result");
++    cpu->PB=(uint8_t)(r.next.pc24>>16);sync_cpu_to_interp(cpu,in);in->pc=(uint16_t)r.next.pc24;
++    NativeBlockTransfer transfer=scope.instruction->transfer;
++    if(transfer==NATIVE_BLOCK_TRANSFER_RETURN_SHORT || transfer==NATIVE_BLOCK_TRANSFER_RETURN_LONG) {
++        unsigned wanted=transfer==NATIVE_BLOCK_TRANSFER_RETURN_LONG?3u:2u;
++        if(scope.return_count!=wanted || !scope.pop_observed)native_block_fatal("missing-physical-return");
++        uint16_t word=(uint16_t)(scope.returned[0]|((uint16_t)scope.returned[1]<<8));
++        uint8_t bank=transfer==NATIVE_BLOCK_TRANSFER_RETURN_LONG?scope.returned[2]:in->k;
++        if(((uint32_t)in->k<<16|in->pc)!=(((uint32_t)bank<<16)|(uint16_t)(word+1)))native_block_fatal("return-result-mismatch");
++    }
++    return (int)(cpu->cycles-scope.cycles_before);
++}
++static void native_program_before_decoder(const Interp816 *in) {
++    native_program_report_init();
++    if(native_program_strict()) {
++        fprintf(stderr,"[native-arch78] missing pc=%06X m=%u x=%u e=%u\n",((unsigned)in->k<<16)|in->pc,in->mf,in->xf,in->e);
++        native_block_fatal("strict-native-missing");
++    }
++    s_native_program_stats.interpreted++;
++}
+ 
+ static int _interp_run_core(CpuState *cpu, uint32_t entry_pc24,
+                                  uint16_t s_exit, uint32_t *out_landing,
+@@ -3523,6 +3853,7 @@
+         s_scheduler_hook_handoff = previous_handoff;
+         int _cyc;
+         bool native_control_completed = false;
++        bool native_program_completed = false;
+         if (region_completed) {
+             _cyc = (int)(cpu->cycles - region_cycles_before);
+             sync_cpu_to_interp(cpu, &in);
+@@ -3538,7 +3869,14 @@
+             s_suspend_interp=&in;
+             _cyc = bridge_try_native_control(cpu,&in,pc_before,op);
+             native_control_completed = _cyc > 0;
+-            if (!native_control_completed) _cyc = interp816_runOpcode(&in);
++            if (!native_control_completed) {
++                _cyc = native_program_step(cpu,&in);
++                native_program_completed = _cyc > 0;
++                if (!native_program_completed) {
++                    native_program_before_decoder(&in);
++                    _cyc = interp816_runOpcode(&in);
++                }
++            }
+             s_suspend_interp=NULL;
+             s_task_original_interp_cpu=NULL;s_task_original_interp=NULL;s_task_original_interp_source=0;
+         }
+@@ -3570,12 +3908,12 @@
+          * g_apu_last_sync_master current so a later AOT bounce's accurate-mode
+          * catch-up delta excludes what we already advanced here. */
+         if (_cyc <= 0) _cyc = 1;
+-        if (g_tier2_capture_active && !native_control_completed) {
++        if (g_tier2_capture_active && !native_control_completed && !native_program_completed) {
+             tier2_capture_instruction(pc_before, coverage_mx, coverage_e, (unsigned)_cyc);
+             static unsigned checkpoint_opcodes;
+             if (!(++checkpoint_opcodes & 16383u)) Tier2CoverageTick(snes_frame_counter);
+         }
+-        if (!region_completed) {
++        if (!region_completed && !native_program_completed) {
+             bridge_charge_instruction(cpu, (unsigned)_cyc, s_interp_bus_cycles,
+                                       s_interp_bus_master, !native_control_completed);
+             { CpuState observed=*cpu;sync_interp_to_cpu(&in,&observed);
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -30,6 +30,17 @@
+ 
+ #include <stdint.h>
+ #include <stdio.h>
++#include "native_blocks.h"
++/* Additive PC/MX/E native programs; registrations and bindings are transient,
++ * not part of the serialized architectural state or old hook capabilities. */
++void interp_bridge_clear_native_program(void);
++bool interp_bridge_register_native_program(const NativeBlockProgram*, const uint8_t*, size_t);
++bool interp_bridge_register_native_programs(const NativeBlockProgram *const*, size_t, const uint8_t*, size_t);
++bool interp_bridge_bind_native_program(const NativeBlockProgram*, const uint8_t*, size_t, uint64_t);
++typedef struct InterpNativeProgramStats {
++    uint64_t executed, missing, rejected, interpreted;
++} InterpNativeProgramStats;
++void interp_bridge_native_program_stats_get(InterpNativeProgramStats*);
+ /* Dump the last n entries of the always-on global interp step ring
+  * (pc/op/sp/frame per interpreted opcode) to `out` (NULL = stderr). */
+ void interp_bridge_dump_recent_steps(int n, FILE *out);

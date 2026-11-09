@@ -1,0 +1,19 @@
+{
+  "patch_sha256": "5a2f0ebad421b7abc033925766a9c6f2567e0cdcf1a70979b6253f2404e0c391",
+  "predecessor_patch_sha256": "e4ea45154ee0889fe85e05f4899bb358d6cd004089ca21e1521664a712630a54",
+  "predecessor_binding_sha256": "de0f05e71772a1df5cfdf44836735e516ec0d0b1f0d4d51a2686e643d6c7675f",
+  "cache_format": 49,
+  "normal_metadata": 34,
+  "task_metadata": 8,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_known_callee_refinement_sources.py": {
+      "predecessor_sha256": "c013aaa27087ca2b91d08ddec5702f9c219e2fb048636f387647b55f5cbd7fde",
+      "final_sha256": "cf9996852d6694777e4e279b23824dd084846bde66462e0f16bb6b7db6dbcedf",
+      "normalized_final_sha256": "30b4f16ffef5dedf49e14cfd6e01e2d84b8405eab7a52a10e0fe98c6e951fe6c"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Rejection-only source writer fact prefilter. Identity-only original member lookup avoids hash/equality callbacks before full old positive validation. No cached/shared proof, new source grants or runtime changes."
+}

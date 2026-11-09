@@ -1,0 +1,40 @@
+diff --git a/recompiler/v2/architecture_initial_task_sources.py b/recompiler/v2/architecture_initial_task_sources.py
+--- a/recompiler/v2/architecture_initial_task_sources.py
++++ b/recompiler/v2/architecture_initial_task_sources.py
+@@ -12,6 +12,23 @@
+ from .architecture_task_sources import PURE_OPS
+ from .native_regions import STACK_PRIMITIVES,collect_stack_control
+ _ISSUER=object();_REGISTRIES=weakref.WeakSet();_CHILDREN=weakref.WeakSet();_CAPTURE_PROOFS=weakref.WeakKeyDictionary()
++# Per-issued-registry pure ROM digest only. Weak keys release the strong ROM
++# reference with the registry; mutable source proof validation is never cached.
++_ROM_DIGEST_PROOFS=weakref.WeakKeyDictionary()
++
++def _capture_rom_digest(registry,rom):
++    if registry not in _REGISTRIES or registry._issuer is not _ISSUER or registry in _ROM_DIGEST_PROOFS:raise ValueError('foreign/reused original ROM digest scope')
++    digest=hashlib.sha256(rom).hexdigest()
++    _ROM_DIGEST_PROOFS[registry]=(rom,digest)
++    return digest
++
++def _current_rom_digest(registry,rom):
++    proof=_ROM_DIGEST_PROOFS.get(registry)
++    if proof is None or rom is not proof[0]:raise ValueError('foreign/missing original ROM digest scope')
++    # Only exact builtin bytes have intrinsically immutable buffer contents.
++    # Mutable buffers and bytes subclasses retain the original current hash.
++    return proof[1] if type(rom)is bytes else hashlib.sha256(rom).hexdigest()
++
+ MAX_INSNS=128;MAX_STARTS=512;MAX_DEPTH=8
+ CONTRACT='source-original-fivebyte-initial-task-instructions-v1'
+ ALLOWED=PURE_OPS|STACK_PRIMITIVES|{'PLP','PEA','PEI','PER','JSR','JSL'}
+@@ -103,10 +120,10 @@
+ class _InitialRegistry:
+     def __init__(self,issuer,stream,rom):
+         if issuer is not _ISSUER:raise ValueError('private initial-task issuer')
+-        _REGISTRIES.add(self);self._issuer=issuer;self._stream=stream;self._rom=rom;self._rom_sha=hashlib.sha256(rom).hexdigest();self._parsed=stream._parsed;self._parsed_sha=_parsed_sha(self._parsed);self._global=_policy_sha(self._parsed);self._decoder=_decoder_policy_digest();self._manifest=stream._manifest;self._manifest_sha=_digest(self._manifest.to_dict());self._pieces=[];self._piece_ids=set();self._sealed=False;self._used=False;self._seal=None;self._children={};self._child_seal=None;self._starts={};self._starts_sha=_digest({});self._roles={};self._banks={};self._banks_sha=None;_CAPTURE_PROOFS[self]=self._piece_digest()
++        _REGISTRIES.add(self);self._issuer=issuer;self._stream=stream;self._rom=rom;self._rom_sha=_capture_rom_digest(self,rom);self._parsed=stream._parsed;self._parsed_sha=_parsed_sha(self._parsed);self._global=_policy_sha(self._parsed);self._decoder=_decoder_policy_digest();self._manifest=stream._manifest;self._manifest_sha=_digest(self._manifest.to_dict());self._pieces=[];self._piece_ids=set();self._sealed=False;self._used=False;self._seal=None;self._children={};self._child_seal=None;self._starts={};self._starts_sha=_digest({});self._roles={};self._banks={};self._banks_sha=None;_CAPTURE_PROOFS[self]=self._piece_digest()
+     def _piece_digest(self):return _digest([(kind,id(parent),id(graph),digest,_digest(params),_digest(role),_digest(options),_digest([(k.pc,k.m,k.x)for k in keys]),repr(pairs))for kind,parent,graph,digest,params,role,options,keys,pairs in self._pieces])
+     def validate(self,rom,parsed,stream):
+-        if self not in _REGISTRIES or self._issuer is not _ISSUER or stream is not self._stream or rom is not self._rom or parsed is not self._parsed or stream._manifest is not self._manifest or hashlib.sha256(rom).hexdigest()!=self._rom_sha or _parsed_sha(parsed)!=self._parsed_sha or _policy_sha(parsed)!=self._global or _decoder_policy_digest()!=self._decoder or _digest(self._manifest.to_dict())!=self._manifest_sha:raise ValueError('foreign/mutated initial-task source context')
++        if self not in _REGISTRIES or self._issuer is not _ISSUER or stream is not self._stream or rom is not self._rom or parsed is not self._parsed or stream._manifest is not self._manifest or _current_rom_digest(self,rom)!=self._rom_sha or _parsed_sha(parsed)!=self._parsed_sha or _policy_sha(parsed)!=self._global or _decoder_policy_digest()!=self._decoder or _digest(self._manifest.to_dict())!=self._manifest_sha:raise ValueError('foreign/mutated initial-task source context')
+         if _CAPTURE_PROOFS.get(self)!=self._piece_digest():raise ValueError('capture-time initial-task source proof changed')
+         if self._sealed and(self._seal!=self._piece_digest()or self._roles_sha!=_digest(self._roles)or self._starts_sha!=_digest(self._starts)or self._banks_sha!=_digest([(b,id(v),sorted(v._entries))for b,v in sorted(self._banks.items())])):raise ValueError('initial-task source registry/member role changed')
+         for kind,parent,g,d,p,role,options,keys,pairs in self._pieces:

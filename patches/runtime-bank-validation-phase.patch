@@ -1,0 +1,151 @@
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -68,6 +68,12 @@
+     return [output[k]for k in sorted(output)],{'contract':ARCHITECTURE_CONTRACT,'sources':summary,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False}
+ 
+ def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None,task_instruction_view=None,task_member_view=None,declared_call_view=None,_baseline_capture=None):
++    from .architecture_emission_policy import _source_collection_phase
++    with _source_collection_phase(program_call_stream,rom,parsed):
++        return _extend_source_collection(rom,parsed,ordinary,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream,task_instruction_view=task_instruction_view,task_member_view=task_member_view,declared_call_view=declared_call_view,_baseline_capture=_baseline_capture)
++
++
++def _extend_source_collection(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None,task_instruction_view=None,task_member_view=None,declared_call_view=None,_baseline_capture=None):
+     # Existing reviewed child derivation retained its seven source-known BRA
+     # bodies in the causal table. Union only the independently architecture-safe
+     # bodies; its source slot/host/publication recipe remains untouched.
+diff --git a/recompiler/v2/architecture_emission_policy.py b/recompiler/v2/architecture_emission_policy.py
+--- a/recompiler/v2/architecture_emission_policy.py
++++ b/recompiler/v2/architecture_emission_policy.py
+@@ -1,7 +1,97 @@
+ """Opaque current emitter bank-policy views; no cfg/root or JSON authority."""
+-import dataclasses,hashlib,json
++import dataclasses,hashlib,json,weakref
++from contextlib import contextmanager
+ _ISSUER=object()
+ _INLINE_UNSET=object()
++# Present only during the lexical original source-collection invocation.
++_BANK_COLLECTIONS=weakref.WeakKeyDictionary()
++_GRAPH_COLLECTIONS={}
++_COLLECTION_STREAMS=weakref.WeakSet()
++_COLLECTION_FAILED=weakref.WeakSet()
++
++def _collection_associations(view):
++    return (id(view._graphs),tuple((key,id(graph),expected)for key,(graph,expected)in view._graphs.items()),id(view._roles),id(view._role_sha),tuple(view._role_sha.items()),view._closed,id(view._cfg),id(view._parsed),frozenset(view._entries),frozenset(view._used))
++
++def _collection_namespace(stream):
++    return (id(stream._views),tuple((bank,id(view))for bank,view in stream._views.items()),id(stream._view_ids),frozenset(stream._view_ids),id(stream._manifest),id(stream._parsed),id(stream._rom_object),stream._sealed)
++
++def _collection_local(view,phase,issuer,rom,manifest,global_digest):
++    stream=phase['stream']
++    if phase['failed']or stream in _COLLECTION_FAILED or phase['checking']or stream not in _COLLECTION_STREAMS:raise ValueError('failed/reentrant original bank collection')
++    phase['checking']=True
++    try:
++        if _collection_namespace(stream)!=phase['namespace']or _collection_associations(view)!=phase['associations'][view]:raise ValueError('original bank collection associations mutated')
++        view._validate_identity(issuer,rom,manifest,global_digest)
++        for graph,expected in view._graphs.values():
++            if _digest(view._roles[id(graph)])!=view._role_sha[id(graph)]:raise ValueError('original bank graph role mutated')
++        if phase['failed']or stream in _COLLECTION_FAILED or _collection_namespace(stream)!=phase['namespace']or _collection_associations(view)!=phase['associations'][view]:raise ValueError('original bank collection changed during validation')
++    except BaseException:
++        phase['failed']=True;_COLLECTION_FAILED.add(stream);raise
++    finally:phase['checking']=False
++
++def _collection_data_snapshot(boundary,views):
++    # DATA only: no decoder/proof/global namespace traversal. Each real view
++    # is a root; synthetic wrapper IDs never enter the returned tape.
++    from .architecture_nested_initial_task_sources import _nested_data_signature
++    tapes=[];keep=[]
++    for view in views:
++        tape,strong=_nested_data_signature(boundary,view)
++        tapes.append(tape);keep.extend(strong)
++    return tuple(tapes),keep
++
++@contextmanager
++def _source_collection_phase(stream,rom,parsed):
++    from .architecture_program_call_sources import _ProgramCallStream,_PRODUCER,_policy_sha
++    if stream is None or type(rom)is not bytes:
++        yield;return
++    if type(stream)is not _ProgramCallStream or stream._producer is not _PRODUCER or not stream._sealed or stream._rom_object is not rom or stream._parsed is not parsed:raise ValueError('source collection needs actual sealed original stream')
++    if stream in _COLLECTION_STREAMS or stream in _COLLECTION_FAILED:
++        _COLLECTION_FAILED.add(stream);raise ValueError('failed/reentrant original source collection')
++    _COLLECTION_STREAMS.add(stream)
++    views=();all_views=();phase=None;leased=[]
++    try:
++        namespace=_collection_namespace(stream)
++        all_views=tuple(stream._views.values())
++        views=tuple(v for v in all_views if v._graphs)
++        if len({id(v)for v in all_views})!=len(all_views)or any(type(v)is not _EmissionPolicy or id(v)not in stream._view_ids or stream._views.get(v._bank)is not v or v._closed is not True or v._parsed is not parsed for v in all_views):raise ValueError('foreign original source collection banks')
++        # Ordinary emission is already sealed; snapshot BEFORE callbacks.
++        from .architecture_ff20_architectural_sources import _RawBoundary
++        boundary=_RawBoundary()
++        data_before,data_keep=_collection_data_snapshot(boundary,all_views)
++        associations={v:_collection_associations(v)for v in all_views}
++        stream.rows(rom,parsed)
++        for view in views:view._validate_full(_ISSUER,rom,stream._manifest,_policy_sha(parsed))
++        if stream in _COLLECTION_FAILED or _collection_namespace(stream)!=namespace or any(_collection_associations(v)!=associations[v]for v in all_views):raise ValueError('original bank preflight namespace changed')
++        data_after,pre_keep=_collection_data_snapshot(boundary,all_views)
++        if data_after!=data_before:raise ValueError('original bank DATA changed during preflight')
++        phase={'stream':stream,'namespace':namespace,'associations':associations,'checking':False,'failed':False}
++        for view in views:_BANK_COLLECTIONS[view]=phase
++        for view in views:
++            for graph,expected in view._graphs.values():
++                if id(graph)in _GRAPH_COLLECTIONS:raise ValueError('overlapping original bank graph lease')
++                _GRAPH_COLLECTIONS[id(graph)]=(graph,rom,view,expected,phase);leased.append(id(graph))
++        yield
++        # Close the capability BEFORE the genuine full postflight.
++        for key in leased:_GRAPH_COLLECTIONS.pop(key,None)
++        for view in views:_BANK_COLLECTIONS.pop(view,None)
++        if phase['failed']or stream in _COLLECTION_FAILED or _collection_namespace(stream)!=namespace:raise ValueError('original source collection failed')
++        stream.rows(rom,parsed)
++        for view in views:
++            if _collection_associations(view)!=phase['associations'][view]:raise ValueError('original bank collection ledger changed')
++            view._validate_full(_ISSUER,rom,stream._manifest,_policy_sha(parsed))
++        if stream in _COLLECTION_FAILED or _collection_namespace(stream)!=namespace or any(_collection_associations(v)!=phase['associations'][v]for v in all_views):raise ValueError('original bank postflight changed')
++        data_after,post_keep=_collection_data_snapshot(boundary,all_views)
++        if data_after!=data_before:raise ValueError('original bank DATA changed during collection/postflight')
++    except BaseException:
++        _COLLECTION_FAILED.add(stream)
++        if phase is not None:phase['failed']=True
++        raise
++    finally:
++        for key in leased:_GRAPH_COLLECTIONS.pop(key,None)
++        for view in views:_BANK_COLLECTIONS.pop(view,None)
++        _COLLECTION_STREAMS.discard(stream)
++
++
+ 
+ def _freeze(v):
+     if v is None or isinstance(v,(str,int,float,bool)):return v
+@@ -20,6 +110,16 @@
+     return _digest((decoder._INSTRUCTION_AUTHORITY,decoder._AUTHORITY_DATA))
+ 
+ def _graph_digest(rom,graph):
++    lease=_GRAPH_COLLECTIONS.get(id(graph))
++    if lease is not None and lease[0]is graph and lease[1]is rom:
++        _graph,owner,expected,phase=lease[0],lease[2],lease[3],lease[4]
++        stream=phase['stream']
++        if phase['failed']or stream in _COLLECTION_FAILED or stream not in _COLLECTION_STREAMS or _BANK_COLLECTIONS.get(owner)is not phase or _collection_namespace(stream)!=phase['namespace']or _collection_associations(owner)!=phase['associations'][owner]:
++            phase['failed']=True;_COLLECTION_FAILED.add(stream);raise ValueError('original bank graph lease changed')
++        return expected
++    return _graph_digest_full(rom,graph)
++
++def _graph_digest_full(rom,graph):
+     from snes65816 import rom_offset
+     members=[]
+     for k,di in sorted(graph.insns.items(),key=lambda item:(item[0].pc,item[0].m,item[0].x)):
+@@ -41,8 +141,14 @@
+         key=(bank<<16|start&65535,m,x)
+         if issuer is not _ISSUER or self._closed or rom is not self._rom or type(graph)is not FunctionDecodeGraph or key not in self._entries or key in self._used or _digest(options)!=self._option_sha:raise ValueError('foreign/duplicate bank producer graph or policy')
+         self._used.add(key);self._graphs[id(graph)]=(graph,_graph_digest(rom,graph))
++    def _validate_identity(self,issuer,rom,manifest,global_digest):
++        if issuer is not _ISSUER or self._issuer is not issuer or rom is not self._rom or manifest is not self._manifest or _digest(manifest.to_dict())!=self._manifest_sha or global_digest!=self._global or _digest(self._options)!=self._option_sha or _decoder_policy_digest()!=self._decoder_sha:raise ValueError('original bank policy identity/mutation')
+     def validate(self,issuer,rom,manifest,global_digest):
+-        if issuer is not _ISSUER or self._issuer is not issuer or rom is not self._rom or manifest is not self._manifest or _digest(manifest.to_dict())!=self._manifest_sha or global_digest!=self._global or _digest(self._options)!=self._option_sha or _decoder_policy_digest()!=self._decoder_sha:raise ValueError('original bank policy identity/mutation')
++        phase=_BANK_COLLECTIONS.get(self)
++        if phase is not None:return _collection_local(self,phase,issuer,rom,manifest,global_digest)
++        return self._validate_full(issuer,rom,manifest,global_digest)
++    def _validate_full(self,issuer,rom,manifest,global_digest):
++        self._validate_identity(issuer,rom,manifest,global_digest)
+         for graph,expected in self._graphs.values():
+             if _graph_digest(rom,graph)!=expected or _digest(self._roles[id(graph)])!=self._role_sha[id(graph)]:raise ValueError('original bank graph mutated')
+         if not self._graphs:raise ValueError('bank policy has no actual original graph')

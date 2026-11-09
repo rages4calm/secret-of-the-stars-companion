@@ -1,0 +1,49 @@
+{
+  "patch_sha256": "e4ea45154ee0889fe85e05f4899bb358d6cd004089ca21e1521664a712630a54",
+  "predecessor_patch_sha256": "de81a499306a5c0c2a798cc3747bc4859c9d2023dc201c64c767290716513033",
+  "predecessor_binding_sha256": "21d29cc3a174b6dfe89692ab7c04dcf5bbc39017b45560d1101f4540f1e744a5",
+  "cache_format": 49,
+  "normal_metadata": 34,
+  "task_metadata": 8,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "7e4a5bd25e24d73e3d6f56315f3e6c1445934f6328d0493d0a9148e7e56aa81a",
+      "final_sha256": "9cdc45091a91257d702c552f699519746e490a797a6d741258682f3cc68f67a4",
+      "normalized_final_sha256": "9cdc45091a91257d702c552f699519746e490a797a6d741258682f3cc68f67a4"
+    },
+    "recompiler/v2/architecture_emission_policy.py": {
+      "predecessor_sha256": "bc60c7c7ef70efe5ef8c926f6011f71c511722fb39facbabc992f6d68b74fad0",
+      "final_sha256": "9f8cea723ac212ce1ea330df3a5d88de6932046b1ff3241f72995ccd86b24f74",
+      "normalized_final_sha256": "9f8cea723ac212ce1ea330df3a5d88de6932046b1ff3241f72995ccd86b24f74"
+    },
+    "recompiler/v2/architecture_ff20_byte_dispatch_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "4184f42c10f04ee31fe605aca1496099cb1dd416c7a126aad13e331ad6c9aea7",
+      "normalized_final_sha256": "4184f42c10f04ee31fe605aca1496099cb1dd416c7a126aad13e331ad6c9aea7"
+    },
+    "recompiler/v2/architecture_known_callee_refinement_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "c013aaa27087ca2b91d08ddec5702f9c219e2fb048636f387647b55f5cbd7fde",
+      "normalized_final_sha256": "c013aaa27087ca2b91d08ddec5702f9c219e2fb048636f387647b55f5cbd7fde"
+    },
+    "recompiler/v2/architecture_nested_initial_task_sources.py": {
+      "predecessor_sha256": "59f8ad38e70157eeb8528df958acc8b6602775448a9be815b2ca0105886e6b49",
+      "final_sha256": "f5e07b78cec06dc52f8d366c477afffdcf898fd34f9313f060d5c64efd38befc",
+      "normalized_final_sha256": "f5e07b78cec06dc52f8d366c477afffdcf898fd34f9313f060d5c64efd38befc"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "c2d7d737524ac40f90037e1cc0670b87df5213d7bb4efdc94dfe87e95ce14d02",
+      "final_sha256": "7917a83d9779bf38ad338ea43311501aff9d59a5bbcaf342da0b9b52fc8cdf0c",
+      "normalized_final_sha256": "7917a83d9779bf38ad338ea43311501aff9d59a5bbcaf342da0b9b52fc8cdf0c"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "8f2c211563c48f5dd84e984197ce3be5ea33cf86faa48256207fc4f4b88d9bec",
+      "final_sha256": "1f2ce7f55c95471493defde3a7d9c9b22fef00203a6f94d29d1f1980f7387188",
+      "normalized_final_sha256": "1f2ce7f55c95471493defde3a7d9c9b22fef00203a6f94d29d1f1980f7387188"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "FF20-only fallback: source218 derive/family/recipe deferred; its unchanged modules/proofs retained. Original source241 partial D0 ROM discovery and old19 contracts retained. No generated population or native/AOT qualification claimed."
+}

@@ -1,0 +1,281 @@
+diff --git a/recompiler/v2/architecture_baseline_view.py b/recompiler/v2/architecture_baseline_view.py
+--- a/recompiler/v2/architecture_baseline_view.py
++++ b/recompiler/v2/architecture_baseline_view.py
+@@ -64,7 +64,7 @@
+     if type(capture)is not _Capture:raise ValueError('foreign baseline capture type')
+     proof=_PROOFS.get(capture)
+     if type(capture)is not _Capture or capture not in _ISSUED or not _ACTIVE or proof is None or proof['phase']!='capturing' or capture.phase!='capturing' or rom is not proof['rom']or parsed is not proof['parsed']or stream is not proof['stream']or stream is not capture.stream or not stream._sealed:raise ValueError('foreign/reused baseline source capture')
+-    if len(sources)!=20 or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
++    if len(sources)!=21 or sources[-1][0]!='source_declared_wait_call_instructions' or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
+     capture.sources=tuple((origin,tuple(rows))for origin,rows in sources);capture.recipes=dict(recipes)
+     capture.seal=_digest((capture.sources,capture.recipes));capture.phase='sealed'
+     proof.update(phase='sealed',sources=capture.sources,recipes=capture.recipes,seal=capture.seal)
+@@ -100,7 +100,9 @@
+         take_unresolved_call_targets();take_rejected_call_targets();take_trampoline_returns();set_faithful_prefix_contracts(prefix_contracts(manifest,parsed))
+         capture=_Capture(_ISSUER,rom,parsed,baseline,profiled,reviewed_source_sha256)
+         task_view=_new_task_view(rom,parsed,manifest);member_view=_new_member_view(rom,parsed,manifest)
+-        task_rows,task_recipe,_task_graphs=derive_task_resume(rom,parsed,None,_instruction_view=task_view,_member_view=member_view)
++        from .architecture_declared_wait_call_sources import _new_view as _new_declared_wait_view
++        declared_call_view=_new_declared_wait_view(rom,parsed,'normal')
++        task_rows,task_recipe,_task_graphs=derive_task_resume(rom,parsed,None,_instruction_view=task_view,_member_view=member_view,_declared_call_views=(declared_call_view,))
+         program_call_stream=_new_program_stream(rom,parsed,manifest);_bind_stream(capture,program_call_stream)
+         all_regions=[];host_alias_entries=None;bank_file_header=None
+         for bank in sorted(set(cfg_by_bank)|set(entries_by_bank)):
+@@ -188,7 +190,7 @@
+         baseline_ordinary=[unique[k]for k in sorted(unique)]
+         task_rows,task_recipe=append_original_prefixes(rom,parsed,task_rows,task_recipe,baseline_ordinary)
+         _seal_task_view(task_view,rom,parsed,manifest);_seal_member_view(member_view,rom,parsed,manifest)
+-        _ignored,result=extend(rom,parsed,baseline_ordinary,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_view,task_member_view=member_view,_baseline_capture=capture)
++        _ignored,result=extend(rom,parsed,baseline_ordinary,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_view,task_member_view=member_view,declared_call_view=declared_call_view,_baseline_capture=capture)
+         if result is not capture or capture.phase!='sealed':raise ValueError('baseline source factories did not seal original candidate view')
+     return capture
+ 
+diff --git a/recompiler/v2/architecture_declared_wait_call_sources.py b/recompiler/v2/architecture_declared_wait_call_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_declared_wait_call_sources.py
+@@ -0,0 +1,96 @@
++"""Original declared wait CALL instruction, never a callee/owner certificate.
++
++Only the original task recipe producer may seal a source record. Normal and
++selected dispatch consume separate one-use records in their own source context.
++"""
++import hashlib
++import weakref
++
++CONTRACT='source-declared-wait-call-instruction-v1'
++_RECORDS=weakref.WeakKeyDictionary()
++_PURPOSES=frozenset({'normal','selected'})
++
++
++class _View:
++    __slots__=('__weakref__',)
++
++
++def _context(rom,parsed):
++    from .architecture_emission_policy import _digest,_decoder_policy_digest
++    return hashlib.sha256(rom).hexdigest(),_digest([(b,vars(c))for b,_p,c in parsed]),_decoder_policy_digest()
++
++
++def _new_view(rom,parsed,purpose):
++    if purpose not in _PURPOSES:raise ValueError('declared wait dispatch purpose')
++    view=_View()
++    _RECORDS[view]={'rom':rom,'parsed':parsed,'context':_context(rom,parsed),'purpose':purpose,'source':None,'used':False}
++    return view
++
++
++def _record(view,rom,parsed,purpose):
++    if type(view)is not _View or view not in _RECORDS:raise ValueError('foreign declared wait view')
++    record=_RECORDS[view]
++    if record['used']or record['purpose']!=purpose or rom is not record['rom']or parsed is not record['parsed']or _context(rom,parsed)!=record['context']:
++        raise ValueError('used/foreign/mutated declared wait context')
++    return record
++
++
++def _issue(view,producer,rom,parsed,spec,spans):
++    from .task_resume import _TASK_INSTRUCTION_PRODUCER
++    from .architecture_emission_policy import _digest
++    from .architecture_eligibility import _mask
++    from snes65816 import rom_offset
++    if producer is not _TASK_INSTRUCTION_PRODUCER:raise ValueError('original task recipe producer required')
++    if type(view)is not _View or view not in _RECORDS:raise ValueError('foreign declared wait issuer view')
++    record=_record(view,rom,parsed,_RECORDS[view]['purpose'])
++    if record['source']is not None:raise ValueError('declared wait source issued twice')
++    specs=[s for _b,_p,c in parsed for s in getattr(c,'source_task_resumes',())]
++    if len(specs)!=1 or tuple(specs[0])!=tuple(spec)or len(spec)!=7 or spec[0]!=0xff03 or spec[5]!=0x1d878:
++        raise ValueError('only original declared common wait call0')
++    frozen=tuple((p,bytes(raw))for p,raw in spans)
++    call=spec[5];expected=bytes.fromhex('e220a9012203ff00')
++    if (call-4,expected)not in frozen:raise ValueError('declared wait M1 prologue not source witnessed')
++    for pc,raw in frozen:
++        off=rom_offset(pc>>16,pc&65535)
++        if off<0 or off+len(raw)>len(rom)or bytes(rom[off:off+len(raw)])!=raw:
++            raise ValueError('declared wait recipe source changed')
++    if _mask(parsed,call,4)or _mask(parsed,spec[0],1):raise ValueError('declared wait instruction/target masked')
++    record['source']=(tuple(spec),frozen,_digest((tuple(spec),frozen)))
++
++
++def derive(rom,parsed,view,*,purpose,enable_native_call_prefix=True):
++    record=_record(view,rom,parsed,purpose)
++    record['used']=True # consume before any decoder, callback or refusal
++    specs=[s for _b,_p,c in parsed for s in getattr(c,'source_task_resumes',())]
++    if not specs:
++        if record['source']is not None:raise ValueError('declared wait source without recipe')
++        return [],{'contract':CONTRACT,'present':False,'purpose':purpose}
++    if record['source']is None:raise ValueError('original complete recipe issuance required')
++    from .architecture_emission_policy import _digest
++    spec,spans,seal=record['source']
++    if _digest((spec,spans))!=seal:raise ValueError('declared wait seal changed')
++    meta={'contract':CONTRACT,'present':True,'purpose':purpose,'source_recipe_sha256':seal,'call0':spec[5],
++          'proved_M':1,'live_X':[0,1],'direct_call_prefix':bool(enable_native_call_prefix),
++          'ordinary_roots_added':False,'callee_exit_modes_added':False,'selected_owner_created':False}
++    if not enable_native_call_prefix:return [],meta
++    from .emit_function import emit_function
++    from .architecture_eligibility import _independent,_mask
++    cfg={b:c for b,_p,c in parsed}
++    if len(cfg)!=len(parsed)or 1 not in cfg:raise ValueError('declared wait source bank policy')
++    masks=[r for c in cfg.values()for r in c.data_regions]+[(c.bank,a,b)for c in cfg.values()for a,b in c.authority_data+c.exclude_ranges]
++    forced={p&0x7fffff for c in cfg.values()for p in c.force_lle}
++    rows=[];call=spec[5]
++    if _mask(parsed,call,4)or _mask(parsed,spec[0],1):raise ValueError('declared wait current source mask')
++    for x in(0,1):
++        local=[];calls=[];c=cfg[1]
++        emit_function(rom,1,call&65535,1,x,func_name='DiscardedDeclaredWaitCall',data_regions=masks,
++            exclude_ranges=c.exclude_ranges,hle_func=c.hle_func,hle_spc_upload=c.hle_spc_upload,hle_dispatch=c.hle_dispatch,
++            native_call_prefix_forced=forced,native_region_collector=local,native_call_prefix_collector=calls,
++            _native_instruction_members=frozenset({call}),_native_collector_only=True)
++        exact=[r for r in calls if (r['pc24'],r['m'],r['x'])==(call,1,x)]
++        if len(exact)!=1:raise ValueError('declared wait independent canonical CALL refusal')
++        row=exact[0]
++        if row['mnemonic']!='JSL'or row['bytes']!='2203ff00'or row['length']!=4 or row['cycles']!=8 or row['next_pc']!=spec[0]or not row.get('original_scheduler_call')or row.get('contract')!='source-direct-call-architectural-prefix-v1'or not _independent(rom,parsed,row):
++            raise ValueError('declared wait canonical CALL/source mismatch')
++        rows.append(dict(row))
++    return rows,meta
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -67,7 +67,7 @@
+         summary.append({'origin':origin,'source_rows':len(candidates),'added':added,'reused':reused,'refused':refused})
+     return [output[k]for k in sorted(output)],{'contract':ARCHITECTURE_CONTRACT,'sources':summary,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False}
+ 
+-def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None,task_instruction_view=None,task_member_view=None,_baseline_capture=None):
++def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None,task_instruction_view=None,task_member_view=None,declared_call_view=None,_baseline_capture=None):
+     # Existing reviewed child derivation retained its seven source-known BRA
+     # bodies in the causal table. Union only the independently architecture-safe
+     # bodies; its source slot/host/publication recipe remains untouched.
+@@ -119,7 +119,11 @@
+     if program_call_stream is not None:
+         from .architecture_ff20_byte_dispatch_sources import derive as derive_ff20_bytes
+         ff20_byte_rows,ff20_byte_graphs=derive_ff20_bytes(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+-    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows)]
++    declared_rows=[];declared_recipe=None
++    if declared_call_view is not None:
++        from .architecture_declared_wait_call_sources import derive as derive_declared_wait
++        declared_rows,declared_recipe=derive_declared_wait(rom,parsed,declared_call_view,purpose='normal',enable_native_call_prefix=enable_native_call_prefix)
++    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows),('source_declared_wait_call_instructions',declared_rows)]
+     if _baseline_capture is None:
+         output,metadata=merge_source_union(rom,parsed,ordinary,sources)
+     else:
+@@ -142,6 +146,7 @@
+     metadata['initial_task_graphs']=initial_task_graphs
+     metadata['nested_initial_task_graphs']=nested_initial_graphs
+     metadata['ff20_byte_dispatch_graphs']=ff20_byte_graphs
++    metadata['declared_wait_call_source']=declared_recipe
+     if _baseline_capture is not None:
+         from .architecture_baseline_view import _finish_capture
+         return None,_finish_capture(_baseline_capture,rom,parsed,program_call_stream,sources,metadata)
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,7 +42,7 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 49
++CACHE_FORMAT_VERSION = 51
+ 
+ # ── Program modules ──────────────────────────────────────────────────────────
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+@@ -1070,8 +1070,8 @@
+         rom_sha256_hex = hashlib.sha256(rom).hexdigest()
+     if rom_size is None:
+         rom_size = len(rom)
+-    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 50
+-    output_normal_format=34 if architecture_baseline is None else 35
++    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 52
++    output_normal_format=36 if architecture_baseline is None else 37
+     from .faithful_prefix import prefix_contracts
+     from .emit_function import set_faithful_prefix_contracts
+     set_faithful_prefix_contracts(prefix_contracts(manifest, parsed))
+@@ -1088,7 +1088,11 @@
+     selected_call_view=_new_selected_call_view(rom,parsed,manifest)
+     from .task_parent_member_sources import _new_parent_view,_seal_parent_view,derive as derive_parent_members,emit_source as emit_parent_members
+     parent_member_view=_new_parent_view(rom,parsed,manifest)
+-    task_rows,task_recipe,task_graphs=derive_task_resume(rom,parsed,module_prefix,_instruction_view=task_instruction_view,_member_view=task_member_view,_selected_view=selected_member_view,_selected_call_view=selected_call_view,_parent_view=parent_member_view)
++    from .architecture_declared_wait_call_sources import _new_view as _new_declared_wait_view
++    declared_normal_view=_new_declared_wait_view(rom,parsed,'normal')if architecture_baseline is None else None
++    declared_selected_view=_new_declared_wait_view(rom,parsed,'selected')
++    declared_views=tuple(v for v in(declared_normal_view,declared_selected_view)if v is not None)
++    task_rows,task_recipe,task_graphs=derive_task_resume(rom,parsed,module_prefix,_instruction_view=task_instruction_view,_member_view=task_member_view,_selected_view=selected_member_view,_selected_call_view=selected_call_view,_parent_view=parent_member_view,_declared_call_views=declared_views)
+     from .source_redirect import derive as derive_redirect
+     redirect_rows,redirect_recipe=derive_redirect(rom,parsed,manifest,module_prefix)
+     continuations = _native_continuation_rows(manifest)
+@@ -1378,7 +1382,7 @@
+         _seal_task_view(task_instruction_view,rom,parsed,manifest)
+         _seal_member_view(task_member_view,rom,parsed,manifest)
+         if architecture_baseline is None:
+-            regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_instruction_view,task_member_view=task_member_view)
++            regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_instruction_view,task_member_view=task_member_view,declared_call_view=declared_normal_view)
+         else:
+             program_call_stream.seal()
+             from .architecture_baseline_view import consume
+@@ -1387,11 +1391,13 @@
+         selected_rows,selected_recipe=derive_selected_members(rom,parsed,selected_member_view,task_rows)
+         _seal_selected_call_view(selected_call_view,rom,parsed,manifest)
+         selected_call_rows,selected_call_recipe=derive_selected_calls(rom,parsed,selected_call_view,task_rows,selected_rows,enable_native_call_prefix=enable_native_call_prefix)
++        from .task_selected_call_sources import append_declared_wait_calls
++        selected_call_rows,selected_call_recipe=append_declared_wait_calls(rom,parsed,declared_selected_view,regions,selected_call_rows,selected_call_recipe,task_rows,selected_rows,enable_native_call_prefix=enable_native_call_prefix)
+         _seal_parent_view(parent_member_view,rom,parsed,manifest)
+         parent_rows,parent_recipe=derive_parent_members(rom,parsed,parent_member_view,task_rows+selected_rows+selected_call_rows)
+         from .task_resume import emit_source as emit_task_resume
+         write_if_changed(staging/'native_task_resume_v2.c',emit_task_resume(task_rows,task_recipe,module_prefix)+emit_selected_members(selected_rows,task_rows,module_prefix)+emit_selected_calls(selected_call_rows,task_rows,selected_rows,module_prefix)+emit_parent_members(parent_rows,parent_recipe,task_rows+selected_rows+selected_call_rows,module_prefix))
+-        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':8,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows,'selected_architectural_members':{'rows':selected_rows,'recipe':selected_recipe},'selected_architectural_calls':{'rows':selected_call_rows,'recipe':selected_call_recipe},'retained_parent_architectural_members':{'rows':parent_rows,'recipe':parent_recipe}},indent=2,sort_keys=True)+'\n')
++        write_if_changed(staging/'native_task_resume.json',json.dumps({'format_version':9,'kind':'source_selected_task_resume','rom_sha256':hashlib.sha256(rom).hexdigest(),'recipe':{k:v for k,v in task_recipe.items() if k!='spans'} if task_recipe else None,'graphs':task_graphs,'rows':task_rows,'selected_architectural_members':{'rows':selected_rows,'recipe':selected_recipe},'selected_architectural_calls':{'rows':selected_call_rows,'recipe':selected_call_recipe},'retained_parent_architectural_members':{'rows':parent_rows,'recipe':parent_recipe}},indent=2,sort_keys=True)+'\n')
+         from .native_bootstrap import derive as derive_reset_bootstrap
+         try:
+             reset_bootstrap=derive_reset_bootstrap(rom,parsed)
+diff --git a/recompiler/v2/task_resume.py b/recompiler/v2/task_resume.py
+--- a/recompiler/v2/task_resume.py
++++ b/recompiler/v2/task_resume.py
+@@ -65,7 +65,7 @@
+   rows.append(row)
+  return rows,{'callsite':call,'landing':landing,'p_mask':0x30,'p_value':0x20},spans,{'landing':landing,'m':m,'x':x,'decoded_rows':len(internal),'call_barriers':[v for v in graph.unknown_callee_exit_sites if landing<=v[0]<0x01e171],'original_tail_barrier':0x01e171,'external_rows_not_admitted':len(graph.insns)-len(internal)}
+ 
+-def derive(rom,parsed,module_prefix=None,*,_instruction_view=None,_member_view=None,_selected_view=None,_selected_call_view=None,_parent_view=None):
++def derive(rom,parsed,module_prefix=None,*,_instruction_view=None,_member_view=None,_selected_view=None,_selected_call_view=None,_parent_view=None,_declared_call_views=()):
+  specs=[s for _b,_p,c in parsed for s in getattr(c,'source_task_resumes',())]
+  named=[s for _b,_p,c in parsed for s in getattr(c,'source_task_cases',())]
+  if len(named)>1 or named and not specs:raise ValueError('named selected-task recipe count/base refusal')
+@@ -185,6 +185,9 @@
+   k=(row['pc24'],row['m'],row['x'])
+   if k in unique and unique[k]!=row:raise ValueError('selected-task mode/body conflict')
+   unique[k]=row
++ if _declared_call_views:
++  from .architecture_declared_wait_call_sources import _issue
++  for view in _declared_call_views:_issue(view,_TASK_INSTRUCTION_PRODUCER,rom,parsed,specs[0],spans)
+  return [unique[k]for k in sorted(unique)],{'callee':callee,'select':select,'return':ret,'calls':[call0,call1],'cases':cases,'spans':spans,'original_calls':original_family,'subcall':{'call':0x01d80f,'callee':0x01d87f,'return':0x01d8b0,'landing':0x01d812,'entry_m':1,'entry_x':[0,1],'exit_m':0,'exit_x':0,'same_owner':True,'rows':subcall_rows}},graphs
+ 
+ def append_original_prefixes(rom,parsed,rows,recipe,normal_rows):
+diff --git a/recompiler/v2/task_selected_call_sources.py b/recompiler/v2/task_selected_call_sources.py
+--- a/recompiler/v2/task_selected_call_sources.py
++++ b/recompiler/v2/task_selected_call_sources.py
+@@ -69,3 +69,29 @@
+         if code.count(marker)!=1:raise ValueError('selected CALL source case layout changed')
+         code=code.replace(marker,marker+'\n      if(!cpu_source_task_resume_active(cpu,pc24,mx)) return false;',1)
+     return '\n'+_membership('cpu_source_task_selected_call_member',rows)+code
++
++
++def append_declared_wait_calls(rom,parsed,view,normal_rows,selected_rows,recipe,original_task_rows,noncall_rows,*,enable_native_call_prefix=True):
++    """Explicit recipe-source namespace; never forge selected graph membership."""
++    from .architecture_declared_wait_call_sources import derive as derive_declared_wait
++    candidates,source=derive_declared_wait(rom,parsed,view,purpose='selected',enable_native_call_prefix=enable_native_call_prefix)
++    key=lambda r:(r['pc24'],r['m'],r['x'])
++    ordinary={key(r):r for r in normal_rows}
++    output={key(r):r for r in selected_rows}
++    oldkeys={key(r)for r in original_task_rows+noncall_rows}
++    added=[];covered=[]
++    for row in candidates:
++        k=key(row)
++        if k not in ordinary or any(f not in ordinary[k]or ordinary[k][f]!=value for f,value in row.items()):
++            raise ValueError('declared wait normal/selected canonical identity differs')
++        if k in oldkeys:covered.append(list(k));continue
++        if k in output:
++            if output[k]!=row:raise ValueError('declared wait existing selected body conflict')
++            covered.append(list(k));continue
++        output[k]=row;added.append(list(k))
++    result=dict(recipe)
++    result['declared_wait_calls']={'source':source,'added':added,'covered':covered,
++        'canonical_normal_identity_checked':True,'source_selected_graph_role_claimed':False,
++        'current_selected_proof_required':True,'old_task_and_NONCALL_priority':True,
++        'existing_selected_CALL_adapter_unchanged':True,'selected_owner_created':False}
++    return [output[k]for k in sorted(output)],result

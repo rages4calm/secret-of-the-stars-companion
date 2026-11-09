@@ -1,0 +1,132 @@
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -2777,6 +2777,60 @@
+   uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
+   interp816_arch_adc_absx(cpu);
+   interp_bridge_source_call_interp_exit(cpu, source, 0x7d);
++  return cpu->cyclesUsed;
++}
++
++/* Original party-sort CPU cases shared verbatim. */
++static void interp816_arch_eor_dp(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrDp(cpu, &low);
++      interp816_eor(cpu, low, high);
++}
++int interp816_native_eor_dp(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x45)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x45];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_eor_dp(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x45);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_lsr_dp(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrDp(cpu, &low);
++      interp816_lsr(cpu, low, high);
++}
++int interp816_native_lsr_dp(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x46)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x46];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_lsr_dp(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x46);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_eor_dpx(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrDpx(cpu, &low);
++      interp816_eor(cpu, low, high);
++}
++int interp816_native_eor_dpx(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x55)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x55];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_eor_dpx(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x55);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_ror_abs(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAbs(cpu, &low);
++      interp816_ror(cpu, low, high);
++}
++int interp816_native_ror_abs(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x6e)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x6e];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_ror_abs(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x6e);
+   return cpu->cyclesUsed;
+ }
+ 
+@@ -3189,15 +3243,11 @@
+       break;
+     }
+     case 0x45: { // eor dp
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrDp(cpu, &low);
+-      interp816_eor(cpu, low, high);
++      interp816_arch_eor_dp(cpu);
+       break;
+     }
+     case 0x46: { // lsr dp
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrDp(cpu, &low);
+-      interp816_lsr(cpu, low, high);
++      interp816_arch_lsr_dp(cpu);
+       break;
+     }
+     case 0x47: { // eor idl
+@@ -3282,9 +3332,7 @@
+       break;
+     }
+     case 0x55: { // eor dpx
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrDpx(cpu, &low);
+-      interp816_eor(cpu, low, high);
++      interp816_arch_eor_dpx(cpu);
+       break;
+     }
+     case 0x56: { // lsr dpx
+@@ -3405,9 +3453,7 @@
+       break;
+     }
+     case 0x6e: { // ror abs
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAbs(cpu, &low);
+-      interp816_ror(cpu, low, high);
++      interp816_arch_ror_abs(cpu);
+       break;
+     }
+     case 0x6f: { // adc abl
+diff --git a/runner/src/snes/interp816.h b/runner/src/snes/interp816.h
+--- a/runner/src/snes/interp816.h
++++ b/runner/src/snes/interp816.h
+@@ -211,6 +211,10 @@
+ int      interp816_native_rol_abs(Interp816 *cpu);
+ int      interp816_native_sbc_absx(Interp816 *cpu);
+ int      interp816_native_adc_absx(Interp816 *cpu);
++int      interp816_native_eor_dp(Interp816 *cpu);
++int      interp816_native_lsr_dp(Interp816 *cpu);
++int      interp816_native_eor_dpx(Interp816 *cpu);
++int      interp816_native_ror_abs(Interp816 *cpu);
+ int      interp816_runOpcode(Interp816 *cpu);   /* runs one opcode; returns cycles */
+ uint8_t  interp816_getFlags(Interp816 *cpu);
+ void     interp816_setFlags(Interp816 *cpu, uint8_t val);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -760,6 +760,10 @@
+     case 0x2e:step=interp816_native_rol_abs;expected=3;break;
+     case 0xfd:step=interp816_native_sbc_absx;expected=3;break;
+     case 0x7d:step=interp816_native_adc_absx;expected=3;break;
++    case 0x45:step=interp816_native_eor_dp;expected=2;break;
++    case 0x46:step=interp816_native_lsr_dp;expected=2;break;
++    case 0x55:step=interp816_native_eor_dpx;expected=2;break;
++    case 0x6e:step=interp816_native_ror_abs;expected=3;break;
+     default:return false;
+     }
+     if(length!=expected)return false;

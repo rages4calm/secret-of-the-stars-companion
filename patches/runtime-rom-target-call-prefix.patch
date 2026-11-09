@@ -1,0 +1,198 @@
+diff --git a/recompiler/v2/architecture_rom_stack_dispatch_sources.py b/recompiler/v2/architecture_rom_stack_dispatch_sources.py
+--- a/recompiler/v2/architecture_rom_stack_dispatch_sources.py
++++ b/recompiler/v2/architecture_rom_stack_dispatch_sources.py
+@@ -9,6 +9,7 @@
+ _ISSUED=weakref.WeakSet()
+ _TARGETS=weakref.WeakSet()
+ _TAIL_PRODUCER=object()
++_PREFIX_PRODUCER=object()
+ MAX_INSNS=128
+ MAX_STARTS=512
+ MAX_DEPTH=8
+@@ -161,13 +162,17 @@
+                 if 'max_insns=128'not in str(error):raise
+                 refused.append({'start':start,'reason':'128 instruction graph bound'});continue
+             if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=MAX_INSNS:refused.append({'start':start,'reason':'target authority/data/indirect/128 instruction barrier'});continue
+-            local=[];scope=_TargetPolicy(_ISSUER,cert,rom,parsed,stream,start,options,role)
+-            emit_function(rom,bank,start&65535,0,1,func_name='DiscardedROMStackSource',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
++            from .architecture_rom_stack_call_sources import _shape as _prefix_shape
++            prefix_capture=bool(enable_native_call_prefix and _prefix_shape(rom,g)is not None)
++            local=[];prefixes=[];scope=_TargetPolicy(_ISSUER,cert,rom,parsed,stream,start,options,role)
++            emit_function(rom,bank,start&65535,0,1,func_name='DiscardedROMStackSource',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=prefixes if prefix_capture else None,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
+             if scope._graph is None:raise ValueError('target emitter did not consume issued child')
+             actual=scope._graph
+             if _graph_digest(rom,actual)!=_graph_digest(rom,g):raise ValueError('target actual emitter differs bounded source graph')
+             from .architecture_rom_stack_tail_sources import _record_original_tail
+             _record_original_tail(_TAIL_PRODUCER,stream,scope,rom,parsed,local)
++            from .architecture_rom_stack_call_sources import _record_original_prefix
++            _record_original_prefix(_PREFIX_PRODUCER,stream,scope,rom,parsed,local,prefixes,enable_native_call_prefix=prefix_capture)
+             candidates={tuple(r[k]for k in('pc24','m','x')):r for r in local};todo=[actual.entry];allowed=set();barriers=[]
+             while todo:
+                 key=todo.pop()
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -127,7 +127,11 @@
+     if program_call_stream is not None:
+         from .architecture_rom_stack_tail_sources import derive as derive_rom_stack_tail
+         tail_rows,tail_recipe=derive_rom_stack_tail(rom,parsed,program_call_stream)
+-    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows),('source_declared_wait_call_instructions',declared_rows),('source_ROM_stack_terminal_tail_instructions',tail_rows)]
++    target_call_rows=[];target_call_recipe=None
++    if program_call_stream is not None:
++        from .architecture_rom_stack_call_sources import derive as derive_rom_stack_calls
++        target_call_rows,target_call_recipe=derive_rom_stack_calls(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
++    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows),('source_declared_wait_call_instructions',declared_rows),('source_ROM_stack_terminal_tail_instructions',tail_rows),('source_ROM_stack_direct_call_prefix_instructions',target_call_rows)]
+     if _baseline_capture is None:
+         output,metadata=merge_source_union(rom,parsed,ordinary,sources)
+     else:
+@@ -152,6 +156,7 @@
+     metadata['ff20_byte_dispatch_graphs']=ff20_byte_graphs
+     metadata['declared_wait_call_source']=declared_recipe
+     metadata['rom_stack_terminal_tail_source']=tail_recipe
++    metadata['rom_stack_direct_call_prefix_source']=target_call_recipe
+     if _baseline_capture is not None:
+         from .architecture_baseline_view import _finish_capture
+         return None,_finish_capture(_baseline_capture,rom,parsed,program_call_stream,sources,metadata)
+diff --git a/recompiler/v2/architecture_baseline_view.py b/recompiler/v2/architecture_baseline_view.py
+--- a/recompiler/v2/architecture_baseline_view.py
++++ b/recompiler/v2/architecture_baseline_view.py
+@@ -64,7 +64,7 @@
+     if type(capture)is not _Capture:raise ValueError('foreign baseline capture type')
+     proof=_PROOFS.get(capture)
+     if type(capture)is not _Capture or capture not in _ISSUED or not _ACTIVE or proof is None or proof['phase']!='capturing' or capture.phase!='capturing' or rom is not proof['rom']or parsed is not proof['parsed']or stream is not proof['stream']or stream is not capture.stream or not stream._sealed:raise ValueError('foreign/reused baseline source capture')
+-    if len(sources)!=22 or sources[-1][0]!='source_ROM_stack_terminal_tail_instructions' or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
++    if len(sources)!=23 or sources[-2][0]!='source_ROM_stack_terminal_tail_instructions' or sources[-1][0]!='source_ROM_stack_direct_call_prefix_instructions' or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
+     capture.sources=tuple((origin,tuple(rows))for origin,rows in sources);capture.recipes=dict(recipes)
+     capture.seal=_digest((capture.sources,capture.recipes));capture.phase='sealed'
+     proof.update(phase='sealed',sources=capture.sources,recipes=capture.recipes,seal=capture.seal)
+diff --git a/recompiler/v2/architecture_rom_stack_call_sources.py b/recompiler/v2/architecture_rom_stack_call_sources.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_rom_stack_call_sources.py
+@@ -0,0 +1,99 @@
++"""Original ROM-target SEP30/direct-JSR prefixes; no aftercall/owner/exit grants."""
++import weakref
++from snes65816 import rom_offset
++from .architecture_emission_policy import _digest,_graph_digest
++from .architecture_rom_stack_tail_sources import _scope_context,_validate,_role_ok,scope_context
++_RECORDS=weakref.WeakKeyDictionary()
++_REFUSALS=weakref.WeakKeyDictionary()
++_USED=weakref.WeakSet()
++CONTRACT='source-ROM-word-direct-call-prefix-v1'
++
++
++def _shape(rom,graph):
++    entry=graph.entry
++    if (entry.m,entry.x)!=(0,1)or len(graph.insns)!=2 or graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects:return None
++    sep=graph.insns.get(entry)
++    if sep is None or len(sep.successors)!=1:return None
++    callkey=next(iter(sep.successors));call=graph.insns.get(callkey)
++    if call is None or (callkey.pc,callkey.m,callkey.x)!=(entry.pc+2,1,1)or call.successors:return None
++    for key,di,opcode,mnem,operand,length in((entry,sep,0xe2,'SEP',0x30,2),(callkey,call,0x20,'JSR',call.insn.operand,3)):
++        ins=di.insn
++        if (ins.addr,ins.opcode,ins.mnem,ins.operand,ins.length)!=(key.pc,opcode,mnem,operand,length):return None
++        if ins.data_region_exec or getattr(ins,'const_z_fold_unconditional',False)or any(getattr(ins,f,None)for f in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr')):return None
++        if type(ins.operand)is not int or not 0<=ins.operand<=(0xff if length==2 else 0xffff):return None
++        raw=bytes((opcode,operand))if length==2 else bytes((opcode,operand&255,operand>>8))
++        off=rom_offset(key.pc>>16,key.pc&65535)
++        if off<0 or off+length>len(rom)or rom[off:off+length]!=raw:return None
++    target=(callkey.pc&0xff0000)|call.insn.operand
++    if tuple(graph.unknown_callee_exit_sites)!=((callkey.pc,target,1,1),):return None
++    if set(graph.insns)!={entry,callkey}:return None
++    return entry,callkey
++
++
++def _rows(collector):
++    result={}
++    for row in collector:
++        key=tuple(row[f]for f in('pc24','m','x'))
++        if key in result:raise ValueError('ambiguous original target prefix collector')
++        result[key]=row
++    return result
++
++
++def _record_original_prefix(producer,stream,scope,rom,parsed,local,calls,*,enable_native_call_prefix):
++    from .architecture_rom_stack_dispatch_sources import _PREFIX_PRODUCER
++    from .architecture_eligibility import _mask,_independent
++    if producer is not _PREFIX_PRODUCER or stream in _USED:raise ValueError('original target prefix completion issuer required')
++    if not enable_native_call_prefix:return
++    cert,graph=_scope_context(rom,parsed,stream,scope)
++    keys=_shape(rom,graph)
++    if keys is None:return # no new row, source record or authority
++    cert,graph=_validate(rom,parsed,stream,scope)
++    if _shape(rom,graph)!=keys:raise ValueError('prefix changed during original full validation')
++    if scope._start&65535 in(scope._role.get('sibling_entry_pcs')or()):raise ValueError('original sibling target role refused')
++    ordinary=_rows(local);prefixes=_rows(calls);output=[];missing=[]
++    for index,key in enumerate(keys):
++        ins=graph.insns[key].insn
++        if _mask(parsed,key.pc,ins.length)or not _role_ok(cert,key.pc,key.m,key.x,ins.length):raise ValueError('prefix original byte role/mask refused')
++        row=(ordinary if index==0 else prefixes).get((key.pc,key.m,key.x))
++        if row is None:missing.append([key.pc,key.m,key.x]);continue
++        row=dict(row)
++        if (row['pc24'],row['m'],row['x'],row['bytes'],row['length'],row['mnemonic'])!=(key.pc,key.m,key.x,rom[rom_offset(key.pc>>16,key.pc&65535):rom_offset(key.pc>>16,key.pc&65535)+ins.length].hex(),ins.length,ins.mnem):raise ValueError('original prefix collector typed source mismatch')
++        if index==1:
++            fields={'pc24','m','x','length','cycles','bytes','next_pc','body','mnemonic','contract','original_scheduler_call','frame_bytes','runtime_adapter'}
++            if set(row)!=fields or row['next_pc']!=((key.pc&0xff0000)|ins.operand)or row['contract']!='source-direct-call-architectural-prefix-v1'or row['original_scheduler_call']is not True or row['frame_bytes']!=2:raise ValueError('original direct JSR prefix contract required')
++        if not _independent(rom,parsed,row):raise ValueError('original canonical prefix body refused')
++        output.append(row)
++    if missing:
++        _REFUSALS.setdefault(stream,[]).append({'target':scope._start,'source_graph_sha256':_graph_digest(rom,graph),'reason':'original prefix collector unavailable; interpreter fallback retained','missing_keys':missing})
++        return
++    records=_RECORDS.setdefault(stream,[])
++    if any(r['scope']is scope or r['start']==scope._start for r in records):raise ValueError('original prefix target issued twice')
++    record={'scope':scope,'certificate':cert,'start':scope._start,'graph':graph,'graph_sha':_graph_digest(rom,graph),'keys':tuple((k.pc,k.m,k.x)for k in keys),'rows':tuple(output),'row_sha':_digest(output),'options_sha':scope._options_sha,'role_sha':scope._role_sha}
++    record['seal']=_digest((record['start'],record['graph_sha'],record['keys'],record['rows'],record['options_sha'],record['role_sha']))
++    records.append(record)
++
++
++def _metadata(enabled,origins,refused):
++    return {'contract':CONTRACT,'enabled':enabled,'origins':origins,'refused':refused,'shape':'actual typed SEP30 -> direct JSR unknown-call boundary only','original_call_collector':True,'ordinary_roots_added':False,'callee_exit_modes_added':False,'caller_owner_added':False,'saved_history_exported':False,'aftercall_closure_added':False,'old_pure_family_changed':False,'old_terminal_tail_contract_changed':False,'source_bound_changes':False,'E0_runtime_guard_unchanged':True}
++
++
++def derive(rom,parsed,stream,*,enable_native_call_prefix=True):
++    from .architecture_eligibility import _mask,_independent
++    if stream in _USED or not stream._sealed or stream._parsed is not parsed or stream._rom_object is not rom:raise ValueError('sealed one-use original prefix stream required')
++    _USED.add(stream) # consumed before current proof checks, callbacks or refusal
++    records=_RECORDS.pop(stream,[]);refused=_REFUSALS.pop(stream,[]);rows={};origins=[]
++    if not enable_native_call_prefix:
++        if records or refused:raise ValueError('disabled prefix consumer has issued source records')
++        return [],_metadata(False,[],[])
++    for record in records:
++        cert,graph=_validate(rom,parsed,stream,record['scope'])
++        if cert is not record['certificate']or scope_context(record['scope'])!=(record['options_sha'],record['role_sha'])or graph is not record['graph']or _graph_digest(rom,graph)!=record['graph_sha']or _digest(list(record['rows']))!=record['row_sha']or _digest((record['start'],record['graph_sha'],record['keys'],record['rows'],record['options_sha'],record['role_sha']))!=record['seal']:raise ValueError('prefix graph/body/current context seal changed')
++        keys=_shape(rom,graph)
++        if keys is None or tuple((k.pc,k.m,k.x)for k in keys)!=record['keys']:raise ValueError('prefix typed source changed')
++        for row in record['rows']:
++            key=tuple(row[f]for f in('pc24','m','x'))
++            if _mask(parsed,key[0],row['length'])or not _role_ok(cert,*key,row['length'])or not _independent(rom,parsed,row):raise ValueError('prefix consume mask/body/role refused')
++            if key in rows and rows[key]!=row:raise ValueError('unequal original canonical prefix row')
++            rows[key]=dict(row)
++        origins.append({'target':record['start'],'entry_m':0,'entry_x':1,'source_graph_sha256':record['graph_sha'],'instruction_keys':[list(k)for k in record['keys']],'producer_keys':[[k.pc,k.m,k.x]for k in cert._keys],'unknown_call_exit_preserved':True,'numeric_aftercall_start_added':False})
++    return [rows[k]for k in sorted(rows)],_metadata(True,origins,refused)
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -42,9 +42,9 @@
+                                 write_bank_translation_units)
+ 
+ 
+-CACHE_FORMAT_VERSION = 53
+-
+-# ── Program modules ──────────────────────────────────────────────────────────
++CACHE_FORMAT_VERSION = 55
++
++# â”€â”€ Program modules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ # One generated tree is one PROGRAM MODULE: a dispatch table, its RAM-routine
+ # guards and every AOT body they point at, plus a descriptor naming the ROM
+ # image it was generated from. A host may link several modules (stock title +
+@@ -1070,8 +1070,8 @@
+         rom_sha256_hex = hashlib.sha256(rom).hexdigest()
+     if rom_size is None:
+         rom_size = len(rom)
+-    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 54
+-    output_normal_format=38 if architecture_baseline is None else 39
++    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 56
++    output_normal_format=40 if architecture_baseline is None else 41
+     from .faithful_prefix import prefix_contracts
+     from .emit_function import set_faithful_prefix_contracts
+     set_faithful_prefix_contracts(prefix_contracts(manifest, parsed))

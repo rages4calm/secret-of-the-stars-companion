@@ -1,0 +1,56 @@
+diff --git a/recompiler/v2/architecture_known_callee_refinement_sources.py b/recompiler/v2/architecture_known_callee_refinement_sources.py
+--- a/recompiler/v2/architecture_known_callee_refinement_sources.py
++++ b/recompiler/v2/architecture_known_callee_refinement_sources.py
+@@ -1,7 +1,7 @@
+ """Source typing from existing complete writer facts; never return ownership."""
+ import weakref,hashlib
+-from snes65816 import decode_insn,rom_offset
+-from .decoder import FunctionDecodeGraph,decode_function,DecodeKey
++from snes65816 import decode_insn,rom_offset,Insn
++from .decoder import FunctionDecodeGraph,decode_function,DecodeKey,DecodedInsn
+ from .architecture_emission_policy import _EmissionPolicy,_digest,_graph_digest,_options
+ from . import architecture_initial_task_sources as initial
+ from . import architecture_nested_initial_task_sources as nested
+@@ -75,7 +75,42 @@
+     if type(actual)is not _EmissionPolicy or opts is None or(expected is not None and actual is not expected):raise ValueError('original refined source bank changed')
+     return actual,opts
+ 
++def _possible_writer_fact(view,graph,key):
++    # Rejection only. This is never a validated source/fact receipt. A possible
++    # match must still run ALL original _fact_at validations below, without
++    # reusing any result here as proof. No literal callee/root list or memo.
++    if type(view)is not _SourceView or type(graph)is not FunctionDecodeGraph or type(key)is not DecodeKey:return False
++    pc=object.__getattribute__(key,'pc');m=object.__getattribute__(key,'m');x=object.__getattribute__(key,'x')
++    if type(pc)is not int or not 0<=pc<=0xffffff or type(m)not in(int,bool)or type(x)not in(int,bool)or(m,x)!=(1,0):return False
++    # Existing initial._writer accepts only M1X0 entry, so no other source
++    # instruction context can match an authentic existing writer signature.
++    members=object.__getattribute__(graph,'insns')
++    if type(members)is not dict:return False
++    # Identity iteration must precede ALL dictionary lookups: a frozen
++    # DecodeKey can still carry foreign p_stack hash/equality callbacks, and
++    # stored foreign keys can run __eq__ during dict.get. Neither is consulted.
++    di=None
++    for member,value in dict.items(members):
++        if member is key:
++            di=value;break
++    if type(di)is not DecodedInsn:return False
++    ins=object.__getattribute__(di,'insn')
++    if type(ins)is not Insn:return False
++    opcode=object.__getattribute__(ins,'opcode');operand=object.__getattribute__(ins,'operand')
++    if type(opcode)is not int or opcode not in(0x20,0x22)or type(operand)is not int:return False
++    if not 0<=operand<=(0xffff if opcode==0x20 else 0xffffff):return False
++    target=(pc&0xff0000)|operand if opcode==0x20 else operand
++    facts=object.__getattribute__(view,'facts')
++    if type(facts)is not list:return False
++    for fact in facts:
++        if type(fact)is not _ExistingWriterFact:continue
++        signature=object.__getattribute__(fact,'signature')
++        if type(signature)is tuple and len(signature)==3 and type(signature[0])is int and type(signature[1])in(int,bool)and type(signature[2])in(int,bool)and signature==(target,m,x):return True
++    return False
++
++
+ def _fact_at(view,graph,pairs,key):
++    if not _possible_writer_fact(view,graph,key):return None
+     view.facts_validate()
+     di=graph.insns.get(key)
+     if di is None or di.insn.opcode not in(0x20,0x22)or not initial._typed(view.rom,graph,pairs,key):return None

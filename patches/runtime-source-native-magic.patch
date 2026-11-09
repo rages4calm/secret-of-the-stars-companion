@@ -1,0 +1,84 @@
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -2532,6 +2532,34 @@
+   uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
+   interp816_arch_ror_a(cpu);
+   interp_bridge_source_call_interp_exit(cpu, source, 0x6a);
++  return cpu->cyclesUsed;
++}
++
++/* Original magic long-indexed CPU cases shared verbatim. */
++static void interp816_arch_and_alx(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAlx(cpu, &low);
++      interp816_and(cpu, low, high);
++}
++int interp816_native_and_alx(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x3f)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x3f];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_and_alx(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x3f);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_adc_alx(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAlx(cpu, &low);
++      interp816_adc(cpu, low, high);
++}
++int interp816_native_adc_alx(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x7f)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0x7f];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_adc_alx(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x7f);
+   return cpu->cyclesUsed;
+ }
+ 
+@@ -2910,9 +2938,7 @@
+       break;
+     }
+     case 0x3f: { // and alx
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAlx(cpu, &low);
+-      interp816_and(cpu, low, high);
++      interp816_arch_and_alx(cpu);
+       break;
+     }
+     case 0x40: { // rti imp
+@@ -3265,9 +3291,7 @@
+       break;
+     }
+     case 0x7f: { // adc alx
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAlx(cpu, &low);
+-      interp816_adc(cpu, low, high);
++      interp816_arch_adc_alx(cpu);
+       break;
+     }
+     case 0x80: { // bra rel
+diff --git a/runner/src/snes/interp816.h b/runner/src/snes/interp816.h
+--- a/runner/src/snes/interp816.h
++++ b/runner/src/snes/interp816.h
+@@ -193,6 +193,8 @@
+ int      interp816_native_tsb_dp(Interp816 *cpu);
+ int      interp816_native_cmp_alx(Interp816 *cpu);
+ int      interp816_native_ror_a(Interp816 *cpu);
++int      interp816_native_and_alx(Interp816 *cpu);
++int      interp816_native_adc_alx(Interp816 *cpu);
+ int      interp816_runOpcode(Interp816 *cpu);   /* runs one opcode; returns cycles */
+ uint8_t  interp816_getFlags(Interp816 *cpu);
+ void     interp816_setFlags(Interp816 *cpu, uint8_t val);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -741,6 +741,8 @@
+     case 0x04:step=interp816_native_tsb_dp;expected=2;break;
+     case 0xdf:step=interp816_native_cmp_alx;expected=4;break;
+     case 0x6a:step=interp816_native_ror_a;expected=1;break;
++    case 0x3f:step=interp816_native_and_alx;expected=4;break;
++    case 0x7f:step=interp816_native_adc_alx;expected=4;break;
+     default:return false;
+     }
+     if(length!=expected)return false;

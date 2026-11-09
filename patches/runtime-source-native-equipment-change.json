@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "43a4b8d74c0b902121ebed533583821b3f2f04a5fa19325e8a5c001b5d943141",
+  "predecessor_patch_sha256": "3cdafbc3fe817663fc6ed28f308879c76043633fea169c8283a47819a5377c7c",
+  "predecessor_binding_sha256": "2149b46a1f75cf89360f3162a040a34dd77937abdde48aa0f117a14354418edd",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "289184d5a3e391b592b877c07bf3d7bb800f6876ead63609340f1407a1901f0d",
+      "final_sha256": "b821c453797674b527a388dabd8696b6691ecfbc1948fc27131a134694a9774c",
+      "normalized_final_sha256": "1cdb0ca1a5ac19893d02d424e9238f20ccaa81fb42ab35774ce42a373a8d5c5e"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "0047cb581026ebf35b769ce8f7b6d54b790a195c969b514e6942806dde7303cc",
+      "final_sha256": "af6ff8f5cc797ca98aae91a860cdf859822d3db58e37074fefcc1377283bfbd8",
+      "normalized_final_sha256": "6b62ffeb7a81a2b5e586527f507c3e90cf99deab6753db357c6f98134ef37a26"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "8a579a1c8088d5a13493f34f0746b7f814e2504f9d179f9423aae36037e57be8",
+      "final_sha256": "ec9f1b2a79eb4d4946325dc2030dd5d4ab7859633bc75133c37366f37cdd88de",
+      "normalized_final_sha256": "3bd2d27fd981101861d543ece1ad4a1b9b8758648789732889fb6fb1bf56de65"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source660 exact-PC bounded equipment-change paths with original BRL, ADC [dp],Y, ADC dp, ORA dp and SBC dp bodies and original supervisor/bus/stack/timing ownership inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "frozen660_handoff_sha256": "31359e7e1b749d284ef99e2f1f9036cd7bd7732c5b03ee2921449cd9ed804d57",
+  "frozen660_source_pins_sha256": "128a6263f43774f5b02c3b664e2b29d1a9b00463996cb92ce850df7a63b1d5dd"
+}

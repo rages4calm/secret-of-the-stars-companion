@@ -1,0 +1,30 @@
+{
+  "patch_sha256": "fd2b196c1d2438c3f499ebafd7afd21e210e6f6b8fb3212bef5c6d2740363498",
+  "files": {
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "a3842e4598d5678f88f7b0aada2a6977926818a94a4d1a7a6c448a28d27ac14e",
+      "final_sha256": "a5eaff69eb2f0ea645d30de0ffd6e965d8c8502463e7dacb460e4de394919b02",
+      "normalized_final_sha256": "a5eaff69eb2f0ea645d30de0ffd6e965d8c8502463e7dacb460e4de394919b02"
+    },
+    "tools/v2_emit.py": {
+      "predecessor_sha256": "9f98235b5a2705d3f268949b98b9f8d8260d08d15c408f754219576b4ffdf036",
+      "final_sha256": "555f578eb7417af7aa6eef46f793d8a991dc4d96f264f9802067deda6bc87877",
+      "normalized_final_sha256": "555f578eb7417af7aa6eef46f793d8a991dc4d96f264f9802067deda6bc87877"
+    }
+  },
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Explicit requested seed intake only. Original full solver/ownership/exit/forceLLE policy unchanged. Static architecture baseline roots remain symbols+reviewed only.",
+  "loader_source": {
+    "path": "C:\\Users\\crono\\Desktop\\Projects\\Lagoon\\LagoonSNESRecomp\\snesrecomp\\recompiler\\v2\\program_emit.py",
+    "sha256": "4aaeec665403500b11c93521951ce2b40c9dd0efd44f7e59987065c531990cef",
+    "function": "load_analysis_roots",
+    "official_upstream_98f41838_contains_flag": false
+  },
+  "predecessor_patch_sha256": "71c532452f0a21978c360efe920bdfe94c66e621a4a430dc9453c97c2b8b72c7",
+  "predecessor_binding_sha256": "0a4e85b46516b1c489c27137eb430b59a2961df14fe3210a6111b0a423511a29"
+}

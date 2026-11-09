@@ -1,0 +1,96 @@
+diff --git a/recompiler/v2/architecture_initial_task_sources.py b/recompiler/v2/architecture_initial_task_sources.py
+--- a/recompiler/v2/architecture_initial_task_sources.py
++++ b/recompiler/v2/architecture_initial_task_sources.py
+@@ -60,16 +60,21 @@
+             key=nxt
+     return keys
+ 
+-def _initializer(rom,g,pairs,key):
++def _initializer_shape(rom,g,pairs,key):
+     specs=[(0x8b,None),(0x4b,None),(0xab,None),(0xc2,0x30),(0xa2,None),(0xa9,None),(0x9d,None),(0xa8,None),(0xa9,None),(0x99,1),(0xe2,0x20),(0xa9,None),(0xa0,None),(0x22,None)]
+     ks=_chain(rom,g,pairs,key,specs)
+     if not ks:return None
+     if any((k.m,k.x)!=(0,0)for k in ks[4:11])or any((k.m,k.x)!=(1,0)for k in ks[11:]):return None
+     ins=[g.insns[k].insn for k in ks];index,frame,pointer,d,bank,target,callee=[ins[n].operand for n in(4,5,6,8,11,12,13)]
+-    if key.pc>>16 not in(0,0x80)or index%4 or not 0<=index<48 or not 0<=frame<=0x1ffa or not 0<=pointer+index<=0x1ffe or bank>255:return None
++    if index%4 or not 0<=index<48 or not 0<=frame<=0x1ffa or not 0<=pointer+index<=0x1ffe or bank>255:return None
+     start=(bank<<16)|((target+1)&65535)
+     if not _mapped(rom,start):return None
+     return ks,{'record_index':index,'frame_S':frame,'record_S_base':pointer,'initial_D':d,'bank':bank,'target_minus_one':target,'target':start,'callee':callee,'initial_m':0,'initial_x':0}
++
++def _initializer(rom,g,pairs,key):
++    match=_initializer_shape(rom,g,pairs,key)
++    if not match or key.pc>>16 not in(0,0x80):return None
++    return match
+ 
+ def _writer(rom,g,pairs):
+     first=g.entry;i=g.insns.get(first)
+diff --git a/recompiler/v2/architecture_nested_initial_task_sources.py b/recompiler/v2/architecture_nested_initial_task_sources.py
+--- a/recompiler/v2/architecture_nested_initial_task_sources.py
++++ b/recompiler/v2/architecture_nested_initial_task_sources.py
+@@ -47,10 +47,31 @@
+                 depths.append(0)
+             else:
+                 parent.validate(_visiting,_done)
+-                if not o.edge(parent,self.entry,edge):raise ValueError('forged nested source edge')
++                if not o._edge_after_parent_validation(parent,self.entry,edge):raise ValueError('forged nested source edge')
+                 depths.append(parent.depth+1)
+         if self.depth not in depths:raise ValueError('guessed nested ancestry depth')
+         _visiting.remove(id(self));_done.add(id(self))
++
++
++def _nested_initializer_after_parent_validation(o,parent,key):
++    # Shape selection only. Consumers have already proved current ancestry;
++    # this helper never creates a receipt, scope, queue entry or root.
++    if key.pc>>16 in(0,0x80):return initial._initializer(o.rom,parent.graph,parent.pairs,key)
++    if key.pc>>16!=1:return None
++    if type(parent)is not _Receipt or o not in _ISSUED or parent.owner is not o or o.receipts.get(id(parent.graph))is not parent:raise ValueError('foreign bank01 initializer parent')
++    if not any(k is key for k in parent.allowed):return None
++    match=initial._initializer_shape(o.rom,parent.graph,parent.pairs,key)
++    if not match:return None
++    keys,_parameters=match
++    if not set(keys)<=parent.allowed:return None
++    return match
++
++def _nested_initializer(o,parent,key):
++    # Strict standalone entry; no caller-supplied skip flag or validation memo.
++    if key.pc>>16==1:
++        if type(parent)is not _Receipt or parent.owner is not o:raise ValueError('foreign bank01 initializer parent')
++        parent.validate()
++    return _nested_initializer_after_parent_validation(o,parent,key)
+ 
+ class _Observation:
+     def __init__(self,issuer,reg,stream,rom,parsed):
+@@ -76,6 +97,14 @@
+                 if w[4]['status_base']==s[4]['status_base']and w[4]['delay_base']==w[4]['status_base']+1:return w,s
+         return None
+     def edge(self,parent,entry,edge):
++        # Every actual acceptance site stays strict. Only receipt.validate uses
++        # the private body immediately after parent.validate(shared memo).
++        source=edge.get('source_key')
++        if edge.get('kind')=='nested_fivebyte_frame'and source and source[0]>>16==1:
++            if type(parent)is not _Receipt or parent.owner is not self:raise ValueError('foreign bank01 edge parent')
++            parent.validate()
++        return self._edge_after_parent_validation(parent,entry,edge)
++    def _edge_after_parent_validation(self,parent,entry,edge):
+         if parent.owner is not self:return False
+         source=edge.get('source_key');hits=[k for k in parent.allowed if [k.pc,k.m,k.x]==source]
+         if len(hits)!=1:return False
+@@ -86,7 +115,7 @@
+             return i.opcode in(0x20,0x22)and entry[0]==(k.pc&0xff0000)|((k.pc+i.length)&65535)and edge.get('source_bytes')==self.rom[off:off+i.length].hex()and (k.pc&65535)+i.length<65536
+         if edge['kind']=='source_owned_live_P_frontier':return i.opcode==0x28 and entry[0]==k.pc+1 and k.pc&65535<65535
+         if edge['kind']=='nested_fivebyte_frame':
+-            match=initial._initializer(self.rom,parent.graph,parent.pairs,k)
++            match=_nested_initializer_after_parent_validation(self,parent,k)
+             if not match:return False
+             ks,p=match
+             return set(ks)<=parent.allowed and entry==(p['target'],0,0)and edge.get('parameters')==p and bool(self.protocol(p))
+@@ -183,7 +212,7 @@
+         receipt.validate()
+         for key in sorted(receipt.allowed,key=lambda k:(k.pc,k.m,k.x)):
+             if receipt.graph.insns[key].insn.opcode!=0x8b:continue
+-            match=initial._initializer(rom,receipt.graph,receipt.pairs,key)
++            match=_nested_initializer_after_parent_validation(o,receipt,key)
+             if not match:continue
+             ks,p=match
+             if not set(ks)<=receipt.allowed or not o.protocol(p):continue

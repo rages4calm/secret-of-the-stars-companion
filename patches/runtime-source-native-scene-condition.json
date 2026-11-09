@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "9a2d806594c1e473f45f52458f4d72ee1fa5f57da27759c9199e7a2fab474932",
+  "predecessor_patch_sha256": "98fe1733daa2577297e41caed701cf3fb8892aedd0a0ee930a123e05af5834a2",
+  "predecessor_binding_sha256": "f926e40aa29d217838d4e8518d517328c8cf4efca277e03fc99203eda33308c5",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "f12a88f53ab4835e0808b97859dc96bfb96bb12f87f74c468ec035d1272a251b",
+      "final_sha256": "acbbaa2cbb64f8f079a739ddc73b53be788b317dc53b4b0314d070e931417a64",
+      "normalized_final_sha256": "05d6a01cef37f619b8f296fcdca82fdd41f165d512fb3feaa4d39a6766c35305"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "cc19d9fd05e507d12591bdafb7bebe0baf6730668a7f470d64379797af42699f",
+      "final_sha256": "a1bc048bd5b090552e2f2b34a0413295d16eea6e6c265ed519c5dc55d6c843c8",
+      "normalized_final_sha256": "bf0fa1d92715d87b723801fe5f7342276736bb72afbb44c53ae4cb6d4d8546ef"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "740c9d004c7a35ddd5261d1ce709fb923e7b1cf88e27308de91896150c655b4a",
+      "final_sha256": "70f3cf831cf1823296e786ca4420bc427b6aa3e56d4ba2dec79a1bc13f39740f",
+      "normalized_final_sha256": "7cfa670366032e7591891e980df0608fab7604078e04a14a61c7e2082d0145c8"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "714610ce5e7bce0f99ea677043c3fbe3b727acb37bb9b9e830e892699c40c175",
+      "final_sha256": "46fd284bb1bc4b4c97b80bcabab5b982af4e9c9b1cdd70857354c1c87e193514",
+      "normalized_final_sha256": "1f401a746735ce67dd51f5c53cec3e4e5d2f54f5af9fc80320373f1c966514d9"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source568 exact-PC architectural service inside original fallback supervisor; original opcode bodies, physical bus/stack/timing, task/redirect owners retained; no SDK/CFG/root/exit or serialized state change.",
+  "frozen568_handoff_sha256": "8abdbb19e5e991c830720e8eeb0e45c1cc4645b509cd9fdf95c6259a5b0519f3",
+  "frozen568_source_pins_sha256": "203376ab7188dd2d38fa6b1de2f7771908923979bec9ce35f7a6575d3fb118cd"
+}

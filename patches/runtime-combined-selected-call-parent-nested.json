@@ -1,0 +1,87 @@
+{
+  "patch_sha256": "fd036fa13264f6bf06c1237330c05507afb83989970fb8b7ed8501d6a8d30f79",
+  "predecessor_patch_sha256": "f56312d53e80e3d98cf03ba731ee405a963f50c3bb2488fcd5e503de531b86fe",
+  "predecessor_binding_sha256": "590d57de7c43a2e2f8dc870def166e685b4b8c7918ecb447315ac4c095fc505d",
+  "files": {
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "7b2559e41177344b1e8e3a226ce3df07ad58ef6c01e8ab12c192073346d0578b",
+      "final_sha256": "7e4a5bd25e24d73e3d6f56315f3e6c1445934f6328d0493d0a9148e7e56aa81a",
+      "normalized_final_sha256": "7e4a5bd25e24d73e3d6f56315f3e6c1445934f6328d0493d0a9148e7e56aa81a"
+    },
+    "recompiler/v2/architecture_emission_policy.py": {
+      "predecessor_sha256": "ba1c5e9a954a8f6bc9d998efcf0aa343e07a44514070ced9d73429f072783013",
+      "final_sha256": "bc60c7c7ef70efe5ef8c926f6011f71c511722fb39facbabc992f6d68b74fad0",
+      "normalized_final_sha256": "bc60c7c7ef70efe5ef8c926f6011f71c511722fb39facbabc992f6d68b74fad0"
+    },
+    "recompiler/v2/architecture_initial_task_sources.py": {
+      "predecessor_sha256": "7ddbb1a77b694c28540ae5dfa950afbae1938447b0dc80fc1e0d8c4c55211f53",
+      "final_sha256": "5a7b58139eeb99082898bb35f6f3809c2136f4f4804017c3913fc7bd04624738",
+      "normalized_final_sha256": "5a7b58139eeb99082898bb35f6f3809c2136f4f4804017c3913fc7bd04624738"
+    },
+    "recompiler/v2/architecture_nested_initial_task_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "59f8ad38e70157eeb8528df958acc8b6602775448a9be815b2ca0105886e6b49",
+      "normalized_final_sha256": "59f8ad38e70157eeb8528df958acc8b6602775448a9be815b2ca0105886e6b49"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "e2002800f4412ce76c331e3bfcb78e507f8286c37d6858622df5ff8c75e0d5a7",
+      "final_sha256": "c2d7d737524ac40f90037e1cc0670b87df5213d7bb4efdc94dfe87e95ce14d02",
+      "normalized_final_sha256": "c2d7d737524ac40f90037e1cc0670b87df5213d7bb4efdc94dfe87e95ce14d02"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "1e9d1e101f1ebd61f013ba484d5c8faa6c8f4a813664b53c6691992622db52e4",
+      "final_sha256": "8f2c211563c48f5dd84e984197ce3be5ea33cf86faa48256207fc4f4b88d9bec",
+      "normalized_final_sha256": "8f2c211563c48f5dd84e984197ce3be5ea33cf86faa48256207fc4f4b88d9bec"
+    },
+    "recompiler/v2/task_parent_member_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "db990d643f9b980e0b8b2d94b07f7f037500ea748f3a921549b260f8fb413326",
+      "normalized_final_sha256": "db990d643f9b980e0b8b2d94b07f7f037500ea748f3a921549b260f8fb413326"
+    },
+    "recompiler/v2/task_resume.py": {
+      "predecessor_sha256": "fec8c7ece1d9a77a1bb4909b3ed08605101be66bc25552f1f6dd0002396b6082",
+      "final_sha256": "a78cb53cb9bda1d43f5d7a7515522b37b10d8a9bbe451ee5ce0ddcbe2d3eca84",
+      "normalized_final_sha256": "a78cb53cb9bda1d43f5d7a7515522b37b10d8a9bbe451ee5ce0ddcbe2d3eca84"
+    },
+    "recompiler/v2/task_selected_call_sources.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "049ec0b32dd249126ca9c6f7a84472e651d179508b950d26bda9bf89b6917b04",
+      "normalized_final_sha256": "049ec0b32dd249126ca9c6f7a84472e651d179508b950d26bda9bf89b6917b04"
+    },
+    "runner/src/snes/bridge_task_call.inc": {
+      "predecessor_sha256": "18db5362a7d595c9ed598a70d87057668c6a79419b3fe4c588575994a9e4f3a9",
+      "final_sha256": "a195e6caeca12e37040bd8036f5038445d65db3cd553d094fc202256f102e1db",
+      "normalized_final_sha256": "a195e6caeca12e37040bd8036f5038445d65db3cd553d094fc202256f102e1db"
+    },
+    "runner/src/snes/bridge_task_helpers.inc": {
+      "predecessor_sha256": "8a6c866299515b2e07dee0c3415f97739bb467b29f74f4478d6a000267581e4f",
+      "final_sha256": "4fcdcf20cc5d466c1bf9772f1073c0fd4e0268b5ea12bc2780dbb1c2626727e2",
+      "normalized_final_sha256": "4fcdcf20cc5d466c1bf9772f1073c0fd4e0268b5ea12bc2780dbb1c2626727e2"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "92c5867ce010ae6e966f60bdaf26971b0e7af4c5c43d92a412202a6a439ac096",
+      "final_sha256": "ad25aa1d2e63718b1573276005156f2317b8a8bdd37741350088b4c48ede5a8b",
+      "normalized_final_sha256": "ad25aa1d2e63718b1573276005156f2317b8a8bdd37741350088b4c48ede5a8b"
+    },
+    "runner/src/task_parent_member_contract.h": {
+      "predecessor_sha256": null,
+      "final_sha256": "20b59d961f107f3385e864432fe00e0b1ef074fc20994b000f1bb39762125265",
+      "normalized_final_sha256": "20b59d961f107f3385e864432fe00e0b1ef074fc20994b000f1bb39762125265"
+    },
+    "runner/src/task_selected_call_contract.h": {
+      "predecessor_sha256": null,
+      "final_sha256": "9b88cad99cdc6e751e87b27a1b8393cf37ec369d0501757751ad31ece6f14705",
+      "normalized_final_sha256": "9b88cad99cdc6e751e87b27a1b8393cf37ec369d0501757751ad31ece6f14705"
+    }
+  },
+  "cache_format": 48,
+  "normal_metadata": 33,
+  "task_metadata": 8,
+  "redirect_metadata": 1,
+  "source_proposal_sha256": "d06e89e22989867e115f5669a0df0178d155740b919fec0144dee8faec7254d4",
+  "source_accounting_sha256": "f5f0cdbe0215937a451b91c37110531c7740dee90e45cc85bb3f5cbbcad4e63b",
+  "root_review213_sha256": "972ecee766e301ba1fbf35a9b6f622f773968d4d5c0c21a90285c65421170d2a",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Selected CALL/source-parent wrappers preserve original observer and one-use scheduler scope; bounded original nested initializer source instructions. No new root/callee/exit/owner/history facts; old235/200 and source195 preserved. Compositional expected metadata, not actual merged production or211execution proof."
+}

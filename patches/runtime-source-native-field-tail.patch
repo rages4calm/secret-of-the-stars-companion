@@ -1,0 +1,102 @@
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -2321,6 +2321,34 @@
+   uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
+   interp816_arch_nop(cpu);
+   interp_bridge_source_call_interp_exit(cpu, source, 0xea);
++  return cpu->cyclesUsed;
++}
++
++/* Field tail/item eligibility bodies share original cases verbatim. */
++static void interp816_arch_cpy_dp(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrDp(cpu, &low);
++      interp816_cpy(cpu, low, high);
++}
++int interp816_native_cpy_dp(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xc4)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xc4];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_cpy_dp(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xc4);
++  return cpu->cyclesUsed;
++}
++static void interp816_arch_dec_abs(Interp816 *cpu) {
++      uint32_t low = 0;
++      uint32_t high = interp816_adrAbs(cpu, &low);
++      interp816_dec(cpu, low, high);
++}
++int interp816_native_dec_abs(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0xce)) return 0;
++  cpu->cyclesUsed = cyclesPerOpcode[0xce];
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_dec_abs(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0xce);
+   return cpu->cyclesUsed;
+ }
+ 
+@@ -3402,9 +3430,7 @@
+       break;
+     }
+     case 0xc4: { // cpy dp
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrDp(cpu, &low);
+-      interp816_cpy(cpu, low, high);
++      interp816_arch_cpy_dp(cpu);
+       break;
+     }
+     case 0xc5: { // cmp dp
+@@ -3450,9 +3476,7 @@
+       break;
+     }
+     case 0xce: { // dec abs
+-      uint32_t low = 0;
+-      uint32_t high = interp816_adrAbs(cpu, &low);
+-      interp816_dec(cpu, low, high);
++      interp816_arch_dec_abs(cpu);
+       break;
+     }
+     case 0xcf: { // cmp abl
+diff --git a/runner/src/snes/interp816.h b/runner/src/snes/interp816.h
+--- a/runner/src/snes/interp816.h
++++ b/runner/src/snes/interp816.h
+@@ -178,6 +178,8 @@
+ int      interp816_native_cpx_imm(Interp816 *cpu);
+ int      interp816_native_inx(Interp816 *cpu);
+ int      interp816_native_nop(Interp816 *cpu);
++int      interp816_native_cpy_dp(Interp816 *cpu);
++int      interp816_native_dec_abs(Interp816 *cpu);
+ int      interp816_runOpcode(Interp816 *cpu);   /* runs one opcode; returns cycles */
+ uint8_t  interp816_getFlags(Interp816 *cpu);
+ void     interp816_setFlags(Interp816 *cpu, uint8_t val);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -722,6 +722,10 @@
+     case 0xe8:step=interp816_native_inx;expected=1;break;
+     case 0xea:step=interp816_native_nop;expected=1;break;
+     case 0xfc:step=interp816_native_jsr_axi;expected=3;break;
++    case 0xc4:step=interp816_native_cpy_dp;expected=2;break;
++    case 0xce:step=interp816_native_dec_abs;expected=3;break;
++    case 0x08:step=interp816_native_php;expected=1;break;
++    case 0x28:step=interp816_native_plp;expected=1;break;
+     default:return false;
+     }
+     if(length!=expected)return false;
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -338,7 +338,11 @@
+ bool interp_bridge_add_native_field_site(uint32_t pc24,const uint8_t *bytes,
+                           unsigned length,unsigned mx_mask,const int *enabled);
+ 
+-/* Source-byte/mode-bound field/loader/condition architecture, including fixed
++/* Exact-source PHP(08) pushes the actual P byte to the physical stack;
++ * PLP(28) restores actual flags including M/X and may change operand widths.
++ * Admission assumes no post-PLP mode, and grants no owner/callee/exit facts.
++ * Field-tail/item CPYdp/DECabs respect the live original X/M widths.
++ * Source-byte/mode-bound field/loader/condition architecture, including fixed
+  * CALL/return forms with a pure live-M/X gate and NO new call/owner authority.
+  * Source-byte/mode-bound scene/message condition architecture; immediates
+  * require a single operand-width class in the supplied mask.

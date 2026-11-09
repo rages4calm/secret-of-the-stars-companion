@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "19833ff9d0a0581cf0c51fb28ca415159cdd3b39b5d7a7474a82eea2a5e4837f",
+  "predecessor_patch_sha256": "6b3817f9c907b5fb58e8777868b9294afefd8a77a5704eb2447459f6850c5c83",
+  "predecessor_binding_sha256": "389a4f31ad74206733c475cc5e5aa9f03802e1556a144b316c29be24c3a5f8b0",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "9e148dd333b095f7f6dec9fbb6e9a851c678ae2631ef5d9347745c5b414680a5",
+      "final_sha256": "809a7ae1bd2a7c554d8d71a39954edaa421aac36328bd6925ed65783af425c77",
+      "normalized_final_sha256": "06aacaa60cfd51b0e0e9a1793fb8df3af4ff7d5416119c219ab88d4c7d850fad"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "eee14931751ebcbe62d0fb108bc4c8753f2f775a0028759175947cb726d258d4",
+      "final_sha256": "75a9825eea1e49883219387bc263c399ad60b7b767ee079c2e7c4770c67aa7ae",
+      "normalized_final_sha256": "e285044de4989d11106b97279e5bd2bc8596f089bf094ec2f3259fd3e75e274d"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "8e885e5f8bb7e663783351435ea66444d495e9a5b8f35253e9ccad36f07ca03c",
+      "final_sha256": "677a9cc16f0a41bd84d1fe3880c65c19a23afaa67136d9b701091ac9a076b7cf",
+      "normalized_final_sha256": "02305d1af5598b42458512bedc6b12110be5e0af5e23daab8ffb2f694c181732"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "2157814b8cfbca6016e9616eda535b216c3378b40e46964d0b419f4c29071164",
+      "final_sha256": "b46bd208f6a9993dd6b3546b7f122572430eb498e4bbedf9b6d77eaa4f615822",
+      "normalized_final_sha256": "e30985ab6538e0023d6f699eb0d4d3d083b3719dab57e6139f86c301a0f81375"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "540 source-registered PHP/PHA/PLA/PLP through original supervisor and original primitives; no generated SDK/CFG/root/owner/exit facts or serialized state changes.",
+  "frozen540_handoff_sha256": "a722afb144a7609e7f9e464b44d56603e6babd19721748a038527562ad2eaf62",
+  "frozen540_source_pins_sha256": "cc8a9953deddf9143614b3e09e5fb84b2194451ac03fa78d2803bd2ce5496d44"
+}

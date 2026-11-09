@@ -1,6 +1,6 @@
 {
-  "snapshot_date": "2026-10-14",
-  "native_version": "0.5.5",
+  "snapshot_date": "2026-11-09",
+  "native_version": "0.5.6",
   "companion_version": "0.3.6",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
@@ -105,11 +105,11 @@
   "task_original_prefix_source_binding_sha256": "b3b92cdd08008832fff1caac30f586626e0dcc3e60534831ed6c3417dedac8bc",
   "interrupt_return_patch_sha256": "75926f688cc3dbd6dccc4ce3446976b0f6307f93c212533dae5bb25248d071a1",
   "interrupt_return_source_binding_sha256": "3ba0770eb6d5f13ae1a794bb7365ebe1f06ddb117ff2172786ee40b56efe3f10",
-  "current_ordered_runtime_patch_count": 57,
+  "current_ordered_runtime_patch_count": 97,
   "current_runtime_generation_formats": {
-    "cache": 45,
-    "normal": 30,
-    "task": 6,
+    "cache": 59,
+    "normal": 44,
+    "task": 9,
     "redirect": 1
   },
   "grouped052_scope": "Source-derived architectural JSR/JSL, source-selected cases, original callee-return ownership, long/indirect jumps, stack-indirectY and E0 RTI. Original scheduling, hard masks, fallback and serialized data retained. Full native/AOT unfinished; generation is not execution coverage.",
@@ -185,5 +185,562 @@
   "task_pure_instructions_binding_sha256": "f703651bda6e515bc9db1e116dd31e11d49eb049bf9b4f1320348fdd1c06da69",
   "task_pure_instructions_source_proposal_sha256": "2306a21b76e71eda65f9018412c245b5e8e3c978700e11ea0c81aa3b0667f17b",
   "combined_frontier_returns_source_binding_sha256": "36f31d1030f5e2c2088fad1949cb5d0353f1f7c39caad2a6536dfd8a4d46a5f8",
-  "task_pure_instructions_source_binding_sha256": "f703651bda6e515bc9db1e116dd31e11d49eb049bf9b4f1320348fdd1c06da69"
+  "task_pure_instructions_source_binding_sha256": "f703651bda6e515bc9db1e116dd31e11d49eb049bf9b4f1320348fdd1c06da69",
+  "combined_rom_task_members_patch_sha256": "f282b1b84704020de50091065c4eb942cf7736278a6769166b18d8ca49c9aa2c",
+  "combined_rom_task_members_source_binding_sha256": "6644647c74ee47442d622716ed734f6d0e88e64c278d82a0efa5f7a9ab426f91",
+  "combined_rom_task_members_source_proposal_sha256": "b6e9654149f5d4e78a4ebde06c83d403ab9767b34805584ffdc6184cbfa6af85",
+  "combined_initial_selected_task_patch_sha256": "f56312d53e80e3d98cf03ba731ee405a963f50c3bb2488fcd5e503de531b86fe",
+  "combined_initial_selected_task_source_binding_sha256": "590d57de7c43a2e2f8dc870def166e685b4b8c7918ecb447315ac4c095fc505d",
+  "combined_initial_selected_task_source_proposal_sha256": "0d3756b7c8f4cf1958b63971e16d2ae732533f7862eddb030bd6a7f6b563d8e3",
+  "combined_selected_call_parent_nested_patch_sha256": "fd036fa13264f6bf06c1237330c05507afb83989970fb8b7ed8501d6a8d30f79",
+  "combined_selected_call_parent_nested_source_binding_sha256": "9b41058b1f92fe9908d1219f86f2b26779f72b0562d4ab9daf75a385e8fa8c70",
+  "combined_selected_call_parent_nested_source_proposal_sha256": "d06e89e22989867e115f5669a0df0178d155740b919fec0144dee8faec7254d4",
+  "turbo_speed_patch_sha256": "de81a499306a5c0c2a798cc3747bc4859c9d2023dc201c64c767290716513033",
+  "turbo_speed_source_binding_sha256": "21d29cc3a174b6dfe89692ab7c04dcf5bbc39017b45560d1101f4540f1e744a5",
+  "turbo_speed_source_proposal_sha256": "fc5c48fb1703f2eaa80fa3ef384778fd255f59098034eb1b83ea29362646b614",
+  "turbo_speed_source_proposal_patch_sha256": "3e5a1741fe82dbc3b1b742b84aeb9b6c72da93e1fb834909ef2c66a1173bca23",
+  "playtest_movement223_source_proposal_sha256": "fc2d492a94104aa9c2d297e3db0bea1a2c921275a1dfb2047ffb154e3f5e4a87",
+  "starting_shop225_source_proposal_sha256": "68b28d94e06ff5bbcdfab4a15e7da5628e9d19db341034eee77e6b9e2cf532fa",
+  "authored_native_input_count": 65,
+  "refined_ff20_source_patch_sha256": "e4ea45154ee0889fe85e05f4899bb358d6cd004089ca21e1521664a712630a54",
+  "refined_ff20_source_source_binding_sha256": "de0f05e71772a1df5cfdf44836735e516ec0d0b1f0d4d51a2686e643d6c7675f",
+  "refined_ff20_source_source_proposals": {
+    "218_guard_v2_handoff_sha256": "27330cf70620c427eb293603a2da6efda419d22140b68f36ff750208f1eec6d2",
+    "241_v2_handoff_sha256": "051317ec3218588682b2005c57634823fce18e28ec03a51b26a64ff0947448e0"
+  },
+  "writer_fact_early_refusal_patch_sha256": "5a2f0ebad421b7abc033925766a9c6f2567e0cdcf1a70979b6253f2404e0c391",
+  "writer_fact_early_refusal_source_binding_sha256": "ba5b9a4ce452ece8906c6dd6c9798c18d291309f39b5ab674515caf5836ad018",
+  "writer_fact_early_refusal_source_proposal_sha256": "6af626e843367e91c811705c895abcdc7b5c0ad0389f152f1c1c6a48335914d5",
+  "writer_fact_early_refusal_root_review_sha256": "6cfcbed25ee9e9f0f80beb9d046f75a0ae8557cd6180e3c2d04684f7b5ae2c40",
+  "refined_ff20_source_scope": "Source241 v2 original FF20 byte-dispatch independent pure instruction family only. Source218 modules/proofs retained but derive/family/recipe deferred for generation cost; no qualification or full native/AOT claim.",
+  "ff20_only267_root_review_sha256": "2383ba9632758212d52898d6d1af62a2ec42ec887c8ffe1dcab89f61be42ffeb",
+  "ff20_only267_proposal_sha256": "76fa250a2d4a66c5d491adb7fe50ee7e7e403933b5a6f7a53d63130e38053994",
+  "profile_seed_preparation_source_handoff_sha256": "73adee1739e6ca12a69671f26b1c551a471d8ceb254e72675c1dacdf43ecf532",
+  "profile_seed_preparation_root_review_sha256": "d3bc2aaa90a9e1c5dcb7e8acf4bc59f620afab7b3b7f81b37f6cba3001e1d18d",
+  "profile_seed_preparation_scope": "Explicit --profile-seed-prepare validates owned profiles and uses normal pinned SDK analysis, freezes actual complete unreviewed source/metadata, then stops BEFORE legacy population assertions/compilation. No new root/body/exit/owner/native qualification follows; semantic review and same-output compile continuation are separate pending work.",
+  "shared_compilation_finalizer_handoff_sha256": "76a589e175b74c027698f4e03f64386a8e7028eb6135b54f769635e46c0dead2",
+  "shared_compilation_finalizer_root_review_sha256": "9e4113aa7a7ef8c366d6dbee9af6b3837c80d1b39a8385cf7c518932a69f9034",
+  "shared_compilation_finalizer_scope": "Existing public-helper compile/profile/receipt tail shared with explicit validated context. Normal population guards unchanged. Seeded same-output compile requires separate source-correct measurement gate and declares native-retention losses; first receipt immutable compiled_unqualified. No native/runtime/ABI change from this helper refactor.",
+  "architecture_baseline_runtime_generation_formats": {
+    "cache": 60,
+    "normal": 45,
+    "task": 9,
+    "redirect": 1
+  },
+  "baseline_architecture_view_patch_sha256": "babde8df16536358e6deb264883c430eaa9b7a1e549c90e6693708813379d325",
+  "baseline_architecture_view_source_binding_sha256": "61ff850c5d657abba0dab7dd9292ed3378f5c291b059f73c8ebc211f5dc1dba3",
+  "baseline_architecture_view_source_proposal_sha256": "82ffb69ecbc34e48621ddb98d77625bcd3b5e30ba7ce506382906729195f6cea",
+  "baseline_architecture_view_root_review_sha256": "ca14afadd738e84e33ad162606826ffbe215571b6e63c0aae526f8e7bed97b63",
+  "baseline_architecture_view_scope": "Optional fresh original static architecture discovery, current profile ordinary emission, original bounded one-use source factories and single union; prepared outputs remain unreviewed/uncompiled until actual source/retention review.",
+  "baseline_architecture_view_transport_root_review_sha256": "923b82b07f88721bc4485036209331f48d8e9feccaa10cabbc0c797814c86392",
+  "baseline_authored_symbols_patch_sha256": "65eb0d3f1d28528cefe04a0a03616c04d2f815a90ff4e1a666900141918c129f",
+  "baseline_authored_symbols_source_binding_sha256": "d664a35118c41523e1f7ee4ce663cf3004192863b21ab6ea8d603deaed2cf4e2",
+  "baseline_authored_symbols_scope": "Retain original sync_symbols authored AOT roots and CFG entry M/X override in BOTH normal profile and fresh static baseline analysis. Profile-only roots remain excluded from baseline. Host/RAM/disassembly refusal and original exact subset unchanged; no new root authority.",
+  "baseline_authored_symbols_root_review_sha256": "7ef630aad2b02c3a2f61dacb395e8847fc068452060295322e74672a17f08ead",
+  "nested_bank01_initializer_patch_sha256": "a888b1e381b80248c2adc065740609a1f179c946889138b94b91ad712443a883",
+  "nested_bank01_initializer_source_binding_sha256": "e710b126f4c0b7ab0fc225ba6487a8c80bcfa9e239858dc77af6e21278b9cf1d",
+  "nested_bank01_initializer_scope": "Exact frozen312v2 bank01 nested initializer admission only from genuine nested emitted receipt and14 typed members; original00/80 issuer and128/512/8 preserved. No new roots, caller/owner/exit grants or ABI fields. Same20-family metadata schema; actual populations unknown.",
+  "nested_bank01_initializer_frozen_source_proposal_sha256": "f185a9e5ee485a8bc3120e01998389c033ddb9d34d75256be86da306f829d5fe",
+  "nested_bank01_initializer_promotion_gate": "Actual fresh37 original baseline must contain both genuine emitted receipt/graph parent contexts018014 and018035. Historical33 metadata is never authority; root must decline composition if absent. This overlay is uncomposed.",
+  "declared_wait_call_patch_sha256": "3898eff444223ab0662a84f20f5b9c87bf763c5ca5539c4c527a024999184add",
+  "declared_wait_call_source_binding_sha256": "2e843d5216d0e0790103f0de4b234a171652508d791d9a8592bbf10e4594a727",
+  "declared_wait_call_scope": "Source326v2 existing declared FF03 task CALL source view;21st normal architecture family and separately current selected CALL rows. Original adapter/priority/owner/exit/IRQ/bus/clock gates retained; no runtime C/ABI changes. Actual populations unknown.",
+  "declared_wait_call_frozen_source_proposal_sha256": "c13e37421355bb69c16b70267238dd81b7756c82cc02a16bbed900e4e692b959",
+  "immutable_rom_digest_patch_sha256": "baf5f1888836c49b988606e4533981d17db5d4f616e1cebd43ad2b0e38eb5d57",
+  "immutable_rom_digest_source_binding_sha256": "043f5f603bbf883bbd14dc5a020a4f8f83371e45027f19068d14fccd7edbf639",
+  "immutable_rom_digest_scope": "Per-issued-registry exact builtin immutable bytes ROM digest reuse only, at original validation position. Mutable/subclass buffers retain fresh hash; all mutable graph/policy/manifest/IR/role/owner/receipt validation unchanged. No source admission or runtime C/ABI changes.",
+  "immutable_rom_digest_frozen_source_proposal_sha256": "1638ac70f6e3cf6b0d69f48eaf12801abc6c4820b9e6d89f53f91c29624e50e8",
+  "terminal_rom_source_tail_patch_sha256": "67c5f7480b217eb3acad1422fde383ea4aa19407a822a634c7993ca6222109e7",
+  "terminal_rom_source_tail_source_binding_sha256": "c16a77be2650dc006267ef0a6972ea0132d20ebf569164c563750c9647e7f01a",
+  "terminal_rom_source_tail_scope": "Original-issued ROM-word dispatch typed SEP20/PLA/PLA/RTS terminal subset only; mathematical read domain is not declared data. Original pure family/masks/roles/canonical collectors/return validation/E0 runtime guards/bounds128/512/8 preserved. Absent original collector refuses entire tail and retains interpreter; malformed positive proofs fail closed. No root/callee-exit/owner/history/savedP grants. Current actual rows and native execution unknown.",
+  "terminal_rom_source_tail_frozen_source_proposal_sha256": "21615f9fdc9c9de65bac9e14e73c57a70cfdbf6caa71569c60f697197a7af141",
+  "terminal_rom_source_tail_root_review_sha256": "0aa0bf0eadada35b5a3d10829b153db3b496de94edcaca33b217622c7cd2cf28",
+  "rom_target_call_prefix_patch_sha256": "7a3b65e47761554b1590836b53528b0026805489b01019e05bb1140b5252c768",
+  "rom_target_call_prefix_source_binding_sha256": "226b9dfbdfa6a3e09be787b7a699a399d7217b90ee471deaa2b4c2a814779099",
+  "rom_target_call_prefix_frozen_source_proposal_sha256": "15ebe5a83b7a40e5987d02db40d90ab7f58a3bf2a3aac1ef59a08f41c524f633",
+  "rom_target_call_prefix_scope": "358v2 original-issued ROMtarget SEP30/directJSR architectural prefix only; source-certified original collector, no new roots/owner/exits/history.",
+  "rom_target_aftercall_patch_sha256": "fcd51c1bb5860e0f236ba96df4e5c73e0dc0094e739ddfc9af055b07665be4b6",
+  "rom_target_aftercall_source_binding_sha256": "a350b2a2f8af298d4f344999ac4c3540130ca442bb2fedd15f9fb86fd9ebbb8c",
+  "rom_target_aftercall_frozen_source_proposal_sha256": "c90ea6d5a00cab314a143a98ddc35160e6b82c263179997be545c239896ead03",
+  "rom_target_aftercall_scope": "361v4 exact original issued aftercall source; authentic current child/parent capture, mutable context/one-use proof; unavailable capture records no new-family rows, no old-producer exception or new roots/owner/exits/history.",
+  "ff20_architectural_chain_patch_sha256": "c5a298a4f6bac9f9c95747047901f73ea9422c4ff234bfab0530b7e537010d5a",
+  "ff20_architectural_chain_source_binding_sha256": "c1dde23669dd0fb1690179ee645d4d0ed3cdeb425d275db66913cfeabd3e7c78",
+  "ff20_architectural_chain_frozen_source_proposal_sha256": "252d0f45aef9e34061604d105a8c730db9a8687e16f944ba497913ccec202812",
+  "ff20_architectural_chain_scope": "383v5 original issued FF20 architectural-chain source; same128/504/depth8 ledger and raw current-source validation; original masks, producer/packet/DMA/raster and task ownership preserved, no new root/callee-exit/owner/history authority. Population unknown.",
+  "nested_validation_batch_patch_sha256": "5905a828635eab8e4d38726008efb15c066539c637ffc639ac11547d46dce4ad",
+  "nested_validation_batch_source_binding_sha256": "bf04e845fb54ef3842add245868dfff6d95e47650e6b7f76505390beda97991e",
+  "nested_validation_batch_frozen_source_proposal_sha256": "3006f3d7b42db8a472285b915a524e01f44b07bc1fe56c691c7f08e84e5ae37e",
+  "nested_validation_batch_scope": "441v2 DATA traversal +494 original task collection +497 whole nested and FF20 expansion batching. Fresh local source/parent/graphIR/ledger checks; global validation only genuine pre/post/publication/consume boundaries, caps closed before full checks. No source authority, recipes, roots, exit modes, bounds, runtimeC, feature or ABI change.",
+  "task_collection494_handoff_sha256": "16e752e4cc45165813d2fa5904c7c5f3bc8fcdf3031c4f4686c81ec1f06080e5",
+  "whole_expansion497_handoff_sha256": "3e783976fedbe7451139ba1e7a3d8cfc1b643f8d9dd8e643710bed1daf826374",
+  "source_stage": 134,
+  "public_helper_sha256": "5c23c935718b3c700568f024dbf9a4861bf0a64764514857332f0d12da1bca24",
+  "ordered_runtime_patch_count": 97,
+  "runtime_extension_count": 67,
+  "native_poll_service506_sha256": "c0497f7b39f25503a595af3fc2f720909a89963d569ee84ef25592f5513b3be6",
+  "upstream_PR210_analyzer_freshness": "selective backport; no broader analyzer correction claim",
+  "runtime_extensions": [
+    {
+      "name": "runtime-original-call-retention",
+      "patch_sha256": "f89a5e4b7fc3716f4a440353cc1392a3fcb4ee003fc671f033e3ed30fd09b985",
+      "source_binding_sha256": "74fd49aad510fbc0f4d3a3e97b7bef768ad56c3913ab171d9c731a18f8c7236f"
+    },
+    {
+      "name": "runtime-long-jump-stack-indirect-y",
+      "patch_sha256": "ec77e0a198c56713763920c1346aa80e7342d7c54d8c055633175781629afeb1",
+      "source_binding_sha256": "03c0e6a3c5a28c5aa84d68218ef5e82a6e875c284d6fa66e8ba96faf88dee885"
+    },
+    {
+      "name": "runtime-indirect-control",
+      "patch_sha256": "2b723cefdf7faa6dccad43702281a0fce561277a89900b69b4e8a52968bf5474",
+      "source_binding_sha256": "7a07b9f335179b41cb0806dbfe375dc8381646fd3612aca3d03dfe1cf216f2f1"
+    },
+    {
+      "name": "runtime-task-original-prefix",
+      "patch_sha256": "b992641a8e331dab5f1c2edd7e5c7349163e150ba537179793cbd47c53a56683",
+      "source_binding_sha256": "b3b92cdd08008832fff1caac30f586626e0dcc3e60534831ed6c3417dedac8bc"
+    },
+    {
+      "name": "runtime-interrupt-return",
+      "patch_sha256": "75926f688cc3dbd6dccc4ce3446976b0f6307f93c212533dae5bb25248d071a1",
+      "source_binding_sha256": "3ba0770eb6d5f13ae1a794bb7365ebe1f06ddb117ff2172786ee40b56efe3f10"
+    },
+    {
+      "name": "runtime-carry-emulation-exchange",
+      "patch_sha256": "629f510383cd70654d8a43fefe5eec30918a42ee8c7bdbb5343280ebe48a8075",
+      "source_binding_sha256": "a7b94a2a879b6c19e432fc4b896e6159c286f47ee0541a71baf623422175e7b5"
+    },
+    {
+      "name": "runtime-blockmove",
+      "patch_sha256": "0a1b15776666a61e2bbedd653fa658298314a2004869963d718061605d092570",
+      "source_binding_sha256": "6711b5cfcfdff92c5603784123fcaf16e48f47c7d34cf52f625aea1626567512"
+    },
+    {
+      "name": "runtime-reset-bootstrap-emulation",
+      "patch_sha256": "6edc8dfe64015c9c896382627708cfb41db0b6ae5b8e3a6e55b62a1080dc1df9",
+      "source_binding_sha256": "f428d6b7e01959c1de0a9b6ad1168754023b15659830b3d48d7dcacff9a6f199"
+    },
+    {
+      "name": "runtime-mode-successors",
+      "patch_sha256": "b665988c08e87e23bb07da2cf9e7b0d40fcb61a10372fa1d933d2c0aaf851e08",
+      "source_binding_sha256": "cb526acc78c3c26fad6e24fed58c6b6771325dfa1478e693dbb1d7372cb0bfc7"
+    },
+    {
+      "name": "runtime-source-suspend",
+      "patch_sha256": "d833d7dc406ea9d4eb7c93c85af212522782d800ca2f1991ab1aa21e387eb1f4",
+      "source_binding_sha256": "7c547ed65e281fae59b304f5f93fed78259f80c5b8630139f2f28993c708b9b3"
+    },
+    {
+      "name": "runtime-architecture-eligibility",
+      "patch_sha256": "49127b9014e96faa4d2cc50d1515bc29d4f5d6d78c81e48201ff89caedfaa368",
+      "source_binding_sha256": "216ba88dcc9d792fb10c050e66f3090d0bff0249187d8a1f6d4254b9055db4d8"
+    },
+    {
+      "name": "runtime-turbo-cadence",
+      "patch_sha256": "cfb88676320da4f5ae5f1144e5814a307ecc70c689ed48ba13dc6d6964859dc7",
+      "source_binding_sha256": "7495d2b5cfb54642b6d53c38e8d6de2d24f440b5f3abaa0b7d5a216caafcd817"
+    },
+    {
+      "name": "runtime-return-instructions",
+      "patch_sha256": "450ce03ce31486317ad2108cce99a80e6c119ccf3f760f8862bb11baaf4a8fad",
+      "source_binding_sha256": "136906a9a6e78c321870d0cf8bba1c19075a3acde5e04387a500d0dc1c10ce27"
+    },
+    {
+      "name": "runtime-callee-instructions",
+      "patch_sha256": "9070328b96b9df5c2a32f73c2d927c4ef5467993718d9fc197957740f5efa4c6",
+      "source_binding_sha256": "131021104fd513c11750348fd4cef24fa28c4472d2c38ab55c97bfe051dbfb70"
+    },
+    {
+      "name": "runtime-dynamic-p-instructions",
+      "patch_sha256": "c3a2205226e3594f163ae6252f26e9433ab6ddb98824600e5b7769592c64e16c",
+      "source_binding_sha256": "76d70ff5f6b58158dff0c945af6c64670f3ed7bc02f4bee0e0c728780b3dbe0e"
+    },
+    {
+      "name": "runtime-nested-instructions",
+      "patch_sha256": "65bb7bfed0c31b7b7f03c04441344a1aa9a1e46d55b7416246110ecb38f1f2ac",
+      "source_binding_sha256": "27beaefc7a9dcb997f88c8115a29784e6a3022e7151910d7d9aaae663ee474f7"
+    },
+    {
+      "name": "runtime-frontier-dynamic-p",
+      "patch_sha256": "5486f4d47dc5ccb4cc0bc686d1e044c471d85bc142316c8dcbdf2380b7e77348",
+      "source_binding_sha256": "15f03ed4f721e84ee8c2a8118b6ae2e33c721f0844a4f8369949636159665627"
+    },
+    {
+      "name": "runtime-source-return-steps",
+      "patch_sha256": "0e0b689fb492bb1369077fb09161f9bb18f0d1ab1acbefa40c6ffdca977c6bab",
+      "source_binding_sha256": "dd0103e5ef9e8136d136726796a04606af63918a083db90012bf0f06e5d87981"
+    },
+    {
+      "name": "runtime-aftercall-source-closure",
+      "patch_sha256": "3a85c417735b1bd306249997309ef9bb84edd03d696b5c5d2e9429ced253b8cb",
+      "source_binding_sha256": "1173e66d76c869542ba579fbf9e97824f3e7dd6e9d51a425b45dbced923417b3"
+    },
+    {
+      "name": "runtime-callable-progress",
+      "patch_sha256": "ee55a567f53c2ae3e8a81755bda7954a3b835d19bad8cc56db84156e243cce45",
+      "source_binding_sha256": "3cc05733c99b159cad095ad5403b00c7cf1e80c0489db97a92fde5dfb97a1bd0"
+    },
+    {
+      "name": "runtime-aftercall-dynamic-p",
+      "patch_sha256": "60f125101ac09a19597b603b447d94c1a12184489939dd6b4e5bf398962bb086",
+      "source_binding_sha256": "cc4cfefeaf592fae00fe9a4fdbcb44281b8b3400ed610cc16a9a836f6c49485c"
+    },
+    {
+      "name": "runtime-aftercall-return-steps",
+      "patch_sha256": "6b9b70845fba69f83d767bf9b46589faa4c890925fe2a9cd28b10e322fbe0448",
+      "source_binding_sha256": "a9293f1e82cb43b2da71f5d736c7aab1f34a5fb77701a344538629416103fe29"
+    },
+    {
+      "name": "runtime-program-call-closure",
+      "patch_sha256": "02850a53c3ab8ea3325c47af212fbbfe9227a4288b917799dd640bcc553a3152",
+      "source_binding_sha256": "4eb27f737c789efca37600ab08101f71956b39c160769b207e33b2dbaa64ed6d"
+    },
+    {
+      "name": "runtime-program-dynamic-p",
+      "patch_sha256": "83a9952d653f6093f1c95852f9387c8fb46cc4fccf81b73d17bcb714266fb87f",
+      "source_binding_sha256": "c93de89cb9ab11a8435a5f56b65543e92ddc25d0d75ef41361e88dbcdfa50515"
+    },
+    {
+      "name": "runtime-emission-bank-policy",
+      "patch_sha256": "7f0f267443396966a0221d56dca551bcba8c395c29c6e22898fd4d83bb39c137",
+      "source_binding_sha256": "367f984ab2fe5d5cf917a0c08d7fcc5f1ced82c6893796d288f326ae3d38f4b7"
+    },
+    {
+      "name": "runtime-combined-frontier-returns",
+      "patch_sha256": "9be41b96abd51f81cca9b6bcb2a35fa076e9f544e425d52d517b07cc1f107b16",
+      "source_binding_sha256": "36f31d1030f5e2c2088fad1949cb5d0353f1f7c39caad2a6536dfd8a4d46a5f8"
+    },
+    {
+      "name": "runtime-task-pure-instructions",
+      "patch_sha256": "d29219e692a2b7f4f3050ca1aecaae6d3666ae1b402ab70b62dc15b4d5387aa8",
+      "source_binding_sha256": "f703651bda6e515bc9db1e116dd31e11d49eb049bf9b4f1320348fdd1c06da69"
+    },
+    {
+      "name": "runtime-combined-rom-task-members",
+      "patch_sha256": "f282b1b84704020de50091065c4eb942cf7736278a6769166b18d8ca49c9aa2c",
+      "source_binding_sha256": "6644647c74ee47442d622716ed734f6d0e88e64c278d82a0efa5f7a9ab426f91"
+    },
+    {
+      "name": "runtime-combined-initial-selected-task",
+      "patch_sha256": "f56312d53e80e3d98cf03ba731ee405a963f50c3bb2488fcd5e503de531b86fe",
+      "source_binding_sha256": "590d57de7c43a2e2f8dc870def166e685b4b8c7918ecb447315ac4c095fc505d"
+    },
+    {
+      "name": "runtime-combined-selected-call-parent-nested",
+      "patch_sha256": "fd036fa13264f6bf06c1237330c05507afb83989970fb8b7ed8501d6a8d30f79",
+      "source_binding_sha256": "9b41058b1f92fe9908d1219f86f2b26779f72b0562d4ab9daf75a385e8fa8c70"
+    },
+    {
+      "name": "runtime-turbo-speed",
+      "patch_sha256": "de81a499306a5c0c2a798cc3747bc4859c9d2023dc201c64c767290716513033",
+      "source_binding_sha256": "21d29cc3a174b6dfe89692ab7c04dcf5bbc39017b45560d1101f4540f1e744a5"
+    },
+    {
+      "name": "runtime-refined-ff20-source",
+      "patch_sha256": "e4ea45154ee0889fe85e05f4899bb358d6cd004089ca21e1521664a712630a54",
+      "source_binding_sha256": "de0f05e71772a1df5cfdf44836735e516ec0d0b1f0d4d51a2686e643d6c7675f"
+    },
+    {
+      "name": "runtime-writer-fact-early-refusal",
+      "patch_sha256": "5a2f0ebad421b7abc033925766a9c6f2567e0cdcf1a70979b6253f2404e0c391",
+      "source_binding_sha256": "ba5b9a4ce452ece8906c6dd6c9798c18d291309f39b5ab674515caf5836ad018"
+    },
+    {
+      "name": "runtime-baseline-architecture-view",
+      "patch_sha256": "babde8df16536358e6deb264883c430eaa9b7a1e549c90e6693708813379d325",
+      "source_binding_sha256": "61ff850c5d657abba0dab7dd9292ed3378f5c291b059f73c8ebc211f5dc1dba3"
+    },
+    {
+      "name": "runtime-baseline-authored-symbols",
+      "patch_sha256": "65eb0d3f1d28528cefe04a0a03616c04d2f815a90ff4e1a666900141918c129f",
+      "source_binding_sha256": "d664a35118c41523e1f7ee4ce663cf3004192863b21ab6ea8d603deaed2cf4e2"
+    },
+    {
+      "name": "runtime-nested-bank01-initializer",
+      "patch_sha256": "a888b1e381b80248c2adc065740609a1f179c946889138b94b91ad712443a883",
+      "source_binding_sha256": "e710b126f4c0b7ab0fc225ba6487a8c80bcfa9e239858dc77af6e21278b9cf1d"
+    },
+    {
+      "name": "runtime-declared-wait-call",
+      "patch_sha256": "3898eff444223ab0662a84f20f5b9c87bf763c5ca5539c4c527a024999184add",
+      "source_binding_sha256": "2e843d5216d0e0790103f0de4b234a171652508d791d9a8592bbf10e4594a727"
+    },
+    {
+      "name": "runtime-immutable-rom-digest",
+      "patch_sha256": "baf5f1888836c49b988606e4533981d17db5d4f616e1cebd43ad2b0e38eb5d57",
+      "source_binding_sha256": "043f5f603bbf883bbd14dc5a020a4f8f83371e45027f19068d14fccd7edbf639"
+    },
+    {
+      "name": "runtime-terminal-rom-source-tail",
+      "patch_sha256": "67c5f7480b217eb3acad1422fde383ea4aa19407a822a634c7993ca6222109e7",
+      "source_binding_sha256": "c16a77be2650dc006267ef0a6972ea0132d20ebf569164c563750c9647e7f01a"
+    },
+    {
+      "name": "runtime-rom-target-call-prefix",
+      "patch_sha256": "7a3b65e47761554b1590836b53528b0026805489b01019e05bb1140b5252c768",
+      "source_binding_sha256": "226b9dfbdfa6a3e09be787b7a699a399d7217b90ee471deaa2b4c2a814779099"
+    },
+    {
+      "name": "runtime-rom-target-aftercall",
+      "patch_sha256": "fcd51c1bb5860e0f236ba96df4e5c73e0dc0094e739ddfc9af055b07665be4b6",
+      "source_binding_sha256": "a350b2a2f8af298d4f344999ac4c3540130ca442bb2fedd15f9fb86fd9ebbb8c"
+    },
+    {
+      "name": "runtime-ff20-architectural-chain",
+      "patch_sha256": "c5a298a4f6bac9f9c95747047901f73ea9422c4ff234bfab0530b7e537010d5a",
+      "source_binding_sha256": "c1dde23669dd0fb1690179ee645d4d0ed3cdeb425d275db66913cfeabd3e7c78"
+    },
+    {
+      "name": "runtime-nested-validation-batch",
+      "patch_sha256": "5905a828635eab8e4d38726008efb15c066539c637ffc639ac11547d46dce4ad",
+      "source_binding_sha256": "bf04e845fb54ef3842add245868dfff6d95e47650e6b7f76505390beda97991e"
+    },
+    {
+      "name": "runtime-upstream-analyzer-identity",
+      "patch_sha256": "71c532452f0a21978c360efe920bdfe94c66e621a4a430dc9453c97c2b8b72c7",
+      "source_binding_sha256": "0a4e85b46516b1c489c27137eb430b59a2961df14fe3210a6111b0a423511a29"
+    },
+    {
+      "name": "runtime-requested-analysis-roots",
+      "patch_sha256": "fd2b196c1d2438c3f499ebafd7afd21e210e6f6b8fb3212bef5c6d2740363498",
+      "source_binding_sha256": "ccac7e4fe464432f34de70db4597e8f708ca5a4758d1fc9f48cef22a965ed77c"
+    },
+    {
+      "name": "runtime-bank-validation-phase",
+      "patch_sha256": "300071a8f546481e2cf46b6633b33f2e23aa7bdfa1c4fb6f1f6380faf1270e5c",
+      "source_binding_sha256": "e56e0923bb869f5ec5f5d40107ab8158f2de4ee5ed907898b60bcf2bbf79ba28"
+    },
+    {
+      "name": "runtime-source-native-control",
+      "patch_sha256": "6b3817f9c907b5fb58e8777868b9294afefd8a77a5704eb2447459f6850c5c83",
+      "source_binding_sha256": "389a4f31ad74206733c475cc5e5aa9f03802e1556a144b316c29be24c3a5f8b0"
+    },
+    {
+      "name": "runtime-source-native-stack",
+      "patch_sha256": "19833ff9d0a0581cf0c51fb28ca415159cdd3b39b5d7a7474a82eea2a5e4837f",
+      "source_binding_sha256": "b0eb1df49de4abdc206d954dedf9b3a6def10002f338e44162c5f1efd7a8a838"
+    },
+    {
+      "name": "runtime-source-native-index-stack",
+      "patch_sha256": "d80baf717f828c9cc6b3d3837acca93af59dee81251a5892f301a992cd9f1d17",
+      "source_binding_sha256": "bdfa3864927d619529e90781bb35a12fb740d835c7506813e95a9a1df9dfdd9d"
+    },
+    {
+      "name": "runtime-source-native-dispatcher",
+      "patch_sha256": "43df76ebd848096f3e0ca71cd747fab3067ec306be17313c9cbfebe2c67e13f2",
+      "source_binding_sha256": "5e923123cbbdc06f107fb2b0a36d242b26837881be3efa1ccc9dfff554f3c445"
+    },
+    {
+      "name": "runtime-source-native-field-loop",
+      "patch_sha256": "98fe1733daa2577297e41caed701cf3fb8892aedd0a0ee930a123e05af5834a2",
+      "source_binding_sha256": "f926e40aa29d217838d4e8518d517328c8cf4efca277e03fc99203eda33308c5"
+    },
+    {
+      "name": "runtime-source-native-scene-condition",
+      "patch_sha256": "9a2d806594c1e473f45f52458f4d72ee1fa5f57da27759c9199e7a2fab474932",
+      "source_binding_sha256": "8d42447c7d4660d597316baad7470e44c51a8d81a80470329976c7e3a816a353"
+    },
+    {
+      "name": "runtime-source-native-condition-family",
+      "patch_sha256": "76ee174bf98487d8989dee7601204740e3c636b6c192a888f8e41297af2dbc97",
+      "source_binding_sha256": "e13c0a00890e36e5c004c4e2b9802a4bcb26990f4f3b10ded4dc9cb0bcef9a7f"
+    },
+    {
+      "name": "runtime-source-native-message-window",
+      "patch_sha256": "c6287628e00c231ac4d32941ad0f000d1990c1c8a27eb8af063dcf7a6004e5a3",
+      "source_binding_sha256": "b8f5c994f08598c95e6cd7a42b69363a24e48dbb12be5ec068566a5c65a27701"
+    },
+    {
+      "name": "runtime-source-native-field-loader",
+      "patch_sha256": "06e81547623c6215284a8bb9743423909e4c95e8e550be1daa8d5e588986909f",
+      "source_binding_sha256": "c067bf6d1cc87b5e122e2e99696553115e1d771f4573f3a7cc78b5a432dfcbc8"
+    },
+    {
+      "name": "runtime-source-native-field-tail",
+      "patch_sha256": "72e68296c8a9aecef9d7a1b4a07fb77f9328c8c7c47ada07f7c351229f9bea2e",
+      "source_binding_sha256": "d9747aa9355593f28a1adf5bc0ec1b5a94e8f24877f8d66e307050727756e2ef"
+    },
+    {
+      "name": "runtime-source-native-menu-condition",
+      "patch_sha256": "2e46821d3759967fadc56c890d39e2928c99a197a9f517f97adb9be795f01d52",
+      "source_binding_sha256": "e11538c1f2dbfc13a643eb1f8552c0e3c9f221a3f9e2f0bacce4b91d466a449c"
+    },
+    {
+      "name": "runtime-source-native-item-continuation",
+      "patch_sha256": "351e844aed03524d108657a4ed816f96f0a85c2228e7067eaff75ae9a5ae39e3",
+      "source_binding_sha256": "80a039a00c4108c8e4ff69607e4c0fd5c9c4d01a55dbb07dcbeaa40d26d11b31"
+    },
+    {
+      "name": "runtime-source-native-final-battle",
+      "patch_sha256": "3cdafbc3fe817663fc6ed28f308879c76043633fea169c8283a47819a5377c7c",
+      "source_binding_sha256": "2149b46a1f75cf89360f3162a040a34dd77937abdde48aa0f117a14354418edd"
+    },
+    {
+      "name": "runtime-source-native-equipment-change",
+      "patch_sha256": "43a4b8d74c0b902121ebed533583821b3f2f04a5fa19325e8a5c001b5d943141",
+      "source_binding_sha256": "e3801d3c363e9a03cd41e92b5405403738207c334f74743efadd501c9a126957"
+    },
+    {
+      "name": "runtime-source-native-item-effects",
+      "patch_sha256": "dafb89b12a40702e65aea8412ee22fc17dc557aec83463864540b95e70446872",
+      "source_binding_sha256": "112650c1f4f73500f985bc07f017143e7ffcfc479dbbceb1aafb1e1ecd32fc89"
+    },
+    {
+      "name": "runtime-source-native-field-menus",
+      "patch_sha256": "0835e0fdf4590c44c6076324ac2c58696290ce4b6f9035c0139e639a17a01444",
+      "source_binding_sha256": "9829338a6d40212466a5f8f0b780f6347b123fbc3fbca0f65698ddfb8aa3a923"
+    },
+    {
+      "name": "runtime-source-native-magic",
+      "patch_sha256": "180832ebe3ca609374a0e6190506173d75d03bacb1e10dafab57c28c9fae0cc4",
+      "source_binding_sha256": "76585b2c91a61132055adc82bb5daba9782caae6af4918c6d8cb2bdc61bf8328"
+    },
+    {
+      "name": "runtime-source-native-battle-magic",
+      "patch_sha256": "f69a576738abc89185102a74cab1f8e039baf1383b88848bd8d7bfef9ead5f7a",
+      "source_binding_sha256": "076b5ab153fc983352beb3b1e6444aecaf9523f019faf002a6252cbacce7ae99"
+    },
+    {
+      "name": "runtime-source-native-shop",
+      "patch_sha256": "cb80baca6b6d963315dd65a39791b947d8de46e55d58015107b6c9b643ec8dea",
+      "source_binding_sha256": "94cf6f1abeeb46c6b4477bd7835a93da1f1c3ded7282dc0f784f789a5a97a32e"
+    },
+    {
+      "name": "runtime-source-native-sort",
+      "patch_sha256": "1388142a496b7219e9649a6ed723623d3d505ec750fcb04dc3a43ab496a26222",
+      "source_binding_sha256": "c5675119d2fc7bd3cd0a6c165896acae674a9a268e8f52110ddd5f9831f74c5e"
+    },
+    {
+      "name": "runtime-architectural-native",
+      "patch_sha256": "199c1e6293958370dfdb37ba4de9ed3d0f4fc0b038b265115a1afbd146b74af5",
+      "source_binding_sha256": "3a7b2eb923331b29570a550823aafe05f69bb96372b644f97849da89da83a78f"
+    }
+  ],
+  "native_record_service514_sha256": "52262a87308e92c5bcdfe989ab6a7a739cc5603187642819b74ebd4a47ef944d",
+  "native_record_service514_scope": "23 source-bound original-cost nonCALL record-loop instructions; existing13polls preserved",
+  "source_native_control_patch_sha256": "6b3817f9c907b5fb58e8777868b9294afefd8a77a5704eb2447459f6850c5c83",
+  "source_native_control_source_binding_sha256": "389a4f31ad74206733c475cc5e5aa9f03802e1556a144b316c29be24c3a5f8b0",
+  "native_control_service518_sha256": "53325ff239488733efc6770ef5a3c03be7874ffa3e6cd2f4a669c3f5bd9cd05f",
+  "native_control_service518_scope": "518 original-supervisor source-registered JSR/JSL/RTS/RTL primitives and API only; no generated SDK/CFG/root/owner/exit facts or serialized state changes. Separate exact-artifact qualification required.",
+  "upstream_analyzer_identity_patch_sha256": "71c532452f0a21978c360efe920bdfe94c66e621a4a430dc9453c97c2b8b72c7",
+  "upstream_analyzer_identity_source_binding_sha256": "0a4e85b46516b1c489c27137eb430b59a2961df14fe3210a6111b0a423511a29",
+  "requested_analysis_roots_patch_sha256": "fd2b196c1d2438c3f499ebafd7afd21e210e6f6b8fb3212bef5c6d2740363498",
+  "requested_analysis_roots_source_binding_sha256": "ccac7e4fe464432f34de70db4597e8f708ca5a4758d1fc9f48cef22a965ed77c",
+  "bank_validation_phase_patch_sha256": "300071a8f546481e2cf46b6633b33f2e23aa7bdfa1c4fb6f1f6380faf1270e5c",
+  "bank_validation_phase_source_binding_sha256": "e56e0923bb869f5ec5f5d40107ab8158f2de4ee5ed907898b60bcf2bbf79ba28",
+  "native_bank01_pure527_sha256": "8f4a8f01d5c53878b4cb40e1e4ebeffced4d42982948cc191d53e69494671d42",
+  "native_bank01_pure527_scope": "Four source-bound bank01 STZabs8/JMPabs/SEP20/LDA8 original-cost instructions; prior13poll/23record/13control code retained. No runtime/ABI/generation change; exact-artifact qualification remains separate.",
+  "native_bank02_family534_sha256": "5f23312a99bc2cb74a54cc988520778c6aa2c6d5b50a8d5e6dacbe7a396ac1bb",
+  "native_bank02_family534_scope": "20 source-bound pure operations plus5 source CALLs through unchanged original518 supervisor. Six saved-P/A stack operations and forced-original FF20callee unchanged. No owner/exit/history/ABI/SDK/generation changes; separate exact-artifact qualification.",
+  "source_native_stack_patch_sha256": "19833ff9d0a0581cf0c51fb28ca415159cdd3b39b5d7a7474a82eea2a5e4837f",
+  "source_native_stack_source_binding_sha256": "b0eb1df49de4abdc206d954dedf9b3a6def10002f338e44162c5f1efd7a8a838",
+  "native_stack_service540_sha256": "595ba8873c36a2ac94694993b1d630bd2dca6a8f7c9c9783134d39d7caf9b828",
+  "native_stack_service540_scope": "540 source-registered PHP/PHA/PLA/PLP through original supervisor and original primitives; no generated SDK/CFG/root/owner/exit facts or serialized state changes.",
+  "source_native_index_stack_patch_sha256": "d80baf717f828c9cc6b3d3837acca93af59dee81251a5892f301a992cd9f1d17",
+  "source_native_index_stack_source_binding_sha256": "bdfa3864927d619529e90781bb35a12fb740d835c7506813e95a9a1df9dfdd9d",
+  "native_index_stack_service547_sha256": "c257351a5cf0ff33e3a88cc903df58ad4fdd97f19e9f7085e90b5115b02e2244",
+  "native_index_stack_service547_scope": "547 source-registered PHY/PLY and twelve bank02 title sites through original supervisor and original primitives; no generated SDK/CFG/root/owner/exit facts or serialized state changes.",
+  "source_native_dispatcher_patch_sha256": "43df76ebd848096f3e0ca71cd747fab3067ec306be17313c9cbfebe2c67e13f2",
+  "source_native_dispatcher_source_binding_sha256": "5e923123cbbdc06f107fb2b0a36d242b26837881be3efa1ccc9dfff554f3c445",
+  "native_dispatcher_service554_sha256": "94ab08e1a31d92da36433255d1846e728bf6e64b36a919f1217004d52efbaf5b",
+  "native_dispatcher_service554_scope": "554 source-registered bank00 dispatcher architectural primitives through original supervisor and original primitives; no generated SDK/CFG/root/owner/exit facts or serialized state changes.",
+  "source_native_field_loop_patch_sha256": "98fe1733daa2577297e41caed701cf3fb8892aedd0a0ee930a123e05af5834a2",
+  "source_native_field_loop_source_binding_sha256": "f926e40aa29d217838d4e8518d517328c8cf4efca277e03fc99203eda33308c5",
+  "native_field_loop_service565_sha256": "81e75c92b1991cc33d8039562e726e83cfcbf38c7ade7f049d511761460f32c5",
+  "native_field_loop_service565_scope": "Source565 exact-PC architectural service inside original fallback supervisor; original opcode bodies, physical bus/stack/timing, task/redirect owners retained; no SDK/CFG/root/exit or serialized state change.",
+  "source_native_scene_condition_patch_sha256": "9a2d806594c1e473f45f52458f4d72ee1fa5f57da27759c9199e7a2fab474932",
+  "source_native_scene_condition_source_binding_sha256": "8d42447c7d4660d597316baad7470e44c51a8d81a80470329976c7e3a816a353",
+  "native_scene_condition_service568_sha256": "0af48b4b9c8c59dad2d3630d60dcffcc1d30d327b16f69d683c647fb448448cb",
+  "native_scene_condition_service568_scope": "Source568 exact-PC architectural service inside original fallback supervisor; original opcode bodies, physical bus/stack/timing, task/redirect owners retained; no SDK/CFG/root/exit or serialized state change.",
+  "source_native_message_condition_patch_sha256": "76ee174bf98487d8989dee7601204740e3c636b6c192a888f8e41297af2dbc97",
+  "source_native_message_condition_source_binding_sha256": "e13c0a00890e36e5c004c4e2b9802a4bcb26990f4f3b10ded4dc9cb0bcef9a7f",
+  "native_message_condition_service573_sha256": "727f4212b2d896256745bce89b8aa87a6f138c0fec81214199f6b61b3db03232",
+  "native_message_condition_service573_scope": "Source573 exact-PC remaining scene/message conditions and bounded original producer/scan architecture inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "source_native_message_window_patch_sha256": "c6287628e00c231ac4d32941ad0f000d1990c1c8a27eb8af063dcf7a6004e5a3",
+  "source_native_message_window_source_binding_sha256": "b8f5c994f08598c95e6cd7a42b69363a24e48dbb12be5ec068566a5c65a27701",
+  "native_message_window_service586_sha256": "05c4c3b00099a3319076b9a0a160e793d52d1a299f61acb4b20b1da27cdb15eb",
+  "native_message_window_service586_scope": "Source586 exact-PC bounded message/text/window and reviewed dispatch/record architecture inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "source_native_field_loader_patch_sha256": "06e81547623c6215284a8bb9743423909e4c95e8e550be1daa8d5e588986909f",
+  "source_native_field_loader_source_binding_sha256": "c067bf6d1cc87b5e122e2e99696553115e1d771f4573f3a7cc78b5a432dfcbc8",
+  "native_field_loader_service593_sha256": "1430b4c80b44741c84931a4d777ffb1f8a17ad3a440a1f6b1599a15fc65dffd0",
+  "native_field_loader_service593_scope": "Source593 exact-PC bounded field/scene loader and reviewed residual dialogue architecture inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "source_native_field_tail_patch_sha256": "72e68296c8a9aecef9d7a1b4a07fb77f9328c8c7c47ada07f7c351229f9bea2e",
+  "source_native_field_tail_source_binding_sha256": "d9747aa9355593f28a1adf5bc0ec1b5a94e8f24877f8d66e307050727756e2ef",
+  "native_field_tail_service601_sha256": "8c255919e2e43628e11da1f18c3c8c8c0bc1d8520fe9016a0f23888e07d21f4c",
+  "native_field_tail_service601_scope": "Source601 exact-PC bounded field-tail and bundled native execution architecture inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "native_item_use_service610_sha256": "69b1a09f02cc95c83b2d23ad702448edc43173c28ab4a90184f9aff9ed6ff4fd",
+  "native_item_use_service610_scope": "Source610 bounded item-use producer native registration using existing reviewed original CPU bodies and original supervisor/physical bus/stack/timing owners. No runtime, SDK, CFG, callee, exit or serialized-state changes. Source-only and executed evidence remain separate.",
+  "native_item_use_frozen610_handoff_sha256": "5f6a0a9df689bb35fb4b58d724374b9dd698d27d0a1506d43bcc76b3ad836cbc",
+  "native_item_use_frozen610_source_pins_sha256": "caab2d976ba4d5e13cb750eba9758946e65c3ff74c13dbe79401edcf15e33050",
+  "source_native_menu_condition_patch_sha256": "2e46821d3759967fadc56c890d39e2928c99a197a9f517f97adb9be795f01d52",
+  "source_native_menu_condition_source_binding_sha256": "e11538c1f2dbfc13a643eb1f8552c0e3c9f221a3f9e2f0bacce4b91d466a449c",
+  "native_menu_condition_service618_sha256": "6293ffc878faf52039c71ec88769474c62027305c1c5c3547eb0ee52719ff189",
+  "native_menu_condition_service618_scope": "Source618 exact-PC bounded menu/message and item execution architecture inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "source_native_item_continuation_patch_sha256": "351e844aed03524d108657a4ed816f96f0a85c2228e7067eaff75ae9a5ae39e3",
+  "source_native_item_continuation_source_binding_sha256": "80a039a00c4108c8e4ff69607e4c0fd5c9c4d01a55dbb07dcbeaa40d26d11b31",
+  "native_item_continuation_service626_sha256": "4f9593600307004226507b04ba2a2c9940e7dd3b4a8ff3e7d5249c47d915fc0a",
+  "native_item_continuation_service626_scope": "Source626 exact-PC bounded item continuation architecture using existing physical stack bodies and real selector/capacity changes inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "native_residual_menu_service634_sha256": "895d985d7ab8e076c0e2f89ad7d7c02a27cbca109a82f67f9d4ddcd5bdb4e744",
+  "native_residual_menu_service634_scope": "Source634 bounded residual menu native registration using existing reviewed original CPU bodies and original supervisor/physical bus/stack/timing owners. No runtime, SDK, CFG, callee, exit or serialized-state changes. Source-only and executed evidence remain separate.",
+  "native_residual_menu_frozen634_handoff_sha256": "6e22f31109df30f737792e635166cc0ed418301fa154d10162148e003af7af99",
+  "native_residual_menu_frozen634_source_pins_sha256": "3f19c2555e2123feda28ba2982fae9cb17dac70181185abe1664e40c1e45c5d8",
+  "source_native_final_battle_patch_sha256": "3cdafbc3fe817663fc6ed28f308879c76043633fea169c8283a47819a5377c7c",
+  "source_native_final_battle_source_binding_sha256": "2149b46a1f75cf89360f3162a040a34dd77937abdde48aa0f117a14354418edd",
+  "native_final_battle_service642_sha256": "d7288ffa8ec6fbf75e68bfffcf9f68013d42da21b0ef2796d393c8c2e0b39722",
+  "native_final_battle_service642_scope": "Source642 exact-PC bounded battle paths with original STZ absolute-X body and original supervisor/bus/stack/timing ownership inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "native_next_subsystem_service650_sha256": "2f61ef15c355f4cfa79d549960d8a2e02446aa801c0ca30d65ab89d191599c5a",
+  "native_next_subsystem_service650_scope": "Next bounded source-qualified subsystem native registration using existing reviewed original CPU bodies and original supervisor/physical bus/stack/timing owners. No runtime, SDK, CFG, callee, exit or serialized-state changes. Source-only and executed evidence remain separate.",
+  "native_next_subsystem_frozen650_handoff_sha256": "2d2b1d4d2eeaa70f4a535d21294e09de99789587fbc44018697a7606e9302ca2",
+  "native_next_subsystem_frozen650_source_pins_sha256": "bef6ccea6337c72853209af7ff1ab17aa349d027deb909fc9912732989d6f765",
+  "source_native_equipment_change_patch_sha256": "43a4b8d74c0b902121ebed533583821b3f2f04a5fa19325e8a5c001b5d943141",
+  "source_native_equipment_change_source_binding_sha256": "e3801d3c363e9a03cd41e92b5405403738207c334f74743efadd501c9a126957",
+  "native_equipment_change_service660_sha256": "248af966f0373005a65bcf19c322d2e5a47a946a9918ad310b156a048413af30",
+  "native_equipment_change_service660_scope": "Source660 exact-PC bounded equipment-change paths with original BRL, ADC [dp],Y, ADC dp, ORA dp and SBC dp bodies and original supervisor/bus/stack/timing ownership inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "source_native_item_effects_patch_sha256": "dafb89b12a40702e65aea8412ee22fc17dc557aec83463864540b95e70446872",
+  "source_native_item_effects_source_binding_sha256": "112650c1f4f73500f985bc07f017143e7ffcfc479dbbceb1aafb1e1ecd32fc89",
+  "native_item_effects_service668_sha256": "7e53b732b0f268a7471b7abb6b25c3c165a4aee0a64b1ecbb6dc071a12f9f7e1",
+  "native_item_effects_service668_scope": "Source668 exact-PC bounded item-effect paths with original CMP [dp],Y body and original supervisor/bus/stack/timing ownership inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "source_native_field_menus_patch_sha256": "0835e0fdf4590c44c6076324ac2c58696290ce4b6f9035c0139e639a17a01444",
+  "source_native_field_menus_source_binding_sha256": "9829338a6d40212466a5f8f0b780f6347b123fbc3fbca0f65698ddfb8aa3a923",
+  "native_field_menus_service677_sha256": "f65a84122ac3fd764ac5f6c064010bb0449aa91be2d364553f9f3ea57a0196ee",
+  "native_field_menus_service677_scope": "Source677 exact-PC bounded STAT/SET/SWAP field-menu paths with original ROR dp, TSB dp, CMP long,X and ROR A bodies and original supervisor/bus/stack/timing ownership inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. Two declared narrow bridge APIs are added: interp_bridge_add_native_condition_mode_site and interp_bridge_native_condition_gate_count. Existing APIs retain strict duplicate-PC refusal; new variants require identical original body/bytes/length and disjoint valid modes. Private registry capacity8192. No generator/CFG/root/exit/serialized/five-file execution ABI changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "source_native_magic_patch_sha256": "180832ebe3ca609374a0e6190506173d75d03bacb1e10dafab57c28c9fae0cc4",
+  "source_native_magic_source_binding_sha256": "76585b2c91a61132055adc82bb5daba9782caae6af4918c6d8cb2bdc61bf8328",
+  "native_magic_service685_sha256": "fbe95fdd5aae2bfb86548653c4d70ce9fef34df60bcdf46ed84727caee13bbc5",
+  "native_magic_service685_scope": "Source685 bounded magic controller/rank/cost/target/cast helpers with original AND long,X and ADC long,X bodies. Original supervisor, physical bus/stack/timing, task/redirect owners and refusal rules retained. Existing677 explicit disjoint-mode and per-gate counter APIs remain unchanged. No generator/serialized/five-file execution ABI/CFG/root/owner/exit changes. Source-only branches remain separate from exact-artifact execution.",
+  "source_native_battle_magic_patch_sha256": "f69a576738abc89185102a74cab1f8e039baf1383b88848bd8d7bfef9ead5f7a",
+  "source_native_battle_magic_source_binding_sha256": "076b5ab153fc983352beb3b1e6444aecaf9523f019faf002a6252cbacce7ae99",
+  "native_battle_magic_service693_sha256": "d8f9bdfd8f7baede7ca3bdd3d413759806a38f6176b98adbea8d81d4f6ffd71a",
+  "native_battle_magic_service693_scope": "Source693 bounded battle-magic/action/damage/death native paths using only original opcode bodies/selectors declared in the frozen handoff. Original supervisor, physical bus/stack/timing, task/redirect owners and refusal rules retained. Existing677 explicit disjoint-mode and per-gate counter APIs remain unchanged. No generator/serialized/five-file execution ABI/CFG/root/owner/exit changes. Source-only branches remain separate from exact-artifact execution.",
+  "source_native_shop_patch_sha256": "cb80baca6b6d963315dd65a39791b947d8de46e55d58015107b6c9b643ec8dea",
+  "source_native_shop_source_binding_sha256": "94cf6f1abeeb46c6b4477bd7835a93da1f1c3ded7282dc0f784f789a5a97a32e",
+  "native_shop_service701_sha256": "f798c76875660a9242d7839c96677fdd7316d254908b940d81ae09fe2a88aeb8",
+  "native_shop_service701_scope": "Source701 bounded shop buy/sell/controller/record/money/inventory native paths using only original opcode bodies/selectors declared in the frozen handoff. Original supervisor, physical bus/stack/timing, task/redirect owners and refusal rules retained. Existing677 explicit disjoint-mode and per-gate counter APIs remain unchanged. No generator/serialized/five-file execution ABI/CFG/root/owner/exit changes. Source-only branches remain separate from exact-artifact execution.",
+  "native_next_subsystem_rename_service710_sha256": "17261869db0fbe0d81fa069876bbeb8ed9097e7abcf3ad793a63d813326bbf1e",
+  "native_next_subsystem_rename_service710_scope": "Next bounded source-qualified subsystem native registration using existing reviewed original CPU bodies and original supervisor/physical bus/stack/timing owners. No runtime, SDK, CFG, callee, exit or serialized-state changes. Source-only and executed evidence remain separate.",
+  "native_next_subsystem_frozen710_handoff_sha256": "daff6f3acd8ba4acf3edc7908575d758ad86071509abdd94115f82e7cfc08da2",
+  "native_next_subsystem_frozen710_source_pins_sha256": "7d1a566917f472548e9214e9762ee3c920d1cc12e01350120d2a13d36996a9df",
+  "source_native_sort_patch_sha256": "1388142a496b7219e9649a6ed723623d3d505ec750fcb04dc3a43ab496a26222",
+  "source_native_sort_source_binding_sha256": "c5675119d2fc7bd3cd0a6c165896acae674a9a268e8f52110ddd5f9831f74c5e",
+  "native_sort_service717_sha256": "a99736845cc4bcc0683b35cac8d77805be45db682c2b202023fe31c28947e140",
+  "native_sort_service717_scope": "Source717 bounded STAT/SORT and actual party-order native paths using only original opcode bodies/selectors declared in the frozen handoff. Original supervisor, physical bus/stack/timing, task/redirect owners and refusal rules retained. Existing677 explicit disjoint-mode and per-gate counter APIs remain unchanged. No generator/serialized/five-file execution ABI/CFG/root/owner/exit changes. Source-only branches remain separate from exact-artifact execution.",
+  "architectural_native_scope": "Architectural native-block dispatcher/compiler ABI plus original title install hook. Four declared runtime files; two new source files have explicit absent predecessors. Original interpreter816, old condition registries, legacy generated51 code, source-CFG/cache formats, physical bus/stack/timing ownership/refusals and serialized/five-file execution ABI remain unchanged. Source key/generation counts do not qualify execution or whole-game completion.",
+  "architectural_native_keys_sha256": "fd23855a143480041c035c166c9f89338a4027e622069d12c89e906ac6c096dd",
+  "architectural_native_key_count": 116446,
+  "authored_input_count": 70,
+  "architectural_native_width_invariant_scope": "Additional conditional E0M/Xclasses only when exactopcode/mnemonic/length/bytes preserveauthoritativeinstructionboundary. Same23193PCs/noaliases/noinferredcallerflags,7498different-boundaryclassesrefused;3provenresetE1unchanged. Firstcandidate78parityPASSbutzeroexecutionbecauseoldgatesconsumedexistingclasses; strictfirstmiss01D80CM0X1JMPprovesbroadsupplementneed.",
+  "architectural_native_width_evidence_sha256": "930b176dc8793102d2669fa9ad09eff530f071659dbbcb62f55b14a1c8a778ca",
+  "architectural_native_source_PC_count": 31250,
+  "architectural_native_master_candidate_keys": 117302,
+  "architectural_native_quarantined_terminal_keys": 856,
+  "architectural_native_quarantined_terminal_PC_count": 214,
+  "architectural_native_frontier_evidence_sha256": "2e62ad2a42e1bb37ad6bbf0b064eac98629726f77681eaf560f88420b52922d2",
+  "architectural_native_frontier_scope": "Source-authoritative architectural PC/M/X/E inventory: 116,446 admitted keys from 117,302 coherent source/frontier candidates. All 116,401 prior supported keys retained. 856 conditional BRK/COP/STP keys at 214 PCs remain explicitly unimplemented/quarantined; guarded interpreter fallback or strict missing-block refusal if reached. Actual candidate M/X determines typed IR. No aliases, guessed caller modes, CPU replay, unsupported NOP substitution, unreachable/DATA or whole-game native-completion claim. Three proven E1 reset keys only.",
+  "encounter_qol_guard_proposal_sha256": "51362db9803f5eb18535ad8c9743c4e36b3a5186aa3ef5f379da831f8aedadaf",
+  "encounter_qol_guard_scope": "Only accept source-proved DB02/82 alongside01/81 lowWRAM ABS mirrors. AllPB/E/MX/D/BCD/context/originalROM/carry/percent rules retained. Percent100 unchanged. No runtimeSDK/helper/fiveABI/serialized change. Candidate0percent counter-source fixture muststayworld; original100source866enteredbattle. No nativeprogress claim from fix.",
+  "public_release": "v0.5.6-wip",
+  "source_native_condition_family_patch_sha256": "76ee174bf98487d8989dee7601204740e3c636b6c192a888f8e41297af2dbc97",
+  "source_native_condition_family_source_binding_sha256": "e13c0a00890e36e5c004c4e2b9802a4bcb26990f4f3b10ded4dc9cb0bcef9a7f",
+  "architectural_native_patch_sha256": "199c1e6293958370dfdb37ba4de9ed3d0f4fc0b038b265115a1afbd146b74af5",
+  "architectural_native_source_binding_sha256": "3a7b2eb923331b29570a550823aafe05f69bb96372b644f97849da89da83a78f"
 }

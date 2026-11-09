@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "a888b1e381b80248c2adc065740609a1f179c946889138b94b91ad712443a883",
+  "predecessor_patch_sha256": "65eb0d3f1d28528cefe04a0a03616c04d2f815a90ff4e1a666900141918c129f",
+  "predecessor_binding_sha256": "d664a35118c41523e1f7ee4ce663cf3004192863b21ab6ea8d603deaed2cf4e2",
+  "cache_format": 50,
+  "normal_metadata": 35,
+  "task_metadata": 8,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_initial_task_sources.py": {
+      "predecessor_sha256": "5a7b58139eeb99082898bb35f6f3809c2136f4f4804017c3913fc7bd04624738",
+      "final_sha256": "0fe1b7380fd3db5f863fd30e9ac3e45d8ea12e02db48863a4cb4a6a751a47c2b",
+      "normalized_final_sha256": "f7ef9818f207259a0781c02a318b93c857c77a4b6f0c6a612da7dfc455a8081c"
+    },
+    "recompiler/v2/architecture_nested_initial_task_sources.py": {
+      "predecessor_sha256": "f5e07b78cec06dc52f8d366c477afffdcf898fd34f9313f060d5c64efd38befc",
+      "final_sha256": "a9b458bc06ac9192a82de98ded910f1e69024ba976eca70ef48246591a0629da",
+      "normalized_final_sha256": "9cfa3a00f4fb2aa221d5bab00438a27a62e9512459db1cbe65d94da14eed3a2a"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Exact frozen312v2 bank01 nested initializer admission only from genuine nested emitted receipt and14 typed members; original00/80 issuer and128/512/8 preserved. No new roots, caller/owner/exit grants or ABI fields. Same20-family metadata schema; actual populations unknown."
+}

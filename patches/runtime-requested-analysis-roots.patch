@@ -1,0 +1,81 @@
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -435,6 +435,28 @@
+                         VariantKey(pc24, m, x)
+                         for pc24, _canonical_m, _canonical_x in candidates
+                         for m in (0, 1) for x in (0, 1))
++    return tuple(sorted(roots))
++
++
++def load_analysis_roots(paths: Iterable[pathlib.Path]) -> tuple[VariantKey, ...]:
++    """Read explicit analysis seeds without declaring guest function boundaries.
++
++    These owner-reviewed PC/mode addresses are not runtime coverage and carry
++    no instruction bytes, timings, call outcomes or qualification claims.
++    They still pass through the ordinary ROM analyzer and LLE eligibility.
++    """
++    roots = set()
++    for path in paths:
++        path = pathlib.Path(path)
++        for line_number, raw in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
++            token = raw.partition("#")[0].strip()
++            if not token:
++                continue
++            match = re.fullmatch(r"([0-9a-fA-F]{1,6}):M([01])X([01])", token, re.IGNORECASE)
++            if not match:
++                raise ValueError(f"{path}:{line_number}: expected PC24:M0X0 analysis root, got {token!r}")
++            pc24, m, x = match.groups()
++            roots.add(VariantKey(int(pc24, 16), int(m), int(x)))
+     return tuple(sorted(roots))
+ 
+ 
+diff --git a/tools/v2_emit.py b/tools/v2_emit.py
+--- a/tools/v2_emit.py
++++ b/tools/v2_emit.py
+@@ -32,6 +32,7 @@
+     discover_host_roots,
+     discover_authority_roots,
+     discover_profile_roots,
++    load_analysis_roots,
+     emit_program,
+     validate_module_identity,
+ )
+@@ -195,6 +196,9 @@
+     parser.add_argument("--out-dir", required=True)
+     parser.add_argument("--source-root", action="append", default=[])
+     parser.add_argument(
++        "--analysis-roots-file", action="append", default=[],
++        help="requested PC24:M0X0 analysis seeds, one per line; original solver revalidates every seed (repeatable)")
++    parser.add_argument(
+         "--profile-manifest", action="append", default=[],
+         help="tier2 coverage manifest whose clean targets become optional "
+              "AOT roots (repeatable)")
+@@ -337,6 +341,7 @@
+     }
+     try:
+         profile_force_lle = set()
++        explicit_roots = load_analysis_roots(args.analysis_roots_file)
+         profile_roots = discover_profile_roots(
+             args.profile_manifest, declared_entry_pcs, profile_force_lle,
+             expected_rom=rom_sha256_hex, expected_module=args.module_id,
+@@ -354,7 +359,7 @@
+         # explicitly qualified targets reach AOT eligibility.
+         parsed[0][2].force_lle.update(profile_force_lle)
+     additional_roots = tuple(sorted(
+-        set(host_roots) | set(profile_roots) | set(ram_routine_roots) | set(symbol_roots)
++        set(host_roots) | set(profile_roots) | set(explicit_roots) | set(ram_routine_roots) | set(symbol_roots)
+         | (set(reviewed.roots) if reviewed else set())
+         | (set(discover_authority_roots(parsed)) if args.disassembly_entry_modes else set())))
+ 
+@@ -401,8 +406,8 @@
+         enable_native_mode_successors=args.native_mode_successors,
+     )
+     if args.architecture_discovery_baseline:
+-        if not args.profile_manifest or not args.cfg_roots or not args.no_host_root_scan or host_roots or ram_routine_roots or args.disassembly_entry_modes:
+-            parser.error('baseline architecture requires explicit profiles+CFG roots, no host/RAM/disassembly extra roots; original authored symbol roots retained')
++        if not (args.profile_manifest or args.analysis_roots_file) or not args.cfg_roots or not args.no_host_root_scan or host_roots or ram_routine_roots or args.disassembly_entry_modes:
++            parser.error('baseline architecture requires explicit analysis seeds or profiles plus CFG roots, no host/RAM/disassembly extra roots; original authored symbol roots retained')
+         analysis_input_digest=hashlib.sha256((analysis_input_digest+'\0architecture-baseline-source-v1').encode()).hexdigest()
+     cached = None if args.architecture_discovery_baseline else _verified_cached_stats(out_dir, analysis_input_digest)
+     if cached is not None and not args.no_link_closure_check:

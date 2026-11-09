@@ -1,0 +1,36 @@
+{
+  "patch_sha256": "c6287628e00c231ac4d32941ad0f000d1990c1c8a27eb8af063dcf7a6004e5a3",
+  "predecessor_patch_sha256": "76ee174bf98487d8989dee7601204740e3c636b6c192a888f8e41297af2dbc97",
+  "predecessor_binding_sha256": "e13c0a00890e36e5c004c4e2b9802a4bcb26990f4f3b10ded4dc9cb0bcef9a7f",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "daeb315ef4b53d3d0b1ec8c144a3cb9bbc17ee09b1fb06f313d5c1f931e3710a",
+      "final_sha256": "4d16569463b23b700948538a5bd7e7679f59286ce0d1aa0d0f99db42824fcfb4",
+      "normalized_final_sha256": "e44180f12ce978bbd0110c4017c763b3f4a3744fd55680480f4635df9386f0c0"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "de0d488bd9bd26a0e483c3df4324ec470f29a1aa39b59742855336a6376b544f",
+      "final_sha256": "fd2691ec9f110fbc86aa817771c463b84e5532d4a81c764027e52ac382b15077",
+      "normalized_final_sha256": "6c1a1b5acfe9c768b7f9356c4886beeb5d31317e801f0f0797d52b247b65a731"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "5b2b26bb294cbf6545f1a3df899799260f7722191a22b89d8ff343f629c16f63",
+      "final_sha256": "730bf1693742124f8bb1904b77d5dfd536ec32c1a9e42a8ef5fbd60165bcbf3a",
+      "normalized_final_sha256": "70635d65b5aa99882195d91f2d8347354c4d6caf24a524dd0e0681ce31644cf3"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "e9dc1f41aa67550f6336f253ca5b13d882137d3325aaae1c1281d3454003df94",
+      "final_sha256": "19222d6d588cb30fa853d450d5c4dc04b51a06a57f66f9fb320c4265620e3a1d",
+      "normalized_final_sha256": "b92d86636bac63e710f20e4aad693e57ec846151b1f1975d8d9fb253c30e9ba8"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source586 exact-PC bounded message/text/window and reviewed dispatch/record architecture inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "frozen586_handoff_sha256": "dd12e159e6276c56b581804889710369f1896b2ee30a79dd60ff5a7632fac349",
+  "frozen586_source_pins_sha256": "8da2c91be50337bfd5402ba20d847d335b889b2881393437930f78278b15edda"
+}

@@ -1,0 +1,39 @@
+{
+  "patch_sha256": "199c1e6293958370dfdb37ba4de9ed3d0f4fc0b038b265115a1afbd146b74af5",
+  "predecessor_patch_sha256": "1388142a496b7219e9649a6ed723623d3d505ec750fcb04dc3a43ab496a26222",
+  "predecessor_binding_sha256": "c5675119d2fc7bd3cd0a6c165896acae674a9a268e8f52110ddd5f9831f74c5e",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/emit_native_blocks.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "349319b7b6b4c584767672a1ff1752dc4e4a7b9b103a7a3f6c3b9c875f9c0792",
+      "normalized_final_sha256": "eceeadc5c41f5200851eb37b9fb398add6951f29cde64914dfb774c2fd219dca"
+    },
+    "runner/src/native_blocks.h": {
+      "predecessor_sha256": null,
+      "final_sha256": "cb7ad310ba54a0aa4156356f4623e0dc042e974202da22d7432ab2880172a8c1",
+      "normalized_final_sha256": "cb7ad310ba54a0aa4156356f4623e0dc042e974202da22d7432ab2880172a8c1"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "c940a4cc516696f48ba21541e7466a82becfcc97b298d061173bf45b224071d5",
+      "final_sha256": "7f03d469df1b756dad4be6d11aa99293aa04675cd28d522d408902743b277ee1",
+      "normalized_final_sha256": "b106fbbe53e0f1f7b1a39009201b83861468bfead74f790496fa10135c472ee9"
+    },
+    "runner/src/snes/interp_bridge.h": {
+      "predecessor_sha256": "d50d6b22214e58b7ec502fe9b426836e8a9ad5ba1dba57bf31ac0785b7790b10",
+      "final_sha256": "53c512518bf1e10efdd81ae47575166a4b3af008a437be9bd5c02b8d5e7df815",
+      "normalized_final_sha256": "9dcb3a9b1c4f8bcbc7ba378abec2b30551a0c5ab949416afae0fc724c70be2d0"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Architectural native-block dispatcher/compiler ABI plus original title install hook. Four declared runtime files; two new source files have explicit absent predecessors. Original interpreter816, old condition registries, legacy generated51 code, source-CFG/cache formats, physical bus/stack/timing ownership/refusals and serialized/five-file execution ABI remain unchanged. Source key/generation counts do not qualify execution or whole-game completion.",
+  "source_proposal_pins": {
+    "C:\\Users\\crono\\AppData\\Local\\Temp\\native725-backend-runtime\\source-pins725.json": "bca5da11b75cdcf035b08cdaf7199caaf12854aa8d98ca9594362efa8ae18c12",
+    "C:\\Users\\crono\\AppData\\Local\\Temp\\native726-backend-compiler\\source-pins726.json": "ba7b605390e8328781f0d679ab168f66139e82a392a38bbbe5e4b8cfe51495bb",
+    "C:\\Users\\crono\\AppData\\Local\\Temp\\native727-title-build\\title-pins727.json": "ad1d33beb254e5ddeef0d52620b2dd287e34f88011ed313ded8ada0822ab005f"
+  }
+}

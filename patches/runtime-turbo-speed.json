@@ -1,0 +1,34 @@
+{
+  "patch_sha256": "de81a499306a5c0c2a798cc3747bc4859c9d2023dc201c64c767290716513033",
+  "predecessor_patch_sha256": "fd036fa13264f6bf06c1237330c05507afb83989970fb8b7ed8501d6a8d30f79",
+  "predecessor_binding_sha256": "9b41058b1f92fe9908d1219f86f2b26779f72b0562d4ab9daf75a385e8fa8c70",
+  "files": {
+    "runner/src/common_rtl.c": {
+      "predecessor_sha256": "78ace937167d354a54f2b18bd0f0d2cbd5a901a08b34c58c773dfb812a129abb",
+      "final_sha256": "7fb48b9a68e63b84cffa1a3c397e04222cf193be77206198611389fb711ac532",
+      "normalized_final_sha256": "7fb48b9a68e63b84cffa1a3c397e04222cf193be77206198611389fb711ac532"
+    },
+    "runner/src/common_rtl.h": {
+      "predecessor_sha256": "b58d9599aca246f72ba0fe03c338bac28bda36bb113bf93e785e92dd33205f3e",
+      "final_sha256": "4396d8de365ca80cb41f5aebdfc6ff1026a3294ed5137a609c3a12c1fe6ad16a",
+      "normalized_final_sha256": "4396d8de365ca80cb41f5aebdfc6ff1026a3294ed5137a609c3a12c1fe6ad16a"
+    },
+    "runner/src/desktop/host_main.c": {
+      "predecessor_sha256": "0911b4338fe3f4d86ef34702f21d2961a276dbe819bfac545918bc323acbad1e",
+      "final_sha256": "71726831fa08da3d8bd99cbd0144ffdcd39292e0ba0f4f3713bfd15f2f918804",
+      "normalized_final_sha256": "71726831fa08da3d8bd99cbd0144ffdcd39292e0ba0f4f3713bfd15f2f918804"
+    }
+  },
+  "cache_format": 48,
+  "normal_metadata": 33,
+  "task_metadata": 8,
+  "redirect_metadata": 1,
+  "source_proposal_sha256": "fc5c48fb1703f2eaa80fa3ef384778fd255f59098034eb1b83ea29362646b614",
+  "source_proposal_patch_sha256": "3e5a1741fe82dbc3b1b742b84aeb9b6c72da93e1fb834909ef2c66a1173bca23",
+  "root_review224_sha256": "ee9416e8131efeef44a0b95b5905398f962ffc2367a0db0746cb09b23e768426",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "host_output_delivery_only": true,
+  "guest_struct_layouts_changed": false,
+  "scope": "Target4x host deadline/audio output tempo, exclude actual producer ring waits from tempo estimate, keep original guest/frame/raster/HDMA/audio ownership and60Hz coherent latest presentation. Actual new candidate device/speed/input/audio qualification separate."
+}

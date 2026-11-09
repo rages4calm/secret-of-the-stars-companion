@@ -1,0 +1,708 @@
+diff --git a/recompiler/v2/architecture_ff20_architectural_sources.py b/recompiler/v2/architecture_ff20_architectural_sources.py
+--- a/recompiler/v2/architecture_ff20_architectural_sources.py
++++ b/recompiler/v2/architecture_ff20_architectural_sources.py
+@@ -16,6 +16,7 @@
+ _RESULTS=weakref.WeakKeyDictionary();_CONSUMED=weakref.WeakSet()
+ _QUEUED=weakref.WeakSet();_EMITTING=weakref.WeakSet()
+ _VALIDATING=weakref.WeakKeyDictionary()
++_BATCH_ACTIVE=weakref.WeakKeyDictionary();_ORIGINAL_ACTIVE=weakref.WeakSet();_BATCH_FAILED=weakref.WeakSet()
+ 
+ 
+ def _capture_original_inline_policy(issuer,stream,view,rom,manifest,source_map):
+@@ -116,6 +117,7 @@
+     def digest(self):return _digest((id(self.registry),self.enabled,[(id(x),_RECEIPTS.get(x))for x in self.seeds],self.refused,[(id(x),_RECEIPTS.get(x))for x in self.receipts],[(id(x),_SCOPES.get(x))for x in self.policies],self.original,self.added,self.spent,self.phase,self.rows,self.graphs))
+     def refresh(self):_STATE_PROOFS[self]=self.digest()
+     def ledger(self):
++        if self in _BATCH_FAILED:raise ValueError('failed FF20 source collection')
+         r=self.registry
+         if (original.MAX_INSNS,original.MAX_STARTS,original.MAX_DEPTH)!=(128,504,8):raise ValueError('original FF20 bound policy mutated')
+         if _STATES.get(r)is not self or _STATE_PROOFS.get(self)!=self.digest()or self.phase not in('original','children','complete'):raise ValueError('FF20 purpose registry/state seal changed')
+@@ -137,6 +139,10 @@
+             if value[0]=='FF20_ARCHITECTURAL_DEPTH_REFUSAL'and value[1]!=original.MAX_DEPTH+1:raise ValueError('new FF20 depth-refusal ledger invalid')
+         if self.spent!={entry for _cid,entry in r.reservations}:raise ValueError('shared global typed spent set changed')
+     def validate(self):
++        if self in _BATCH_ACTIVE:
++            try:return _expansion_leaf(self)
++            except BaseException:
++                _BATCH_FAILED.add(self);raise
+         _validate_current(self,receipts=tuple(self.receipts),policies=tuple(self.policies))
+ 
+ 
+@@ -148,9 +154,30 @@
+ def _begin_original(issuer,r,*,enabled):return _State(issuer,r,enabled)
+ 
+ 
++def _collection_leaf(state,phase):
++    r=state.registry
++    if type(state)is not _State or _STATES.get(r)is not state or state in _BATCH_FAILED or type(state.enabled)is not bool or state.phase!=phase or type(r)is not original._Registry or not r.sealed or not r.used or original._REGISTRIES.get(r.stream)is not r or r not in original._ISSUED:raise ValueError('actual FF20 collection/issuer/phase required')
++    state.ledger()
++
++
++def _expansion_leaf(state):
++    if _BATCH_ACTIVE.get(state)is not _ISSUER or state in _VALIDATING:raise ValueError('private nonreentrant FF20 expansion required')
++    _collection_leaf(state,'children')
++
++
+ def _queue_original(issuer,state,scope,local,calls):
++    if state in _ORIGINAL_ACTIVE:
++        _BATCH_FAILED.add(state);raise ValueError('FF20 original collection reentry')
++    _ORIGINAL_ACTIVE.add(state)
++    try:return _queue_original_local(issuer,state,scope,local,calls)
++    except BaseException:
++        _BATCH_FAILED.add(state);raise
++    finally:_ORIGINAL_ACTIVE.discard(state)
++
++
++def _queue_original_local(issuer,state,scope,local,calls):
+     if issuer is not original._ISSUER or _STATES.get(state.registry)is not state or state.phase!='original':raise ValueError('actual original FF20 completion required')
+-    state.validate()
++    _collection_leaf(state,'original')
+     if not state.enabled:return
+     r=state.registry;scope.validate();g=scope.graph;item=r.ir.get(id(scope))
+     if type(scope)is not original._FF20TargetPolicy or item is None or item[0]is not g or item[2]!=_digest(repr(item[1])):raise ValueError('original FF20 completion missing actual IR')
+@@ -336,7 +363,7 @@
+         for namespace,names in((old,('_ISSUER','MAX_INSNS','MAX_STARTS','MAX_DEPTH','_Registry','_OriginalRecord','_Certificate','_FF20TargetPolicy')),(new,('_ISSUER','_State','_Receipt','_FF20ArchitecturalPolicy'))):
+             for name in names:
+                 list.append(tape,('issuer_type_bound_namespace',name));list.append(work,dict.__getitem__(namespace,name));drain()
+-        namespaces=((old,('_REGISTRIES','_ISSUED','_CERTIFICATES','_TARGETS','_PROOFS','_SCOPE_PROOFS','_RECORD_PROOFS')),(new,('_STATES','_STATE_PROOFS','_SCOPES','_RECEIPTS','_INLINE','_UNAVAILABLE','_RESULTS','_CONSUMED','_QUEUED','_EMITTING')))
++        namespaces=((old,('_REGISTRIES','_ISSUED','_CERTIFICATES','_TARGETS','_PROOFS','_SCOPE_PROOFS','_RECORD_PROOFS')),(new,('_STATES','_STATE_PROOFS','_SCOPES','_RECEIPTS','_INLINE','_UNAVAILABLE','_RESULTS','_CONSUMED','_QUEUED','_EMITTING','_BATCH_FAILED')))
+         # Primary state closure is fixed before table projection; unrelated
+         # concurrent namespaces cannot supply authority to this invocation.
+         relevant=dict.copy(seen)
+@@ -437,6 +464,53 @@
+         raw_after,raw_keep_final=raw_boundary.signature(state)
+         if raw_after!=raw_before:raise ValueError('callback-free FF20 source/namespace boundary changed')
+         return result
++    def run_local(self,receipts,policies,edge):
++        self.require_active(self.state);state=self.state
++        if _BATCH_ACTIVE.get(state)is not _ISSUER or state.phase!='children':raise ValueError('live FF20 local ancestry invocation required')
++        state.ledger();state.registry.validate();self.state_sha=state.digest()
++        todo=[('policy',p,False)for p in reversed(policies)]+[('receipt',r,False)for r in reversed(receipts)]
++        while todo:
++            kind,node,leaving=todo.pop();key=(kind,node)
++            self.require_active(state)
++            if leaving:
++                if key not in self.visiting or self.snapshot(kind,node)!=self.before[key]:raise ValueError('FF20 ancestry node changed during parent validation')
++                node._validate_local(self)
++                if self.snapshot(kind,node)!=self.before[key]:raise ValueError('FF20 ancestry local validation mutated source proof')
++                self.visiting.remove(key);self.done.add(key)
++                continue
++            if key in self.visiting:raise ValueError('FF20 validation ancestry cycle')
++            if key in self.done:
++                self.require_checked(kind,node)
++                continue
++            self.before[key]=self.snapshot(kind,node);self.visiting.add(key);todo.append((kind,node,True))
++            if kind=='receipt':
++                if node.parent is not None:
++                    # Follow only the exact issued scope/parent relationship;
++                    # no foreign node can fabricate an alternate shallow root.
++                    if type(node.scope)is not _FF20ArchitecturalPolicy or node.scope.parent is not node.parent or node.scope.state is not state or node.scope.depth!=node.depth or node.parent.depth+1!=node.depth:raise ValueError('FF20 receipt ancestry association changed')
++                    todo.append(('policy',node.scope,False))
++                elif type(node.scope)is not original._FF20TargetPolicy or node.depth!=1:raise ValueError('FF20 ancestry root is not original depth1 issuer')
++            else:
++                if type(node.parent)is not _Receipt or node.parent.state is not state or node.depth!=node.parent.depth+1 or node.certificate is not node.parent.cert:raise ValueError('FF20 policy ancestry association changed')
++                todo.append(('receipt',node.parent,False))
++        result=None
++        if edge is not None:
++            parent,k,kind=edge;result=_edge_local(self,parent,k,kind)
++        # Run original current root/registry/inline validators unchanged BEFORE
++        # the final content/association postflight, so callback mutation cannot
++        # be hidden by a prior visited node or by refreshing a proof seal.
++        for kind,node in self.before:
++            if kind=='receipt'and node.parent is None:node.scope.validate()
++        state.registry.validate();state.ledger()
++        if state.digest()!=self.state_sha:raise ValueError('FF20 validation invocation changed current state')
++        for(kind,node),snapshot in self.before.items():
++            if (kind,node)not in self.done or self.snapshot(kind,node)!=snapshot:raise ValueError('FF20 proof/content/association changed during validation callbacks')
++        self.require_active(state)
++        # Cleanup may itself touch Python weak containers. Close BEFORE the
++        # FINAL callback-free comparison, not after it. Strong local raw_keep
++        # retains the entire preflight graph until the comparison completes.
++        self.close()
++        return result
+     def close(self):
+         if self.closed:return
+         state=self.state
+@@ -447,6 +521,15 @@
+ def _validate_current(state,*,receipts=(),policies=(),edge=None):
+     # No caller-supplied skip flag or claimed-valid set. Every public call
+     # creates and disposes its own full current-ancestry validation invocation.
++    if state in _BATCH_FAILED or state in _ORIGINAL_ACTIVE:
++        _BATCH_FAILED.add(state);raise ValueError('failed/reentrant FF20 collection')
++    if state in _BATCH_ACTIVE:
++        try:
++            _expansion_leaf(state);invocation=_ValidationInvocation(_ISSUER,state)
++            try:return invocation.run_local(receipts,policies,edge)
++            finally:invocation.close()
++        except BaseException:
++            _BATCH_FAILED.add(state);raise
+     invocation=_ValidationInvocation(_ISSUER,state)
+     try:return invocation.run(receipts,policies,edge)
+     finally:invocation.close()
+@@ -511,27 +594,32 @@
+     state.validate();r=state.registry;state.original=dict(r.reservations);state.spent={entry for _cid,entry in state.original};state.phase='children';state.refresh()
+     # Explicit stack: depth first by authentic original-parent order; mode
+     # variants are separate attempts. Every old attempt/refusal retains priority.
+-    todo=[('receipt',seed)for seed in reversed(state.seeds)]
+-    while todo:
+-        kind,value=todo.pop()
+-        if kind=='child':
+-            parent,edge,entry=value;receipt,reason=_emit_child(state,parent,edge,entry)
+-            if receipt is None:
+-                state.refused.append({'entry':list(entry),'parent_entry':list(_key(parent.graph.entry)),'depth':parent.depth+1,'reason':reason});state.refresh();continue
+-        else:receipt=value
+-        receipt.validate()
+-        for key,row in receipt.rows.items():
+-            if key in state.rows and state.rows[key]!=row:raise ValueError('unequal FF20 architectural body')
+-            state.rows[key]=row
+-        state.refresh();requests=[]
+-        for k in sorted(receipt.allowed,key=_key):
+-            ins=receipt.graph.insns[k].insn
+-            if ins.mnem not in('JSR','JSL','PLP'):continue
+-            edge,reason=_edge(receipt,k,'source_owned_live_P_frontier'if ins.mnem=='PLP'else'architectural_call_numeric_fall')
+-            if edge is None:
+-                state.refused.append({'source_key':list(_key(k)),'reason':reason});state.refresh();continue
+-            for m,x in((0,0),(0,1),(1,0),(1,1)):requests.append(('child',(receipt,edge,(edge['start'],m,x))))
+-        todo.extend(reversed(requests))
++    _BATCH_ACTIVE[state]=_ISSUER
++    try:
++        todo=[('receipt',seed)for seed in reversed(state.seeds)]
++        while todo:
++            kind,value=todo.pop()
++            if kind=='child':
++                parent,edge,entry=value;receipt,reason=_emit_child(state,parent,edge,entry)
++                if receipt is None:
++                    state.refused.append({'entry':list(entry),'parent_entry':list(_key(parent.graph.entry)),'depth':parent.depth+1,'reason':reason});state.refresh();continue
++            else:receipt=value
++            receipt.validate()
++            for key,row in receipt.rows.items():
++                if key in state.rows and state.rows[key]!=row:raise ValueError('unequal FF20 architectural body')
++                state.rows[key]=row
++            state.refresh();requests=[]
++            for k in sorted(receipt.allowed,key=_key):
++                ins=receipt.graph.insns[k].insn
++                if ins.mnem not in('JSR','JSL','PLP'):continue
++                edge,reason=_edge(receipt,k,'source_owned_live_P_frontier'if ins.mnem=='PLP'else'architectural_call_numeric_fall')
++                if edge is None:
++                    state.refused.append({'source_key':list(_key(k)),'reason':reason});state.refresh();continue
++                for m,x in((0,0),(0,1),(1,0),(1,1)):requests.append(('child',(receipt,edge,(edge['start'],m,x))))
++            todo.extend(reversed(requests))
++    except BaseException:
++        _BATCH_FAILED.add(state);raise
++    finally:_BATCH_ACTIVE.pop(state,None)
+     state.phase='complete';state.refresh();state.validate()
+     recipe={'contract':CONTRACT,'enabled':state.enabled,'original_attempted_starts':len(state.original),'new_attempted_starts':len(state.added),'total_attempted_starts':len(r.reservations),'graph_bound':original.MAX_INSNS,'start_bound':original.MAX_STARTS,'ancestry_bound':original.MAX_DEPTH,'seed_entries':[list(_key(s.graph.entry))for s in state.seeds],'graphs':state.graphs,'refused':state.refused,'order':'all original targets first; deterministic parent-order depth-first new children','ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False,'saved_P_history_exported':False,'runtime_dispatch_changed':False,'old_FF20_pure_family_changed':False}
+     output=[state.rows[k]for k in sorted(state.rows)]
+diff --git a/recompiler/v2/architecture_nested_initial_task_sources.py b/recompiler/v2/architecture_nested_initial_task_sources.py
+--- a/recompiler/v2/architecture_nested_initial_task_sources.py
++++ b/recompiler/v2/architecture_nested_initial_task_sources.py
+@@ -5,6 +5,8 @@
+ from .architecture_emission_policy import _EmissionPolicy,_digest,_graph_digest
+ from . import architecture_initial_task_sources as initial
+ _ISSUER=object();_ISSUED=weakref.WeakSet();_SCOPES=weakref.WeakSet();_RECEIPTS=weakref.WeakSet()
++_COLLECTION_ACTIVE=weakref.WeakSet();_COLLECTION_FAILED=weakref.WeakSet()
++_NESTED_EXPANSION=weakref.WeakKeyDictionary();_NESTED_CHECKING=weakref.WeakSet()
+ CONTRACT='source-nested-fivebyte-initial-task-instructions-v1'
+ 
+ 
+@@ -79,6 +81,8 @@
+         reg.validate(rom,parsed,stream);_ISSUED.add(self);self.reg=reg;self.stream=stream;self.rom=rom;self.parsed=parsed
+         self.attempts={};self.attempt_sha=_digest({});self.ir={};self.ir_seal=_digest([]);self.receipts={};self.receipt_seal=_digest([]);self.pending={};self.used=False;self.original_done=False;self.original_attempts=None
+     def validate(self):
++        return _validate_observation(self)
++    def _validate_legacy(self):
+         if self not in _ISSUED or getattr(self.stream,'_nested_initial_observation',None)is not self or self.attempt_sha!=_digest(self.attempts):raise ValueError('foreign/mutated nested source ledger')
+         self.reg.validate(self.rom,self.parsed,self.stream)
+         if self.ir_seal!=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(self.ir.items())])or self.receipt_seal!=_digest([(i,id(r))for i,r in sorted(self.receipts.items())]):raise ValueError('observed child IR/receipt registry mutated')
+@@ -150,28 +154,86 @@
+     if getattr(stream,'_nested_initial_observation',None)is not None:raise ValueError('nested source producer reuse')
+     o=_Observation(issuer,reg,stream,rom,parsed);stream._nested_initial_observation=o;return o
+ 
++def _original_collection_leaf(o,issuer,reg):
++    if type(o)is not _Observation or o not in _ISSUED or o in _COLLECTION_FAILED or issuer is not initial._ISSUER or type(reg)is not initial._InitialRegistry or reg is not o.reg:raise ValueError('failed/foreign original task observation')
++    if o.original_done is not False or o.used is not False or o.original_attempts is not None or getattr(o.stream,'_nested_initial_observation',None)is not o:raise ValueError('original task collection phase changed')
++    if reg not in initial._REGISTRIES or reg._issuer is not initial._ISSUER or not reg._sealed or not reg._used or reg._stream is not o.stream or reg._rom is not o.rom or reg._parsed is not o.parsed:raise ValueError('original task registry issuer/context changed')
++    if o.attempt_sha!=_digest(o.attempts)or o.ir_seal!=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(o.ir.items())])or o.receipt_seal!=_digest([(i,id(r))for i,r in sorted(o.receipts.items())]):raise ValueError('original task collection ledger/registry seal mutated')
++
++
++def _begin_original_operation(o,issuer,reg):
++    if o in _COLLECTION_ACTIVE:
++        _COLLECTION_FAILED.add(o);raise ValueError('original task observation reentry')
++    _COLLECTION_ACTIVE.add(o)
++    try:
++        _original_collection_leaf(o,issuer,reg);reg.validate(o.rom,o.parsed,o.stream);_original_collection_leaf(o,issuer,reg)
++    except BaseException:
++        _COLLECTION_FAILED.add(o);_COLLECTION_ACTIVE.discard(o);raise
++
++
+ def _observe_queue(o,issuer,reg,pc,m,x,origin,depth):
+-    if issuer is not initial._ISSUER or o not in _ISSUED or reg is not o.reg or o.original_done:raise ValueError('foreign initial queue observer')
+-    o.validate();o.reserve((pc,m,x),origin,depth,True)
++    _begin_original_operation(o,issuer,reg)
++    try:
++        o.reserve((pc,m,x),origin,depth,True);_original_collection_leaf(o,issuer,reg)
++    except BaseException:
++        _COLLECTION_FAILED.add(o);raise
++    finally:_COLLECTION_ACTIVE.discard(o)
++
+ 
+ def _capture_child_ir(stream,scope,rom,graph,pairs):
++    if type(scope)is not initial._InitialChildPolicy:return _capture_child_ir_local(stream,scope,rom,graph,pairs)
++    o=getattr(stream,'_nested_initial_observation',None)
++    if type(o)is not _Observation:raise ValueError('actual original task observer required for capture')
++    _begin_original_operation(o,initial._ISSUER,scope._registry)
++    try:
++        _capture_child_ir_local(stream,scope,rom,graph,pairs);_original_collection_leaf(o,initial._ISSUER,scope._registry)
++    except BaseException:
++        _COLLECTION_FAILED.add(o);raise
++    finally:_COLLECTION_ACTIVE.discard(o)
++
++
++def _capture_child_ir_local(stream,scope,rom,graph,pairs):
+     if type(scope)not in(initial._InitialChildPolicy,_NestedInitialChildPolicy):return
+     o=getattr(stream,'_nested_initial_observation',None)
+     if o not in _ISSUED or rom is not o.rom or scope._stream is not stream or scope._graph is not graph or id(scope)in o.ir:raise ValueError('foreign/reused child IR producer')
+     if type(scope)is initial._InitialChildPolicy and(scope not in initial._CHILDREN or not scope._used or scope._registry is not o.reg):raise ValueError('unissued child IR scope')
+-    if type(scope)is _NestedInitialChildPolicy and(scope not in _SCOPES or not scope._used):raise ValueError('unissued nested IR scope')
++    if type(scope)is _NestedInitialChildPolicy:
++        _nested_current_parent(o,scope._parent_receipt)
++        if scope not in _SCOPES or not scope._used:raise ValueError('unissued nested IR scope')
+     o.ir[id(scope)]=(graph,pairs,_digest(repr(pairs)))
+     o.ir_seal=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(o.ir.items())])
+ 
+ def _complete_original(o,issuer,reg,scope,graph,allowed,entry,depth,origins):
+-    if issuer is not initial._ISSUER or o not in _ISSUED or reg is not o.reg or type(scope)is not initial._InitialChildPolicy or o.original_done:raise ValueError('original child completion issuer')
+-    o.validate();o.complete(scope,graph,allowed,entry,depth,origins)
++    _begin_original_operation(o,issuer,reg)
++    try:
++        if type(scope)is not initial._InitialChildPolicy or scope._registry is not reg:raise ValueError('original child completion issuer')
++        o.complete(scope,graph,allowed,entry,depth,origins);_original_collection_leaf(o,issuer,reg)
++    except BaseException:
++        _COLLECTION_FAILED.add(o);raise
++    finally:_COLLECTION_ACTIVE.discard(o)
++
++
++def _nested_expansion_leaf(o):
++    if type(o)is not _Observation or _NESTED_EXPANSION.get(o)is not _ISSUER or o in _COLLECTION_FAILED or o not in _ISSUED or getattr(o.stream,'_nested_initial_observation',None)is not o or not o.original_done or not o.used:raise ValueError('actual active nested expansion required')
++    if o.attempt_sha!=_digest(o.attempts)or o.ir_seal!=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(o.ir.items())])or o.receipt_seal!=_digest([(i,id(r))for i,r in sorted(o.receipts.items())]):raise ValueError('nested current ledger/IR/receipt seals mutated')
++
++
++def _nested_current_parent(o,parent):
++    try:
++        if o in _NESTED_CHECKING:raise ValueError('nested current source reentry')
++        _NESTED_CHECKING.add(o);_nested_expansion_leaf(o)
++        if type(parent)is not _Receipt or parent.owner is not o or o.receipts.get(id(parent.graph))is not parent:raise ValueError('current nested parent is foreign')
++        o.reg.validate(o.rom,o.parsed,o.stream);parent.validate();_nested_expansion_leaf(o)
++    except BaseException:
++        _COLLECTION_FAILED.add(o);raise
++    finally:_NESTED_CHECKING.discard(o)
++
+ 
+ class _NestedInitialChildPolicy:
+     _target_only=True
+     def __init__(self,issuer,o,entry,parent,edge,depth,options,role):
+         if issuer is not _ISSUER or o not in _ISSUED or parent.owner is not o or parent.depth+1!=depth or depth>initial.MAX_DEPTH:raise ValueError('private bounded nested source child')
+-        o.validate();parent.validate()
++        _nested_current_parent(o,parent)
+         if not o.edge(parent,entry,edge)or (edge,depth)not in o.attempts.get(entry,[]):raise ValueError('nested child missing sealed source edge')
+         self._owner=o;self._stream=o.stream;self._rom=o.rom;self._entry=entry;self._parent_receipt=parent;self._edge=dict(edge);self._depth=depth;self._options=options;self._option_sha=_digest(options);self._role=role;self._role_sha=_digest(role);self._used=False;self._graph=None;self._graph_sha=None;_SCOPES.add(self)
+         bank,_original_options=_bank_options(o,entry[0]>>16)
+@@ -180,7 +242,7 @@
+             if _digest(options.get(f))!=_digest(bank._options.get(f)):raise ValueError('nested weakened original policy')
+         if any(mask not in(options.get('data_regions')or())for mask in(bank._options.get('data_regions')or()))or _digest(role.get('sibling_entry_pcs'))!=_digest(frozenset(p&65535 for p,_m,_x in bank._entries)):raise ValueError('nested weakened mask/sibling policy')
+     def record_graph(self,stream,rom,graph,bank,start,m,x,options,role):
+-        o=self._owner;o.validate();self._parent_receipt.validate()
++        o=self._owner;_nested_current_parent(o,self._parent_receipt)
+         _bank_options(o,self._entry[0]>>16,self._bank)
+         if self not in _SCOPES or self._used or stream is not o.stream or rom is not o.rom or type(graph)is not FunctionDecodeGraph or (bank<<16|start,m,x)!=self._entry or _digest(options)!=self._option_sha or _digest(role)!=self._role_sha or not o.edge(self._parent_receipt,self._entry,self._edge):raise ValueError('foreign/mutated/reused nested scope')
+         if graph.authority_conflict or graph.data_region_exec_pcs or graph.unresolved_indirects or len(graph.insns)>=initial.MAX_INSNS:raise ValueError('nested original128/data/indirect barrier')
+@@ -197,93 +259,99 @@
+     if o is None:return [],{'contract':CONTRACT,'graphs':[],'initializers':[],'refused':[{'reason':'no actual initial child producer'}]}
+     if o not in _ISSUED or o.used or rom is not o.rom or parsed is not o.parsed or stream is not o.stream:raise ValueError('foreign/reused nested source namespace')
+     o.validate();o.original_done=True;o.original_attempts=len(o.attempts);o.used=True
+-    pending={};seen=set();rows={};graphs=[];initializers=[];refused=[];matched=set();root_receipts=list(o.receipts.values())
+-    masks=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
+-    def queue(entry,parent,edge):
+-        parent.validate();depth=parent.depth+1
+-        if not o.edge(parent,entry,edge):raise ValueError('new nested queue edge absent source')
+-        o.reserve(entry,edge,depth,False)
+-        if depth>initial.MAX_DEPTH:refused.append({'entry':list(entry),'reason':'shared8 source ancestry depth'});return
+-        if not initial._mapped(rom,entry[0])or _mask(parsed,entry[0],1):refused.append({'entry':list(entry),'reason':'original unmapped/masked start'});return
+-        if any(r.entry==entry for r in o.receipts.values()):return
+-        old=pending.get(entry)
+-        if old is None or depth<old[2]:pending[entry]=(parent,edge,depth)
+-    def scan(receipt):
+-        receipt.validate()
+-        for key in sorted(receipt.allowed,key=lambda k:(k.pc,k.m,k.x)):
+-            if receipt.graph.insns[key].insn.opcode!=0x8b:continue
+-            match=_nested_initializer_after_parent_validation(o,receipt,key)
+-            if not match:continue
+-            ks,p=match
+-            if not set(ks)<=receipt.allowed or not o.protocol(p):continue
+-            identity=(id(receipt),key.pc,key.m,key.x,_digest(p))
+-            if identity in matched:continue
+-            matched.add(identity)
+-            # Repeated ancestor initializer identity is a source proof cycle.
+-            todo=[receipt];ancestor_sources=set()
++    _NESTED_EXPANSION[o]=_ISSUER
++    try:
++        pending={};seen=set();rows={};graphs=[];initializers=[];refused=[];matched=set();root_receipts=list(o.receipts.values())
++        masks=[r for _b,_p,c in parsed for r in c.data_regions]+[(c.bank,a,b)for _b,_p,c in parsed for a,b in c.authority_data+c.exclude_ranges]
++        def queue(entry,parent,edge):
++            parent.validate();depth=parent.depth+1
++            if not o.edge(parent,entry,edge):raise ValueError('new nested queue edge absent source')
++            o.reserve(entry,edge,depth,False)
++            if depth>initial.MAX_DEPTH:refused.append({'entry':list(entry),'reason':'shared8 source ancestry depth'});return
++            if not initial._mapped(rom,entry[0])or _mask(parsed,entry[0],1):refused.append({'entry':list(entry),'reason':'original unmapped/masked start'});return
++            if any(r.entry==entry for r in o.receipts.values()):return
++            old=pending.get(entry)
++            if old is None or depth<old[2]:pending[entry]=(parent,edge,depth)
++        def scan(receipt):
++            receipt.validate()
++            for key in sorted(receipt.allowed,key=lambda k:(k.pc,k.m,k.x)):
++                if receipt.graph.insns[key].insn.opcode!=0x8b:continue
++                match=_nested_initializer_after_parent_validation(o,receipt,key)
++                if not match:continue
++                ks,p=match
++                if not set(ks)<=receipt.allowed or not o.protocol(p):continue
++                identity=(id(receipt),key.pc,key.m,key.x,_digest(p))
++                if identity in matched:continue
++                matched.add(identity)
++                # Repeated ancestor initializer identity is a source proof cycle.
++                todo=[receipt];ancestor_sources=set()
++                while todo:
++                    ancestor=todo.pop()
++                    for prior,edge in ancestor.parents:
++                        if edge['kind']=='nested_fivebyte_frame':ancestor_sources.add(tuple(edge['source_key']))
++                        if prior is not None:todo.append(prior)
++                if (key.pc,key.m,key.x)in ancestor_sources:refused.append({'source':[key.pc,key.m,key.x],'reason':'nested initializer ancestry cycle'});continue
++                edge={'kind':'nested_fivebyte_frame','source_key':[key.pc,key.m,key.x],'source_graph':receipt.graph_sha,'parameters':dict(p)}
++                protocol=o.protocol(p);initializers.append({'source_key':edge['source_key'],'source_graph':receipt.graph_sha,'parent_entry':list(receipt.entry),'parent_depth':receipt.depth,'depth':receipt.depth+1,'parameters':dict(p),'writer_graph_sha256':protocol[0][3],'selector_graph_sha256':protocol[1][3]})
++                queue((p['target'],0,0),receipt,edge)
++        for receipt in root_receipts:scan(receipt)
++        while pending:
++            entry=min(pending,key=lambda e:(pending[e][2],e));parent,edge,depth=pending.pop(entry)
++            if entry in seen:continue
++            seen.add(entry);pc,m,x=entry
++            if type(stream._views.get(pc>>16))is not _EmissionPolicy:refused.append({'entry':list(entry),'reason':'no original bank policy'});continue
++            bank,options=_bank_options(o,pc>>16)
++            options['data_regions']=list(options.get('data_regions')or())
++            for mask in masks:
++                if mask not in options['data_regions']:options['data_regions'].append(mask)
++            siblings=frozenset(p&65535 for p,_m,_x in bank._entries)
++            if pc&65535 in siblings:refused.append({'entry':list(entry),'reason':'original sibling namespace'});continue
++            role={'sibling_entry_pcs':siblings,'source_instruction_only':False,'entry_range_end':None}
++            try:g=decode_function(rom,pc>>16,pc&65535,m,x,max_insns=initial.MAX_INSNS,data_regions=options['data_regions'],hle_dispatch=options['hle_dispatch'],sibling_entry_pcs=siblings,hle_entry_pcs=set(options['hle_func']or())|set(options['hle_spc_upload']or()),stop_on_unknown_callee_exit=True)
++            except RuntimeError as e:
++                if 'max_insns=128'not in str(e):raise
++                refused.append({'entry':list(entry),'reason':'original128 pergraph source bound'});continue
++            if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=initial.MAX_INSNS:refused.append({'entry':list(entry),'reason':'original128/data/indirect barrier'});continue
++            scope=_NestedInitialChildPolicy(_ISSUER,o,entry,parent,edge,depth,options,role);local=[];calls=[]
++            emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedNestedInitialTaskSource',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
++            if scope._graph is None or scope._graph_sha!=_graph_digest(rom,g):raise ValueError('nested actual emitter/decode mismatch')
++            actual=scope._graph;candidates={tuple(r[k]for k in('pc24','m','x')):r for r in local+calls};todo=[actual.entry];allowed=set();barriers=[];out=[]
+             while todo:
+-                ancestor=todo.pop()
+-                for prior,edge in ancestor.parents:
+-                    if edge['kind']=='nested_fivebyte_frame':ancestor_sources.add(tuple(edge['source_key']))
+-                    if prior is not None:todo.append(prior)
+-            if (key.pc,key.m,key.x)in ancestor_sources:refused.append({'source':[key.pc,key.m,key.x],'reason':'nested initializer ancestry cycle'});continue
+-            edge={'kind':'nested_fivebyte_frame','source_key':[key.pc,key.m,key.x],'source_graph':receipt.graph_sha,'parameters':dict(p)}
+-            protocol=o.protocol(p);initializers.append({'source_key':edge['source_key'],'source_graph':receipt.graph_sha,'parent_entry':list(receipt.entry),'parent_depth':receipt.depth,'depth':receipt.depth+1,'parameters':dict(p),'writer_graph_sha256':protocol[0][3],'selector_graph_sha256':protocol[1][3]})
+-            queue((p['target'],0,0),receipt,edge)
+-    for receipt in root_receipts:scan(receipt)
+-    while pending:
+-        entry=min(pending,key=lambda e:(pending[e][2],e));parent,edge,depth=pending.pop(entry)
+-        if entry in seen:continue
+-        seen.add(entry);pc,m,x=entry
+-        if type(stream._views.get(pc>>16))is not _EmissionPolicy:refused.append({'entry':list(entry),'reason':'no original bank policy'});continue
+-        bank,options=_bank_options(o,pc>>16)
+-        options['data_regions']=list(options.get('data_regions')or())
+-        for mask in masks:
+-            if mask not in options['data_regions']:options['data_regions'].append(mask)
+-        siblings=frozenset(p&65535 for p,_m,_x in bank._entries)
+-        if pc&65535 in siblings:refused.append({'entry':list(entry),'reason':'original sibling namespace'});continue
+-        role={'sibling_entry_pcs':siblings,'source_instruction_only':False,'entry_range_end':None}
+-        try:g=decode_function(rom,pc>>16,pc&65535,m,x,max_insns=initial.MAX_INSNS,data_regions=options['data_regions'],hle_dispatch=options['hle_dispatch'],sibling_entry_pcs=siblings,hle_entry_pcs=set(options['hle_func']or())|set(options['hle_spc_upload']or()),stop_on_unknown_callee_exit=True)
+-        except RuntimeError as e:
+-            if 'max_insns=128'not in str(e):raise
+-            refused.append({'entry':list(entry),'reason':'original128 pergraph source bound'});continue
+-        if g.authority_conflict or g.data_region_exec_pcs or g.unresolved_indirects or len(g.insns)>=initial.MAX_INSNS:refused.append({'entry':list(entry),'reason':'original128/data/indirect barrier'});continue
+-        scope=_NestedInitialChildPolicy(_ISSUER,o,entry,parent,edge,depth,options,role);local=[];calls=[]
+-        emit_function(rom,pc>>16,pc&65535,m,x,func_name='DiscardedNestedInitialTaskSource',data_regions=options['data_regions'],exclude_ranges=options['exclude_ranges'],hle_func=options['hle_func'],hle_spc_upload=options['hle_spc_upload'],hle_dispatch=options['hle_dispatch'],native_call_prefix_forced=options['forced'],sibling_entry_pcs=siblings,source_task_resume_stops=g.unknown_callee_exit_sites,native_region_collector=local,native_call_prefix_collector=calls,_native_collector_only=True,_program_call_stream=stream,_program_policy_scope=scope)
+-        if scope._graph is None or scope._graph_sha!=_graph_digest(rom,g):raise ValueError('nested actual emitter/decode mismatch')
+-        actual=scope._graph;candidates={tuple(r[k]for k in('pc24','m','x')):r for r in local+calls};todo=[actual.entry];allowed=set();barriers=[];out=[]
+-        while todo:
+-            key=todo.pop()
+-            if key in allowed:continue
+-            di=actual.insns.get(key)
+-            if di is None:continue
+-            ins=di.insn;ident=(key.pc,key.m,key.x);r=candidates.get(ident)
+-            if ins.mnem not in initial.ALLOWED or ins.mnem in initial.FORBIDDEN or r is None or not o.reg.role_ok(key.pc,key.m,key.x,ins.length)or not _independent(rom,parsed,r)or getattr(ins,'const_z_fold_unconditional',False)or any(getattr(ins,n,None)for n in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr')):barriers.append([key.pc,key.m,key.x,ins.mnem]);continue
+-            allowed.add(key)
+-            # Edges finalized only AFTER complete() seals actual allowed membership.
+-            if ins.mnem in('JSR','JSL','PLP'):continue
+-            todo.extend(di.successors)
+-        receipt=o.complete(scope,actual,allowed,entry,depth,[edge])
+-        for key in sorted(allowed,key=lambda k:(k.pc,k.m,k.x)):
+-            ins=actual.insns[key].insn;r=candidates[(key.pc,key.m,key.x)];ident=(key.pc,key.m,key.x)
+-            if ins.mnem in('JSR','JSL'):
+-                if not r.get('original_scheduler_call'):raise ValueError('nested canonical original call missing')
+-                if (key.pc&65535)+ins.length>=65536:barriers.append([key.pc,key.m,key.x,'source call fall wrap']);continue
+-                for cm,cx in((0,0),(0,1),(1,0),(1,1)):queue(((key.pc&0xff0000)|((key.pc+ins.length)&65535),cm,cx),receipt,{'kind':'architectural_call_numeric_fall','source_key':list(ident),'source_bytes':r['bytes'],'source_graph':receipt.graph_sha})
+-            elif ins.mnem=='PLP':
+-                for cm,cx in((0,0),(0,1),(1,0),(1,1)):
+-                    off=rom_offset(key.pc>>16,key.pc&65535);fresh=decode_insn(rom,off,key.pc&65535,key.pc>>16,cm,cx);fresh.m_flag,fresh.x_flag=cm,cx
+-                    pr=collect_stack_control(rom,DecodeKey(key.pc,cm,cx),fresh,lower(fresh,value_factory=lambda:None),instr_cpu_cycles(fresh.opcode,m=cm,x=cx,e=0))
+-                    if pr and o.reg.role_ok(key.pc,cm,cx,1)and _independent(rom,parsed,pr):
+-                        pk=(key.pc,cm,cx)
+-                        if pk in rows and rows[pk]!=pr:raise ValueError('unequal nested PLP body')
+-                        rows[pk]=pr
+-                    if key.pc&65535<65535:queue((key.pc+1,cm,cx),receipt,{'kind':'source_owned_live_P_frontier','source_key':list(ident),'source_graph':receipt.graph_sha})
+-            if r.get('original_scheduler_call')and not enable_native_call_prefix:continue
+-            if ident in rows and rows[ident]!=r:raise ValueError('unequal nested independent body')
+-            rows[ident]=r;out.append(list(ident))
+-        scan(receipt)
+-        graphs.append({'entry':list(entry),'parent_entry':list(parent.entry),'origin':edge,'depth':depth,'source_graph_sha256':receipt.graph_sha,'instruction_keys':out,'unknown_calls':[list(v)for v in actual.unknown_callee_exit_sites],'barriers':barriers,'typed_instruction_count':len(actual.insns)})
++                key=todo.pop()
++                if key in allowed:continue
++                di=actual.insns.get(key)
++                if di is None:continue
++                ins=di.insn;ident=(key.pc,key.m,key.x);r=candidates.get(ident)
++                if ins.mnem not in initial.ALLOWED or ins.mnem in initial.FORBIDDEN or r is None or not o.reg.role_ok(key.pc,key.m,key.x,ins.length)or not _independent(rom,parsed,r)or getattr(ins,'const_z_fold_unconditional',False)or any(getattr(ins,n,None)for n in('dispatch_entries','dispatch_runtime','dispatch_consumed_stack_bytes','terminal_jsr','noreturn_jsr')):barriers.append([key.pc,key.m,key.x,ins.mnem]);continue
++                allowed.add(key)
++                # Edges finalized only AFTER complete() seals actual allowed membership.
++                if ins.mnem in('JSR','JSL','PLP'):continue
++                todo.extend(di.successors)
++            receipt=o.complete(scope,actual,allowed,entry,depth,[edge])
++            for key in sorted(allowed,key=lambda k:(k.pc,k.m,k.x)):
++                ins=actual.insns[key].insn;r=candidates[(key.pc,key.m,key.x)];ident=(key.pc,key.m,key.x)
++                if ins.mnem in('JSR','JSL'):
++                    if not r.get('original_scheduler_call'):raise ValueError('nested canonical original call missing')
++                    if (key.pc&65535)+ins.length>=65536:barriers.append([key.pc,key.m,key.x,'source call fall wrap']);continue
++                    for cm,cx in((0,0),(0,1),(1,0),(1,1)):queue(((key.pc&0xff0000)|((key.pc+ins.length)&65535),cm,cx),receipt,{'kind':'architectural_call_numeric_fall','source_key':list(ident),'source_bytes':r['bytes'],'source_graph':receipt.graph_sha})
++                elif ins.mnem=='PLP':
++                    for cm,cx in((0,0),(0,1),(1,0),(1,1)):
++                        off=rom_offset(key.pc>>16,key.pc&65535);fresh=decode_insn(rom,off,key.pc&65535,key.pc>>16,cm,cx);fresh.m_flag,fresh.x_flag=cm,cx
++                        pr=collect_stack_control(rom,DecodeKey(key.pc,cm,cx),fresh,lower(fresh,value_factory=lambda:None),instr_cpu_cycles(fresh.opcode,m=cm,x=cx,e=0))
++                        if pr and o.reg.role_ok(key.pc,cm,cx,1)and _independent(rom,parsed,pr):
++                            pk=(key.pc,cm,cx)
++                            if pk in rows and rows[pk]!=pr:raise ValueError('unequal nested PLP body')
++                            rows[pk]=pr
++                        if key.pc&65535<65535:queue((key.pc+1,cm,cx),receipt,{'kind':'source_owned_live_P_frontier','source_key':list(ident),'source_graph':receipt.graph_sha})
++                if r.get('original_scheduler_call')and not enable_native_call_prefix:continue
++                if ident in rows and rows[ident]!=r:raise ValueError('unequal nested independent body')
++                rows[ident]=r;out.append(list(ident))
++            scan(receipt)
++            graphs.append({'entry':list(entry),'parent_entry':list(parent.entry),'origin':edge,'depth':depth,'source_graph_sha256':receipt.graph_sha,'instruction_keys':out,'unknown_calls':[list(v)for v in actual.unknown_callee_exit_sites],'barriers':barriers,'typed_instruction_count':len(actual.insns)})
++    except BaseException:
++        _COLLECTION_FAILED.add(o);raise
++    finally:
++        _NESTED_EXPANSION.pop(o,None);_NESTED_CHECKING.discard(o)
+     o.validate()
+     return [rows[k]for k in sorted(rows)],{'contract':CONTRACT,'initializers':initializers,'graphs':graphs,'refused':refused,'original_attempted_starts':o.original_attempts,'total_attempted_starts':len(o.attempts),'nested_processed_starts':len(seen),'graph_bound':initial.MAX_INSNS,'start_bound':initial.MAX_STARTS,'depth_bound':initial.MAX_DEPTH,'original_issuer_unchanged':True,'callee_exit_modes_added':False,'ordinary_roots_added':False,'caller_owner_added':False,'saved_P_history_exported':False,'runtime_dispatch_added':False}
+ 
+@@ -297,3 +365,203 @@
+     o.validate()
+     from .architecture_known_callee_refinement_sources import _new_source_view
+     return _new_source_view(_REFINEMENT_SOURCE_ISSUER,o)
++
++
++# Observation-only batching. Standalone _Receipt.validate and every original
++# bank/registry/queue hook remain unchanged. No across-invocation proof cache.
++_ACTIVE_OBSERVATION_VALIDATIONS=weakref.WeakKeyDictionary()
++
++
++def _nested_raw_signature(boundary,o):
++    # Fixed relevant authority namespaces. The primary raw closure already
++    # reaches every observation/registry/receipt/scope/bank and original source.
++    # Project only real bound values; constructed projection identities do not
++    # enter the signature. No Python repr, user iter/hash/equality or properties.
++    tape,keep=boundary.signature(o)
++    relevant={v[1]for v in tape if v[0]in('sdk_record','ref','dict','list','tuple','set','frozenset','bytearray','opaque_object')}
++    result=list(tape)
++    initial_namespace=boundary.module_namespace(initial)
++    from . import architecture_emission_policy as emission_namespace_module
++    emission_namespace=boundary.module_namespace(emission_namespace_module)
++    if type(_ACTIVE_OBSERVATION_VALIDATIONS)is not weakref.WeakKeyDictionary:raise ValueError('foreign nested active capability namespace')
++    list.append(result,('nested_active_namespace',id(_ACTIVE_OBSERVATION_VALIDATIONS))) # contents are intentionally ephemeral
++    namespaces=((globals(),('_ISSUER','_Observation','_Receipt','_NestedInitialChildPolicy','_REFINEMENT_SOURCE_ISSUER'),('_ISSUED','_SCOPES','_RECEIPTS','_COLLECTION_FAILED')),
++        (initial_namespace,('_ISSUER','_InitialRegistry','_InitialChildPolicy','MAX_INSNS','MAX_STARTS','MAX_DEPTH'),('_REGISTRIES','_CHILDREN','_CAPTURE_PROOFS','_ROM_DIGEST_PROOFS')),
++        (emission_namespace,('_ISSUER','_EmissionPolicy'),()))
++    for namespace,bindings,tables in namespaces:
++        for name in bindings:
++            value=dict.__getitem__(namespace,name);tokens,held=_nested_data_signature(boundary,value)
++            list.append(result,('nested_binding',name,id(value)));list.extend(result,tokens);list.extend(keep,held)
++        for name in tables:
++            table=dict.__getitem__(namespace,name);kind=type(table);list.append(result,('nested_proof_namespace',name,id(table)))
++            if kind is weakref.WeakKeyDictionary:
++                data=dict.__getitem__(boundary.raw_dict(table,boundary.weak_dict),'data')
++                if type(data)is not dict:raise ValueError('unsupported exact nested weak proof layout')
++                for reference,value in dict.items(data):
++                    if type(reference)is not weakref.ReferenceType:raise ValueError('unsupported exact nested weak proof reference')
++                    target=weakref.ReferenceType.__call__(reference)
++                    if id(target)in relevant:
++                        list.append(result,('nested_proof_entry',id(target)));tokens,held=_nested_data_signature(boundary,value);list.extend(result,tokens);list.extend(keep,held)
++            elif kind is weakref.WeakSet:
++                data=dict.__getitem__(boundary.raw_dict(table,boundary.weak_set),'data')
++                if type(data)is not set:raise ValueError('unsupported exact nested membership layout')
++                for reference in set.__iter__(data):
++                    if type(reference)is not weakref.ReferenceType:raise ValueError('unsupported exact nested membership reference')
++                    target=weakref.ReferenceType.__call__(reference)
++                    if id(target)in relevant:list.append(result,('nested_issued_member',id(target)))
++            else:raise ValueError('unsupported nested proof namespace type')
++    return tuple(result),keep
++
++
++class _ObservationValidation:
++    """Private fresh capability for ONE public observation validation only."""
++    def __init__(self,o):
++        if type(o)is not _Observation or type(_ACTIVE_OBSERVATION_VALIDATIONS)is not weakref.WeakKeyDictionary or o in _ACTIVE_OBSERVATION_VALIDATIONS:raise ValueError('foreign/reentrant nested observation validation')
++        self.o=o;self.active_table=_ACTIVE_OBSERVATION_VALIDATIONS;self.closed=False;self.banks={};self.before={};self.done=set();self.visiting=set()
++        _ACTIVE_OBSERVATION_VALIDATIONS[o]=self
++    def active(self):
++        if self.closed or self.o is None or _ACTIVE_OBSERVATION_VALIDATIONS is not self.active_table or self.active_table.get(self.o)is not self:raise ValueError('inactive/foreign nested observation capability')
++    def header(self):
++        o=self.o
++        if o not in _ISSUED or getattr(o.stream,'_nested_initial_observation',None)is not o or o.attempt_sha!=_digest(o.attempts):raise ValueError('foreign/mutated nested source ledger')
++    def tables(self):
++        o=self.o
++        if o.ir_seal!=_digest([(i,id(g),id(p),d)for i,(g,p,d)in sorted(o.ir.items())])or o.receipt_seal!=_digest([(i,id(r))for i,r in sorted(o.receipts.items())]):raise ValueError('observed child IR/receipt registry mutated')
++    def snapshot(self,r):
++        self.active()
++        if type(r)is not _Receipt or r.owner is not self.o or r not in _RECEIPTS or self.o.receipts.get(id(r.graph))is not r:raise ValueError('foreign nested current receipt')
++        return(r.digest(),_graph_digest(self.o.rom,r.graph),_digest(repr(r.pairs)),_digest(r.scope._options),_digest(r.scope._role))
++    def checked(self,r):
++        self.active()
++        if type(r)is not _Receipt or id(r)not in self.done or self.snapshot(r)!=self.before[id(r)]:raise ValueError('current same-invocation nested parent proof required')
++    def bank(self,r):
++        self.active();o=self.o;scope=r.scope;bank=r.entry[0]>>16
++        expected=scope._bank if type(scope)is _NestedInitialChildPolicy else scope._parent
++        if type(expected)is not _EmissionPolicy or self.banks.get(bank)is not expected or o.stream._views.get(bank)is not expected:raise ValueError('foreign/mutated original nested destination bank')
++    def local(self,r):
++        # Mirror ALL legacy _Receipt.validate local/source guards. Only the
++        # bank scan and recursive parent call use the private current capability.
++        self.active();o=self.o
++        if r not in _RECEIPTS or o not in _ISSUED or o.receipts.get(id(r.graph))is not r or r.seal!=r.digest()or r.graph_sha!=_graph_digest(o.rom,r.graph)or r.pairs_sha!=_digest(repr(r.pairs)):raise ValueError('nested child graph/IR/ancestry mutation')
++        scope=r.scope;self.bank(r)
++        if scope._entry!=r.entry or scope._graph is not r.graph or scope._stream is not o.stream or _digest(scope._options)!=scope._option_sha or _digest(scope._role)!=scope._role_sha:raise ValueError('nested receipt scope identity/mutation')
++        if type(scope)is initial._InitialChildPolicy:
++            if scope not in initial._CHILDREN or not scope._used or scope._registry is not o.reg:raise ValueError('unissued original child scope')
++        elif type(scope)is not _NestedInitialChildPolicy or scope not in _SCOPES or not scope._used:raise ValueError('unissued nested child scope')
++        if not 0<=r.depth<=initial.MAX_DEPTH or len(r.graph.insns)>=initial.MAX_INSNS:raise ValueError('nested parent depth/graph bound')
++        if not r.parents:raise ValueError('missing nested ancestry')
++        depths=[]
++        for parent,edge in r.parents:
++            if parent is None:
++                if not o.root_edge(r.entry,edge):raise ValueError('foreign original initializer root')
++                depths.append(0)
++            else:
++                self.checked(parent)
++                if not o._edge_after_parent_validation(parent,r.entry,edge):raise ValueError('forged nested source edge')
++                depths.append(parent.depth+1)
++        if r.depth not in depths:raise ValueError('guessed nested ancestry depth')
++    def run(self):
++        self.active();o=self.o
++        # Lazy fixed-layout reader; no global class registration/forward state.
++        # ONLY pure representation errors here may select complete legacy.
++        try:
++            from .architecture_ff20_architectural_sources import _RawBoundary
++            boundary=_RawBoundary();raw_before,raw_keep=_nested_raw_signature(boundary,o)
++        except ValueError:
++            return o._validate_legacy() # no bank check has been skipped yet
++        self.header();o.reg.validate(o.rom,o.parsed,o.stream);self.tables()
++        # Plan the current closure without accepting it. All proof/data/edge
++        # guards still execute in the parent-first walk below.
++        todo=list(o.receipts.values());nodes={}
++        while todo:
++            r=todo.pop()
++            if type(r)is not _Receipt or r.owner is not o:raise ValueError('foreign nested ancestry node')
++            if id(r)in nodes:continue
++            nodes[id(r)]=r;scope=r.scope
++            if type(scope)not in(initial._InitialChildPolicy,_NestedInitialChildPolicy):raise ValueError('foreign nested receipt scope')
++            bank=r.entry[0]>>16;expected=scope._bank if type(scope)is _NestedInitialChildPolicy else scope._parent
++            if bank in self.banks and self.banks[bank]is not expected:raise ValueError('ambiguous nested bank identity')
++            self.banks[bank]=expected
++            for parent,_edge in r.parents:
++                if parent is not None:todo.append(parent)
++        # Direct calls2 per touched bank on SUCCESS: here and postflight.
++        # Unchanged registry/source callbacks can make their own calls too.
++        for bank,expected in sorted(self.banks.items()):_bank_options(o,bank,expected)
++        todo=[(r,False)for r in reversed(tuple(o.receipts.values()))]
++        while todo:
++            self.active();r,leaving=todo.pop();identity=id(r)
++            if leaving:
++                if identity not in self.visiting or self.snapshot(r)!=self.before[identity]:raise ValueError('nested receipt changed during parent validation')
++                self.local(r)
++                if self.snapshot(r)!=self.before[identity]:raise ValueError('nested current local validation mutated source')
++                self.visiting.remove(identity);self.done.add(identity);continue
++            if identity in self.visiting:raise ValueError('nested ancestry cycle')
++            if identity in self.done:self.checked(r);continue
++            self.before[identity]=self.snapshot(r);self.visiting.add(identity);todo.append((r,True))
++            for parent,_edge in reversed(r.parents):
++                if parent is not None:todo.append((parent,False))
++        self.header();o.reg.validate(o.rom,o.parsed,o.stream);self.tables()
++        for bank,expected in sorted(self.banks.items()):_bank_options(o,bank,expected)
++        for r in nodes.values():self.checked(r)
++        self.active();self.close() # weak cleanup BEFORE FINAL callback-free read
++        raw_after,raw_keep_final=_nested_raw_signature(boundary,o)
++        if raw_after!=raw_before:raise ValueError('nested callback-free source/association/namespace changed')
++    def close(self):
++        if self.closed:return
++        o=self.o
++        self.active_table.pop(o,None)
++        self.closed=True;self.o=None;self.banks.clear();self.before.clear();self.done.clear();self.visiting.clear()
++
++
++def _validate_observation(o):
++    if o in _COLLECTION_FAILED or o in _COLLECTION_ACTIVE or o in _NESTED_EXPANSION:
++        _COLLECTION_FAILED.add(o);raise ValueError('failed/reentrant task observation validation')
++    invocation=_ObservationValidation(o)
++    try:return invocation.run()
++    finally:invocation.close()
++
++
++def _nested_data_signature(boundary,value):
++    """Callback-free DATA ONLY; never replays global/proof namespaces.
++
++    Same exact builtin/C-descriptor/layout rules as the reviewed383 drain.
++    The caller already ran ONE full global boundary.signature(observation).
++    No cached result, identity-only mutable exception or class registration.
++    """
++    tape=[];seen={};keep=[];work=[value];T=boundary.types
++    while work:
++        item=list.pop(work);kind=type(item)
++        if item is None:list.append(tape,('none',));continue
++        if kind is bool:list.append(tape,('bool',item));continue
++        if kind is int:list.append(tape,('int',item));continue
++        if kind is str:list.append(tape,('str',item));continue
++        if kind is bytes:list.append(tape,('bytes',item));continue
++        if kind is float:list.append(tape,('float',float.hex(item)));continue
++        identity=id(item)
++        if identity in boundary.class_ids:list.append(tape,('declared_class',identity));continue
++        if kind is object:list.append(tape,('opaque_object',identity));list.append(keep,item);continue
++        if identity in seen:list.append(tape,('ref',identity));continue
++        seen[identity]=True;list.append(keep,item)
++        if kind is bytearray:list.append(tape,('bytearray',identity,bytes(item)));continue
++        if kind is tuple or kind is list:
++            iterator=tuple.__iter__(item)if kind is tuple else list.__iter__(item)
++            children=[child for child in iterator];list.append(tape,('tuple'if kind is tuple else'list',identity,len(children)))
++            list.extend(work,list.__reversed__(children));continue
++        if kind is dict:
++            children=[]
++            for key,child in dict.items(item):list.append(children,key);list.append(children,child)
++            list.append(tape,('dict',identity,dict.__len__(item)));list.extend(work,list.__reversed__(children));continue
++        if kind is set or kind is frozenset:
++            iterator=set.__iter__(item)if kind is set else frozenset.__iter__(item)
++            children=[child for child in iterator];list.append(tape,('set'if kind is set else'frozenset',identity,len(children)));list.extend(work,list.__reversed__(children));continue
++        layout=dict.get(boundary.layouts,id(kind))
++        if layout is None or layout[0]is not kind:raise ValueError('unsupported foreign shape at callback-free nested data boundary')
++        cls,dictionary,slots=layout;children=[]
++        if dictionary is not None:list.append(children,boundary.raw_dict(item,dictionary))
++        for name,descriptor in tuple.__iter__(slots):
++            list.append(tape,('slot',identity,name,id(descriptor)))
++            try:child=T.MemberDescriptorType.__get__(descriptor,item,cls)
++            except AttributeError:list.append(tape,('unset_slot',));continue
++            list.append(children,child)
++        list.append(tape,('sdk_record',identity,id(cls),id(dictionary),len(children)));list.extend(work,list.__reversed__(children))
++    return tuple(tape),keep

@@ -1,0 +1,286 @@
+diff --git a/runner/src/snes/interp816.c b/runner/src/snes/interp816.c
+--- a/runner/src/snes/interp816.c
++++ b/runner/src/snes/interp816.c
+@@ -292,6 +292,93 @@
+ __attribute__((weak)) void interp_bridge_source_call_interp_fetched(Interp816 *c,uint32_t source,uint32_t target,unsigned frame){(void)c;(void)source;(void)target;(void)frame;}
+ __attribute__((weak)) void interp_bridge_source_call_interp_pop(Interp816 *c,uint32_t source,unsigned opcode,uint16_t before_s,uint16_t word,uint8_t bank){(void)c;(void)source;(void)opcode;(void)before_s;(void)word;(void)bank;}
+ __attribute__((weak)) void interp_bridge_source_call_interp_exit(Interp816 *c,uint32_t source,uint8_t opcode){(void)c;(void)source;(void)opcode;}
++/* Original architectural primitives shared by fallback and exact-source native
++ * CALL/return sites. No host-C call, return certificate, saved history or owner
++ * inference occurs here: only actual operand fetches and physical stack bytes. */
++static void interp816_arch_jsr(Interp816 *cpu) {
++      uint16_t value = interp816_readOpcodeWord(cpu);
++      /* Permission is issued only AFTER the real operand fetch completed. */
++      interp_bridge_source_call_interp_fetched(cpu,
++          ((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-3u),
++          ((uint32_t)cpu->k<<16)|value,2u);
++      interp816_pushWord(cpu, cpu->pc - 1);
++      cpu->pc = value;
++}
++static void interp816_arch_jsl(Interp816 *cpu) {
++      uint16_t value = interp816_readOpcodeWord(cpu);
++      uint8_t newK = interp816_readOpcode(cpu);
++      interp_bridge_source_call_interp_fetched(cpu,
++          ((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-4u),
++          ((uint32_t)newK<<16)|value,3u);
++      interp816_pushByte(cpu, cpu->k);
++      interp816_pushWord(cpu, cpu->pc - 1);
++      cpu->pc = value;
++      /* Do not mask PB to 7 bits. JSL $9E:xxxx must keep K=$9E so PHK/PLB
++       * sets DB into the $80-$BF register window (Metal Warriors Konami). */
++      cpu->k = newK;
++}
++static void interp816_arch_rts(Interp816 *cpu) {
++      uint16_t before_s=cpu->sp;
++      uint32_t source=((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-1u);
++      uint16_t word=interp816_pullWord(cpu);
++      cpu->pc = word + 1;
++      interp_bridge_source_call_interp_pop(cpu,source,0x60u,before_s,word,cpu->k);
++}
++static void interp816_arch_rtl(Interp816 *cpu) {
++      uint16_t before_s=cpu->sp;
++      uint32_t source=((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-1u);
++      uint16_t word=interp816_pullWord(cpu);
++      cpu->pc = word + 1;
++      cpu->k = interp816_pullByte(cpu);
++      interp_bridge_source_call_interp_pop(cpu,source,0x6bu,before_s,word,cpu->k);
++}
++
++/* Invoked only in the original bridge supervisor execution slot. Refusal is
++ * before callbacks/fetch/mutation. Native instruction accounting is owned by
++ * that supervisor; this never calls doOpcode/runOpcode or decodes other ISA. */
++static int interp816_native_control_begin(Interp816 *cpu, uint8_t expected_opcode) {
++  if (!cpu || cpu->e || cpu->stopped || cpu->waiting || cpu->nmiWanted ||
++      (!cpu->i && cpu->irqWanted)) return 0;
++  interp_bridge_source_call_interp_enter(cpu);
++  cpu->cyclesUsed = 0;
++  uint8_t opcode = interp816_readOpcode(cpu);
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  g_interp816_cur_pc = source;
++  if (opcode != expected_opcode) {
++    fputs("Native control source changed after preflight\n", stderr);abort();
++  }
++  cpu->cyclesUsed = opcode == 0x22 ? 8 : 6;
++  return 1;
++}
++int interp816_native_jsr(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x20)) return 0;
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_jsr(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x20);
++  return cpu->cyclesUsed;
++}
++int interp816_native_jsl(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x22)) return 0;
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_jsl(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x22);
++  return cpu->cyclesUsed;
++}
++int interp816_native_rts(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x60)) return 0;
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_rts(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x60);
++  return cpu->cyclesUsed;
++}
++int interp816_native_rtl(Interp816 *cpu) {
++  if (!interp816_native_control_begin(cpu, 0x6b)) return 0;
++  uint32_t source = ((uint32_t)cpu->k << 16) | (uint16_t)(cpu->pc - 1u);
++  interp816_arch_rtl(cpu);
++  interp_bridge_source_call_interp_exit(cpu, source, 0x6b);
++  return cpu->cyclesUsed;
++}
++
+ int interp816_runOpcode(Interp816* cpu) {
+   interp_bridge_source_call_interp_enter(cpu);
+   cpu->cyclesUsed = 0;
+@@ -1220,13 +1307,7 @@
+       break;
+     }
+     case 0x20: { // jsr abs
+-      uint16_t value = interp816_readOpcodeWord(cpu);
+-      /* Permission is issued only AFTER the real operand fetch completed. */
+-      interp_bridge_source_call_interp_fetched(cpu,
+-          ((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-3u),
+-          ((uint32_t)cpu->k<<16)|value,2u);
+-      interp816_pushWord(cpu, cpu->pc - 1);
+-      cpu->pc = value;
++      interp816_arch_jsr(cpu);
+       break;
+     }
+     case 0x21: { // and idx
+@@ -1236,17 +1317,7 @@
+       break;
+     }
+     case 0x22: { // jsl abl
+-      uint16_t value = interp816_readOpcodeWord(cpu);
+-      uint8_t newK = interp816_readOpcode(cpu);
+-      interp_bridge_source_call_interp_fetched(cpu,
+-          ((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-4u),
+-          ((uint32_t)newK<<16)|value,3u);
+-      interp816_pushByte(cpu, cpu->k);
+-      interp816_pushWord(cpu, cpu->pc - 1);
+-      cpu->pc = value;
+-      /* Do not mask PB to 7 bits. JSL $9E:xxxx must keep K=$9E so PHK/PLB
+-       * sets DB into the $80-$BF register window (Metal Warriors Konami). */
+-      cpu->k = newK;
++      interp816_arch_jsl(cpu);
+       break;
+     }
+     case 0x23: { // and sr
+@@ -1640,11 +1711,7 @@
+       break;
+     }
+     case 0x60: { // rts imp
+-      uint16_t before_s=cpu->sp;
+-      uint32_t source=((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-1u);
+-      uint16_t word=interp816_pullWord(cpu);
+-      cpu->pc = word + 1;
+-      interp_bridge_source_call_interp_pop(cpu,source,0x60u,before_s,word,cpu->k);
++      interp816_arch_rts(cpu);
+       break;
+     }
+     case 0x61: { // adc idx
+@@ -1716,12 +1783,7 @@
+       break;
+     }
+     case 0x6b: { // rtl imp
+-      uint16_t before_s=cpu->sp;
+-      uint32_t source=((uint32_t)cpu->k<<16)|(uint16_t)(cpu->pc-1u);
+-      uint16_t word=interp816_pullWord(cpu);
+-      cpu->pc = word + 1;
+-      cpu->k = interp816_pullByte(cpu);
+-      interp_bridge_source_call_interp_pop(cpu,source,0x6bu,before_s,word,cpu->k);
++      interp816_arch_rtl(cpu);
+       break;
+     }
+     case 0x6c: { // jmp ind
+diff --git a/runner/src/snes/interp816.h b/runner/src/snes/interp816.h
+--- a/runner/src/snes/interp816.h
++++ b/runner/src/snes/interp816.h
+@@ -81,6 +81,10 @@
+ void     interp816_free(Interp816 *cpu);
+ void     interp816_reset(Interp816 *cpu);
+ void     interp816_set_brk_hook_enabled(Interp816 *cpu, bool enabled);
++int      interp816_native_jsr(Interp816 *cpu);
++int      interp816_native_jsl(Interp816 *cpu);
++int      interp816_native_rts(Interp816 *cpu);
++int      interp816_native_rtl(Interp816 *cpu);
+ int      interp816_runOpcode(Interp816 *cpu);   /* runs one opcode; returns cycles */
+ uint8_t  interp816_getFlags(Interp816 *cpu);
+ void     interp816_setFlags(Interp816 *cpu, uint8_t val);
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -491,6 +491,54 @@
+ static CpuState *s_pre_opcode_callback_cpu;
+ static CpuState *s_native_instruction_cpu;
+ static bool s_native_instruction_committed;
++
++/* Source-only title opt-in: copied exact ROM bytes, no callback validation,
++ * persistent CPU proof, global exit set or replacement interpreter backend. */
++typedef struct NativeControlSite {
++    uint32_t pc24; uint8_t bytes[4], length;
++    const int *enabled; uint64_t completed; int (*step)(Interp816 *);
++} NativeControlSite;
++static NativeControlSite s_native_control_sites[32];
++static unsigned s_native_control_site_count;
++bool interp_bridge_add_native_control_site(uint32_t pc, const uint8_t *bytes,
++                                           unsigned length, const int *enabled) {
++    if (!bytes || !enabled || pc > 0xffffff || (pc & 0xffff) < 0x8000 ||
++        (pc >> 16) == 0x7e || (pc >> 16) == 0x7f ||
++        length != (bytes[0] == 0x22 ? 4u : bytes[0] == 0x20 ? 3u :
++                  bytes[0] == 0x60 || bytes[0] == 0x6b ? 1u : 0u) ||
++        !length || (pc & 0xffff) + length > 0x10000 ||
++        s_native_control_site_count == 32 || s_pre_opcode_callback_cpu ||
++        s_native_instruction_cpu || s_interp_bus_timing_active) return false;
++    for (unsigned n=0;n<s_native_control_site_count;++n)
++        if (s_native_control_sites[n].pc24 == pc) return false;
++    NativeControlSite *site=&s_native_control_sites[s_native_control_site_count++];
++    site->pc24=pc;site->length=(uint8_t)length;site->enabled=enabled;
++    memcpy(site->bytes,bytes,length);
++    site->step=bytes[0]==0x20?interp816_native_jsr:bytes[0]==0x22?interp816_native_jsl:
++               bytes[0]==0x60?interp816_native_rts:interp816_native_rtl;
++    return true;
++}
++uint64_t interp_bridge_native_control_site_count(uint32_t pc) {
++    for (unsigned n=0;n<s_native_control_site_count;++n)
++        if (s_native_control_sites[n].pc24==pc)return s_native_control_sites[n].completed;
++    return 0;
++}
++static int bridge_try_native_control(CpuState *cpu, Interp816 *in,
++                                     uint32_t pc, uint8_t opcode) {
++    if (cpu!=&g_cpu || in->e || in->stopped || in->waiting || in->nmiWanted ||
++        (!in->i && in->irqWanted)) return 0;
++    for (unsigned n=0;n<s_native_control_site_count;++n) {
++        NativeControlSite *site=&s_native_control_sites[n];
++        if (site->pc24!=pc || *site->enabled!=1 || site->bytes[0]!=opcode)continue;
++        const uint8_t *source=RomPtr(pc);
++        if(!source || memcmp(source,site->bytes,site->length))return 0;
++        int cycles=site->step(in);
++        if(cycles>0)++site->completed;
++        return cycles;
++    }
++    return 0;
++}
++
+ extern unsigned long long g_interp_bridge_steps;
+ 
+ /* Shared by interpreted and title-owned native instruction completion. Bus
+@@ -3182,6 +3230,7 @@
+         s_redirect_dispatch_cpu=NULL;
+         s_scheduler_hook_handoff = previous_handoff;
+         int _cyc;
++        bool native_control_completed = false;
+         if (region_completed) {
+             _cyc = (int)(cpu->cycles - region_cycles_before);
+             sync_cpu_to_interp(cpu, &in);
+@@ -3195,7 +3244,9 @@
+             task_call_pre_local(cpu,&in,pc_before);
+             task_original_interp_scope(cpu,&in,pc_before);
+             s_suspend_interp=&in;
+-            _cyc = interp816_runOpcode(&in);
++            _cyc = bridge_try_native_control(cpu,&in,pc_before,op);
++            native_control_completed = _cyc > 0;
++            if (!native_control_completed) _cyc = interp816_runOpcode(&in);
+             s_suspend_interp=NULL;
+             s_task_original_interp_cpu=NULL;s_task_original_interp=NULL;s_task_original_interp_source=0;
+         }
+@@ -3227,16 +3278,17 @@
+          * g_apu_last_sync_master current so a later AOT bounce's accurate-mode
+          * catch-up delta excludes what we already advanced here. */
+         if (_cyc <= 0) _cyc = 1;
+-        if (g_tier2_capture_active) {
++        if (g_tier2_capture_active && !native_control_completed) {
+             tier2_capture_instruction(pc_before, coverage_mx, coverage_e, (unsigned)_cyc);
+             static unsigned checkpoint_opcodes;
+             if (!(++checkpoint_opcodes & 16383u)) Tier2CoverageTick(snes_frame_counter);
+         }
+         if (!region_completed) {
+             bridge_charge_instruction(cpu, (unsigned)_cyc, s_interp_bus_cycles,
+-                                      s_interp_bus_master, true);
++                                      s_interp_bus_master, !native_control_completed);
+             { CpuState observed=*cpu;sync_interp_to_cpu(&in,&observed);
+-              private_instruction_trace(&observed,pc_before,'i',(unsigned)_cyc,s_interp_bus_cycles,s_interp_bus_master); }
++              private_instruction_trace(&observed,pc_before,native_control_completed?'c':'i',
++                  (unsigned)_cyc,s_interp_bus_cycles,s_interp_bus_master); }
+         } /* Generated body already committed original bus/clocks and g trace. */
+         suspend_committed_local(cpu,&in,pc_before);
+         if(s_suspend_slot.phase){TaskResumeState v=task_local_view(cpu,&in,((uint32)in.k<<16)|in.pc);suspend_selected_commit(cpu,pc_before,&v);}
+diff --git a/runner/src/snes/interp_bridge.h b/runner/src/snes/interp_bridge.h
+--- a/runner/src/snes/interp_bridge.h
++++ b/runner/src/snes/interp_bridge.h
+@@ -308,4 +308,12 @@
+ void interp_bridge_source_task_committed(CpuState *,uint32_t,uint32_t);
+ bool cpu_source_task_resume_active(CpuState *,uint32,uint8);
+ 
++/* Exact source-registered primary CPU JSR/JSL/RTS/RTL only. The enabled pointer
++ * must have static lifetime. Sites are immutable copied records; registration
++ * grants no callee exit/history or owner facts. All original supervisor logic
++ * remains responsible for the actual completed instruction. */
++bool interp_bridge_add_native_control_site(uint32_t pc24, const uint8_t *bytes,
++                                           unsigned length, const int *enabled);
++uint64_t interp_bridge_native_control_site_count(uint32_t pc24);
++
+ #endif /* INTERP_BRIDGE_H */

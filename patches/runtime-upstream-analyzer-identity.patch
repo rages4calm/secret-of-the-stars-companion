@@ -1,0 +1,197 @@
+diff --git a/snesrecomp_cli.py b/snesrecomp_cli.py
+--- a/snesrecomp_cli.py
++++ b/snesrecomp_cli.py
+@@ -130,9 +130,11 @@
+     """Point the emitter at the native analyzer, the only analyzer there is.
+ 
+     Packaged builds ship the binary beside this file, so it is named here
+-    rather than left to the emitter's repo-relative lookup. In a source
+-    checkout without a built binary the emitter builds it. `auto` and
+-    `native` both mean native; `python` names the retired analyzer.
++    rather than left to the emitter's repo-relative lookup. A source checkout
++    is left to the emitter, which builds the binary when it is missing and
++    rebuilds it when it was built from other recompiler-rs sources; naming it
++    here would bypass that check. `auto` and `native` both mean native;
++    `python` names the retired analyzer.
+     """
+     if backend == "python":
+         raise RuntimeError(
+@@ -140,7 +142,7 @@
+             "only one (drop --analysis-backend python)")
+     analyzer = ROOT / "recompiler-rs" / "target" / "release" / (
+         "snesrecomp-analyze.exe" if os.name == "nt" else "snesrecomp-analyze")
+-    if analyzer.is_file():
++    if getattr(sys, "_MEIPASS", None) and analyzer.is_file():
+         os.environ["SNESRECOMP_NATIVE_ANALYZER"] = str(analyzer)
+     return "native"
+ 
+diff --git a/tools/build_native_analyzer.py b/tools/build_native_analyzer.py
+--- a/tools/build_native_analyzer.py
++++ b/tools/build_native_analyzer.py
+@@ -9,6 +9,8 @@
+ import subprocess
+ import sys
+ 
++sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
++from native_analyzer_identity import source_digest, write_stamp  # noqa: E402
+ 
+ REPO = pathlib.Path(__file__).resolve().parent.parent
+ CRATE = REPO / "recompiler-rs"
+@@ -56,6 +58,9 @@
+     binary = CRATE / "target" / profile / BINARY_NAME
+     if not binary.is_file():
+         raise RuntimeError(f"Cargo succeeded but did not create {binary}")
++    # Record which sources this binary is, so a later framework update cannot
++    # reuse it as if it were built from the new ones.
++    write_stamp(binary, source_digest(CRATE))
+     print(f"build_native_analyzer: ready: {binary}")
+     return 0
+ 
+diff --git a/tools/native_analyzer_identity.py b/tools/native_analyzer_identity.py
+new file mode 100644
+--- /dev/null
++++ b/tools/native_analyzer_identity.py
+@@ -0,0 +1,59 @@
++"""Which recompiler-rs sources a built native analyzer came from.
++
++Cargo's target directory is untracked, so it survives a framework update: a
++port that bumps its snesrecomp submodule keeps the previous revision's
++`snesrecomp-analyze` binary. Reusing it silently generates different C from a
++fresh checkout of the same revision (measured on Yoshi's Island: the
++2f9a164 binary over a410b7b sources materialized 626 AOT variants where the
++a410b7b binary materializes 641).
++
++`build_native_analyzer.py` writes the digest of the sources it compiled beside
++the binary; `v2_analyze.ensure_native_analyzer` rebuilds, or refuses, when that
++stamp does not match the sources in front of it. The digest covers the same
++inputs `v2_emit` folds into its generator digest.
++"""
++from __future__ import annotations
++
++import hashlib
++import pathlib
++from typing import Optional
++
++SOURCE_ENTRIES = ("src", "Cargo.toml", "Cargo.lock")
++STAMP_SUFFIX = ".source-sha256"
++
++
++def source_digest(crate: pathlib.Path) -> Optional[str]:
++    """SHA-256 of the analyzer sources under `crate`, or None if absent."""
++    crate = pathlib.Path(crate)
++    files = []
++    for entry in SOURCE_ENTRIES:
++        path = crate / entry
++        if path.is_dir():
++            files.extend(p for p in path.rglob("*") if p.is_file())
++        elif path.is_file():
++            files.append(path)
++    if not files:
++        return None
++    digest = hashlib.sha256()
++    for path in sorted(files, key=lambda p: p.relative_to(crate).as_posix()):
++        digest.update(path.relative_to(crate).as_posix().encode())
++        digest.update(b"\0")
++        digest.update(path.read_bytes())
++        digest.update(b"\0")
++    return digest.hexdigest()
++
++
++def stamp_path(binary: pathlib.Path) -> pathlib.Path:
++    binary = pathlib.Path(binary)
++    return binary.with_name(binary.name + STAMP_SUFFIX)
++
++
++def read_stamp(binary: pathlib.Path) -> Optional[str]:
++    try:
++        return stamp_path(binary).read_text(encoding="ascii").strip() or None
++    except OSError:
++        return None
++
++
++def write_stamp(binary: pathlib.Path, digest: str) -> None:
++    stamp_path(binary).write_text(digest + "\n", encoding="ascii")
+diff --git a/tools/v2_analyze.py b/tools/v2_analyze.py
+--- a/tools/v2_analyze.py
++++ b/tools/v2_analyze.py
+@@ -15,6 +15,7 @@
+ import os
+ import pathlib
+ import re
++import shutil
+ import subprocess
+ import sys
+ import tempfile
+@@ -24,10 +25,12 @@
+     os.environ.get("SNESRECOMP_ROOT", pathlib.Path(__file__).resolve().parent.parent)
+ ).resolve()
+ sys.path.insert(0, str(REPO / "recompiler"))
++sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+ 
+ from snes65816 import vector_table_offset  # noqa: E402
+ from v2.cfg_loader import load_bank_cfg  # noqa: E402
+ from v2.program_analysis import NodeDisposition, ProgramManifest  # noqa: E402
++from native_analyzer_identity import read_stamp, source_digest  # noqa: E402
+ 
+ 
+ _BANK_CFG_RE = re.compile(r"bank([0-9a-fA-F]+)\.cfg$")
+@@ -44,22 +47,43 @@
+ 
+ 
+ def ensure_native_analyzer(executable=None) -> pathlib.Path:
+-    """Return the analyzer binary, building the release binary if absent.
++    """Return the analyzer binary, building the release binary if absent or stale.
+ 
+     An explicit path (argument or SNESRECOMP_NATIVE_ANALYZER) must exist: a
+     caller that named a binary gets that binary or an error. The default
+     in-repo binary is built on demand with the pinned toolchain, exactly as
+     the title regen scripts do, so a fresh checkout generates the same code
+     as any other.
++
++    Cargo's target directory survives a framework update, so the default
++    binary is also checked against the recompiler-rs sources it was built
++    from (native_analyzer_identity). A binary whose source stamp does not
++    match is rebuilt; without Cargo it is refused rather than used, because
++    analyzing with another revision's binary silently changes the program.
+     """
+     explicit = executable or os.environ.get("SNESRECOMP_NATIVE_ANALYZER")
+     path = (pathlib.Path(executable).expanduser().resolve() if executable
+             else native_analyzer_path())
++    if explicit:
++        if path.is_file():
++            return path
++        raise FileNotFoundError(f"native analyzer not found at {path}")
++    crate = REPO / "recompiler-rs"
++    digest = source_digest(crate)
+     if path.is_file():
+-        return path
+-    if explicit:
+-        raise FileNotFoundError(f"native analyzer not found at {path}")
+-    print(f"analysis: building the native analyzer ({path.name})", flush=True)
++        stamp = read_stamp(path)
++        if digest is None or stamp == digest:
++            return path
++        reason = ("its recompiler-rs sources changed since it was built"
++                  if stamp else "it carries no record of the sources it was built from")
++        if shutil.which("cargo") is None:
++            raise RuntimeError(
++                f"native analyzer {path} is stale ({reason}) and Cargo is not "
++                "installed to rebuild it; install Rust (https://rustup.rs/) or "
++                "replace the binary with one built from these sources")
++        print(f"analysis: rebuilding the native analyzer ({reason})", flush=True)
++    else:
++        print(f"analysis: building the native analyzer ({path.name})", flush=True)
+     completed = subprocess.run(
+         [sys.executable, str(REPO / "tools" / "build_native_analyzer.py")],
+         text=True, capture_output=True, check=False)
+@@ -68,6 +92,10 @@
+         raise RuntimeError(
+             "could not build the native analyzer (needs the Rust toolchain; "
+             f"run `python tools/build_native_analyzer.py`): {detail}")
++    if digest is not None and read_stamp(path) != digest:
++        raise RuntimeError(
++            f"native analyzer {path} was rebuilt but its source stamp does not "
++            "match recompiler-rs; were the sources edited during the build?")
+     return path
+ 
+ 

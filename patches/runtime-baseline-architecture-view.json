@@ -1,0 +1,44 @@
+{
+  "patch_sha256": "babde8df16536358e6deb264883c430eaa9b7a1e549c90e6693708813379d325",
+  "predecessor_patch_sha256": "5a2f0ebad421b7abc033925766a9c6f2567e0cdcf1a70979b6253f2404e0c391",
+  "predecessor_binding_sha256": "ba5b9a4ce452ece8906c6dd6c9798c18d291309f39b5ab674515caf5836ad018",
+  "cache_format": 50,
+  "normal_metadata": 35,
+  "task_metadata": 8,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/architecture_baseline_view.py": {
+      "predecessor_sha256": null,
+      "final_sha256": "2902388ca8d2ed7b302a5f7f87980db23fd2ee336e151f060bb672f6fff25169",
+      "normalized_final_sha256": "2902388ca8d2ed7b302a5f7f87980db23fd2ee336e151f060bb672f6fff25169"
+    },
+    "recompiler/v2/architecture_eligibility.py": {
+      "predecessor_sha256": "9cdc45091a91257d702c552f699519746e490a797a6d741258682f3cc68f67a4",
+      "final_sha256": "928883d0ce9432d76eda445260afd9c5af09c274944bc77e1c961989b64b96f7",
+      "normalized_final_sha256": "928883d0ce9432d76eda445260afd9c5af09c274944bc77e1c961989b64b96f7"
+    },
+    "recompiler/v2/emit_bank.py": {
+      "predecessor_sha256": "eb52e0c65096370224a854c31febff9db56613312d8b4eaa3dca900b47f474ae",
+      "final_sha256": "a7bc5f76ca22aa136fa54c1db80835b70ae22ffe8c2d7a2995975baa4ea51684",
+      "normalized_final_sha256": "a7bc5f76ca22aa136fa54c1db80835b70ae22ffe8c2d7a2995975baa4ea51684"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "7917a83d9779bf38ad338ea43311501aff9d59a5bbcaf342da0b9b52fc8cdf0c",
+      "final_sha256": "f8bae2231051456c9f923630d468369d8171f34564307e5874401cc92c9eb342",
+      "normalized_final_sha256": "f8bae2231051456c9f923630d468369d8171f34564307e5874401cc92c9eb342"
+    },
+    "recompiler/v2/program_emit.py": {
+      "predecessor_sha256": "1f2ce7f55c95471493defde3a7d9c9b22fef00203a6f94d29d1f1980f7387188",
+      "final_sha256": "21d593669aa8e42ab702454f155a4dea8f6c4facc89409cbe9970f3e2be92745",
+      "normalized_final_sha256": "21d593669aa8e42ab702454f155a4dea8f6c4facc89409cbe9970f3e2be92745"
+    },
+    "tools/v2_emit.py": {
+      "predecessor_sha256": "5862b67d7b01d0bba5741362105cf2648dcaac2498cc2c98453b18d6efebe2de",
+      "final_sha256": "58efe61a75ab598bfad4e58e3a586829ba37c804d11386ffd040ef302a7f118a",
+      "normalized_final_sha256": "58efe61a75ab598bfad4e58e3a586829ba37c804d11386ffd040ef302a7f118a"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Explicit fresh static architecture-discovery view only; current expanded ordinary callable emission, original masks/ownership/bounds retained. Default49/34; enabled50/35. Actual population and execution unqualified."
+}

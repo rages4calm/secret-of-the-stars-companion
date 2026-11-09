@@ -1,0 +1,524 @@
+diff --git a/recompiler/v2/architecture_baseline_view.py b/recompiler/v2/architecture_baseline_view.py
+new file mode 100644
+--- /dev/null
++++ b/recompiler/v2/architecture_baseline_view.py
+@@ -0,0 +1,212 @@
++"""One fresh static discovery model; expanded ordinary emission remains current.
++No serialized manifest/row reader, C publisher or second emit_program exists here.
++"""
++from contextlib import contextmanager
++import weakref
++_ISSUER=object();_ISSUED=weakref.WeakSet();_PROOFS=weakref.WeakKeyDictionary();_ACTIVE=False
++CONTRACT='fresh-static-architecture-discovery-subset-v1'
++
++
++def _subset(baseline,profiled,helpers,inline,profiled_helpers,profiled_inline):
++    from .architecture_emission_policy import _digest
++    b=baseline.to_dict();p=profiled.to_dict()
++    if not {_digest(r)for r in b['roots']}<={_digest(r)for r in p['roots']}:raise ValueError('fresh static roots contradict current model')
++    for field in('nodes','exit_modes','exit_mode_sets'):
++        if any(k not in p[field]or _digest(v)!=_digest(p[field][k])for k,v in b[field].items()):raise ValueError('fresh static '+field+' contradict current model')
++    if not {_digest(r)for r in b['native_continuations']}<={_digest(r)for r in p['native_continuations']}:raise ValueError('fresh static continuation contradicts current model')
++    if any(k not in profiled_helpers or v!=profiled_helpers[k]for k,v in helpers.items())or any(k not in profiled_inline or v!=profiled_inline[k]for k,v in inline.items()):raise ValueError('fresh original helper/inline context contradicts current model')
++
++
++@contextmanager
++def _isolated_codegen():
++    # Existing globals only; no opaque graph/issuer registry is replaced.
++    from . import codegen,decoder,emit_function
++    global _ACTIVE
++    if _ACTIVE:raise ValueError('nested/concurrent baseline discovery')
++    groups=((codegen,('_NAME_RESOLVER','_UNRESOLVED_CALL_TARGETS','_ROM_SIZE','_REJECTED_CALL_TARGETS','_FORCE_VARIANT_AT','_CURRENT_SOURCE_PC24','_TRAMPOLINE_RETURNS','_VALID_VARIANTS','_VALID_VARIANTS_AUTHORITATIVE','_EMITTED_NAMES')),
++            (decoder,('_DECODE_CACHE','_DECODE_CACHE_HITS','_DECODE_CACHE_MISSES','_DECODE_CACHE_ENABLED','_ACTIVE_INLINE_ARG_MAP')),
++            (emit_function,('_FAITHFUL_PREFIX_CONTRACTS',)))
++    saved=[(module,name,getattr(module,name))for module,names in groups for name in names]
++    from .architecture_emission_policy import _decoder_policy_digest
++    authority=_decoder_policy_digest();_ACTIVE=True
++    try:
++        for module,name,value in saved:
++            if isinstance(value,dict):setattr(module,name,dict(value))
++            elif isinstance(value,set):setattr(module,name,set(value))
++        decoder._DECODE_CACHE={};decoder._DECODE_CACHE_HITS=0;decoder._DECODE_CACHE_MISSES=0
++        yield
++        if _decoder_policy_digest()!=authority:raise ValueError('baseline changed original decoder authority')
++    finally:
++        for module,name,value in saved:setattr(module,name,value)
++        _ACTIVE=False
++
++
++class _Capture:
++    def __init__(self,issuer,rom,parsed,baseline,profiled,reviewed_sha):
++        if issuer is not _ISSUER or not _ACTIVE:raise ValueError('fresh internal baseline issuer required')
++        from .architecture_emission_policy import _digest
++        from .architecture_program_call_sources import _policy_sha
++        _ISSUED.add(self);self.rom=rom;self.parsed=parsed;self.baseline=baseline;self.profiled=profiled
++        self.base_sha=_digest(baseline.to_dict());self.profile_sha=_digest(profiled.to_dict());self.policy_sha=_policy_sha(parsed);self.reviewed_sha=reviewed_sha
++        self.phase='capturing';self.stream=None;self.sources=None;self.recipes=None;self.seal=None
++        _PROOFS[self]={'phase':'capturing','rom':rom,'parsed':parsed,'baseline':baseline,'profiled':profiled,'base_sha':self.base_sha,'profile_sha':self.profile_sha,'policy_sha':self.policy_sha,'reviewed_sha':reviewed_sha,'stream':None}
++
++
++def _bind_stream(capture,stream):
++    if type(capture)is not _Capture:raise ValueError('foreign baseline capture type')
++    proof=_PROOFS.get(capture)
++    if type(capture)is not _Capture or capture not in _ISSUED or not _ACTIVE or proof is None or proof['phase']!='capturing' or proof['stream']is not None or stream._manifest is not proof['baseline']or stream._rom_object is not proof['rom']or stream._parsed is not proof['parsed']or stream._sealed:raise ValueError('fresh original baseline stream binding required')
++    proof['stream']=stream;capture.stream=stream
++
++
++def _finish_capture(capture,rom,parsed,stream,sources,recipes):
++    from .architecture_emission_policy import _digest
++    if type(capture)is not _Capture:raise ValueError('foreign baseline capture type')
++    proof=_PROOFS.get(capture)
++    if type(capture)is not _Capture or capture not in _ISSUED or not _ACTIVE or proof is None or proof['phase']!='capturing' or capture.phase!='capturing' or rom is not proof['rom']or parsed is not proof['parsed']or stream is not proof['stream']or stream is not capture.stream or not stream._sealed:raise ValueError('foreign/reused baseline source capture')
++    if len(sources)!=20 or any(k in recipes for k in('contract','sources','ordinary_roots_added','callee_exit_modes_added','task_ownership_changed')):raise ValueError('baseline family/recipe schema changed')
++    capture.sources=tuple((origin,tuple(rows))for origin,rows in sources);capture.recipes=dict(recipes)
++    capture.seal=_digest((capture.sources,capture.recipes));capture.phase='sealed'
++    proof.update(phase='sealed',sources=capture.sources,recipes=capture.recipes,seal=capture.seal)
++    return capture
++
++
++def prepare_from_original_source(*,rom,rom_path,cfg_dir,parsed,profiled,profiled_helpers,profiled_inline_args,baseline_roots,reviewed_source_sha256,native_executable,all_cfg_roots,force_lle,max_insns,max_nodes,certify_converged_exits,certify_native_continuations,faithful_prefixes,enable_hle,enable_native_call_prefix,enable_native_mode_successors):
++    # This function itself invokes the ORIGINAL native source producer ONCE.
++    # There is no baseline manifest/path/JSON argument to substitute an old model.
++    if not all_cfg_roots:raise ValueError('baseline needs original CFG-root policy')
++    from v2_analyze import build_manifest_native
++    from .faithful_prefix import prepare_prefix_manifest,prefix_contracts
++    from .emit_function import set_faithful_prefix_contracts
++    baseline,helpers,inline_args,_log=build_manifest_native(rom_path=rom_path,cfg_dir=cfg_dir,all_cfg_roots=all_cfg_roots,additional_roots=baseline_roots,force_lle=force_lle,executable=native_executable,max_insns=max_insns,max_nodes=max_nodes,certify_converged_exits=certify_converged_exits,certify_native_continuations=certify_native_continuations)
++    if faithful_prefixes:baseline=prepare_prefix_manifest(baseline,parsed)
++    _subset(baseline,profiled,helpers,inline_args,profiled_helpers,profiled_inline_args)
++    from .program_emit import build_emission_entries,_cfg_for_bank,_lorom_mirror_pc24
++    from .emit_bank import emit_bank
++    from .codegen import set_rom_size,set_name_resolver,set_emitted_names,set_force_variant_at,set_valid_variants,set_trampoline_returns,take_unresolved_call_targets,take_rejected_call_targets,take_trampoline_returns
++    from .decoder import set_decode_cache_enabled,set_active_inline_arg_map
++    from .architecture_program_call_sources import _new_program_stream
++    from .architecture_emission_policy import _open_bank
++    from .architecture_task_sources import _new_task_view,_seal_task_view
++    from .architecture_task_member_sources import _new_member_view,_seal_member_view
++    from .task_resume import derive as derive_task_resume,append_original_prefixes
++    from .architecture_eligibility import extend
++    manifest=baseline;dispatch_helpers=helpers;inline_arg_map=inline_args
++    entries_by_bank,emitted,name_for_pc,cfg_by_bank=build_emission_entries(manifest,parsed,enable_hle=enable_hle)
++    callee_exit_mx={(k.pc24,k.m,k.x):v for k,v in manifest.exit_modes.items()}
++    callee_exit_mx_modes={(k.pc24,k.m,k.x):frozenset(v)for k,v in manifest.exit_mode_sets.items()}
++    with _isolated_codegen():
++        set_rom_size(len(rom));set_name_resolver(dict(name_for_pc));set_emitted_names(dict(name_for_pc));set_force_variant_at({});set_valid_variants(emitted,authoritative=True);set_trampoline_returns(set());set_active_inline_arg_map(dict(inline_arg_map)or None);set_decode_cache_enabled(True)
++        take_unresolved_call_targets();take_rejected_call_targets();take_trampoline_returns();set_faithful_prefix_contracts(prefix_contracts(manifest,parsed))
++        capture=_Capture(_ISSUER,rom,parsed,baseline,profiled,reviewed_source_sha256)
++        task_view=_new_task_view(rom,parsed,manifest);member_view=_new_member_view(rom,parsed,manifest)
++        task_rows,task_recipe,_task_graphs=derive_task_resume(rom,parsed,None,_instruction_view=task_view,_member_view=member_view)
++        program_call_stream=_new_program_stream(rom,parsed,manifest);_bind_stream(capture,program_call_stream)
++        all_regions=[];host_alias_entries=None;bank_file_header=None
++        for bank in sorted(set(cfg_by_bank)|set(entries_by_bank)):
++            cfg = _cfg_for_bank(cfg_by_bank, bank)
++            indirect_dispatch = {}
++            if cfg is not None:
++                for directive in getattr(cfg, "indirect_dispatch", ()):
++                    indirect_dispatch[(bank << 16) |
++                                      (directive["site_pc16"] & 0xFFFF)] = directive
++            indirect_call_tables = (
++                getattr(cfg, "indirect_call_tables", None)
++                if cfg is not None else None)
++            terminal_jsr_sites = None
++            if cfg is not None and getattr(cfg, "terminal_jsr", None):
++                terminal_jsr_sites = {
++                    (bank << 16) | (site & 0xFFFF)
++                    for site in cfg.terminal_jsr
++                }
++            noreturn_jsr_sites = None
++            if cfg is not None and getattr(cfg, "noreturn_jsr", None):
++                noreturn_jsr_sites = {
++                    (bank << 16) | (site & 0xFFFF)
++                    for site in cfg.noreturn_jsr
++                }
++            if indirect_call_tables:
++                remapped_tables = dict(indirect_call_tables)
++                for site, value in indirect_call_tables.items():
++                    site_bank = (site >> 16) & 0xFF
++                    if site_bank != bank and _lorom_mirror_pc24(site) == ((bank << 16) | (site & 0xFFFF)):
++                        remapped_tables[
++                            (bank << 16) | (site & 0xFFFF)] = value
++                indirect_call_tables = remapped_tables
++            data_regions = (
++                list(getattr(cfg, "data_regions", ()) or ())
++                if cfg is not None else None)
++            if data_regions:
++                for region_bank, start, end in tuple(data_regions):
++                    if region_bank != bank and _lorom_mirror_pc24((region_bank << 16) | start) == ((bank << 16) | start):
++                        data_regions.append((bank, start, end))
++            bank_regions = []
++            from .architecture_emission_policy import _open_bank
++            original_policy_options={'data_regions':data_regions,'exclude_ranges':getattr(cfg,'exclude_ranges',None)if cfg is not None else None,'hle_func':getattr(cfg,'hle_func',None)if enable_hle and cfg is not None else None,'hle_spc_upload':getattr(cfg,'hle_spc_upload',None)if enable_hle and cfg is not None else None,'hle_dispatch':getattr(cfg,'hle_dispatch',None)if enable_hle and cfg is not None else None,'forced':{pc&0x7fffff for _b,_p,q in parsed for pc in getattr(q,'force_lle',())}}
++            bank_policy_scope=_open_bank(program_call_stream,rom,manifest,bank,entries_by_bank.get(bank,[]),cfg,original_policy_options)
++            source = emit_bank(
++                rom, bank, entries_by_bank.get(bank, []),
++                dispatch_helpers=dict(dispatch_helpers) or None,
++                indirect_call_tables=indirect_call_tables,
++                indirect_dispatch=indirect_dispatch or None,
++                terminal_jsr_sites=terminal_jsr_sites,
++                noreturn_jsr_sites=noreturn_jsr_sites,
++                data_regions=data_regions,
++                exclude_ranges=(getattr(cfg, "exclude_ranges", None)
++                                if cfg is not None else None),
++                callee_exit_mx=dict(callee_exit_mx or {}),
++                callee_exit_mx_modes=dict(callee_exit_mx_modes or {}),
++                hle_spc_upload=(getattr(cfg, "hle_spc_upload", None)
++                                if enable_hle and cfg is not None else None),
++                hle_func=(getattr(cfg, "hle_func", None)
++                          if enable_hle and cfg is not None else None),
++                hle_dispatch=(getattr(cfg, "hle_dispatch", None)
++                              if enable_hle and cfg is not None else None),
++                inline_arg_map=dict(inline_arg_map) or None,
++                declared_entry_pcs=(
++                    {entry.start & 0xFFFF for entry in cfg.entries}
++                    if cfg is not None else None),
++                host_alias_entries=host_alias_entries,
++                file_header=(bank_file_header(bank)
++                             if bank_file_header else None),
++                native_region_collector=bank_regions,
++                _architecture_capture_only=True,
++                _program_call_stream=program_call_stream,
++                _program_policy_scope=bank_policy_scope,
++                enable_native_call_prefix=enable_native_call_prefix,
++                enable_native_mode_successors=enable_native_mode_successors,
++                native_call_prefix_forced={pc & 0x7fffff for _b, _p, q in parsed for pc in getattr(q, "force_lle", ())},
++            )
++            if source!='':raise ValueError('baseline capture emitted callable C')
++            all_regions.extend(bank_regions)
++        forced={pc&0x7fffff for _b,_p,cfg in parsed for pc in getattr(cfg,'force_lle',())};unique={}
++        for row in all_regions:
++            if any(((row['pc24']&0xff0000)|((row['pc24']+n)&65535))in forced for n in range(row['length'])):continue
++            key=(row['pc24'],row['m'],row['x'])
++            if key in unique and unique[key]!=row:raise ValueError('baseline original ordinary mode/body conflict')
++            unique[key]=row
++        baseline_ordinary=[unique[k]for k in sorted(unique)]
++        task_rows,task_recipe=append_original_prefixes(rom,parsed,task_rows,task_recipe,baseline_ordinary)
++        _seal_task_view(task_view,rom,parsed,manifest);_seal_member_view(member_view,rom,parsed,manifest)
++        _ignored,result=extend(rom,parsed,baseline_ordinary,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_view,task_member_view=member_view,_baseline_capture=capture)
++        if result is not capture or capture.phase!='sealed':raise ValueError('baseline source factories did not seal original candidate view')
++    return capture
++
++
++def consume(capture,rom,parsed,profiled,ordinary):
++    from .architecture_emission_policy import _digest
++    from .architecture_program_call_sources import _policy_sha
++    from .architecture_eligibility import merge_source_union
++    if type(capture)is not _Capture:raise ValueError('foreign baseline capture type')
++    proof=_PROOFS.get(capture)
++    if type(capture)is not _Capture or capture not in _ISSUED or proof is None or proof['phase']!='sealed' or capture.phase!='sealed' or proof['rom']is not rom or proof['parsed']is not parsed or proof['profiled']is not profiled:raise ValueError('foreign/reused baseline consumer')
++    if capture.rom is not proof['rom']or capture.parsed is not proof['parsed']or capture.profiled is not proof['profiled']or capture.baseline is not proof['baseline']or capture.sources is not proof['sources']or capture.recipes is not proof['recipes']or capture.stream is not proof['stream']:raise ValueError('baseline issued object identity mutated')
++    if capture.base_sha!=proof['base_sha']or capture.profile_sha!=proof['profile_sha']or capture.policy_sha!=proof['policy_sha']or capture.reviewed_sha!=proof['reviewed_sha']or capture.seal!=proof['seal']or proof['base_sha']!=_digest(capture.baseline.to_dict())or proof['profile_sha']!=_digest(profiled.to_dict())or proof['policy_sha']!=_policy_sha(parsed)or proof['seal']!=_digest((capture.sources,capture.recipes)):raise ValueError('baseline model/policy/candidates mutated')
++    if capture.stream._manifest is not proof['baseline']or capture.stream._rom_object is not rom or capture.stream._parsed is not parsed or not capture.stream._sealed:raise ValueError('original sealed stream identity changed')
++    # ONE original merge/independent mask/body gate, against CURRENT ordinary rows.
++    rows,metadata=merge_source_union(rom,parsed,ordinary,capture.sources)
++    metadata.update(capture.recipes)
++    metadata['baseline_discovery']={'contract':CONTRACT,'fresh_native_producer_once':True,'baseline_model_sha256':capture.base_sha,'profiled_model_sha256':capture.profile_sha,'subset_roots_nodes_exits_sets':True,'reviewed_root_source_sha256':capture.reviewed_sha,'source_family_count':len(capture.sources),'external_model_or_rows_accepted':False,'ordinary_callable_view':'current_profiled','architecture_view':'fresh_static_only','second_program_output':False,'source_limit_changes':False,'new_owner_or_exit_authority':False}
++    capture.phase='consumed';capture.sources=None;capture.recipes=None;capture.stream=None
++    _PROOFS[capture]={'phase':'consumed'}
++    return rows,metadata
+diff --git a/recompiler/v2/architecture_eligibility.py b/recompiler/v2/architecture_eligibility.py
+--- a/recompiler/v2/architecture_eligibility.py
++++ b/recompiler/v2/architecture_eligibility.py
+@@ -67,7 +67,7 @@
+         summary.append({'origin':origin,'source_rows':len(candidates),'added':added,'reused':reused,'refused':refused})
+     return [output[k]for k in sorted(output)],{'contract':ARCHITECTURE_CONTRACT,'sources':summary,'ordinary_roots_added':False,'callee_exit_modes_added':False,'task_ownership_changed':False}
+ 
+-def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None,task_instruction_view=None,task_member_view=None):
++def extend(rom,parsed,ordinary,task_rows,task_recipe,*,enable_native_call_prefix=True,program_call_stream=None,task_instruction_view=None,task_member_view=None,_baseline_capture=None):
+     # Existing reviewed child derivation retained its seven source-known BRA
+     # bodies in the causal table. Union only the independently architecture-safe
+     # bodies; its source slot/host/publication recipe remains untouched.
+@@ -119,7 +119,11 @@
+     if program_call_stream is not None:
+         from .architecture_ff20_byte_dispatch_sources import derive as derive_ff20_bytes
+         ff20_byte_rows,ff20_byte_graphs=derive_ff20_bytes(rom,parsed,program_call_stream,enable_native_call_prefix=enable_native_call_prefix)
+-    output,metadata=merge_source_union(rom,parsed,ordinary,[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows)])
++    sources=[('reviewed_original_task_child',child),('reviewed_original_ff20_receiving_starts',ff20['rows']),('source_direct_call_return_instructions',return_rows),('source_direct_callee_instructions',callee_rows),('source_dynamic_P_boundaries',mode_rows),('source_nested_direct_call_instructions',nested_rows),('source_nested_dynamic_P_frontier',frontier_mode_rows),('source_architectural_return_steps',return_step_rows),('source_direct_aftercall_closure',aftercall_rows),('source_aftercall_dynamic_P_frontier',aftercall_mode_rows),('source_program_direct_call_closure',program_rows),('source_program_dynamic_P_frontier',program_mode_rows),('source_program_architectural_frontier',architectural_rows),('source_program_dynamic_P_architectural_returns',program_return_rows),('source_task_pure_architectural_instructions',pure_task_rows),('source_ROM_stack_dispatch_pure_instructions',rom_stack_rows),('source_task_graph_architectural_members',task_member_rows),('source_original_initial_task_instructions',initial_task_rows),('source_nested_initial_task_instructions',nested_initial_rows),('source_original_FF20_byte_dispatch_pure_instructions',ff20_byte_rows)]
++    if _baseline_capture is None:
++        output,metadata=merge_source_union(rom,parsed,ordinary,sources)
++    else:
++        output=None;metadata={}
+     metadata['return_instruction_graphs']=return_graphs
+     metadata['callee_instruction_graphs']=callee_graphs
+     metadata['mode_instruction_graphs']=mode_graphs
+@@ -138,6 +142,9 @@
+     metadata['initial_task_graphs']=initial_task_graphs
+     metadata['nested_initial_task_graphs']=nested_initial_graphs
+     metadata['ff20_byte_dispatch_graphs']=ff20_byte_graphs
++    if _baseline_capture is not None:
++        from .architecture_baseline_view import _finish_capture
++        return None,_finish_capture(_baseline_capture,rom,parsed,program_call_stream,sources,metadata)
+     return output,metadata
+ 
+ 
+diff --git a/recompiler/v2/emit_bank.py b/recompiler/v2/emit_bank.py
+--- a/recompiler/v2/emit_bank.py
++++ b/recompiler/v2/emit_bank.py
+@@ -96,7 +96,7 @@
+               declared_entry_pcs=None,
+               host_alias_entries=None, native_region_collector=None, _program_call_stream=None, _program_policy_scope=None,
+               enable_native_call_prefix: bool = False, native_call_prefix_forced=(),
+-              enable_native_mode_successors: bool = False) -> str:
++              enable_native_mode_successors: bool = False, _architecture_capture_only=False) -> str:
+     """Emit one bank's C source.
+ 
+     Args:
+@@ -219,6 +219,7 @@
+             native_region_collector=native_region_collector,
+             _program_call_stream=_program_call_stream,
+             _program_policy_scope=_program_policy_scope,
++            _architecture_capture_only=_architecture_capture_only,
+             native_call_prefix_collector=(native_region_collector if enable_native_call_prefix else None),
+             native_call_prefix_forced=native_call_prefix_forced,
+             native_mode_successors=enable_native_mode_successors,
+@@ -232,6 +233,9 @@
+         )
+         parts.append(src)
+         parts.append("")  # blank line between functions
++
++    if _architecture_capture_only:
++        return ''
+ 
+     # Aliases for cfg-named entries. Hand-written entry-point shims (e.g.
+     # smw_rtl.c calling `I_RESET(&g_cpu)`) bind to these. An unsuffixed host
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -493,7 +493,7 @@
+                   entry_s_offset: int = 0, native_region_collector=None,
+                   source_task_resume_stops=None, native_call_prefix_collector=None,
+                   native_call_prefix_forced=(), native_mode_successors=False,
+-                  _native_instruction_members=None, _native_collector_only=False, _program_call_stream=None, _program_policy_scope=None) -> str:
++                  _native_instruction_members=None, _native_collector_only=False, _program_call_stream=None, _program_policy_scope=None, _architecture_capture_only=False) -> str:
+     """Emit a complete v2 C function source for one 65816 function.
+ 
+     Pipeline:
+@@ -505,6 +505,8 @@
+         block-end op → goto / fall-through wiring
+     """
+     _mode_successor_arguments = dict(locals())
++    if _architecture_capture_only and (_program_call_stream is None or _program_policy_scope is None):
++        raise ValueError('architecture capture requires actual original producer scope')
+     base_func_name = func_name if func_name is not None else _default_func_name(bank, start)
+     _prefix_expected, _prefix_masks = _FAITHFUL_PREFIX_CONTRACTS.get(
+         ((bank << 16) | (start & 0xFFFF), entry_m, entry_x), (frozenset(), ()))
+@@ -2190,6 +2192,115 @@
+                 lines.insert(0, f'cpu_aot_prefix_refusal(cpu, 0x{((bank << 16) | (key.pc & 0xFFFF)):06X}u);')
+         block_lines[key] = lines
+ 
++    if _architecture_capture_only:
++        if native_region_collector is not None or native_call_prefix_collector is not None or _program_call_stream is not None:
++            from .native_regions import collect, collect_stack_control, collect_indirect_y, collect_stack_direct, collect_stack_indirect_y, collect_long_jump
++            for region_key, region_pairs in block_per_insn_ir.items():
++                if len(region_pairs) != 1:
++                    continue
++                region_insn, region_ops = region_pairs[0]
++                # Every opcode/operand byte retains data and native-exclusion ownership.
++                region_masked = False
++                for region_byte in range(region_insn.length):
++                    region_at = (region_insn.addr & 0xFF0000) | ((region_insn.addr + region_byte) & 0xFFFF)
++                    region_masked |= any((region_at >> 16) in (rb, rb ^ 0x80) and lo <= (region_at & 0xFFFF) < hi
++                                         for rb, lo, hi in (data_regions or ()))
++                    region_masked |= any((lo & 0xFFFF) <= (region_at & 0xFFFF) < hi
++                                         for lo, hi in (exclude_ranges or ()))
++                if region_masked:
++                    continue
++                if _program_call_stream is not None and not getattr(_program_policy_scope,'_target_only',False) and region_insn.mnem in ('JSR','JSL'):
++                    _program_call_stream._record(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),native_instruction_lines.get(region_key),graph,
++                        data_regions=data_regions or (),exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                if native_call_prefix_collector is not None and region_insn.mnem in ('JSR','JSL'):
++                    from .native_call_prefix import collect_call_prefix
++                    call_prefix=collect_call_prefix(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),native_instruction_lines.get(region_key),
++                        data_regions=data_regions or (),exclude_ranges=exclude_ranges or (),
++                        forced=native_call_prefix_forced)
++                    if call_prefix is not None:native_call_prefix_collector.append(call_prefix)
++                if native_region_collector is None:continue
++                if region_key in native_stack_control_keys:
++                    region = collect_stack_control(rom, region_key, region_insn, region_ops,
++                                                   _block_cycle_const(region_pairs))
++                    if region is not None:
++                        native_region_collector.append(region)
++                    continue
++                # Independent raw source/typed architectural indirect transfer.
++                # Callable mode14/15 host-dispatch refusal remains unchanged.
++                if region_insn.opcode in (0x6c,0x7c,0xdc,0xfc):
++                    from .native_indirect_control import collect_indirect_control
++                    region=collect_indirect_control(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                        exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                if region_insn.opcode==0x42:
++                    from .native_reserved_wdm import collect_reserved_wdm
++                    region=collect_reserved_wdm(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                        exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                if region_insn.opcode in (0x44,0x54):
++                    from .native_blockmove import collect_blockmove
++                    region=collect_blockmove(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                        exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                if region_insn.opcode==0x40:
++                    from .native_interrupt_return import collect_interrupt_return
++                    region=collect_interrupt_return(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                        exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                if region_insn.opcode==0xfb:
++                    from .native_exchange import collect_exchange
++                    region=collect_exchange(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),data_regions=data_regions or (),
++                        exclude_ranges=exclude_ranges or (),forced=native_call_prefix_forced)
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                if 'precise-mode unsupported:' in '\n'.join(block_lines[region_key]):
++                    continue
++                from snes65816 import INDIR_Y, STK, STK_IY, LONG
++                if region_insn.mnem=='JMP' and region_insn.mode==LONG:
++                    region=collect_long_jump(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),native_instruction_lines.get(region_key),
++                        data_regions=data_regions or (),exclude_ranges=exclude_ranges or (),
++                        forced=native_call_prefix_forced)
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                if region_insn.mode==STK_IY:
++                    region=collect_stack_indirect_y(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),native_instruction_lines.get(region_key))
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                if region_insn.mode==STK:
++                    region=collect_stack_direct(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),native_instruction_lines.get(region_key))
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                if region_insn.mode==INDIR_Y:
++                    region=collect_indirect_y(rom,region_key,region_insn,region_ops,
++                        _block_cycle_const(region_pairs),native_instruction_lines.get(region_key))
++                    if region is not None:native_region_collector.append(region)
++                    continue
++                region = collect(rom, region_key, region_insn, region_ops,
++                                 native_rmw_cycles.get(region_key, _block_cycle_const(region_pairs)),
++                                 native_instruction_lines[region_key])
++                if region is not None:
++                    native_region_collector.append(region)
++        if native_mode_successors and _native_instruction_members is None and native_region_collector is not None:
++            from .native_mode_successors import collect_mode_successor_rows
++            _mode_successor_arguments['data_regions']=list(data_regions or ())+list(_prefix_masks)
++            collect_mode_successor_rows(rom,graph,_mode_successor_arguments,emit_function,
++                                       native_region_collector,native_call_prefix_collector)
++        return ''
++
+     # Compose the function source with labels per block.
+     src: List[str] = []
+     src.append(f"RecompReturn {func_name}(CpuState *cpu) {{")
+diff --git a/recompiler/v2/program_emit.py b/recompiler/v2/program_emit.py
+--- a/recompiler/v2/program_emit.py
++++ b/recompiler/v2/program_emit.py
+@@ -1061,7 +1061,7 @@
+                  module_id: str = "main",
+                  module_prefix: str | None = None,
+                  rom_sha256_hex: str | None = None,
+-                 rom_size: int | None = None) -> EmissionResult:
++                 rom_size: int | None = None, architecture_baseline=None) -> EmissionResult:
+     validate_module_identity(module_id, module_prefix)
+     # Identity of the IMAGE the module was generated from. The caller passes
+     # both when its `rom` already carries materialized ram_routine blobs (the
+@@ -1070,6 +1070,8 @@
+         rom_sha256_hex = hashlib.sha256(rom).hexdigest()
+     if rom_size is None:
+         rom_size = len(rom)
++    output_cache_format=CACHE_FORMAT_VERSION if architecture_baseline is None else 50
++    output_normal_format=34 if architecture_baseline is None else 35
+     from .faithful_prefix import prefix_contracts
+     from .emit_function import set_faithful_prefix_contracts
+     set_faithful_prefix_contracts(prefix_contracts(manifest, parsed))
+@@ -1125,7 +1127,7 @@
+         recorded_region_bytes = old_region_path.read_bytes()
+         recorded_regions = json.loads(recorded_region_bytes)["regions"]
+         region_cache_bound = (
+-            old_cache.get("format_version") == CACHE_FORMAT_VERSION
++            old_cache.get("format_version") == output_cache_format
+             and hashlib.sha256(recorded_region_bytes).hexdigest()
+                 == old_output_hashes.get("native_regions.json")
+             and isinstance(recorded_regions, list))
+@@ -1375,7 +1377,12 @@
+         from .architecture_eligibility import extend as extend_architecture_eligibility,emit_membership as emit_architecture_membership
+         _seal_task_view(task_instruction_view,rom,parsed,manifest)
+         _seal_member_view(task_member_view,rom,parsed,manifest)
+-        regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_instruction_view,task_member_view=task_member_view)
++        if architecture_baseline is None:
++            regions,architecture_eligibility=extend_architecture_eligibility(rom,parsed,regions,task_rows,task_recipe,enable_native_call_prefix=enable_native_call_prefix,program_call_stream=program_call_stream.seal(),task_instruction_view=task_instruction_view,task_member_view=task_member_view)
++        else:
++            program_call_stream.seal()
++            from .architecture_baseline_view import consume
++            regions,architecture_eligibility=consume(architecture_baseline,rom,parsed,manifest,regions)
+         _seal_selected_view(selected_member_view,rom,parsed,manifest)
+         selected_rows,selected_recipe=derive_selected_members(rom,parsed,selected_member_view,task_rows)
+         _seal_selected_call_view(selected_call_view,rom,parsed,manifest)
+@@ -1393,7 +1400,7 @@
+         write_if_changed(staging / 'native_regions_v2.c',
+                          emit_native_regions(regions, module_prefix,bootstrap=reset_bootstrap)+emit_architecture_membership(architecture_eligibility,module_prefix))
+         write_if_changed(staging / 'native_regions.json',
+-                         json.dumps({'format_version':34, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
++                         json.dumps({'format_version':output_normal_format, 'kind':'source_cfg_scheduler_instruction', 'result_contract':'full_pc24_transient_original_scheduler',
+                                      'instruction_source':'source_faithful_and_typed_architectural_before_activation_plumbing',
+                                      'architecture_source_eligibility':architecture_eligibility,
+                                      'stack_control_contract':'native-e0-typed-architectural-stack-v1',
+@@ -1459,7 +1466,7 @@
+             for name in output_names
+         }
+         cache = {
+-            "format_version": CACHE_FORMAT_VERSION,
++            "format_version": output_cache_format,
+             "generator_digest": generator_digest,
+             "config_digest": config_digest,
+             "analysis_input_digest": analysis_input_digest,
+diff --git a/tools/v2_emit.py b/tools/v2_emit.py
+--- a/tools/v2_emit.py
++++ b/tools/v2_emit.py
+@@ -189,6 +189,7 @@
+                         help="Emit source-owned live-M/X instruction alternatives without callable/root promotion.")
+     parser.add_argument("--native-direct-call-prefix", action="store_true",
+                         help="emit known-mode source-exact JSR(abs)/JSL(long) architectural instruction rows inside the original scheduler; no new roots or callee ownership")
++    parser.add_argument("--architecture-discovery-baseline",action="store_true",help="Profile callable model with one fresh static-source architecture discovery view; no imported model/certificate")
+     parser.add_argument("--rom", required=True)
+     parser.add_argument("--cfg-dir", required=True)
+     parser.add_argument("--out-dir", required=True)
+@@ -399,7 +400,11 @@
+         enable_native_call_prefix=args.native_direct_call_prefix,
+         enable_native_mode_successors=args.native_mode_successors,
+     )
+-    cached = _verified_cached_stats(out_dir, analysis_input_digest)
++    if args.architecture_discovery_baseline:
++        if not args.profile_manifest or not args.cfg_roots or not args.no_host_root_scan or host_roots or ram_routine_roots or symbol_roots or args.disassembly_entry_modes:
++            parser.error('baseline architecture requires explicit profiles+CFG roots, no host/RAM/symbol/disassembly extra roots')
++        analysis_input_digest=hashlib.sha256((analysis_input_digest+'\0architecture-baseline-source-v1').encode()).hexdigest()
++    cached = None if args.architecture_discovery_baseline else _verified_cached_stats(out_dir, analysis_input_digest)
+     if cached is not None and not args.no_link_closure_check:
+         # Reuse re-publishes an earlier run's verdict. If that tree predates
+         # this check (or was produced with it off), reusing it would silently
+@@ -438,6 +443,10 @@
+     if args.faithful_prefixes:
+         from v2.faithful_prefix import prepare_prefix_manifest
+         manifest = prepare_prefix_manifest(manifest, parsed)
++    architecture_baseline=None
++    if args.architecture_discovery_baseline:
++        from v2.architecture_baseline_view import prepare_from_original_source
++        architecture_baseline=prepare_from_original_source(rom=rom,rom_path=args.rom,cfg_dir=cfg_dir,parsed=parsed,profiled=manifest,profiled_helpers=helpers,profiled_inline_args=inline_args,baseline_roots=tuple(reviewed.roots)if reviewed else (),reviewed_source_sha256=reviewed.source_sha256 if reviewed else None,native_executable=native_path,all_cfg_roots=args.cfg_roots,force_lle=profile_force_lle,max_insns=args.max_insns,max_nodes=args.max_nodes,certify_converged_exits=args.certify_converged_exits,certify_native_continuations=args.certify_native_continuations,faithful_prefixes=args.faithful_prefixes,enable_hle=not args.no_hle,enable_native_call_prefix=args.native_direct_call_prefix,enable_native_mode_successors=args.native_mode_successors)
+     result = emit_program(
+         rom=rom,
+         parsed=parsed,
+@@ -467,6 +476,7 @@
+         module_prefix=args.module_prefix,
+         rom_sha256_hex=rom_sha256_hex,
+         rom_size=rom_image_size,
++        architecture_baseline=architecture_baseline,
+     )
+     elapsed = time.perf_counter() - started
+     print(

@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "2e46821d3759967fadc56c890d39e2928c99a197a9f517f97adb9be795f01d52",
+  "predecessor_patch_sha256": "72e68296c8a9aecef9d7a1b4a07fb77f9328c8c7c47ada07f7c351229f9bea2e",
+  "predecessor_binding_sha256": "d9747aa9355593f28a1adf5bc0ec1b5a94e8f24877f8d66e307050727756e2ef",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp816.c": {
+      "predecessor_sha256": "f1eaa092954057427ee8ccdb9c972ede3d68c5631bee275678559a261e0755c7",
+      "final_sha256": "3adf549b98f251263c7b5b92ebcf1e08a8d6a16a3c85f4f308171e675043217d",
+      "normalized_final_sha256": "2511f2a5b8764998f327da54f50b720962f2e8a79c17f3c583727df09c937cf3"
+    },
+    "runner/src/snes/interp816.h": {
+      "predecessor_sha256": "babdf68f718e9d4f1f59a83e8982e53dfc759f81d9ef0bdc2e191604ac22daf0",
+      "final_sha256": "32fd1d571620defebf3b2aba0f7e33170abbc7e478c88afd2a861254473e3125",
+      "normalized_final_sha256": "6c4984ead34cf7088631dd49c7da212b453f9c4e889cd90e1067b811c2afa7a2"
+    },
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "1faf03a24ecd641cca1162b2b940202517c292fb8270d048ec21c317ca9c58ae",
+      "final_sha256": "a6c862d747c861dcec51249a78a99a1dd4ca68492c6a4448bcdfd6471d285b51",
+      "normalized_final_sha256": "f318b828ca637bb4f93bb754384fc103eca4c0a6b50f5a15b4658d15b8ff1905"
+    }
+  },
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "scope": "Source618 exact-PC bounded menu/message and item execution architecture inside original fallback supervisor; original opcode bodies, physical bus/stack/timing and task/redirect owners retained. No SDK/CFG/root/exit or serialized state changes. Source-only branches remain explicitly separate from executed exact-artifact qualification.",
+  "frozen618_handoff_sha256": "ddb6d61e4db72d6064150e83e3067371a170f6677578d6373e88259fe87c4459",
+  "frozen618_source_pins_sha256": "70916f35e204b61b87fa63707ad2a6fe6130b04bfd5cd7d268f935208505da4f"
+}
