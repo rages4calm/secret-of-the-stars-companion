@@ -1,6 +1,6 @@
 {
   "snapshot_date": "2026-11-13",
-  "native_version": "0.5.13",
+  "native_version": "0.5.14",
   "companion_version": "0.3.8",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
@@ -745,7 +745,7 @@
   "architectural_native_frontier_scope": "Source-authoritative architectural PC/M/X/E inventory: 119,538 admitted keys from 120,394 coherent source/frontier candidates. All 119,374 prior supported keys retained. 856 conditional BRK/COP/STP keys at 214 PCs remain explicitly unimplemented/quarantined; guarded interpreter fallback or strict missing-block refusal if reached. Actual candidate M/X determines typed IR. No aliases, guessed caller modes, CPU replay, unsupported NOP substitution, unreachable/DATA or whole-game native-completion claim. Three proven E1 reset keys only.",
   "encounter_qol_guard_proposal_sha256": "51362db9803f5eb18535ad8c9743c4e36b3a5186aa3ef5f379da831f8aedadaf",
   "encounter_qol_guard_scope": "Only accept source-proved DB02/82 alongside01/81 lowWRAM ABS mirrors. AllPB/E/MX/D/BCD/context/originalROM/carry/percent rules retained. Percent100 unchanged. No runtimeSDK/helper/fiveABI/serialized change. Candidate0percent counter-source fixture muststayworld; original100source866enteredbattle. No nativeprogress claim from fix.",
-  "public_release": "v0.5.13",
+  "public_release": "v0.5.14",
   "source_native_condition_family_patch_sha256": "76ee174bf98487d8989dee7601204740e3c636b6c192a888f8e41297af2dbc97",
   "source_native_condition_family_source_binding_sha256": "e13c0a00890e36e5c004c4e2b9802a4bcb26990f4f3b10ded4dc9cb0bcef9a7f",
   "architectural_native_patch_sha256": "199c1e6293958370dfdb37ba4de9ed3d0f4fc0b038b265115a1afbd146b74af5",
@@ -777,5 +777,11 @@
   },
   "current_runtime_extension_count": 69,
   "parent_writer_final_source_pin_patch_sha256": "14de3cdbf1f7a7842296f6a3866483febb0ff163079d072e3a5af443db04af3c",
-  "parent_writer_final_source_pin_source_binding_sha256": "714c9a2f69190ce9e4f8ccde37667c53cdd8d8cf3c7458d0ca6aa1d04c320c28"
+  "parent_writer_final_source_pin_source_binding_sha256": "714c9a2f69190ce9e4f8ccde37667c53cdd8d8cf3c7458d0ca6aa1d04c320c28",
+  "battle_effect_presentation": {
+    "scope": "Shared original-art BG2 extension retains actual per-line mosaic, brightness, color math, windows and small scroll phases. Original producers, DMA and raster ownership remain unchanged. Center is checked exactly before publication; only newly exposed original backdrop-owned shake pixels may receive actual extended BG2, preserving all other layer ownership. Original View is unchanged.",
+    "checks": "96 staged original casts (32 named battle-eligible spells, three tiers), with original menu/queue/effect producer and MP/turn completion. Shared renderer family checks and focused shake/menu regression checks. This is not natural spell acquisition or campaign certification.",
+    "fast_menus": "Original-source-checked battle owner/slide stack, empty DMA queue, observed D0A00 DB02; preserve first and final handoffs, accelerate only middle slide waits. No battle row-queue draining.",
+    "unchanged": "Generated native game C, runtime1092, execution-state ABI and Companion0.3.8."
+  }
 }

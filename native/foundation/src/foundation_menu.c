@@ -89,6 +89,32 @@ static int DrainRowQueue(CpuState *cpu, unsigned *tile_count) {
     return 1;
 }
 
+static int IsBattleSlideStack(CpuState *cpu, uint32_t caller) {
+    /* Observed original battle command coroutine. Retain the first slide
+     * step, final handoff, input waits and every queued DMA upload. */
+    if (g_ram[0x20] != 5 || g_ram[0x410] != 1 || g_ram[0x2a0] ||
+        cpu->D != 0x0a00 || cpu->DB != 2 || !cpu->m_flag ||
+        cpu->S < 0x1b00 || cpu->S >= 0x1e00) return 0;
+    unsigned phase;
+    if (caller == 0x008675 && g_ram[0x2b5] != 0) phase = 0x914c;
+    else if (caller == 0x0086b4 && g_ram[0x2b5] != 255) phase = 0x913f;
+    else return 0;
+    int owner = 0, slide = 0;
+    for (unsigned i = cpu->S + 1; i + 2 < 0x1e00 && i < cpu->S + 96; ++i) {
+        unsigned ret = g_ram[i] | g_ram[i+1] << 8;
+        unsigned bank = g_ram[i+2] & 0x7f;
+        unsigned target = bank == 0 && ret == 0xaccc ? 0x029100 :
+                          bank == 2 && ret == phase ?
+                          (phase == 0x913f ? 0x00ff3b : 0x00ff3e) : 0;
+        if (!target || cpu_read8(cpu, bank, ret-3) != 0x22 ||
+            cpu_read8(cpu, bank, ret-2) != (target & 255) ||
+            cpu_read8(cpu, bank, ret-1) != ((target >> 8) & 255) ||
+            cpu_read8(cpu, bank, ret) != (target >> 16)) continue;
+        if (bank == 0) owner = 1; else slide = 1;
+    }
+    return owner && slide;
+}
+
 static void BeforeFrameWait(CpuState *cpu, uint32_t pc) {
     (void)pc;
     if (!g_snes || !budget || (cpu->A & 255) != 1) return;
@@ -99,7 +125,8 @@ static void BeforeFrameWait(CpuState *cpu, uint32_t pc) {
     int slide = caller == 0x008675 || caller == 0x008692 ||
                 caller == 0x0086b4 || caller == 0x0086cf;
     if (!rows && !slide) return;
-    if (!IsFieldMenuStack(cpu, slide)) {
+    int battle_slide = slide && IsBattleSlideStack(cpu, caller);
+    if (!battle_slide && !IsFieldMenuStack(cpu, slide)) {
         if (trace) fprintf(stderr, "[foundation_menu_skip] frame=%d caller=%06X mode=%u actor=%u D=%04X DB=%02X S=%04X bg3sc=%02X queue=%02X\n",
             snes_frame_counter, caller, g_ram[0x20], g_ram[0x42b], cpu->D, cpu->DB, cpu->S,
             g_snes->ppu->bgXsc[2], g_ram[0x2a0]);
@@ -108,7 +135,7 @@ static void BeforeFrameWait(CpuState *cpu, uint32_t pc) {
     if (cpu_read8(cpu, 0, 0x8460) != 0x6b ||
         cpu_read8(cpu, 0, 0xff03) != 0x4c) return;
     unsigned tiles = 0;
-    int drained = DrainRowQueue(cpu, &tiles);
+    int drained = battle_slide ? 0 : DrainRowQueue(cpu, &tiles);
     if (g_ram[0x02a0] != 0 || (rows && !drained && caller != 0x029242)) return;
     /* Use the original RTL instruction, keeping call/return bookkeeping.
      * Input polling, mandatory first/last waits and other coroutines still yield. */

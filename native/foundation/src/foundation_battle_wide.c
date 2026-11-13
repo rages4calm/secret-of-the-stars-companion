@@ -21,7 +21,7 @@ static const uint8_t *bound_rom;
 static size_t bound_size;
 static int identity;
 enum { kBackdrops = 16, kSupported = 0xffff };
-static uint16_t original[kBackdrops][32 * 32], sides[kBackdrops][2][9 * 32];
+static uint16_t original[kBackdrops][32 * 32], sides[kBackdrops][2][12 * 32];
 static unsigned graphics[kBackdrops][4], used_graphics[kBackdrops];
 
 /* These are NEW side layouts referring to original 32px cell identities.
@@ -113,8 +113,8 @@ static int Bind(void) {
                 used_graphics[selector] |= 1u << ((tile >> 7) - 4);
             }
             for (unsigned side = 0; side < 2; ++side) {
-                for (unsigned x = 0; x < 9; ++x) {
-                    unsigned px = x * 8 + (side ? 0 : 24);
+                for (unsigned x = 0; x < 12; ++x) {
+                    unsigned px = x * 8;
                     unsigned entry = edge_cells[selector][side][y / 4][px / 32];
                     unsigned cell_x = px & 31;
                     if (entry & 256) cell_x = 31 - cell_x;
@@ -122,7 +122,7 @@ static int Bind(void) {
                     if (entry & 256) word ^= 0x4000;
                     unsigned tile = word & 1023;
                     if (tile < 512 || ((word >> 10) & 7) < 6) return 0;
-                    sides[selector][side][y * 9 + x] = word;
+                    sides[selector][side][y * 12 + x] = word;
                     used_graphics[selector] |= 1u << ((tile >> 7) - 4);
                 }
             }
@@ -140,21 +140,16 @@ int FoundationBattleWideEligible(const Ppu *ppu) {
     unsigned selector = g_ram[0x0529];
     if (!ppu || !Bind() || g_ram[0x20] != 5 || selector >= kBackdrops ||
         !(kSupported & (1u << selector)) ||
-        ppu->inidisp != 15 || ppu->bgmode != 9 || (ppu->mosaic & 0xf0) ||
-        ppu->setini || ppu->obsel != 3 || ppu->bgTileAdr != 0x0400 ||
-        ppu->bgXsc[0] != 0x49 || ppu->bgXsc[1] != 0x59 || ppu->bgXsc[2] != 0x51 ||
-        ppu->screenEnabled[0] != 0x17 || ppu->screenEnabled[1] ||
-        /* The original 8212..822E NMI shadow writer also produces settled
-         * windowsel210011/TMW13. Their difference from10011/17 concerns
-         * OBJ/color windows and BG3, never BG2. Only BG2 contributes margins;
-         * keep its exact original nibble/window bit and all color-math guards.
-         * Both BG2 window enable bits remain off (nibble1), so even inverted
-         * or displaced window edges cannot clip these authored BG2 joins. */
-        (ppu->windowsel & 0xf0u) != 0x10u ||
-        (ppu->screenWindowed[0] & 2u) != 2u ||
-        (ppu->screenWindowed[0] & ~0x1fu) ||
-        ppu->screenWindowed[1] || ppu->cgadsub || ppu->cgwsel ||
-        ppu->hScroll[1] || ppu->vScroll[1]) return 0;
+        /* Only BG2 geometry/resources own these joins. Spell brightness,
+         * palette, windows, blend state and other layers remain original. */
+        PPU_mode(ppu) != 1 || PPU_bigTiles(ppu, 1) || ppu->setini ||
+        ppu->bgXsc[1] != 0x59 || PPU_bgTileAdr(ppu, 1)) return 0;
+    /* The existing authored three-cell edge recipes cover 96 pixels per side.
+     * Keep their original world anchoring during a small screen shake; never
+     * invent a repeated landscape for a displacement outside that material. */
+    int scroll = (int)(ppu->hScroll[1] & 511u);
+    if (scroll >= 256) scroll -= 512;
+    if (scroll < -24 || scroll > 24) return 0;
     /* Match every used background character chunk against the original
      * graphics descriptor. Palette animation writes only guest CGRAM and is
      * consumed through the actual per-line PPU; no host phase/color cache. */
@@ -172,27 +167,58 @@ int FoundationBattleWideEligible(const Ppu *ppu) {
     return 1;
 }
 
-int FoundationBattleWidePrepareLine(const Ppu *source, unsigned line,
-                                   Ppu *picture, uint16_t *shadow) {
+static int PrepareLine(const Ppu *source, unsigned line,
+                       Ppu *picture, uint16_t *shadow, int protect_center) {
     if (!picture || !shadow || picture == source || !source ||
         shadow == source->vram || line < 1 || line > 224 ||
         !FoundationBattleWideEligible(source)) return 0;
-    unsigned selector = g_ram[0x0529], row = line / 8;
-    for (unsigned x = 0; x < 9; ++x) {
-        /* Signed x=-72..-8 wraps to columns55..63 of the 64x32 BG2 ring;
-         * x=256..320 uses columns32..40. The original0..31 are untouched. */
-        shadow[kMapBase + 1024 + row * 32 + 23 + x] = sides[selector][0][row * 9 + x];
-        shadow[kMapBase + 1024 + row * 32 + x] = sides[selector][1][row * 9 + x];
+    unsigned selector = g_ram[0x0529];
+    /* The observer runs after the original line. Its already-derived mosaic
+     * table is the same sample row that the original PPU just consumed. */
+    unsigned y = PPU_mosaicEnabled(source, 1) ? source->mosaicModulo[line] : line;
+    unsigned row = ((y + source->vScroll[1]) & 255u) / 8u;
+    int scroll = (int)(source->hScroll[1] & 511u);
+    if (scroll >= 256) scroll -= 512;
+    int center_first = scroll >= 0 ? scroll / 8 : -((-scroll + 7) / 8);
+    int last_x = scroll + 255;
+    int center_last = last_x >= 0 ? last_x / 8 : -((-last_x + 7) / 8);
+    int left_x = scroll - 72, right_x = scroll + 327;
+    int first = left_x >= 0 ? left_x / 8 : -((-left_x + 7) / 8);
+    int last = right_x >= 0 ? right_x / 8 : -((-right_x + 7) / 8);
+    for (int tile = first; tile <= last; ++tile) {
+        /* A shifted/mosaic center can sample part of the second map page.
+         * Those words are original hardware inputs and must never be replaced. */
+        if (protect_center && tile >= center_first && tile <= center_last) continue;
+        if (tile >= 0 && tile < 32) continue;
+        unsigned side, column;
+        if (tile >= -12 && tile < 0) { side = 0; column = (unsigned)(tile + 12); }
+        else if (tile >= 32 && tile < 44) { side = 1; column = (unsigned)(tile - 32); }
+        else return 0;
+        shadow[kMapBase + 1024 + row * 32 + ((unsigned)tile & 31u)] =
+            sides[selector][side][row * 12 + column];
     }
     picture->renderVram = shadow;
     PpuSetWidescreenLayerMask(picture, 2);
-    /* Mosaic size1 is exactly no pixel grouping in the original center.
-     * Avoid the renderer's negative-margin mosaic clamp for BG2 only. */
-    picture->mosaic &= (uint8_t)~2u;
+    /* Preserve the original mosaic grid, palette/window and color math. The
+     * pinned renderer already extends its signed mosaic phase into margins. */
+    picture->mosaic = source->mosaic;
     picture->extraObjects = NULL; picture->extraObjectCount = 0;
     uint8_t no_hints[16] = {0};
     PpuWsSetOamLeftHints(picture, no_hints);
     PpuWsSetOamRightHints(picture, no_hints);
     picture->wsOamMotionGraceOn = 0;
     return 1;
+}
+
+int FoundationBattleWidePrepareLine(const Ppu *source, unsigned line,
+                                   Ppu *picture, uint16_t *shadow) {
+    return PrepareLine(source, line, picture, shadow, 1);
+}
+
+int FoundationBattleWidePrepareMargins(const Ppu *source, unsigned line,
+                                      Ppu *picture, uint16_t *shadow) {
+    /* A one-pixel shake can make the authentic center touch a blank tile in
+     * the second map page. Protect it during center validation, then finish
+     * that tile for the margin-only pass. Never publish this pass's center. */
+    return PrepareLine(source, line, picture, shadow, 0);
 }

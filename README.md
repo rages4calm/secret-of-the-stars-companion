@@ -6,11 +6,11 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest release: native 0.5.13 / Companion 0.3.8.** Adds 16 offline achievements, an in-game achievement browser, a Companion progress page, and custom game/launcher icons. Native execution is enabled by default, with guarded compatibility fallback retained. [Achievements and release notes](docs/RELEASE-0.5.13.md).
+**Latest release: native 0.5.14 / Companion 0.3.8.** Fixes widescreen battle effects and flashing screen-shake seams, and extends Fast Menus to battle-menu slides. Includes the existing 16 offline achievements and custom icons. [Release notes](docs/RELEASE-0.5.14.md).
 
 The port is feature-complete and available through the ROM-free launcher/source package. Campaign playtesting and bug fixes continue. Setup builds it locally from your own ROM. Player reports guide further bug fixes; campaign and story feedback is separate from the developer checks described below.
 
-**[Download 0.5.13](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.13)** | [Build requirements](BUILDING.md)
+**[Download 0.5.14](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14)** | [Build requirements](BUILDING.md)
 
 **Discord:** chrono.trigger
 
@@ -59,10 +59,10 @@ The preceding [0.3.5 continuation](docs/FOUNDATION-CIRCUS-PRIEST-2026-10-11.md) 
 | Windows foundation | Compiled C/SDL3 host with native game-specific enhancements and guarded original execution | Complete native/AOT execution remains unfinished |
 | Companion launcher | ROM validation, source-build progress/cancellation, isolated profile updates/rollback, explicit title/selected-copy resume and protected settings edits; downloadable ROM-free WIP launcher/source package | Requires your owned ROM and Windows development tools to build the native game |
 | Enhanced pixels | Independently selectable Scale2x presentation, exact window sizes, pixel shape and fullscreen output | Upscaling preserves original artwork; it is not a replacement HD world pack |
-| Widescreen scenery | Stable 400-pixel canvas, selected original primary/secondary map resources, title panorama and sixteen authored battle-side layouts using original cells | Original 256-pixel center stays exact; selected overworld edge crossings retain terrain margins; unsupported states retain centered imagery and side bars |
+| Widescreen scenery | Stable 400-pixel canvas, selected original primary/secondary map resources, title panorama and sixteen authored battle-side layouts using original cells | Original center stays exact except backdrop-only shake gaps filled by extended battle scenery; selected overworld edge crossings retain terrain margins; unsupported states retain centered imagery and side bars |
 | Widescreen actors | Ordinary party, regular/reserved packets, guarded driving/parked and selected compound vehicle rosters, and selected later world-map actors, plus a shared ordinary wrapped-map family across compatible parties and NPC rosters, with bounded original variable effects | Original allocation, packet and art checks authenticate supported contexts; signed offsets use separate source-derived ordinary/parked/travel rules; ambiguous anchors, unproved rosters and incompatible terrain or packet layouts retain fallback |
 | Controls | Editable keyboard/controller game buttons and hotkeys, twenty checkpoint bindings, fullscreen and reachable HUD/journal/rewind controls | Broader physical-controller testing remains open |
-| Menu and battle QoL | Optional faster field menus and toggleable HP bars with a widescreen battle sidebar | The HP panel is an authored enhancement, not a bundled ROM hack |
+| Menu and battle QoL | Optional faster field and battle menus and toggleable HP bars with a widescreen battle sidebar | The HP panel is an authored enhancement, not a bundled ROM hack |
 | Rewards and travel | Independently adjustable 1â€“10Ã— battle XP/gold; bindable 1â€“3Ã— field movement boost; 0â€“100% ordinary random encounter modifier; hold/toggle fast-forward | Movement and encounters use guarded original seams; unsupported contexts retain original behavior and scripted battles stay enabled |
 | Quest journal | Full 42-page / 14-section story guide, 25 automatic Current chapter cards and finer checkpoint-specific advice; configurable J / left-stick click opener | Game X can manually track an explicitly named town; guidance is not automatic campaign event detection or completion history; owner/play testers verify campaign directions |
 | Navigation map | Original current-area terrain and your position; original world towns, automatic verified destinations and player-selected guide-town tracking; M / Back + left-stick click | Unsupported areas use a clear fallback; no exploration history or guessed objective coordinates |

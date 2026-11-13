@@ -98,6 +98,28 @@ static void publish_line(const Ppu *ppu, unsigned line) {
     ++accepted;
 }
 
+static void finish_battle_shake_edge(const Ppu *ppu, unsigned line) {
+    /* Original screen shake exposes the empty second BG2 page at the old
+     * viewport edge. In a wider picture that gap is internal. Fill only an
+     * actual backdrop-owned pixel with actual extended BG2 coverage; never
+     * repaint a BG1/BG3/OBJ pixel, or infer ownership from its RGB color.
+     * Mosaic's displaced sample grid retains the guarded original center. */
+    if (PPU_mosaicEnabled(ppu, 1) && (ppu->mosaic & 0xf0)) return;
+    int scroll = ppu->hScroll[1] & 511;
+    if (scroll >= 256) scroll -= 512;
+    if (!scroll) return;
+    ppu_runLine(&picture, (int)line);
+    uint32_t *row = (uint32_t *)(ppu->renderBuffer + (line-1)*ppu->renderPitch);
+    const uint32_t *candidate = &scratch[(line-1)*400];
+    for (int x = 0; x < 256; ++x) {
+        if (x + scroll >= 0 && x + scroll < 256) continue;
+        unsigned index = (unsigned)(x + kPpuExtraLeftRight);
+        if (((ppu->bgBuffers[0].data[index] >> 8) & 15) == 5 &&
+            ((picture.bgBuffers[0].data[index] >> 8) & 15) == 1)
+            row[x+72] = candidate[x+72];
+    }
+}
+
 static void clear_margins(Ppu *ppu) {
     for (unsigned y = 0; y < 224; ++y) {
         uint8_t *row = ppu->renderBuffer + y * ppu->renderPitch;
@@ -109,8 +131,11 @@ static void clear_margins(Ppu *ppu) {
 static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
     (void)unused;
     FoundationHdUiObserve(ppu, line, NULL);
+    /* Original forced-blank battle scanlines are deliberately black. They
+     * must not erase valid side scenery on the rest of the same frame. */
+    if (g_ram[0x20] == 5 && PPU_forcedBlank(ppu)) { ++accepted; return; }
     if (PPU_forcedBlank(ppu) ||
-        (ppu->mosaic & 0xf0) || ppu->setini || !(ppu->renderFlags & kPpuRenderFlags_NewRenderer)) {
+        ppu->setini || !(ppu->renderFlags & kPpuRenderFlags_NewRenderer)) {
         ++rejected; return;
     }
     memcpy(shadow, ppu->vram, sizeof(shadow));
@@ -121,6 +146,10 @@ static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
             ++rejected; return;
         }
         if (!accept_line(ppu, line)) return;
+        if (!title && !FoundationBattleWidePrepareMargins(ppu, line, &picture, shadow)) {
+            ++rejected; return;
+        }
+        if (!title) finish_battle_shake_edge(ppu, line);
         /* The title's original 512px panorama and explicitly composed battle
          * scenery extend BG2. Logos, enemies, commands and OBJ remain centered. */
         picture.screenEnabled[0] &= ~16u; picture.screenEnabled[1] &= ~16u;
@@ -133,7 +162,7 @@ static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
         } else ++battle_lines;
         return;
     }
-    if (!FoundationFieldSceneEligible(ppu)) { ++rejected; return; }
+    if ((ppu->mosaic & 0xf0) || !FoundationFieldSceneEligible(ppu)) { ++rejected; return; }
     /* Current VRAM supplies every character, including animated tiles. Only
      * private BG1/BG2 tilemap words are reconstructed from the full map. */
     for (int layer = 0; layer < 2; ++layer) {

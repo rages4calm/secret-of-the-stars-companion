@@ -12,3 +12,6 @@ int FoundationBattleWideEligible(const Ppu *ppu);
 int FoundationBattleWidePrepareLine(const Ppu *source, unsigned line,
                                    Ppu *picture, uint16_t *shadow);
 void FoundationBattleWideReset(void);
+/* Only after center validation; caller must publish margins exclusively. */
+int FoundationBattleWidePrepareMargins(const Ppu *source, unsigned line,
+                                      Ppu *picture, uint16_t *shadow);

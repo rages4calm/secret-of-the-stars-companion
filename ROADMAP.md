@@ -1,8 +1,8 @@
-# Current release — native 0.5.13 / Companion 0.3.8
+# Current release — native 0.5.14 / Companion 0.3.8
 
-The feature-complete playable port includes the native execution backend, full story guide and Current advice, configurable controls, reward/travel options, enhanced original pixels and guarded widescreen scenery/actors. This update adds 16 offline achievements, an in-game browser, a Companion progress page and original application icons. [Release notes and known limits](docs/RELEASE-0.5.13.md).
+The feature-complete playable port includes the native execution backend, full story guide and Current advice, configurable controls, reward/travel options, enhanced original pixels and guarded widescreen scenery/actors. This update fixes battle-effect widescreen, screen-shake seams and battle-menu slide speed. Existing achievements and icons remain. [Release notes and known limits](docs/RELEASE-0.5.14.md).
 
-Native execution is enabled by default with automatic guarded interpreter fallback in normal operation. Developer checks do not certify every campaign path as 100% native/AOT. Some battle effects temporarily use original-width scenery; players verify campaign/story accuracy and report reproducible problems.
+Native execution is enabled by default with automatic guarded interpreter fallback in normal operation. Developer checks do not certify every campaign path as 100% native/AOT. Unsupported background resources retain guarded original-view fallback; players verify campaign/story accuracy and report reproducible problems.
 
 Further work is driven by concrete player bugs and newly observed failures. Existing qualified cases and the enemy sweep stay closed unless an affected change warrants a focused check. HD replacement art, MSU work and CPU experiments remain deferred.
 
