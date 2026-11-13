@@ -1,0 +1,130 @@
+diff --git a/runner/src/snes/interp_bridge.c b/runner/src/snes/interp_bridge.c
+--- a/runner/src/snes/interp_bridge.c
++++ b/runner/src/snes/interp_bridge.c
+@@ -1883,7 +1883,7 @@
+     if (root_delta == 0 || root_delta >= 0x8000u)
+         return 0;
+ 
+-    return !interp_owner_crossed(post_s);
++    return !interp_owner_crossed(post_s) || ret_s == s_interp_owner_exit_s;
+ }
+ 
+ void interp_bridge_set_lle_bounce_exclusions(const uint32 *targets,
+@@ -3554,6 +3554,18 @@
+                                 s_lle_unwind_active = 0;
+                                 s_lle_unwind_owner_depth = 0;
+                                 s_lle_unwind_is_deadline = 0;
++                                /* A compiled non-local return can consume this
++                                 * finite owner's entry frame. Never follow its
++                                 * popped ancestor PC as another guest instruction.
++                                 * Scheduler and interrupt owners remain unchanged. */
++                                if (!yield_pc && !stop_on_rti &&
++                                    (uint16_t)in.sp > s_enter) {
++                                    if (out_return_pc)
++                                        *out_return_pc = s_lle_unwind_pc24;
++                                    sync_interp_to_cpu(&in, cpu);
++                                    bridge_apu_flush(cpu);
++                                    return 1;
++                                }
+                                 in.k = (uint8)(s_lle_unwind_pc24 >> 16);
+                                 in.pc = (uint16)s_lle_unwind_pc24;
+                                 edge_expect = s_lle_unwind_pc24 & 0xffffffu;
+@@ -4093,9 +4105,10 @@
+                             "sp_pre=$%04X aot_ret=%d sp_post=$%04X\n",
+                             op, (unsigned)pc_before, (unsigned)target,
+                             (unsigned)_sp_pre, (int)_air, (unsigned)in.sp);
+-                const uint32_t ret =
+-                    (pc_before + (uint32_t)call_len +
+-                     (uint32_t)cpu_dispatch_inline_arg_bytes(target)) & 0xFFFFFF;
++                /* Sequential PC advancement wraps within the caller bank. */
++                const uint32_t ret = (pc_before & 0xFF0000u) |
++                    ((pc_before + (uint32_t)call_len +
++                      (uint32_t)cpu_dispatch_inline_arg_bytes(target)) & 0xFFFFu);
+                 edge_expect = ret;
+                 if (_air != RECOMP_RETURN_NORMAL) {
+                     if (s_lle_unwind_active) {
+@@ -4145,6 +4158,18 @@
+                             s_lle_unwind_owner_depth = 0;
+                             s_lle_unwind_is_deadline = 0;
+                             sync_cpu_to_interp(cpu, &in);
++                            /* A compiled non-local return can consume this
++                             * finite owner's entry frame. Never follow its
++                             * popped ancestor PC as another guest instruction.
++                             * Scheduler and interrupt owners remain unchanged. */
++                            if (!yield_pc && !stop_on_rti &&
++                                (uint16_t)in.sp > s_enter) {
++                                if (out_return_pc)
++                                    *out_return_pc = s_lle_unwind_pc24;
++                                sync_interp_to_cpu(&in, cpu);
++                                bridge_apu_flush(cpu);
++                                return 1;
++                            }
+                             in.k  = (uint8)((s_lle_unwind_pc24 >> 16) & 0xFF);
+                             in.pc = (uint16)(s_lle_unwind_pc24 & 0xFFFF);
+                             task_original_internal_landing(cpu,&in,s_lle_unwind_pc24);
+diff --git a/runner/src/cpu_state.c b/runner/src/cpu_state.c
+--- a/runner/src/cpu_state.c
++++ b/runner/src/cpu_state.c
+@@ -1490,11 +1490,27 @@
+ int cpu_take_continuation_snapshot(CpuState *cpu, uint16 entry_s, uint8 hrv,
+                                    uint32 *out) {
+     NativeContinuationInvocation *c = continuation_current();
+-    if (!c || !out || c->cpu != cpu || !c->snapshot_pending ||
+-        g_recomp_stack_top != c->root_depth || entry_s != c->frame.entry_s ||
+-        cpu->S != entry_s || hrv != c->frame.entry->remaining_frame) return 0;
+-    c->snapshot_pending = 0;
+-    *out = c->frame.outer_return_pc;
++    if (c && out && c->cpu == cpu && c->snapshot_pending &&
++        g_recomp_stack_top == c->root_depth && entry_s == c->frame.entry_s &&
++        cpu->S == entry_s && hrv == c->frame.entry->remaining_frame) {
++        c->snapshot_pending = 0;
++        *out = c->frame.outer_return_pc;
++        return 1;
++    }
++    /* Legacy generated bodies call this API solely to obtain host return-PC
++     * metadata. Their existing fallback performs these exact mapped reads.
++     * Handle that fallback here so immutable generated51 code also preserves
++     * the guest bus latch, without publishing/acquiring continuation ownership.
++     * Managed snapshot admission/refusal and pending/publication stay intact. */
++    if (!cpu || !out || (hrv != 2 && hrv != 3)) return 0;
++    const uint8 saved_bus = cpu->open_bus;
++    const uint16 lo = cpu_read8(cpu, 0x00, (uint16)(entry_s + 1u));
++    const uint16 hi = cpu_read8(cpu, 0x00, (uint16)(entry_s + 2u));
++    const uint8 bank = (hrv == 3)
++        ? cpu_read8(cpu, 0x00, (uint16)(entry_s + 3u)) : cpu->PB;
++    *out = ((uint32)bank << 16) |
++        (uint16)((((hi << 8) | lo) + 1u) & 0xFFFFu);
++    cpu->open_bus = saved_bus;
+     return 1;
+ }
+ int cpu_publish_continuation_return(CpuState *cpu, uint16 entry_s, uint16 pre_s,
+diff --git a/recompiler/v2/emit_function.py b/recompiler/v2/emit_function.py
+--- a/recompiler/v2/emit_function.py
++++ b/recompiler/v2/emit_function.py
+@@ -556,10 +556,12 @@
+             "  }",
+             "  uint32 _host_return_pc24 = 0xFFFFFFFFu;",
+             "  if (_hrv == 2) {",
++            "    uint8 _host_entry_bus = cpu->open_bus;",
+             "    uint16 _host_rpcl = cpu_read8(cpu, 0x00, (uint16)(_entry_s + 1u));",
+             "    uint16 _host_rpch = cpu_read8(cpu, 0x00, (uint16)(_entry_s + 2u));",
+             "    _host_return_pc24 = ((uint32)cpu->PB << 16) |",
+             "        (uint16)((((_host_rpch << 8) | _host_rpcl) + 1u) & 0xFFFFu);",
++            "    cpu->open_bus = _host_entry_bus;",
+             "  }",
+             f"  cpu_trace_block(cpu, 0x{pc24:06X});",
+             "  WatchdogCheck();",
+@@ -2389,11 +2391,13 @@
+     src.append(f'  uint32 _host_return_pc24 = 0xFFFFFFFFu;')
+     src.append(f'  if ((_hrv == 2 || _hrv == 3) &&')
+     src.append(f'      !cpu_take_continuation_snapshot(cpu, _entry_s, _hrv, &_host_return_pc24)) {{')
++    src.append(f'    uint8 _host_entry_bus = cpu->open_bus;')
+     src.append(f'    uint16 _host_rpcl = cpu_read8(cpu, 0x00, (uint16)(_entry_s + 1u));')
+     src.append(f'    uint16 _host_rpch = cpu_read8(cpu, 0x00, (uint16)(_entry_s + 2u));')
+     src.append(f'    uint8 _host_rpb = (_hrv == 3) ? cpu_read8(cpu, 0x00, (uint16)(_entry_s + 3u)) : cpu->PB;')
+     src.append(f'    _host_return_pc24 = ((uint32)_host_rpb << 16) |')
+     src.append(f'        (uint16)((((_host_rpch << 8) | _host_rpcl) + 1u) & 0xFFFFu);')
++    src.append(f'    cpu->open_bus = _host_entry_bus;')
+     src.append(f'  }}')
+     src.append(f'  (void)_entry_s;  /* used by trampoline balance check */')
+     src.append(f'  (void)_hrv;')

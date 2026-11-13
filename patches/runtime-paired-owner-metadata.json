@@ -1,0 +1,38 @@
+{
+  "patch_sha256": "4b53fa4853636af524d05ee9a6d16df52e2a388e157f7778bd3dd86f1d5a48d6",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "runner/src/snes/interp_bridge.c": {
+      "predecessor_sha256": "7f03d469df1b756dad4be6d11aa99293aa04675cd28d522d408902743b277ee1",
+      "predecessor_normalized_sha256": "b106fbbe53e0f1f7b1a39009201b83861468bfead74f790496fa10135c472ee9",
+      "final_sha256": "2b3a09f60dd7401415f4647493dcb8561630553dba395a35f0ea3dea0d2cea91",
+      "normalized_final_sha256": "2b3a09f60dd7401415f4647493dcb8561630553dba395a35f0ea3dea0d2cea91"
+    },
+    "runner/src/cpu_state.c": {
+      "predecessor_sha256": "b476f962b5e06bcf2b8622198909f536659bcdce3f89c9d656315fe6feb481b9",
+      "predecessor_normalized_sha256": "b476f962b5e06bcf2b8622198909f536659bcdce3f89c9d656315fe6feb481b9",
+      "final_sha256": "cc500d3b95a4b666905b91f52d0be9cbb49f8198853b58f920cf241ab1e74a09",
+      "normalized_final_sha256": "cc500d3b95a4b666905b91f52d0be9cbb49f8198853b58f920cf241ab1e74a09"
+    },
+    "recompiler/v2/emit_function.py": {
+      "predecessor_sha256": "f8bae2231051456c9f923630d468369d8171f34564307e5874401cc92c9eb342",
+      "predecessor_normalized_sha256": "f8bae2231051456c9f923630d468369d8171f34564307e5874401cc92c9eb342",
+      "final_sha256": "46dc7e529e644e2ed0297e8cfdac71b1b94fa623010fd0ee10fdf9e4780a707b",
+      "normalized_final_sha256": "46dc7e529e644e2ed0297e8cfdac71b1b94fa623010fd0ee10fdf9e4780a707b"
+    }
+  },
+  "new_files": [],
+  "upstream_commits": [
+    "237ed69bd667fe188eabf406bf35b4820918ca9e",
+    "345f478d3d0025167718e1b7d9d67b87475cc854",
+    "26b57599b046d4a4ef88ad18357dbd6583a091a9"
+  ],
+  "scope": "Paired continuation bank-local wrap, finite interpreter owner completion including custom continuation consume, host-only return metadata latch preservation via unchanged snapshot API plus future emitter protection. No serialized fields/header or original instruction/bus clock changes. Legacy51 generated C bytes unchanged; mappedmetadata reads same addresses/order/values, only metadata latch is restored. Original hardware RTS/RTL reads remain owners. No runtime qualification from source proposal.",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "predecessor_patch_sha256": "199c1e6293958370dfdb37ba4de9ed3d0f4fc0b038b265115a1afbd146b74af5",
+  "predecessor_binding_sha256": "3a7b2eb923331b29570a550823aafe05f69bb96372b644f97849da89da83a78f"
+}

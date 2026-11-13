@@ -1,16 +1,16 @@
 # Secret of the Stars Companion
 
-**A Windows PC-port foundation for Tecmo Secret of the Stars, with a Companion launcher, controller support, enhanced pixel art and experimental widescreen.**
+**A playable Windows PC port of Tecmo Secret of the Stars, with a Companion launcher, controller support, enhanced original pixels and experimental widescreen.**
 
 [![Stage](https://img.shields.io/badge/stage-active%20development-244b6b)](ROADMAP.md)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest WIP release: native 0.5.6 / Companion 0.3.6.** Native update 105 / source 134 advances original game execution while keeping the PC features below. [What changed, what was checked and what remains](docs/NATIVE-PROGRESS-0.5.6.md). Complete native/AOT conversion remains unfinished.
+**Latest release: native 0.5.12 WIP / Companion 0.3.6.** This publishes native update 111 / source 140, including the native save/load menus, additional battle and enemy paths, and original battle message-speed controls. Native execution is enabled by default; guarded compatibility fallback remains available. [Release changes and verification scope](docs/NATIVE-PROGRESS-0.5.12.md).
 
-The game is available for player testing through the ROM-free launcher/source package. Setup builds it locally from your own ROM. Campaign accuracy, long sessions and broader controller/hardware coverage still need player feedback.
+The game is ready for playtesting through the ROM-free launcher/source package. Setup builds it locally from your own ROM. Player reports guide further bug fixes; campaign and story feedback is separate from the developer checks described below.
 
-**[Download 0.5.6 WIP](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.6-wip)** | [Build requirements](BUILDING.md)
+**[Download 0.5.12 WIP](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.12-wip)** | [Build requirements](BUILDING.md)
 
 **Discord:** chrono.trigger
 
@@ -83,7 +83,7 @@ cd secret-of-the-stars-companion
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc"
 ```
 
-The helper fetches the pinned runtime, applies 97 individually checked ordered patches (including 67 runtime extensions), and generates native game code from your ROM and the published source metadata. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
+The helper fetches the pinned runtime, applies 98 individually checked ordered patches (including 68 runtime extensions), and generates native game code from your ROM and the published source metadata. It generates game code locally, compiles a fresh native executable and creates an isolated profile under ignored `local/`. No private recordings are required by normal Setup. It does not copy your ROM, replace your existing installation or manufacture a passing gameplay receipt. Existing modified runtime checkouts are preserved rather than reset.
 
 Build the self-contained launcher with `python tools/build_public_companion.py`, then open `Start Secret of the Stars Companion.cmd` or the generated Companion EXE. Its Setup page validates your ROM and builds/adopts a fresh native profile without private gameplay fixtures. See [BUILDING.md](BUILDING.md). Historical native preview scripts and fixture checkers remain development adapters.
 
@@ -101,17 +101,15 @@ Companion **0.3.1** added **Original pixels / Enhanced pixels / Experimental wid
 
 Companion 0.3.0 adds **Update selected profile** and **Use previous profile** in Setup. Updates create a new isolated folder with checked copies of settings/saves; rollback selects the retained earlier folder and preserves newer progress separately. Different native builds require compatible save declarations and matching execution-state ABI. A ROM-free source-first ZIP can bundle the self-contained GUI, authored source and notices; native game compilation still needs the documented tools. [Packaging instructions](BUILDING.md#package-the-source-first-launcher) Â· [Update and package qualification](docs/FOUNDATION-PACKAGE-UPDATES-2026-10-09.md).
 
-## Verification and remaining work
+## Verification and release scope
 
-Native 0.5.6 update 105 was checked against the preceding exact build over a complete 4,488-frame late-game laboratory event, including its aftermath and chapter 21 to 22 transition. The comparison reduced 103 interpreter calls to zero while matching CPU/master clocks, guest state, the full checkpoint and full native DSP audio output. These checks used isolated, source-backed staged progression; they are not a natural campaign playthrough.
+Native execution is on by default. The existing exact-build comparisons cover rendering, original game state, clocks and full native DSP audio for the changed paths. Since 0.5.6, native save/load and title-menu paths, new-game and encounter entry, additional enemy combat paths, and original battle message-speed adjustments have been converted. The 0.5.12 message-speed comparisons reduced 1,875 interpreter calls to zero across two short, checkpoint-linked captures. [Detailed release scope](docs/NATIVE-PROGRESS-0.5.12.md).
 
-Separate focused checks loaded and moved through four original layouts of the custom-named growing town and completed the original builder recruitment with zero fallback. The layout samples used partial staged quest state. Five additional message-return families are supported by source proof; they are not five separately runtime-tested features. [Release scope and remaining work](docs/NATIVE-PROGRESS-0.5.6.md).
+The additional enemy checks used 65 original formations to load 94 targeted enemy types with no crashes or setup refusals. Five representative comparisons covered the newly observed missing entries and reduced 260 interpreter calls to zero in 0.5.11. These staged checks are retained evidence, not a fresh campaign playthrough on every release.
 
-The full guide, automatic Current advice, map tracking, optional widescreen, enhanced original pixels, configurable keyboard/controller controls, reward and encounter settings, movement boost and hold/toggle fast-forward are retained. Players verify campaign directions and report rendering, input, audio or progression problems.
+No further concrete native gap was identified in the final focused audit. This does **not** certify every possible game path as native: normal operation retains automatic guarded interpreter fallback when a native path is unavailable. Strict-native developer mode stops instead of falling back. The interpreter is therefore not developer-only in the normal package, and this release does not claim campaign-wide 100% AOT execution.
 
-Every fresh build keeps an immutable **compiled_unqualified** receipt. Actual checks belong to separate records for that exact artifact; compiling the published source does not transfer an earlier build's qualification. The original execution-state ABI and source-profile checks remain enforced. Local checkpoints can be build-specific; save compatibility across development updates is not guaranteed.
-
-Complete native/AOT execution and broader campaign/rendering/hardware coverage remain unfinished. No percentage is inferred from generated-code counts or from the absence of fallback in selected scenes. Guarded fallback remains available, and replacement HD artwork is deferred. [Roadmap](ROADMAP.md) Â· [Validation boundaries](docs/VALIDATION.md). Historical documents retain their dated scope; private test inputs and reports are not published.
+The full guide, Current advice, controls, reward/travel settings, enhanced pixels and widescreen features remain implemented with their documented guards. Player campaign feedback and broader hardware coverage continue through normal bug reports. Replacement HD artwork remains deferred. [Roadmap](ROADMAP.md) · [Validation scope](docs/VALIDATION.md). Historical documents retain their dated scope; private game data and test captures are not published.
 
 ## Contribute
 

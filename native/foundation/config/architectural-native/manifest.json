@@ -6,8 +6,8 @@
   "original_rom_sha256": "7da4a3cfa5de4bb4722a6e2a42c26aae322b5e668f1645d8c870fb99e6080600",
   "text_pin_policy": "utf8-crlf-to-lf-only-v1",
   "keys_file": "native.keys.json",
-  "keys_sha256": "863b30f132fa6c6a19c9600d874439798dd1ba28315004b355d35ebdd4cd9a90",
-  "key_count": 116446,
+  "keys_sha256": "a3c8bb2dfd7687b248eb548fcb3486efbd805f4993165acc5a85e6cbd068e8ff",
+  "key_count": 119538,
   "symbol": "sots_arch78",
   "profile": 0,
   "output": "sots_arch78.generated.c",
@@ -26,9 +26,9 @@
     "recompiler/v2/widths.py": "d1ab626e3846b2fcac03ce9937ce77ffc215e1fb8f140a169417acebbee21d3e",
     "runner/src/native_blocks.h": "cb7ad310ba54a0aa4156356f4623e0dc042e974202da22d7432ab2880172a8c1"
   },
-  "scope": "Source-authoritative architectural PC/M/X/E inventory: 116,446 admitted keys from 117,302 coherent source/frontier candidates. All 116,401 prior supported keys retained. 856 conditional BRK/COP/STP keys at 214 PCs remain explicitly unimplemented/quarantined; guarded interpreter fallback or strict missing-block refusal if reached. Actual candidate M/X determines typed IR. No aliases, guessed caller modes, CPU replay, unsupported NOP substitution, unreachable/DATA or whole-game native-completion claim. Three proven E1 reset keys only.",
-  "source_inventory_key_count": 117302,
-  "source_inventory_sha256": "d57568d27f379a57fbfbb4bdb919da641dd1a64f3156477fd7b9aba28f513453",
+  "scope": "Source-authoritative architectural PC/M/X/E inventory: 119,538 admitted keys from 120,394 coherent source/frontier candidates. All 119,374 prior supported keys retained. 856 conditional BRK/COP/STP keys at 214 PCs remain explicitly unimplemented/quarantined; guarded interpreter fallback or strict missing-block refusal if reached. Actual candidate M/X determines typed IR. No aliases, guessed caller modes, CPU replay, unsupported NOP substitution, unreachable/DATA or whole-game native-completion claim. Three proven E1 reset keys only.",
+  "source_inventory_key_count": 120394,
+  "source_inventory_sha256": "f9d0ecc651fefa5a00b647e2d741115d05ac34d6dcb7f221dac6538de0f156f3",
   "quarantined_key_count": 856,
   "quarantined_PC_count": 214
 }

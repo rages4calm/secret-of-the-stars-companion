@@ -1,7 +1,7 @@
 {
   ".gitmodules": "d75d80e840891a8e8723d38134165f166c6d8236b0e7ed718d39c9c751937743",
   "CMakeLists.txt": "98c62d09cc6300b5284d0b91fe38ae93b39bb0c6c3eb38b3f79e75ce0b268b84",
-  "VERSION": "f669b5e9183901b78b0952eb71f8fe54bdcff9cc3d155710c61e25be7b35b058",
+  "VERSION": "cdb11e0a8d3cf5a71e85c0d3c81f0ce838d489227993fa1421ff196a0c0413f9",
   "framework_pins.txt": "fd8b6d4e6e1057018df3e61eeaa5d357316e204a3e35084cda5c7157e0383a9a",
   "recomp/bank00.cfg": "70a0ae4f155f28b2dad7588c9fb70945a86821753010d404d38bfe1a46292b45",
   "recomp/bank01.cfg": "781b714000d9b62041390b241f108eaa0d04cc1a20ec81e5bcc97836ce3939a8",
@@ -65,8 +65,8 @@
   "src/foundation_shop.c": "5f54c2c6555b4b26ece3d98c7c4594dd3fda738706853ee5d3c07bd6dde95938",
   "src/foundation_shop.h": "5075d5fc3f8bfbe3362a12e389f631b36ed943f43ff0d0728a31079f6fd85f8e",
   "tools/generate_architectural_native.py": "1e30b1f499512c14be224889d2f99c207688c02271d997ced53f09fd82191fe8",
-  "config/architectural-native/manifest.json": "e87af08683123d04ef3c5a6e1a47a78fd486fbfcb04e80e787bbe8b364716348",
+  "config/architectural-native/manifest.json": "6c39f1fe83fdd27d398717531e0e743428995bae35dbe59416cd2124381f0d12",
   "src/foundation_native_backend.c": "ad08aee1a87309c473d06a5ccdfd68ae015371abe109d7aca4ecdbbed237e0f2",
   "src/foundation_native_backend.h": "9f35ecaff960f45a84f0b39f795db0aa267012a5932399ff4375a0df1e59cb9e",
-  "config/architectural-native/native.keys.json": "fd23855a143480041c035c166c9f89338a4027e622069d12c89e906ac6c096dd"
+  "config/architectural-native/native.keys.json": "5ae32a17ae9547644c29a1ae4ac61f342b70711f4d2b5630480107b4a61ef663"
 }

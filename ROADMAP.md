@@ -1,3 +1,17 @@
+# Current release — native 0.5.12 / Companion 0.3.6
+
+The playable release includes the native execution backend, full story guide and Current advice, configurable controls, reward/travel options, enhanced original pixels and guarded widescreen scenery/actors. Native update111/source140 is installed and qualified locally; this release publishes its ROM-free source and unchanged Companion0.3.6 launcher. [Changes and evidence](docs/NATIVE-PROGRESS-0.5.12.md).
+
+The final audit found no new concrete native gap requiring a build. Native execution is enabled by default, while automatic guarded interpreter fallback remains available in normal operation. Every possible campaign path has not been certified as 100% native/AOT. Historical strict-native tests and generated-code counts are not whole-game proof for this release.
+
+Ongoing work is driven by reproducible player bugs, newly observed fallback paths and hardware-specific reports. Existing qualified cases and the enemy sweep stay closed unless an affected change or new failure warrants a focused check. Human campaign/story feedback is separate from release readiness. HD replacement art, MSU work and CPU experiments remain deferred.
+
+---
+
+## Historical implementation notes
+
+The dated notes below describe earlier versions and their then-open work. They are not a current task queue or instructions to repeat completed checks.
+
 # Roadmap
 
 The [native 0.5.6 WIP update](docs/NATIVE-PROGRESS-0.5.6.md) advances original game execution through native update 105 / source 134. The complete late-game laboratory event now runs without the 103 fallback calls found in its preceding build, with exact state, clocks and audio preserved. Separate staged checks cover four growing-town layouts and original builder recruitment without fallback. Full native/AOT conversion remains unfinished; players provide campaign feedback.

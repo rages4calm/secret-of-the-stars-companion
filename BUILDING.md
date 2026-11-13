@@ -1,7 +1,7 @@
 # Developer builds on Windows
 
-Current WIP snapshot: **native 0.5.6 / Companion 0.3.6**, native update105/source 134.
-[Current scope and focused checks](docs/NATIVE-PROGRESS-0.5.6.md).
+Current WIP snapshot: **native 0.5.12 / Companion 0.3.6**, native update111/source 140.
+[Current scope and focused checks](docs/NATIVE-PROGRESS-0.5.12.md).
 
 This repository is a source snapshot. Source-first Companion can build the native
 foundation from an owned ROM and launch an isolated profile without private
@@ -46,7 +46,7 @@ To choose a new native build folder explicitly:
 
 ```powershell
 python tools/build_public_foundation.py --rom "D:\My Games\Secret of the Stars (USA).sfc" `
-  --output-dir "local/source-builds/native053-fresh"
+  --output-dir "local/source-builds/native0512-fresh"
 ```
 
 `--output-dir` must not already exist. The default remains a fresh timestamped
@@ -57,7 +57,7 @@ fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
 The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`.
-The current source applies **97 ordered patches**, including **67 runtime
+The current source applies **98 ordered patches**, including **68 runtime
 extensions**. The cache identity is derived from the runtime pin and the complete
 ordered patch hashes; the helper records it in the marker and compilation
 receipt. Fresh builds use the public helper and verified runtime/SDL dependencies.
@@ -359,4 +359,4 @@ DSP audio against its preceding build. Five source-proved message-return familie
 remain source-only unless separately observed. Four original town layouts
 and builder recruitment also completed without fallback in distinct staged checks.
 These results do not qualify a newly compiled binary automatically or certify a
-natural campaign. See [the 0.5.6 progress note](docs/NATIVE-PROGRESS-0.5.6.md).
+natural campaign. See [the 0.5.6 progress note](docs/NATIVE-PROGRESS-0.5.12.md).

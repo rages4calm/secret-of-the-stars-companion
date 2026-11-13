@@ -1,6 +1,6 @@
 # Secret of the Stars — public source instructions
 
-This checkout is the public native0.5.6 / Companion0.3.6 source snapshot.
+This checkout is the public native0.5.12 / Companion0.3.6 source snapshot.
 Start with README.md, BUILDING.md, CONTRIBUTING.md and SOURCE-PROVENANCE.json.
 Dated handoffs and validation documents describe their recorded versions;
 they are not instructions to recreate completed experiments or private runs.
@@ -14,8 +14,9 @@ compilation, actual execution and campaign evidence.
 
 The game uses native C and a C# Companion. Python supplies build, generation,
 inspection and validation tools. Generated game C and the pinned upstream runtime
-are deliberately absent from this authored-source repository. Full native/AOT
-execution remains unfinished; code counts or a published release do not prove it.
+are deliberately absent from this authored-source repository. Native execution is enabled by default with guarded compatibility fallback.
+Campaign-wide 100% native/AOT execution is not certified; counts or a release
+do not prove it. Reuse completed checks and investigate concrete new failures.
 
 Players verify campaign and story accuracy. Check the code affected by a change;
 do not repeat completed private tests, require exhaustive playthroughs or invent

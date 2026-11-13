@@ -1,3 +1,17 @@
+# Current validation — native 0.5.12 / Companion 0.3.6
+
+[Current release scope](NATIVE-PROGRESS-0.5.12.md) separates exact-artifact native execution, historical evidence, source support and package checks. Native update111/source140's two new original SET comparisons reduce 1,875 calls to zero with exact guest state, clocks, rendered dumps and full native DSP audio. The second sample is checkpoint-linked, not an independent campaign/fresh-cold sample. The declared checkpoint profile allows only a source-proven host audio-consumer counter and derived CRC difference; original raw failures remain preserved.
+
+Native execution is on by default. Normal guarded interpreter fallback remains; a campaign-wide 100% native/AOT claim is not established. The final audit found no additional reproduced required native gap to fix. Earlier strict-native tests retain their own artifact scope. Source inventories and a published release are not whole-game proof.
+
+Publication checks cover the tracked ROM-free authored boundary, notices, source integrity and the relocated package's first-run path. The unchanged launcher reuses its existing qualification. Native game/ROM/generated code/assets/saves stay local. Player campaign feedback is separate from the focused release checks; completed gameplay cases are not rerun without a new failure or affected change.
+
+---
+
+## Historical validation records
+
+The dated records below describe their recorded artifacts, not a requirement to recreate old tests.
+
 # Current validation — native 0.5.4 / Companion 0.3.6
 
 [Exact artifact scope](FOUNDATION-NATIVE-CALLABLE-PROGRESS-2026-10-14.md) records
