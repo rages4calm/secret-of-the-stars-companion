@@ -1,7 +1,7 @@
 {
   "snapshot_date": "2026-11-13",
-  "native_version": "0.5.12",
-  "companion_version": "0.3.6",
+  "native_version": "0.5.13",
+  "companion_version": "0.3.8",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
   "runtime_commit": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
   "runtime_patch_sha256": "526f7d87b5cf736ce8b57da9db5f4435cce8d33ed1686a587a6a02ca66d73318",
@@ -14,7 +14,9 @@
     "color-lut/LICENSE-APACHE-2.0.txt": "e797586fb13910fb433449532bc747c1a3b5acaded1b7b41390b20699b591998",
     "color-lut/LICENSE-MIT.txt": "0c05b316b25f93fe8a869d5c16619bb84b2fab6b8b3488356f2cfb9441cd97a8",
     "color-lut/LICENSE-POLYFORM-NONCOMMERCIAL-1.0.0.txt": "540ade389a94d810b7dd63ceaaf429c274ded672cc2bf17781e2cc9bc59efb6f",
-    "color-lut/README.md": "3528d1637feae2e8773d637ed04a11067d4a5b2226fd5b34742432cdd1908855"
+    "color-lut/README.md": "3528d1637feae2e8773d637ed04a11067d4a5b2226fd5b34742432cdd1908855",
+    "COMPANION-ACHIEVEMENTS-MIT.txt": "82b02f59ce281ca7507fe08b4148cbb4c8ec6d0c6acaff5987f2af68efd71dec",
+    "CJSON-MIT.txt": "ca7ea72cf3674a70394b1f377e85dc402a2dfae37385f14da6ccba4296849f9b"
   },
   "limits": "Authored source snapshot only. ROM, generated game bodies, extracted assets and private qualification data are excluded.",
   "host_navigation_patch_sha256": "91fea10b53d3eca67364eceebfb802a2c1c79432ff7424d02c5f8755438dc028",
@@ -105,7 +107,7 @@
   "task_original_prefix_source_binding_sha256": "b3b92cdd08008832fff1caac30f586626e0dcc3e60534831ed6c3417dedac8bc",
   "interrupt_return_patch_sha256": "75926f688cc3dbd6dccc4ce3446976b0f6307f93c212533dae5bb25248d071a1",
   "interrupt_return_source_binding_sha256": "3ba0770eb6d5f13ae1a794bb7365ebe1f06ddb117ff2172786ee40b56efe3f10",
-  "current_ordered_runtime_patch_count": 98,
+  "current_ordered_runtime_patch_count": 99,
   "current_runtime_generation_formats": {
     "cache": 59,
     "normal": 44,
@@ -274,7 +276,7 @@
   "task_collection494_handoff_sha256": "16e752e4cc45165813d2fa5904c7c5f3bc8fcdf3031c4f4686c81ec1f06080e5",
   "whole_expansion497_handoff_sha256": "3e783976fedbe7451139ba1e7a3d8cfc1b643f8d9dd8e643710bed1daf826374",
   "source_stage": 140,
-  "public_helper_sha256": "0378ab062a1af3c4f4d345baceec0f0423c5039f71e0459948e21cbbf39115ab",
+  "public_helper_sha256": "3a61d2e06d28d8c3db5b631e9857c83cb4e5e77fb4314901dbaa90bf3ab34b01",
   "ordered_runtime_patch_count": 98,
   "runtime_extension_count": 67,
   "native_poll_service506_sha256": "c0497f7b39f25503a595af3fc2f720909a89963d569ee84ef25592f5513b3be6",
@@ -732,7 +734,7 @@
   "architectural_native_scope": "Architectural native-block dispatcher/compiler ABI plus original title install hook. Four declared runtime files; two new source files have explicit absent predecessors. Original interpreter816, old condition registries, legacy generated51 code, source-CFG/cache formats, physical bus/stack/timing ownership/refusals and serialized/five-file execution ABI remain unchanged. Source key/generation counts do not qualify execution or whole-game completion.",
   "architectural_native_keys_sha256": "5ae32a17ae9547644c29a1ae4ac61f342b70711f4d2b5630480107b4a61ef663",
   "architectural_native_key_count": 119538,
-  "authored_input_count": 70,
+  "authored_input_count": 83,
   "architectural_native_width_invariant_scope": "Additional conditional E0M/Xclasses only when exactopcode/mnemonic/length/bytes preserveauthoritativeinstructionboundary. Same23193PCs/noaliases/noinferredcallerflags,7498different-boundaryclassesrefused;3provenresetE1unchanged. Firstcandidate78parityPASSbutzeroexecutionbecauseoldgatesconsumedexistingclasses; strictfirstmiss01D80CM0X1JMPprovesbroadsupplementneed.",
   "architectural_native_width_evidence_sha256": "930b176dc8793102d2669fa9ad09eff530f071659dbbcb62f55b14a1c8a778ca",
   "architectural_native_source_PC_count": 32090,
@@ -743,11 +745,37 @@
   "architectural_native_frontier_scope": "Source-authoritative architectural PC/M/X/E inventory: 119,538 admitted keys from 120,394 coherent source/frontier candidates. All 119,374 prior supported keys retained. 856 conditional BRK/COP/STP keys at 214 PCs remain explicitly unimplemented/quarantined; guarded interpreter fallback or strict missing-block refusal if reached. Actual candidate M/X determines typed IR. No aliases, guessed caller modes, CPU replay, unsupported NOP substitution, unreachable/DATA or whole-game native-completion claim. Three proven E1 reset keys only.",
   "encounter_qol_guard_proposal_sha256": "51362db9803f5eb18535ad8c9743c4e36b3a5186aa3ef5f379da831f8aedadaf",
   "encounter_qol_guard_scope": "Only accept source-proved DB02/82 alongside01/81 lowWRAM ABS mirrors. AllPB/E/MX/D/BCD/context/originalROM/carry/percent rules retained. Percent100 unchanged. No runtimeSDK/helper/fiveABI/serialized change. Candidate0percent counter-source fixture muststayworld; original100source866enteredbattle. No nativeprogress claim from fix.",
-  "public_release": "v0.5.12-wip",
+  "public_release": "v0.5.13",
   "source_native_condition_family_patch_sha256": "76ee174bf98487d8989dee7601204740e3c636b6c192a888f8e41297af2dbc97",
   "source_native_condition_family_source_binding_sha256": "e13c0a00890e36e5c004c4e2b9802a4bcb26990f4f3b10ded4dc9cb0bcef9a7f",
   "architectural_native_patch_sha256": "199c1e6293958370dfdb37ba4de9ed3d0f4fc0b038b265115a1afbd146b74af5",
   "architectural_native_source_binding_sha256": "3a7b2eb923331b29570a550823aafe05f69bb96372b644f97849da89da83a78f",
   "paired_owner_metadata_patch_sha256": "4b53fa4853636af524d05ee9a6d16df52e2a388e157f7778bd3dd86f1d5a48d6",
-  "paired_owner_metadata_source_binding_sha256": "225196a2abed65fcae09b160f9383922f93a042e92c1fe3797ffd70dcf88e598"
+  "paired_owner_metadata_source_binding_sha256": "225196a2abed65fcae09b160f9383922f93a042e92c1fe3797ffd70dcf88e598",
+  "application_icon_packaging": {
+    "scope": "Original authored icons; no native instruction/state/ABI changes. Game .rsrc appended after original file preserving original sections/RVAs/COFF. GUI embeds before .NET bundling. First compiled receipts remain immutable; qualification separate.",
+    "icons": {
+      "Companion/Assets/sots-companion.ico": "7287a60f238fcc24a4cf82622e0eda1ee9a6f96310be01a4255411bc74059607",
+      "assets/icons/sots-game.ico": "a7b0a4613557bdc8ffa393f8fd082c16d07267a754c03edc569081679583b5d8"
+    },
+    "tool_sha256": "8019745d95d299f129737b8fe7fe9527802548137f929d5e089c50db014c10c6",
+    "icon_only_baseline_native_input_count": 70
+  },
+  "local_achievements": {
+    "count": 16,
+    "system": "CompanionAchievements0.1.0 offline; unchanged MIT core and cJSON with notices",
+    "scope": "Host-only original-event/transition tracking, external asynchronous progress, restored-state baseline, diagnostics disabled; no serializedgueststate/ABI additions",
+    "catalog_sha256": "b47cf298ca25bcb64e386b7e48693ae48a3684b5012b86d349e745bfdf0970d6",
+    "old_native_state_abi": "a852efdd826b5c79ad88ae5f3539faf1a9490aaab2d819f55f28a87ad08b3a9b",
+    "qualification": "Exact installed112d/Companion0.3.8 bounded achievement/input/storage/rendering/audio qualification PASS November13; immutable first compiled receipts remain compiled_unqualified. No whole-game AOT claim.",
+    "qualified_native_executable_sha256": "9542e41367c6751802062064ff50d9262305d37dbb3e75cbf145623fb1bba3a1",
+    "qualified_gui_executable_sha256": "1c17c39c16f8949bf5349f6b3e356b5b448761bb468e41026c3a1e8cff9b9548",
+    "native_first_compiled_receipt_sha256": "81e20e6a9fa9286a460f1d05ed6cee6676fe175e06e4960c8e62b27c957a0874",
+    "gui_first_compiled_receipt_sha256": "faf517fa3638c128554b559a727635fbf94796b7fe63ed35b256b8be9de3abf1",
+    "installed_runtime_patch_count": 98,
+    "public_helper_runtime_patch_count": 99
+  },
+  "current_runtime_extension_count": 69,
+  "parent_writer_final_source_pin_patch_sha256": "14de3cdbf1f7a7842296f6a3866483febb0ff163079d072e3a5af443db04af3c",
+  "parent_writer_final_source_pin_source_binding_sha256": "714c9a2f69190ce9e4f8ccde37667c53cdd8d8cf3c7458d0ca6aa1d04c320c28"
 }

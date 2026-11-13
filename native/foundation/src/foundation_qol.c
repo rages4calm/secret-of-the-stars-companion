@@ -2,6 +2,7 @@
  * ordinary player-walk operands. No global RAM-gain watcher, coordinate jump,
  * scheduler overclock or changed NPC/cutscene/music clock. */
 #include "foundation_qol.h"
+#include "sots_achievements.h"
 #include "foundation_shop.h"
 #include "foundation_hotkeys.h"
 #include "common_rtl.h"
@@ -93,6 +94,7 @@ static void BeforeVictory(CpuState *cpu, uint32_t pc) {
      * its preceding policy; no unsaved one-shot/reward latch is required. */
     int qualified = g_ram[0x20] == 5 && cpu->D == 0x0d00 && !cpu->DB &&
         cpu->m_flag && cpu->x_flag && cpu->S >= 0x1d00 && cpu->S < 0x1dba;
+    if(qualified) SotsAchievements_NotifyVictory();
     unsigned original_xp = Word(cpu->D+0x21), original_gold = Word(cpu->D+0x1f);
     unsigned scaled_xp = qualified ? FoundationQolScaleReward(original_xp,xp_percent) : original_xp;
     unsigned scaled_gold = qualified ? FoundationQolScaleReward(original_gold,gold_percent) : original_gold;
@@ -147,6 +149,7 @@ static void BeforeCoherentWalkVectors(CpuState *cpu, uint32_t pc) {
         WalkVector(axis ? 0x462 : 0x45f) == primary / (int32_t)divisor &&
         !WalkVector(axis ? 0x45f : 0x462);
     if (!qualified) return;
+    SotsAchievements_NotifyWalk();
     /* A lock/current can appear after a boosted frame. Coherent ordinary
      * vectors must first return to their original unit value; declining boost
      * must not leave yesterday's larger vector in the original consumer. */
@@ -271,8 +274,7 @@ void FoundationQolInit(void) {
     static const unsigned char secondary_x_code[] = {0xa5,0x01,0x18,0x6d,0x71,0x04};
     static const unsigned char secondary_y_code[] = {0xa5,0x04,0x18,0x6d,0x73,0x04};
     int reward_ready = OriginalBytes(0x00ae9b,victory_code,sizeof(victory_code)) &&
-        (xp_percent == 100 && gold_percent == 100 && !trace ? 1 :
-         interp_bridge_add_pre_opcode_hook(0x00ae9b,BeforeVictory));
+        interp_bridge_add_pre_opcode_hook(0x00ae9b,BeforeVictory);
     if (!reward_ready) xp_percent = gold_percent = 100;
     static const unsigned char walk_entry[] = {0xc2,0x20,0xad,0x5a,0x04};
     static const unsigned char walk_primary_producer[] = {

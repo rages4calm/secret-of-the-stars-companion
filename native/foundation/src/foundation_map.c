@@ -2,6 +2,7 @@
  * loaded SNES tile/palette data. It reveals that area's terrain while open,
  * with verified towns/current destinations; no enemies, items or history. */
 #include "foundation_map.h"
+#include "sots_achievements.h"
 #include "foundation_field.h"
 #include <string.h>
 
@@ -258,6 +259,7 @@ void FoundationMapAfterFrame(const SnesDesktopHostFrameStats *stats) {
         }
         player = FoundationMapPosition(g_ram,0x20000,&px,&py);
     } else if (visible) { ready = 0; completed = 0; memset(resource_key,0,sizeof(resource_key)); }
+    if(eligible&&visible&&ready&&player)SotsAchievements_NotifyMapOpen();
     if (trace) fprintf(trace,"%u,%d,%d,%d,%d,%u,%u,%u,%d,%d,%d\n",stats->frame,enabled,visible,eligible,ready,completed,generations,samples,player,px,py);
 }
 

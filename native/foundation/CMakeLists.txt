@@ -49,6 +49,10 @@ add_executable(SecretOfTheStarsSNESRecomp
     src/foundation_scale2x.c
     src/foundation_rules.c
     src/foundation_qol.c
+    src/sots_achievements.c
+    src/foundation_achievements_ui.c
+    third_party/companion_achievements/companion_achievements.c
+    third_party/companion_achievements/cjson/cJSON.c
     src/foundation_shop.c
     src/foundation_hotkeys.c
     src/foundation_menu.c
@@ -106,6 +110,8 @@ target_include_directories(SecretOfTheStarsSNESRecomp PRIVATE
     # common_rtl.c includes "config.h": the desktop key-map / Config contract
     # the framework host supplies (snesrecomp_target_desktop_host below).
     ${SNESRECOMP_ROOT}/runner/src/desktop
+    ${CMAKE_SOURCE_DIR}/third_party/companion_achievements
+    ${CMAKE_SOURCE_DIR}/third_party/companion_achievements/cjson
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/recomp
 )

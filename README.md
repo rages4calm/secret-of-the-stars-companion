@@ -2,15 +2,15 @@
 
 **A playable Windows PC port of Tecmo Secret of the Stars, with a Companion launcher, controller support, enhanced original pixels and experimental widescreen.**
 
-[![Stage](https://img.shields.io/badge/stage-active%20development-244b6b)](ROADMAP.md)
+[![Stage](https://img.shields.io/badge/stage-released-244b6b)](ROADMAP.md)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest release: native 0.5.12 WIP / Companion 0.3.6.** This publishes native update 111 / source 140, including the native save/load menus, additional battle and enemy paths, and original battle message-speed controls. Native execution is enabled by default; guarded compatibility fallback remains available. [Release changes and verification scope](docs/NATIVE-PROGRESS-0.5.12.md).
+**Latest release: native 0.5.13 / Companion 0.3.8.** Adds 16 offline achievements, an in-game achievement browser, a Companion progress page, and custom game/launcher icons. Native execution is enabled by default, with guarded compatibility fallback retained. [Achievements and release notes](docs/RELEASE-0.5.13.md).
 
-The game is ready for playtesting through the ROM-free launcher/source package. Setup builds it locally from your own ROM. Player reports guide further bug fixes; campaign and story feedback is separate from the developer checks described below.
+The port is feature-complete and available through the ROM-free launcher/source package. Campaign playtesting and bug fixes continue. Setup builds it locally from your own ROM. Player reports guide further bug fixes; campaign and story feedback is separate from the developer checks described below.
 
-**[Download 0.5.12 WIP](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.12-wip)** | [Build requirements](BUILDING.md)
+**[Download 0.5.13](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.13)** | [Build requirements](BUILDING.md)
 
 **Discord:** chrono.trigger
 
@@ -20,7 +20,7 @@ The game is ready for playtesting through the ROM-free launcher/source package. 
 **Source layout:** `native/foundation` contains the game-specific C code, `Companion` contains the C# launcher, and Python tools build, generate and check the project. The upstream runtime is fetched separately and generated game C stays local. GitHub's language chart measures the tracked source and tools, not the language of the running game.
 
 > [!NOTE]
-> **Work in progress.** Original game paths now execute through the native backend, with guarded interpreter fallback for unsupported instruction contexts. Recent focused late-game, two-party, vehicle and town-growth checks completed without fallback. This is bounded evidence, not a whole-game percentage or a claim of complete native/AOT execution. Experimental widescreen also retains its original-view fallback.
+> **Native execution.** Original game paths now execute through the native backend, with guarded interpreter fallback for unsupported instruction contexts. Recent focused late-game, two-party, vehicle and town-growth checks completed without fallback. This is bounded evidence, not a whole-game percentage or a claim of complete native/AOT execution. Experimental widescreen also retains its original-view fallback.
 
 The journal has two views: **Current** offers 25 automatic chapter cards with finer current-state leads, and **Guide** lets you browse the full 42-page story walkthrough. Advice recomputes from your current checkpoint; it does not record permanent quest completion. The owner and play testers are checking campaign directions. The [preceding Kaja/Bonzley update](docs/FOUNDATION-KAJA-BONZLEY-2026-10-12.md) retains the bounded automatic advice and verified map destinations.
 

@@ -1,0 +1,29 @@
+{
+  "patch_sha256": "14de3cdbf1f7a7842296f6a3866483febb0ff163079d072e3a5af443db04af3c",
+  "predecessor_patch_sha256": "4b53fa4853636af524d05ee9a6d16df52e2a388e157f7778bd3dd86f1d5a48d6",
+  "predecessor_binding_sha256": "225196a2abed65fcae09b160f9383922f93a042e92c1fe3797ffd70dcf88e598",
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "files": {
+    "recompiler/v2/task_parent_member_sources.py": {
+      "predecessor_sha256": "db990d643f9b980e0b8b2d94b07f7f037500ea748f3a921549b260f8fb413326",
+      "final_sha256": "6325bbebb5dc4aa2d8f0922a34104c9e442d13bb0f35086aab02ec47e5f99f2a",
+      "normalized_final_sha256": "6325bbebb5dc4aa2d8f0922a34104c9e442d13bb0f35086aab02ec47e5f99f2a"
+    }
+  },
+  "new_files": [],
+  "scope": "Compiler source-identity correction only: update exactly the retained-parent writer inventory interp_bridge pin to the reviewed final runtime1092 source after the existing parent dispatch-fragment removal. All ten other writer pins and refusal checks remain unchanged. No runner source, guest opcode, owner, serialized field, execution-state ABI, generated-cache format or qualification claim is changed. Default generation remains formats59/44/9/1; explicit baseline remains60/45/9/1.",
+  "artifact_qualification": false,
+  "native_AOT_complete": false,
+  "writer_identity": {
+    "runtime_source": "runner/src/snes/interp_bridge.c",
+    "raw_sha256": "2b3a09f60dd7401415f4647493dcb8561630553dba395a35f0ea3dea0d2cea91",
+    "previous_stripped_sha256": "d88c10fe1eb986389c35663fdda53274bbbba390773cc71cc38d4c8b639cedde",
+    "final_stripped_sha256": "0c0262e4d6ddbbdad96db66c9229ca03adc2edf18869b7c3fa760b9dee0bf9b1",
+    "strip_contract": "existing exact DISPATCH_FRAGMENT removal only",
+    "source_binding": "runtime-paired-owner-metadata.json",
+    "unchanged_writer_entries": 10
+  }
+}

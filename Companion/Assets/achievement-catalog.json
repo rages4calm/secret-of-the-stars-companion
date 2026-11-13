@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "gameId": "secret-of-the-stars",
+  "editionId": "native-qol",
+  "catalogVersion": 1,
+  "title": "Secret of the Stars",
+  "achievements": [
+    {
+      "id": "battle.first",
+      "title": "A First Victory",
+      "description": "Win a battle.",
+      "event": "battle.victories",
+      "target": 1,
+      "rule": "counter"
+    },
+    {
+      "id": "battle.ten",
+      "title": "Finding Your Rhythm",
+      "description": "Win ten battles.",
+      "event": "battle.victories",
+      "target": 10,
+      "rule": "counter"
+    },
+    {
+      "id": "walk.500",
+      "title": "Stretch Your Legs",
+      "description": "Travel 500 tile-equivalent steps during ordinary exploration.",
+      "event": "travel.steps",
+      "target": 500,
+      "rule": "counter"
+    },
+    {
+      "id": "walk.1000",
+      "title": "A Longer Journey",
+      "description": "Travel 1,000 tile-equivalent steps during ordinary exploration.",
+      "event": "travel.steps",
+      "target": 1000,
+      "rule": "counter"
+    },
+    {
+      "id": "party.swap",
+      "title": "Two Sides of the Adventure",
+      "description": "Switch between the two parties during play.",
+      "event": "party.swap",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "item.starcrest",
+      "title": "A Star to Follow",
+      "description": "Obtain a StarCrest during play.",
+      "event": "item.starcrest",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "item.dogpill",
+      "title": "A Different Perspective",
+      "description": "Obtain the Dog Pill during play.",
+      "event": "item.dogpill",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "item.graviton",
+      "title": "A Weighty Discovery",
+      "description": "Obtain Graviton during play.",
+      "event": "item.graviton",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "item.winkey",
+      "title": "A Key Discovery",
+      "description": "Obtain the Win Key during play.",
+      "event": "item.winkey",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "item.moustache",
+      "title": "A Familiar Disguise",
+      "description": "Obtain the Moustache during play.",
+      "event": "item.moustache",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "ui.map",
+      "title": "Find Your Bearings",
+      "description": "Open the current-area map.",
+      "event": "ui.map",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "ui.guide",
+      "title": "A Little Guidance",
+      "description": "Open the full-story guide.",
+      "event": "ui.guide",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "route.town6",
+      "title": "A Growing Adventure",
+      "description": "Advance the story to chapter 6 during play.",
+      "event": "route.town6",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "route.east12",
+      "title": "New Horizons",
+      "description": "Advance the story to chapter 12 during play.",
+      "event": "route.east12",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "route.ship16",
+      "title": "Further Afield",
+      "description": "Advance the story to chapter 16 during play.",
+      "event": "route.ship16",
+      "target": 1,
+      "rule": "milestone"
+    },
+    {
+      "id": "route.jeep24",
+      "title": "The Final Route",
+      "description": "Advance the story to chapter 24 during play.",
+      "event": "route.jeep24",
+      "target": 1,
+      "rule": "milestone"
+    }
+  ]
+}

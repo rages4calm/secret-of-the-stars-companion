@@ -1,6 +1,8 @@
 /* Current chapter advice, derived only from original guest state.
  * No ROM/guest writes, completion guesses or external seen-event history. */
 #include "foundation_journal.h"
+#include "foundation_achievements_ui.h"
+#include "sots_achievements.h"
 #include "foundation_hotkeys.h"
 #include "foundation_map.h"
 #include "foundation_guide_data.h"
@@ -73,6 +75,8 @@ static void GuideSection(int direction) {
 uint16_t FoundationJournalFilterInput(uint16_t buttons) {
     /* Run-ahead must not repeatedly advance host pages or release masking. */
     if (RtlSpeculativeFrame()) return filtered_buttons;
+    buttons=FoundationAchievementsFilterInput(buttons);
+    if(FoundationAchievementsVisible()){FoundationHotkeysConsumeJournal();FoundationHotkeysConsumeMap();return 0;}
     buttons &= 0x0fff;
     uint64_t generation = RtlStateGeneration();
     if (generation != input_generation) {
@@ -102,7 +106,7 @@ uint16_t FoundationJournalFilterInput(uint16_t buttons) {
         } else if (edge & 4u) { /* Configured SNES Select: guide/current view. */
             guide_visible = !guide_visible;
             guide_tracking_unavailable = 0;
-            if (guide_visible) guide_page = GuideCurrentPage();
+            if (guide_visible) {guide_page = GuideCurrentPage();SotsAchievements_NotifyGuideOpen();}
         } else if (guide_visible) {
             size_t old_page = guide_page;
             if ((edge & 0xc0u) == 0x40u && guide_page) --guide_page;

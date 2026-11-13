@@ -11,6 +11,8 @@ repository.
 | Runtime's identified upstream material | [Verbatim retained attribution and license texts](licenses/SNESRECOMP-THIRD-PARTY-ATTRIBUTION.md); original MIT/ISC/other terms continue to apply to their identified scope |
 | Color lookup lineage | [Original scope description](licenses/color-lut/README.md), plus the verbatim MIT, Apache 2.0 and PolyForm notices in that directory |
 | .NET / Windows Desktop | [DOTNET-LICENSE.txt](licenses/DOTNET-LICENSE.txt), [WINDOWS-DESKTOP-LICENSE.txt](licenses/WINDOWS-DESKTOP-LICENSE.txt), [DOTNET-THIRD-PARTY-NOTICES.txt](licenses/DOTNET-THIRD-PARTY-NOTICES.txt) |
+| CompanionAchievements core | Unchanged MIT core by Carl Prewitt Jr.; [verbatim license](licenses/COMPANION-ACHIEVEMENTS-MIT.txt), scoped to `native/foundation/third_party/companion_achievements` core files |
+| cJSON | MIT, Dave Gamble and contributors; [verbatim license](licenses/CJSON-MIT.txt), scoped to the bundled `cjson` directory |
 | SDL3, fetched at build time | zlib license, Sam Lantinga and contributors; [pinned upstream license](https://github.com/libsdl-org/SDL/blob/release-3.4.10/LICENSE.txt) |
 
 Runtime source is fetched separately by the developer helper. The patch keeps

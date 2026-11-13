@@ -84,3 +84,7 @@ No project license grants rights to the original ROM or content generated or
 extracted from it. Every developer/player supplies their own original input.
 
 Corrections to attribution are welcome through a focused issue or pull request.
+
+## Offline achievements and icons
+
+The local achievement system adapts the CompanionAchievements core used by Lagoon, with a Secret of the Stars adapter and source-derived milestone catalog. The unchanged core and cJSON retain their MIT notices and file provenance in `native/foundation/third_party/companion_achievements`. No RetroAchievements service or account is used. The game and Companion icons are original authored vector designs; no game art was extracted for them.

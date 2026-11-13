@@ -1,3 +1,4 @@
+#include "foundation_achievements_ui.h"
 /* Title-owned, optional presentation. No ROM, WRAM, SRAM or timing writes. */
 #include "foundation_presentation.h"
 #include "common_rtl.h"
@@ -221,6 +222,7 @@ int FoundationPresentationDraw(uint8_t *dst, size_t pitch, const uint8_t *field,
         DrawBattleInfo(dst, pitch, w, h);
     if (FoundationMapVisible()) FoundationMapDraw(dst, pitch, w, h);
     else FoundationJournalDraw(dst, pitch, w, h);
+    FoundationAchievementsDraw(dst,pitch,w,h);
     if (enhanced_pixels) {
         uint8_t *scaled = hd ? (uint8_t *)intermediate : present_dst;
         size_t scaled_pitch = hd ? w * 8 : present_pitch;

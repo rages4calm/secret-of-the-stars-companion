@@ -42,13 +42,14 @@ public sealed partial class MainForm : Form
     public MainForm(string root,string? profile=null)
     {
         this.root=Path.GetFullPath(root);this.profile=Path.GetFullPath(profile??PublicSetupService.GetSelectedProfile(this.root)??Path.Combine(this.root,"local","player-foundation"));
-        Text="Secret of the Stars Companion";ClientSize=new Size(1120,760);MinimumSize=new Size(950,650);
+        Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        Text="Secret of the Stars Companion";ClientSize=new Size(1120,760);MinimumSize=new Size(950,730);
         StartPosition=FormStartPosition.CenterScreen;BackColor=Theme.Canvas;ForeColor=Theme.Ink;Font=Theme.Body();AutoScaleMode=AutoScaleMode.Dpi;
-        BuildShell();BuildPlay();BuildSetup();BuildDisplay();BuildAudio();BuildControls();BuildHotkeys();BuildEnhancements();BuildSaves();
+        BuildShell();BuildPlay();BuildSetup();BuildDisplay();BuildAudio();BuildControls();BuildHotkeys();BuildEnhancements();BuildAchievements();BuildSaves();
         apply.Click+=(_,_)=>ApplySettings();revert.Click+=(_,_)=>RevertSettings();play.Click+=(_,_)=>Launch(LaunchMode.Play);original.Click+=(_,_)=>Launch(LaunchMode.OriginalView);
         resume.Click+=(_,_)=>Launch(LaunchMode.Resume);wide.Click+=(_,_)=>Launch(LaunchMode.WidescreenPreview);hd.Click+=(_,_)=>Launch(LaunchMode.HdMenuPreview);
         refresh.Click+=(_,_)=>ReloadProfile();checkpoints.SelectedIndexChanged+=(_,_)=>{UpdateSaveHint();UpdateEnabled();};
-        timer.Tick+=(_,_)=>UpdateEnabled();FormClosed+=(_,_)=>{timer.Stop();timer.Dispose();launcher?.Dispose();};
+        timer.Tick+=(_,_)=>{UpdateEnabled();if(pages.TryGetValue("achievements",out var achievementPage)&&achievementPage.Visible)RefreshAchievements();};FormClosed+=(_,_)=>{timer.Stop();timer.Dispose();launcher?.Dispose();};
         ReloadProfile();ShowPage(PublicSetupService.GetSelectionProblem(this.root)!=null?"setup":"play");timer.Start();
     }
 
@@ -58,7 +59,7 @@ public sealed partial class MainForm : Form
         var brand=new Label{Text="Secret of\nthe Stars",Font=Theme.Title(23),ForeColor=Theme.Accent,AutoSize=false,Size=new Size(174,80),Location=new Point(18,25),UseMnemonic=false};
         rail.Controls.Add(brand);rail.Controls.Add(new Label{Text="Companion",Font=Theme.Body(10),ForeColor=Theme.Muted,AutoSize=true,Location=new Point(20,112)});
         int y=157;
-        foreach(var (id,label) in new[]{("play","Play"),("setup","Setup"),("display","Display"),("audio","Audio"),("controls","Controls"),("hotkeys","Hotkeys"),("enhancements","Enhancements"),("saves","Saves")})
+        foreach(var (id,label) in new[]{("play","Play"),("setup","Setup"),("display","Display"),("audio","Audio"),("controls","Controls"),("hotkeys","Hotkeys"),("enhancements","Enhancements"),("achievements","Achievements"),("saves","Saves")})
         {
             var button=Theme.Button(label,false,174);button.Navigation=true;button.Location=new Point(18,y);button.Size=new Size(174,46);button.Click+=(_,_)=>ShowPage(id);rail.Controls.Add(button);navigation[id]=button;y+=52;
         }

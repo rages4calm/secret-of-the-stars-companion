@@ -26,6 +26,10 @@
  */
 
 #include "host_main.h"
+#include "sots_achievements.h"
+#include "foundation_achievements_ui.h"
+#include <string.h>
+#include <stdlib.h>
 #include "game_rtl.h"
 #include "desktop/config.h"
 #include "foundation_presentation.h"
@@ -73,7 +77,9 @@ static void FoundationAfterConfig(void) {
     FoundationWideActorsInit();
 }
 
+static int achievement_started;
 static void FoundationBeforeFrame(void) {
+    FoundationAchievementsBeforeFrame();
     FoundationHotkeysBeforeFrame();
     FoundationPresentationBeforeFrame();
     FoundationJournalBeforeFrame();
@@ -85,12 +91,21 @@ static void FoundationBeforeFrame(void) {
     FoundationNativeBackendBeforeFrame();
 }
 static void FoundationAfterFrame(const SnesDesktopHostFrameStats *stats) {
+    if(!achievement_started){
+        const char *base=SDL_GetBasePath();
+        SotsAchievements_Init(base);achievement_started=1;
+#if !SNESRECOMP_SDL3
+        SDL_free((void *)base);
+#endif
+    }
+    SotsAchievements_Observe(g_ram,0x20000,RtlStateGeneration(),!RtlSpeculativeFrame());
     FoundationPresentationAfterFrame(stats);
     FoundationJournalAfterFrame(stats);
     FoundationMapAfterFrame(stats);
     FoundationMapPointsAfterFrame((int)FoundationJournalDestinationState(g_ram, 0x20000));
 }
 static void FoundationReset(void) {
+    SotsAchievements_OnLoaded(RtlStateGeneration());
     FoundationNativeBackendReset();
     FoundationHotkeysReset();
     FoundationPresentationReset();
@@ -102,6 +117,8 @@ static void FoundationReset(void) {
     FoundationColumnLookupReset();
 }
 static void FoundationShutdown(void) {
+    FoundationAchievementsUIShutdown();
+    SotsAchievements_Shutdown();
     FoundationHotkeysShutdown();
     FoundationLoadingShutdown();
     FoundationClearShutdown();
@@ -145,6 +162,9 @@ static const SnesDesktopHostGame kGameHost = {
 #endif
 int main(int argc, char **argv)
 {
+    int achievement_diagnostic=0;
+    for(int i=1;i<argc;++i)if(!strcmp(argv[i],"--script")||!strncmp(argv[i],"--script=",9))achievement_diagnostic=1;
+    SotsAchievements_SetDiagnostic(achievement_diagnostic!=0);
     FoundationNativeBackendConfigure();
     ConfigUseFoundationHotkeyDefaults();
     return snesrecomp_desktop_main(&kGameHost, argc, argv);
