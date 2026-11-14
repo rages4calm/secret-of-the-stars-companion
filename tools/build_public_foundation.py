@@ -460,6 +460,7 @@ def fence_projection_and_recipes(value,old,rom,*,root_chosen_normal_format):
 
 """Helper-only actual metadata projection and precompile source gate."""
 _COMBINED_NORMAL={}
+_CURRENT_VALIDATED_TASKS={}
 
 def _project_legacy_normal(value):
     import copy
@@ -1006,6 +1007,10 @@ TASK_SEPARATE_FIELDS = ('selected_architectural_members', 'selected_architectura
 TASK_EXTENSION_SEALS = {'on': {'whole_metadata': '2f54327ad99bae2c11eaa0de9cf80bb66f9e1edc031e00bf09c4795f2f839eb8', 'C_sha256': 'd85816d9ed11b226a1f389d621219efa08af25d5b7a2080dc7ad70762ce77445', 'counts': {'selected_architectural_members': 5, 'selected_architectural_calls': 10, 'retained_parent_architectural_members': 1}, 'scope': 251, 'fields': {'selected_architectural_members': 'ebe4cb49b561a4e55b4b7c239712b78f2495d91e9cb71c45dad68e50a01b81d9', 'selected_architectural_calls': 'a687af5796b3cc4ea73e88c396b0c861e14a3eff7b9e474b4debaad555677453', 'retained_parent_architectural_members': 'd81e1e24c0c32752cdf3f4c556426f3ffcc099281cb7008942641d1da05c359f'}, 'old_rows': 'e9cc56788163d2159f425e90c383a3eaf6a442224cb7a8b1f85c8ce1034123af', 'old_recipe': '8bbedf0ffd121f97956a79a96721a81d53a9379fa446b99022cc7ac76e70fa72', 'old_graphs': 'ac2994f66b32622ba5d608dc5a2945334a8853bc689bcd28198661aef5f9f36b', 'prefix235_200_bytes': 322329, 'prefix235_200_sha256': 'fc2d8999c66dff236354d8293d9e0c996758846df09a0a60b47877a252f85364', 'prefix207_bytes': 331985, 'prefix207_sha256': '24f5374849a987f5286bf35a133edf5bc4f11f6a8e4c89b209e9c0749335c732', 'parent_append_sha256': '5692f64790697c52c27bdc6dbfe0ef4f4a230f051c08b3210ec12a5d67e1d8b7'}, 'off': {'whole_metadata': 'c033390d8c292c7d38bc3def8c79f71053baee83ed2b44eeae499d9e009e1d88', 'C_sha256': '0b877eac16296246e0f0e74e0ad45c121d61b94946c06d90eed9973d10159fd3', 'counts': {'selected_architectural_members': 5, 'selected_architectural_calls': 0, 'retained_parent_architectural_members': 1}, 'scope': 241, 'fields': {'selected_architectural_members': 'ebe4cb49b561a4e55b4b7c239712b78f2495d91e9cb71c45dad68e50a01b81d9', 'selected_architectural_calls': '0f8b0745ecbe560f08d072fa396da7790d1d6e18a8f6694d684608647fa0b158', 'retained_parent_architectural_members': '9406d44a1845d9813e351301d0a13d2b3ea0e158f629bf22c2ec652038d28b26'}, 'old_rows': 'e9cc56788163d2159f425e90c383a3eaf6a442224cb7a8b1f85c8ce1034123af', 'old_recipe': '8bbedf0ffd121f97956a79a96721a81d53a9379fa446b99022cc7ac76e70fa72', 'old_graphs': 'ac2994f66b32622ba5d608dc5a2945334a8853bc689bcd28198661aef5f9f36b', 'prefix235_200_bytes': 322329, 'prefix235_200_sha256': 'fc2d8999c66dff236354d8293d9e0c996758846df09a0a60b47877a252f85364', 'prefix207_bytes': 323344, 'prefix207_sha256': 'f77a4132cd0be1a6f8c1bc8fca197aaa67bb3c6db5542061642079cf533ecd1c', 'parent_append_sha256': '5692f64790697c52c27bdc6dbfe0ef4f4a230f051c08b3210ec12a5d67e1d8b7'}}
 
 def task_scheduler_scope_count(value):
+    # Registered only after current source/owner/C validation, never from a
+    # caller's count or the historical Task8 population seals.
+    validated=_CURRENT_VALIDATED_TASKS.get(canonical(value))
+    if validated is not None:return validated
     call=value.get('selected_architectural_calls',{}).get('recipe',{}).get('direct_call_prefix')
     if type(call)is not bool or value.get('format_version')!=RUNTIME_GENERATION_FORMATS['task']:raise RuntimeError('Task8 direct CALL option/schema missing.')
     seal=TASK_EXTENSION_SEALS['on'if call else'off']
@@ -2788,8 +2793,26 @@ def main():
         if sha(output)!=digest:raise RuntimeError('Target generated output/cache mismatch; preserve build.')
     validate_selected_task_recipe(ROOT/'native/foundation/recomp')
     validate_source_redirect_recipe(ROOT/'native/foundation/recomp')
-    combined_source_population=prepare_combined_source_population(project/'src/gen',out,rom,runtime,project/'recomp')
-    selected_task_metadata=validate_selected_task_outputs(project/'src/gen',generated_metadata,expected,rom)
+    # The pinned current emitter uses format44/25 families. Historical33/34
+    # projection certificates must not be applied to its different population.
+    # Validate the actual current rows, source recipes and emitted C instead.
+    current_population=None
+    if target_generation_formats(args)['normal']==44:
+        from validate_generated_native import validate_current_outputs
+        current_population=validate_current_outputs(project/'src/gen',generated_metadata,rom,runtime,project/'recomp',direct_call_prefix=args.native_direct_calls,source_hashes=target_sources)
+        population_path=project/'src/gen/native_regions.json'
+        population_value=json.loads(population_path.read_bytes())
+        _COMBINED_NORMAL[str(population_path.resolve())]={'actual_digest':canonical(population_value),'actual_rows':len(population_value['regions'])}
+        combined_source_population=current_population
+        with(out/'actual-source-population-validated.json').open('x',encoding='utf8',newline='\n')as population_file:
+            json.dump(current_population,population_file,indent=2);population_file.write('\n')
+    else:
+        combined_source_population=prepare_combined_source_population(project/'src/gen',out,rom,runtime,project/'recomp')
+    if current_population is not None:
+        selected_task_metadata=json.loads((project/'src/gen/native_task_resume.json').read_bytes())
+        _CURRENT_VALIDATED_TASKS[canonical(selected_task_metadata)]=current_population['task_scheduler_mode_rows']
+    else:
+        selected_task_metadata=validate_selected_task_outputs(project/'src/gen',generated_metadata,expected,rom)
     source_redirect_metadata=validate_source_redirect_outputs(project/'src/gen',generated_metadata,expected,rom)
     region_metadata_path=project/'src/gen/native_regions.json'
     region_source_path=project/'src/gen/native_regions_v2.c'
@@ -2799,10 +2822,16 @@ def main():
         raise RuntimeError('Target native-region metadata identity mismatch; preserve build.')
     if generated_metadata.get('outputs',{}).get('native_regions.json')!=sha(region_metadata_path) or generated_metadata.get('outputs',{}).get('native_regions_v2.c')!=sha(region_source_path):
         raise RuntimeError('Target native-region output/cache mismatch; preserve build.')
-    reset_bootstrap_generation=validate_reset_bootstrap_outputs(project/'src/gen',generated_metadata,expected,rom)
-    direct_call_metadata=validate_direct_call_outputs(project/'src/gen',generated_metadata,expected,rom,args.native_direct_calls,runtime)
-    indirect_y_generation=validate_indirect_y_outputs(project/'src/gen',generated_metadata,expected,rom)
-    stack_direct_metadata=validate_stack_direct_outputs(project/'src/gen',generated_metadata,expected,rom)
+    if current_population is not None:
+        reset_bootstrap_generation=current_population['reset_bootstrap_generation']
+        direct_call_metadata=current_population['direct_call_prefix_generation']
+        indirect_y_generation=current_population['indirect_y_generation']
+        stack_direct_metadata=current_population['stack_direct_generation']
+    else:
+        reset_bootstrap_generation=validate_reset_bootstrap_outputs(project/'src/gen',generated_metadata,expected,rom)
+        direct_call_metadata=validate_direct_call_outputs(project/'src/gen',generated_metadata,expected,rom,args.native_direct_calls,runtime)
+        indirect_y_generation=validate_indirect_y_outputs(project/'src/gen',generated_metadata,expected,rom)
+        stack_direct_metadata=validate_stack_direct_outputs(project/'src/gen',generated_metadata,expected,rom)
     from_cfg=set()
     sys.path.insert(0,str(runtime/'recompiler'))
     from v2.cfg_loader import load_bank_cfg

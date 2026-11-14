@@ -276,7 +276,7 @@
   "task_collection494_handoff_sha256": "16e752e4cc45165813d2fa5904c7c5f3bc8fcdf3031c4f4686c81ec1f06080e5",
   "whole_expansion497_handoff_sha256": "3e783976fedbe7451139ba1e7a3d8cfc1b643f8d9dd8e643710bed1daf826374",
   "source_stage": 140,
-  "public_helper_sha256": "3a61d2e06d28d8c3db5b631e9857c83cb4e5e77fb4314901dbaa90bf3ab34b01",
+  "public_helper_sha256": "64c59c0ff0d9bd4880097163b86b2721063b17d01f0ead1e439a3b4e42169d0e",
   "ordered_runtime_patch_count": 98,
   "runtime_extension_count": 67,
   "native_poll_service506_sha256": "c0497f7b39f25503a595af3fc2f720909a89963d569ee84ef25592f5513b3be6",
@@ -745,7 +745,7 @@
   "architectural_native_frontier_scope": "Source-authoritative architectural PC/M/X/E inventory: 119,538 admitted keys from 120,394 coherent source/frontier candidates. All 119,374 prior supported keys retained. 856 conditional BRK/COP/STP keys at 214 PCs remain explicitly unimplemented/quarantined; guarded interpreter fallback or strict missing-block refusal if reached. Actual candidate M/X determines typed IR. No aliases, guessed caller modes, CPU replay, unsupported NOP substitution, unreachable/DATA or whole-game native-completion claim. Three proven E1 reset keys only.",
   "encounter_qol_guard_proposal_sha256": "51362db9803f5eb18535ad8c9743c4e36b3a5186aa3ef5f379da831f8aedadaf",
   "encounter_qol_guard_scope": "Only accept source-proved DB02/82 alongside01/81 lowWRAM ABS mirrors. AllPB/E/MX/D/BCD/context/originalROM/carry/percent rules retained. Percent100 unchanged. No runtimeSDK/helper/fiveABI/serialized change. Candidate0percent counter-source fixture muststayworld; original100source866enteredbattle. No nativeprogress claim from fix.",
-  "public_release": "v0.5.14",
+  "public_release": "v0.5.14.1",
   "source_native_condition_family_patch_sha256": "76ee174bf98487d8989dee7601204740e3c636b6c192a888f8e41297af2dbc97",
   "source_native_condition_family_source_binding_sha256": "e13c0a00890e36e5c004c4e2b9802a4bcb26990f4f3b10ded4dc9cb0bcef9a7f",
   "architectural_native_patch_sha256": "199c1e6293958370dfdb37ba4de9ed3d0f4fc0b038b265115a1afbd146b74af5",
@@ -783,5 +783,11 @@
     "checks": "96 staged original casts (32 named battle-eligible spells, three tiers), with original menu/queue/effect producer and MP/turn completion. Shared renderer family checks and focused shake/menu regression checks. This is not natural spell acquisition or campaign certification.",
     "fast_menus": "Original-source-checked battle owner/slide stack, empty DMA queue, observed D0A00 DB02; preserve first and final handoffs, accelerate only middle slide waits. No battle row-queue draining.",
     "unchanged": "Generated native game C, runtime1092, execution-state ABI and Companion0.3.8."
+  },
+  "public_setup_hotfix": {
+    "scope": "Build-helper compatibility only. Current pinned default format44 and25families are validated directly against actual ROM/masks/canonical one-instruction bodies and exact emitted C, instead of applying historical format34/20family and format33/19family projection certificates. Runtime/compiler patch pins and native83/GUI28 authored game inputs are unchanged.",
+    "source_validator": "tools/validate_generated_native.py",
+    "qualification": "Compilation and finite playback evidence separate from immutable first compiled_unqualified receipts; no whole-campaign claim.",
+    "source_validator_sha256": "2ac8eeb42d188ee45b583b21c23a4ab0ce06a85e0223502bfe6d9096c7532111"
   }
 }
