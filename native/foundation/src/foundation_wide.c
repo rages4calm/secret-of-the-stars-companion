@@ -55,7 +55,7 @@ static int title_eligible(const Ppu *ppu) {
     return ppu && g_snes && g_snes->cart &&
         FoundationFieldBind(g_rom, g_snes->cart->romImageSize) &&
         g_ram[0x20] == 0 && (g_ram[0x40e] | g_ram[0x40f] << 8) == 13 && !g_ram[0x105c] &&
-        ppu->inidisp == 15 && ppu->bgmode == 1 && !ppu->mosaic && !ppu->setini &&
+        ppu->inidisp <= 15 && ppu->bgmode == 1 && !ppu->mosaic && !ppu->setini &&
         ppu->bgXsc[0] == 0x49 && ppu->bgXsc[1] == 0x59 && ppu->bgXsc[2] == 0x51 &&
         ppu->bgTileAdr == 0x0466 && ppu->screenEnabled[0] == 0x13 && !ppu->screenEnabled[1] &&
         !ppu->windowsel && !ppu->cgadsub && !ppu->cgwsel &&
@@ -131,11 +131,10 @@ static void clear_margins(Ppu *ppu) {
 static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
     (void)unused;
     FoundationHdUiObserve(ppu, line, NULL);
-    /* Original forced-blank battle scanlines are deliberately black. They
+    /* Original forced-blank scanlines are deliberately black. They
      * must not erase valid side scenery on the rest of the same frame. */
-    if (g_ram[0x20] == 5 && PPU_forcedBlank(ppu)) { ++accepted; return; }
-    if (PPU_forcedBlank(ppu) ||
-        ppu->setini || !(ppu->renderFlags & kPpuRenderFlags_NewRenderer)) {
+    if (PPU_forcedBlank(ppu)) { ++accepted; return; }
+    if (ppu->setini || !(ppu->renderFlags & kPpuRenderFlags_NewRenderer)) {
         ++rejected; return;
     }
     memcpy(shadow, ppu->vram, sizeof(shadow));

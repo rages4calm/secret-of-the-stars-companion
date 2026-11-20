@@ -1,5 +1,5 @@
 {
-  "snapshot_date": "2026-11-13",
+  "snapshot_date": "2026-11-19",
   "native_version": "0.5.14",
   "companion_version": "0.3.8",
   "runtime_repository": "https://github.com/RetroPortingToolKit/snesrecomp",
@@ -107,7 +107,7 @@
   "task_original_prefix_source_binding_sha256": "b3b92cdd08008832fff1caac30f586626e0dcc3e60534831ed6c3417dedac8bc",
   "interrupt_return_patch_sha256": "75926f688cc3dbd6dccc4ce3446976b0f6307f93c212533dae5bb25248d071a1",
   "interrupt_return_source_binding_sha256": "3ba0770eb6d5f13ae1a794bb7365ebe1f06ddb117ff2172786ee40b56efe3f10",
-  "current_ordered_runtime_patch_count": 99,
+  "current_ordered_runtime_patch_count": 100,
   "current_runtime_generation_formats": {
     "cache": 59,
     "normal": 44,
@@ -276,7 +276,7 @@
   "task_collection494_handoff_sha256": "16e752e4cc45165813d2fa5904c7c5f3bc8fcdf3031c4f4686c81ec1f06080e5",
   "whole_expansion497_handoff_sha256": "3e783976fedbe7451139ba1e7a3d8cfc1b643f8d9dd8e643710bed1daf826374",
   "source_stage": 140,
-  "public_helper_sha256": "64c59c0ff0d9bd4880097163b86b2721063b17d01f0ead1e439a3b4e42169d0e",
+  "public_helper_sha256": "98132aaf464ec099bb9402afabfeff07949afe583db6d1a61030afe4c377c9ee",
   "ordered_runtime_patch_count": 98,
   "runtime_extension_count": 67,
   "native_poll_service506_sha256": "c0497f7b39f25503a595af3fc2f720909a89963d569ee84ef25592f5513b3be6",
@@ -775,7 +775,7 @@
     "installed_runtime_patch_count": 98,
     "public_helper_runtime_patch_count": 99
   },
-  "current_runtime_extension_count": 69,
+  "current_runtime_extension_count": 70,
   "parent_writer_final_source_pin_patch_sha256": "14de3cdbf1f7a7842296f6a3866483febb0ff163079d072e3a5af443db04af3c",
   "parent_writer_final_source_pin_source_binding_sha256": "714c9a2f69190ce9e4f8ccde37667c53cdd8d8cf3c7458d0ca6aa1d04c320c28",
   "battle_effect_presentation": {
@@ -789,5 +789,8 @@
     "source_validator": "tools/validate_generated_native.py",
     "qualification": "Compilation and finite playback evidence separate from immutable first compiled_unqualified receipts; no whole-campaign claim.",
     "source_validator_sha256": "2ac8eeb42d188ee45b583b21c23a4ab0ce06a85e0223502bfe6d9096c7532111"
-  }
+  },
+  "host_pacing_patch_sha256": "17d5f7b924b9069d528174302052213d1c2c0ccd8aef4610bf0b31a28204c14e",
+  "pacing_late_continue_patch_sha256": "17d5f7b924b9069d528174302052213d1c2c0ccd8aef4610bf0b31a28204c14e",
+  "pacing_late_continue_source_binding_sha256": "83f6f5c4f82f2ec2e5a5b72e51369e4a6188b133a6e320f9f8c8739c766c25fc"
 }

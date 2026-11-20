@@ -1,6 +1,6 @@
 # Developer builds on Windows
 
-Current WIP snapshot: **native 0.5.12 / Companion 0.3.6**, native update111/source 140.
+Current package: **0.5.14.2**, native **0.5.14 / Companion 0.3.8**.
 [Current scope and focused checks](docs/NATIVE-PROGRESS-0.5.12.md).
 
 This repository is a source snapshot. Source-first Companion can build the native
@@ -57,7 +57,7 @@ fresh timestamped `local/source-builds/<timestamp>/` containing an authored
 source copy, private generated code, build logs, executable and fresh profile.
 The ROM is read from the supplied path and is not copied into the repository.
 The runtime lives under ignored `local/upstream/<pin-prefix>-<combined-patch-prefix>`.
-The current source applies **98 ordered patches**, including **68 runtime
+The current source applies **100 ordered patches**, including **70 runtime
 extensions**. The cache identity is derived from the runtime pin and the complete
 ordered patch hashes; the helper records it in the marker and compilation
 receipt. Fresh builds use the public helper and verified runtime/SDL dependencies.

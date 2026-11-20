@@ -462,14 +462,13 @@ void FoundationJournalDraw(uint8_t *dst, size_t pitch, int w, int h) {
         route[1] = "Kustera can fight for you.";
         progress = "Aris advice: Pennon";
     } else if (lead == 2) {
-        objective[0] = "Find Aqutallion allies.";
-        objective[1] = "Find Kustera; build a town.";
-        route[0] = "Bosen asks you to find";
-        route[1] = "allies for the new town.";
+        objective[0] = "Search Winds and Beegees.";
+        objective[1] = "Meet your Aqutallion allies.";
+        route[0] = "Winds: southeast house.";
+        route[1] = "Beegees: visit the church.";
         progress = "Bosen's current advice";
         if (FoundationJournalHasLikadoClue(g_ram[0x5372], g_ram[0x5360])) {
-            route[0] = "Uncle Save: Likado is empty.";
-            route[1] = "Gather allies for the town.";
+            progress = "Likado: gather allies first.";
         }
     } else if (lead == 1) {
         objective[0] = "Seek the Crest of Stars.";

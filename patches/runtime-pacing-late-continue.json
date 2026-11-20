@@ -1,0 +1,45 @@
+{
+  "name": "runtime-pacing-late-continue",
+  "patch_sha256": "17d5f7b924b9069d528174302052213d1c2c0ccd8aef4610bf0b31a28204c14e",
+  "applies_to_runtime_pin": "7931b53c4968d9cf3fffeabf3e7f5f21d2ecf3a0",
+  "applies_after_full_ordered_patch_set": true,
+  "chain_note": "No earlier runtime patch touches runner/src/desktop/host_clock.c; the pinned donor file is the direct predecessor.",
+  "files": {
+    "runner/src/desktop/host_clock.c": {
+      "predecessor_sha256": "28f3dba7e04d28d730e86876025459a732ffc95cbe91064a9dfba26bba1081bd",
+      "final_sha256": "38c2f093a9c94b1cf44ce573e97c963cf26d71cb792746fd37324fc0a4652b08",
+      "normalized_final_sha256": "d8dba5207ac9732fdc76c9cb1515ec75fc6242096c5f1e8d7455c2300d744971"
+    }
+  },
+  "line_endings": "CRLF preserved from donor; patch file itself LF like other patch files",
+  "scope": "Host wall-time pacing only: after late work, re-anchor at now instead of adding another full frame period. On-time phase, loader debt and turbo scheduling retain existing behavior. Guest execution, structures and checkpoint ABI unchanged. Laptop CPU-side cost remains unresolved.",
+  "status": "Integrated ordered host-runtime patch; exact build qualification is recorded separately.",
+  "evidence": {
+    "player_diag": "diag_summary.txt 2026-11-16: exe eb2da4ed; guest 21.9 + raster 3.5 + present 1.2 ms work every frame; deadline-wait 15.689 mean/16.337 max on all 302 waits; frame service 19.8/23.2 FPS",
+    "owner_desktop_control": "Temp/SOTS-Qwen-Test runs r2-r14: never late, wait = period - work, 59 FPS",
+    "contention_reproduction": "runs r15a/r15c/r15d: pinned CPU0 with 1-3 busy loops; late frames still armed a full period; wait measured 0..109 ms depending on preemption while the clock nominally armed one period from the post-work anchor"
+  },
+  "artifact_qualification": false,
+  "gameplay_qualification": false,
+  "guest_struct_layouts_changed": false,
+  "guest_execution_changed": false,
+  "host_frame_pacing_policy_changed": true,
+  "keep_pacing_debt_loader_behavior_changed": false,
+  "turbo_cadence_behavior_changed": false,
+  "diagnostic_build": {
+    "exe_sha256": "fcca622dce51e169cbc791ea173ba691df93429e9a8546f4cd4c40f7b722bace",
+    "exe_bytes": 39762432,
+    "base": "patched donor 7931b53c4968-44c84f7e6bff3003 (release parity source) + this one patch only; generated game C reused unchanged (arch 7f5b4919); manual cmake/ninja of final-build-c/project tree in Temp/sots-pacing-fix; unsigned, no icon, NOT a release artifact",
+    "verification": "same-session A/B control: orig 0971bd20 58.385fps wait-mean 3.505ms vs fixed 58.381fps wait-mean 3.330ms (on-time host unchanged); 3-busy-loop CPU0 contention: orig 4.23fps with 215 deadline-waits mean 28.05ms vs fixed 6.63fps with 31 deadline-waits and ~0ms wait on all late frames; exit0, 232 simulations, cpu_seconds unchanged both builds",
+    "handoff": "Unofficial diagnostic artifact only; prior A/B evidence reused, not release qualification."
+  },
+  "recorded": "2026-11-16",
+  "predecessor_patch_sha256": "14de3cdbf1f7a7842296f6a3866483febb0ff163079d072e3a5af443db04af3c",
+  "predecessor_binding_sha256": "714c9a2f69190ce9e4f8ccde37667c53cdd8d8cf3c7458d0ca6aa1d04c320c28",
+  "native_AOT_complete": false,
+  "cache_format": 60,
+  "normal_metadata": 45,
+  "task_metadata": 9,
+  "redirect_metadata": 1,
+  "new_files": []
+}

@@ -1,0 +1,18 @@
+diff --git a/runner/src/desktop/host_clock.c b/runner/src/desktop/host_clock.c
+--- a/runner/src/desktop/host_clock.c
++++ b/runner/src/desktop/host_clock.c
+@@ -23,9 +23,12 @@
+   double deadline = c->next_simulation + elapsed_periods / c->simulation_hz;
+   /* Keep ordinary sub-frame scheduling jitter on the original phase. A
+    * loader may preserve its backlog so its non-interactive frames refill the
+-   * guest-driven audio queue; all ordinary gameplay drops stale work. */
++   * guest-driven audio queue; all ordinary gameplay drops stale work. A
++   * dropped debt re-anchors at now, not now plus a full period: a chronically
++   * behind host must not additionally sleep one frame period per frame
++   * (mirrors the fmax(now, deadline) re-anchor the turbo cadence helper uses). */
+   c->next_simulation = preserve_debt || now <= deadline
+-      ? deadline : now + 1.0 / c->simulation_hz;
++      ? deadline : now;
+   ++c->simulation_frames;
+ }
+ 

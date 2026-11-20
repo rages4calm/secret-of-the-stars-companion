@@ -6,6 +6,13 @@ Native execution is enabled by default with automatic guarded interpreter fallba
 
 Further work is driven by concrete player bugs and newly observed failures. Existing qualified cases and the enemy sweep stay closed unless an affected change warrants a focused check. HD replacement art, MSU work and CPU experiments remain deferred.
 
+## Planned platforms
+
+After the current Windows fixes, Linux and Android ports are planned.
+Android should reuse the EarthBound/Lagoon touch-control approach and offer
+an option to hide the touch overlay when playing with a controller.
+Neither platform is released or qualified yet.
+
 ---
 
 ## Historical implementation notes
