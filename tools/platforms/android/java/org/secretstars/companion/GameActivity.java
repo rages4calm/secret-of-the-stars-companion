@@ -8,6 +8,7 @@ import android.view.KeyEvent;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import java.io.IOException;
 import java.util.HashSet;
 import org.libsdl.app.SDLActivity;
 
@@ -17,7 +18,27 @@ public final class GameActivity extends SDLActivity {
     private final HashSet<Integer> held = new HashSet<>();
     private LinearLayout controls;
     private boolean shown;
-    @Override protected String[] getLibraries() { return new String[]{"SDL3", "main"}; }
+    private String localModule;
+
+    @Override protected String[] getLibraries() {
+        return BuildConfig.LOAD_LOCAL_MODULE ? new String[]{"SDL3"} : new String[]{"SDL3", "main"};
+    }
+
+    @Override public void loadLibraries() {
+        if (BuildConfig.LOAD_LOCAL_MODULE) {
+            try {
+                localModule = LocalGameModule.verify(getNoBackupFilesDir().toPath()).toString();
+            } catch (IOException e) {
+                throw new IllegalStateException(e.getMessage(), e);
+            }
+        }
+        super.loadLibraries();
+        if (localModule != null) System.load(localModule);
+    }
+
+    @Override protected String getMainSharedObject() {
+        return localModule == null ? super.getMainSharedObject() : localModule;
+    }
     @Override protected String[] getArguments() {
         return new String[]{"--no-launcher", "--rom", getIntent().getStringExtra("rom")};
     }

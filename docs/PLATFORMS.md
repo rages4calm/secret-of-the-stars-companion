@@ -73,6 +73,36 @@ The local preview APK has been compiled and signed for ARM64 on Android 8.0 or
 newer. Community testing is needed for ROM import, startup, graphics, sound,
 touch controls, and controllers on physical devices.
 
+### On-device setup development
+
+The phone setup preview packages an Android ARM64 Python runtime and analyzer,
+the Zig compiler, SDL3, and the pinned authored build sources. Pick a clean,
+unheadered USA ROM in **Choose ROM**. The app generates and compiles the native
+game locally, then opens it. Later launches reuse the installed module for the
+same setup package. Keep the app open during first-time setup and allow room for
+the unpacked tools, generated C, temporary objects, and the final library.
+
+The APK contains no ROM or generated native game code. Phone compatibility,
+setup time, and physical graphics, audio, touch, and controller behavior are
+community preview checks. Have the APK version, phone model, Android version,
+and the last setup step handy when reporting a problem.
+
+The separate developer setup shell builds with SDL3 and the launcher Activities
+alone. It uses a separate application ID and omits the phone toolchain.
+
+```sh
+python tools/platforms/prepare_android_shell.py \
+  --sdl-source /private/SDL3-3.4.10 --output /tmp/sots-android-setup-shell
+gradle --project-dir /tmp/sots-android-setup-shell assembleDebug
+```
+
+The preview setup worker writes the read-only module and a receipt under the app's
+private no-backup directory. The receipt binds the module bytes, ROM identity, and
+setup package. The document picker only imports the ROM. `prepare_android_phone.py`
+stages the ROM-free build capsule and builds a Gradle project with the pinned tool
+inputs. Developers can export its compiler recipe with `android/phone_compile.py`
+from a matching NDK configuration. The third-party notices travel with the tools.
+
 The original touch HUD follows the same SNES controls used in the other ports:
 direction buttons, A/B/X/Y, L/R, Select/Start, plus Journal, Map, Boost and Turbo.
 **Controls** hides or restores the overlay and persists that preference, so a

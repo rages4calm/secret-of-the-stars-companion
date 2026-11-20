@@ -1,0 +1,14 @@
+cmake_minimum_required(VERSION 3.20)
+project(SecretStarsSetupShell LANGUAGES C CXX)
+
+if(NOT ANDROID OR NOT EXISTS "${SNESRECOMP_SDL3_SOURCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR "The setup shell requires Android and SDL3 3.4.10 sources")
+endif()
+
+set(SDL_SHARED ON CACHE BOOL "" FORCE)
+set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory("${SNESRECOMP_SDL3_SOURCE_DIR}" sdl3)
