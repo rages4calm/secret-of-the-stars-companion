@@ -65,6 +65,9 @@ def main():
         if not (project/'platforms/application.cmake').is_file():p.error('Prepared source predates Android shared target adapter; use next public-helper source build')
     out.mkdir(parents=True)
     definitions=['-DCMAKE_BUILD_TYPE=Release','-DSNESRECOMP_ROOT='+runtime.as_posix(),'-DSOTS_ARCH_NATIVE_SOURCE='+arch.as_posix(),'-DSNESRECOMP_FRAME_IMPL=HLE','-DSNESRECOMP_EXECUTION_DEFAULT=off','-DSNESRECOMP_ENABLE_NET=OFF']
+    if args.platform == 'linux':
+        # Use the runtime's hash-pinned SDL3 release unless an explicit donor is supplied.
+        definitions.extend(('-DSNESRECOMP_SDL_BACKEND=SDL3', '-DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON'))
     if args.sdl_source:
         definitions.append('-DSNESRECOMP_SDL3_SOURCE_DIR=' + args.sdl_source.resolve(strict=True).as_posix())
     if args.toolchain_file:

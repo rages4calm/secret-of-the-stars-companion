@@ -12,7 +12,7 @@ The port is feature-complete and available through the ROM-free launcher/source 
 
 **[Download 0.5.14.3](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14.3)** | [Build requirements](BUILDING.md)
 
-Linux and Android testers can prepare and build with their own ROM. [Platform preview instructions](docs/PLATFORMS.md).
+**Linux x86-64 community preview:** extract the source package and run Linux setup with your own clean USA ROM. [Linux download](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14.3-linux-preview.1) · [Linux setup instructions](docs/PLATFORMS.md#linux-x86-64-setup).
 
 **Android ARM64 community preview 13:** install the signed APK and choose your own clean USA ROM. First-time setup builds the game locally on the device. [Android download](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14.3-platform-preview.13).
 

@@ -4,6 +4,39 @@ These are development previews. Each tester builds the playable program locally
 from their own clean USA ROM. The public source includes the platform build tools
 and Android app source. Generated game code and the resulting binaries stay local.
 
+## Linux x86-64 setup
+
+Install Python 3.11 or newer, Git, Clang, CMake 3.24 or newer, Ninja, and [Rustup](https://rustup.rs/)
+with the pinned Rust 1.97.1 toolchain. The first run needs network access for
+the pinned dependencies. On Debian or Ubuntu, this installs the build tools and
+SDL dependencies for X11 graphics, ALSA audio, and controller detection:
+
+```sh
+sudo apt install build-essential git python3 clang cmake ninja-build pkg-config \
+  libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
+  libxkbcommon-dev libgl1-mesa-dev libasound2-dev libudev-dev
+rustup toolchain install 1.97.1
+```
+
+For native Wayland support, also install `libwayland-dev`, `wayland-protocols`,
+`libegl-dev` and `libdecor-0-dev`. See [SDL's Linux dependency notes](https://wiki.libsdl.org/SDL3/README-linux).
+
+Extract the Linux preview source ZIP. From that folder, run setup with the path
+to your clean, unheadered **Tecmo Secret of the Stars (USA)** ROM:
+
+```sh
+python3 tools/platforms/setup_linux.py "$HOME/Games/Secret of the Stars (USA).sfc"
+"$HOME/.local/share/secret-of-the-stars/play.sh"
+```
+
+The script builds in your home folder and writes `play.sh` when compilation
+finishes. Use `--output /path/to/new-folder` to choose another location and
+`--jobs` to change the default of two parallel build jobs. If generation already
+finished and you need to retry compilation, pass `--source-build` with the
+previous setup folder's `sources` directory and choose a new `--output`.
+The game uses the build's writable `native/build` folder for settings and saves.
+Keep the ROM at the path you supplied to setup.
+
 ## Reuse a prepared native build
 
 Generate the private inputs on a machine with the toolchain from [BUILDING.md](../BUILDING.md).
