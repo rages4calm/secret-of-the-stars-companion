@@ -1983,11 +1983,60 @@ def prepare_architectural_native(context):
     return record
 
 
+def prepare_platform_sources(context):
+    """Seal validated local generation for a separate platform compiler."""
+    project = context.project
+    architecture = prepare_architectural_native(context)
+    for name, digest in context.actual.items():
+        if sha(context.source / name) != digest or (
+            name != 'recomp/funcs.h' and sha(project / name) != digest
+        ):
+            raise RuntimeError('Authored input changed during platform preparation: ' + name)
+    if sha(context.rom) != context.expected:
+        raise RuntimeError('ROM changed during platform preparation')
+    if sha(context.marker) != context.target_marker_digest or any(
+        sha(context.runtime / name) != digest for name, digest in context.target_sources.items()
+    ):
+        raise RuntimeError('Runtime changed during platform preparation')
+    runtime_source_accounting(context.runtime, context.patch_names, context.new_patch_names)
+    project_inputs = {}
+    for path in sorted(project.rglob('*')):
+        reject_links(path)
+        if path.is_file():
+            project_inputs[path.relative_to(project).as_posix()] = sha(path)
+    record = {
+        'status': 'platform_sources_prepared',
+        'public_build': True,
+        'runtime_pin': RUNTIME_PIN,
+        'runtime_source_provenance': {
+            'runtime_dir': str(context.runtime),
+            'patched_sources': context.target_sources,
+            'marker_sha256': context.target_marker_digest,
+        },
+        'rom_sha256': context.expected,
+        'authored_inputs': context.actual,
+        'project_inputs': project_inputs,
+        'architectural_native_generation': architecture,
+        'helper_sha256': sha(Path(__file__)),
+        'compilation_started': False,
+        'execution_qualified': False,
+    }
+    receipt = context.out / 'platform-source-receipt.json'
+    with receipt.open('x', encoding='utf-8') as stream:
+        json.dump(record, stream, indent=2)
+        stream.write('\n')
+    print('Prepared private sources: ' + str(receipt))
+    print('Matching runtime: ' + str(context.runtime))
+
+
 def finalize_compilation(context):
     """Shared original compile/profile/receipt tail; caller must validate every input."""
     baseline_provenance=baseline_output_provenance(context.args,context.generated_metadata,context.region_metadata)
     if baseline_provenance is not None and context.continuation_record is None:
         raise RuntimeError('Baseline compilation requires a separately reviewed exact-output continuation context')
+    if getattr(context.args, 'prepare_platform_sources', False):
+        prepare_platform_sources(context)
+        return
     accumulator_lineage=context.accumulator_lineage
     accumulator_patch=context.accumulator_patch
     actual=context.actual
@@ -2292,6 +2341,8 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--rom',type=Path,required=True)
     p.add_argument('--runtime-prepare-only',action='store_true',help='Prepare verified patched runtime only; no project snapshot, analyzer, generation or compilation')
+    p.add_argument('--prepare-platform-sources', action='store_true',
+                   help='Generate and verify private sources for Linux or Android, without compiling a game')
     p.add_argument('--source-seed-prepare',action='store_true',help='Prepare source-only analysis with explicit requested roots; no historical capture claims')
     p.add_argument('--analysis-roots-file',type=Path,action='append',default=[],help='Source-analysis root requests, independently analyzed; never execution authority')
     p.add_argument('--profile-manifest',type=Path,action='append',default=[],help='Optional owned local Tier2v2 JSON checkpoint/JSONL journal (repeatable); never a release default')
@@ -2318,6 +2369,11 @@ def main():
     p.add_argument('--output-dir',type=Path,help='Optional new build directory; refuses an existing path. Default: local/source-builds/timestamp.')
     args=p.parse_args()
     validate_seed_preparation_mode(args)
+    if args.prepare_platform_sources and (
+        args.runtime_prepare_only or args.source_seed_prepare or args.profile_seed_prepare
+        or args.profile_audit_only or args.profile_manifest or args.analysis_roots_file
+    ):
+        p.error('--prepare-platform-sources requires the normal public generation route')
     if args.runtime_prepare_only and (args.source_seed_prepare or args.profile_seed_prepare or args.profile_audit_only or args.profile_manifest or args.analysis_roots_file):raise ValueError('Runtime-only preparation cannot consume generation/profile inputs')
     validate_selected_task_recipe(ROOT/'native/foundation/recomp')
     validate_source_redirect_recipe(ROOT/'native/foundation/recomp')

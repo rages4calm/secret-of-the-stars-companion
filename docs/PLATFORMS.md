@@ -1,19 +1,23 @@
 # Linux and Android development builds
 
-These targets are started, not released or gameplay-qualified. Windows remains
-the supported release. Neither a Linux binary nor an APK is included in the
-source package. Generated game code and ROMs remain private.
+These are development previews. Each tester builds the playable program locally
+from their own clean USA ROM. The public source includes the platform build tools
+and Android app source. Generated game code and the resulting binaries stay local.
 
 ## Reuse a prepared native build
 
-`tools/platforms/prepare.py` uses an existing public-helper source build. It
-checks its compilation receipt, authored inputs, generated-output cache hashes,
-architectural native C, patched runtime files and Git revision before writing
-commands into a fresh private output directory. It does not regenerate game
-code, alter a working installation or upload game data. Requested CMake/Gradle
-configuration may fetch pinned development dependencies.
-First compilation receipts remain `compiled_unqualified`; another platform
-needs its own compilation and runtime qualification.
+Generate the private inputs on a machine with the toolchain from [BUILDING.md](../BUILDING.md).
+Use the matching runtime path printed by the helper. This step does not compile a
+Windows executable. An existing public-helper build also works as input.
+
+```sh
+python tools/build_public_foundation.py --prepare-platform-sources \
+  --rom /private/secret-of-the-stars-usa.sfc --output-dir /private/sots-native-build
+```
+
+`tools/platforms/prepare.py` checks the receipt, generated sources and pinned
+runtime before writing platform build commands. CMake and Gradle may fetch build
+dependencies. Preparation receipts record generation only.
 
 On Linux, place your private generated project, source receipt, architectural C
 and matching pinned runtime on that machine. The generated source build retains
@@ -28,12 +32,11 @@ python3 tools/platforms/prepare.py --platform linux \
 cmake --build /tmp/sots-linux-build/build --target SecretOfTheStarsSNESRecomp -j4
 ```
 
-Run the resulting binary from a private writable profile with `--no-launcher
---rom /path/to/your/game.sfc`. The Windows C# Companion is not a Linux launcher.
-Native keyboard/gamepad input remains SDL-owned. No Linux runtime test has
-passed here: this Windows host has no usable WSL distribution and reports
-virtualization/Virtual Machine Platform unavailable. A real Linux machine or
-configured WSL2 environment is needed for compilation and visible/audio checks.
+Launch the resulting executable with `--no-launcher --rom /path/to/your/game.sfc`.
+Keep it in a private writable folder so the game can save settings and progress.
+Keyboard and gamepad input use SDL. The Windows Companion is a separate app.
+For a cross-build, pass `--toolchain-file` with a target Linux CMake toolchain.
+Use `--sdl-source` to build against a local copy of the pinned SDL3 source.
 
 ## Android preview project
 
@@ -51,8 +54,7 @@ real SDL renderer vsync update. CMake checks the exact reviewed host source hash
 before enabling it. Current upstream already guards its desktop OpenGL calls;
 this missing guard belongs to our authored patch, not a reproduced upstream bug.
 
-Use the **next** prepared public-helper build containing
-`platforms/application.cmake`, plus matching SDL3 **3.4.10** sources:
+Use the prepared private sources from above with matching SDL3 **3.4.10** sources:
 
 ```sh
 python3 tools/platforms/prepare.py --platform android \
@@ -63,10 +65,13 @@ python3 tools/platforms/prepare.py --platform android \
 That writes a Gradle application referencing your private native source tree.
 With JDK17+, Android SDK36, NDK28.2.13676358, CMake/Ninja and Gradle available,
 run the command in its `platform-plan.json` (`gradle --project-dir ...
-assembleDebug`). The Android Gradle plugin is pinned to8.10.1; the Gradle build
-may fetch missing development dependencies. This preparer itself does not.
-The first ABI is arm64-v8a. Native compilation, APK assembly, installation and
-phone graphics/audio remain unqualified; no Android performance claim is made.
+assembleDebug`). The Android Gradle plugin is pinned to 8.10.1. Install CMake
+and Ninja through SDK Manager, or set `cmake.dir` in the generated project's
+`local.properties` to the installation containing `bin/cmake`. Gradle may fetch
+missing build dependencies.
+The local preview APK has been compiled and signed for ARM64 on Android 8.0 or
+newer. Community testing is needed for ROM import, startup, graphics, sound,
+touch controls, and controllers on physical devices.
 
 The original touch HUD follows the same SNES controls used in the other ports:
 direction buttons, A/B/X/Y, L/R, Select/Start, plus Journal, Map, Boost and Turbo.
@@ -83,24 +88,19 @@ Java code is supplied by the external pinned SDL source tree at build time.
 
 ## Checks performed
 
-- Both new Activities and the pinned SDL3 Java sources compiled with `javac21.0.10` in Java17 source/target mode
-  against Android API36 (deprecation warning only).
-- Python preparer help/import passed and an existing real private1191 receipt
-  produced a Linux configuration plan after source/cache/runtime checks.
-- CMake's platform adapter preserves desktop executable creation and selects a
-  shared library named `main` only for Android.
-- The initial native configuration refused the incomplete NDK placeholder.
-  The exact official NDK28.2.13676358 archive was then downloaded, checked
-  against Google's repository size/SHA1, and installed without removing the
-  old placeholder. Google's current SDK Manager redirects to Android CLI;
-  that CLI returned "No url for ndk", so the verified official archive was
-  used directly.
-- Actual arm64/API26 native CMake configuration now passes with NDK Clang19.0.1.
-  SDL_SHARED is ON and SDL_STATIC is OFF, and generated build rules name both
-  `libmain.so` and `libSDL3.so`. Native game compilation was not run by this
-  configuration check. No APK or Android device execution is qualified.
-- These are source/Java compile checks and successful native configuration,
-  not an APK, Linux-run or campaign verdict.
+- The Linux x86-64 game compiled and linked against the Debian glibc sysroot
+  using SDL3 with X11 and ALSA support. A single-core software-only Linux VM
+  ran 180 frames each from a cold start and a copied battle checkpoint. Both
+  runs exited cleanly and rendered offscreen. The battle run produced nonzero
+  game audio. Physical playback, desktop graphics drivers, and physical input
+  checks remain open.
+- The Android ARM64 native library, SDL3, and Java Activities compiled, and a
+  signed local test APK assembled successfully. Gradle also configured the
+  native build from the new private-source preparation command. Testing on a
+  physical Android device remains open.
+- To report a problem, include the platform and version, the device or Linux
+  distribution, your input device, and the steps to reproduce it. Share text
+  diagnostics with personal paths removed. Keep ROMs and saves private.
 
 ## Frozen runtime compatibility
 

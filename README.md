@@ -12,6 +12,8 @@ The port is feature-complete and available through the ROM-free launcher/source 
 
 **[Download 0.5.14.3](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14.3)** | [Build requirements](BUILDING.md)
 
+Linux and Android testers can prepare and build with their own ROM. [Platform preview instructions](docs/PLATFORMS.md).
+
 **Discord:** chrono.trigger
 
 > [!IMPORTANT]

@@ -276,7 +276,7 @@
   "task_collection494_handoff_sha256": "16e752e4cc45165813d2fa5904c7c5f3bc8fcdf3031c4f4686c81ec1f06080e5",
   "whole_expansion497_handoff_sha256": "3e783976fedbe7451139ba1e7a3d8cfc1b643f8d9dd8e643710bed1daf826374",
   "source_stage": 140,
-  "public_helper_sha256": "508573b4db337f7a507fe23aa4b3b197ae33cb1d87e725f47d853f6db0228f08",
+  "public_helper_sha256": "5faba2399eca8d52af1dac791503d185b65b35ead26a74a9ac394eddbd99bc5e",
   "ordered_runtime_patch_count": 98,
   "runtime_extension_count": 67,
   "native_poll_service506_sha256": "c0497f7b39f25503a595af3fc2f720909a89963d569ee84ef25592f5513b3be6",
