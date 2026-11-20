@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The star and orbit from assets/icons/sots-game.svg, inset for adaptive masks. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group android:pivotX="256" android:pivotY="256" android:scaleX="0.86" android:scaleY="0.86">
+        <path
+            android:strokeColor="#5DDBD3"
+            android:strokeWidth="17"
+            android:pathData="M384.56,372.76 A173,173 0,0 1,106.18,170.50" />
+        <path
+            android:fillColor="#5DDBD3"
+            android:pathData="M110,248 A16,16 0,1 1,78,248 A16,16 0,1 1,110,248 Z" />
+        <path
+            android:fillColor="#EFC469"
+            android:pathData="M256,88 L294.184,204.816 411,243 294.184,281.184 256,398 217.816,281.184 101,243 217.816,204.816 Z" />
+        <path android:fillColor="#FFE5A2" android:pathData="M256,88 V243 H411 L310,190 Z" />
+        <path android:fillColor="#C98C39" android:pathData="M256,243 V398 L202,297 101,243 Z" />
+        <path
+            android:fillColor="#FFF4C9"
+            android:pathData="M268,243 A12,12 0,1 1,244,243 A12,12 0,1 1,268,243 Z" />
+    </group>
+</vector>

@@ -2,7 +2,7 @@
 import json
 import re
 from pathlib import Path
-from shutil import copyfile
+from shutil import copyfile, copytree
 
 ANDROID = Path(__file__).resolve().parent / 'android'
 
@@ -46,8 +46,8 @@ include ':app'
     package_suffix = '.preview' if has_phone_tools else ('.setupdev' if local_module else '')
     local_flag = 'true' if local_module else 'false'
     toolchain_flag = 'true' if has_phone_tools else 'false'
-    version_code = 2 if has_phone_tools else 1
-    version_name = '0.1-preview.2' if has_phone_tools else '0.1-preview'
+    version_code = 13 if has_phone_tools else 1
+    version_name = '0.1-preview.13' if has_phone_tools else '0.1-preview'
     argument_list = ', '.join(quote(value) for value in arguments)
     (app / 'build.gradle').write_text(f'''plugins {{ id 'com.android.application' }}
 
@@ -78,7 +78,7 @@ android {{
             useLegacyPackaging = true
             keepDebugSymbols += ['**/libzig.so', '**/libanalyzer.so', '**/libpython-launcher.so',
                                  '**/libpython3.14.so', '**/libcrypto_python.so',
-                                 '**/libssl_python.so', '**/libsqlite3.so']
+                                 '**/libssl_python.so', '**/libsqlite3_python.so']
         }}
     }}
     externalNativeBuild {{ cmake {{ path {quote(cmake_project)} }} }}
@@ -88,7 +88,8 @@ android {{
     (main / 'AndroidManifest.xml').write_text(f'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature android:glEsVersion="0x00020000"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
-    <application android:label="{label}" android:allowBackup="false">
+    <application android:label="{label}" android:allowBackup="false"
+        android:icon="@mipmap/sots_launcher" android:roundIcon="@mipmap/sots_launcher">
         <activity android:name="org.secretstars.companion.GameActivity" android:screenOrientation="sensorLandscape"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|uiMode" android:exported="false"/>
         <activity android:name="org.secretstars.companion.SetupActivity" android:exported="true">
@@ -100,10 +101,10 @@ android {{
     </application>
 </manifest>
 ''', encoding='utf-8')
+    copytree(ANDROID / 'res', main / 'res')
     notices = main / 'assets/licenses'
     notices.mkdir(parents=True)
     copyfile(sdl / 'LICENSE.txt', notices / 'SDL3.txt')
     if has_phone_tools:
-        from shutil import copytree
         copyfile(phone_capsule, main / 'assets/ondevice.zip')
         copytree(native_tools, main / 'jniLibs/arm64-v8a')

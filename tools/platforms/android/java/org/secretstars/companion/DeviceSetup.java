@@ -23,7 +23,8 @@ import java.security.MessageDigest;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -34,10 +35,19 @@ final class DeviceSetup {
     private static final long MAX_ARCHIVE = 512L * 1024 * 1024;
     private static final long MAX_UNPACKED = 1024L * 1024 * 1024;
     private static final int MAX_ENTRIES = 40_000;
+    private static final Pattern COMPILE_COUNTS = Pattern.compile("SOTS_UNITS:([0-9]{1,6})/([0-9]{1,6})");
 
     private DeviceSetup() {}
 
-    static void prepare(Context app, Path rom, Consumer<String> progress) throws IOException {
+    interface Progress {
+        void update(String text, int completed, int total);
+
+        default void phase(String text) {
+            update(text, 0, 0);
+        }
+    }
+
+    static void prepare(Context app, Path rom, Progress progress) throws IOException {
         Path privateDir = app.getNoBackupFilesDir().toPath();
         Path work = privateDir.resolve("phone-setup");
         Files.createDirectories(work);
@@ -59,13 +69,13 @@ final class DeviceSetup {
             deleteTree(stage);
             Files.createDirectory(stage);
             try {
-                progress.accept("Preparing first-time setup...");
+                progress.phase("Preparing first-time setup...");
                 verifyArchive(app.getAssets());
                 Path capsule = Files.createDirectory(stage.resolve("capsule"));
                 unpack(app.getAssets(), capsule);
                 Path output = stage.resolve("libmain.so");
                 runTools(app, rom, stage, capsule, output, progress);
-                progress.accept("Installing the compiled game...");
+                progress.phase("Installing the compiled game...");
                 LocalGameModule.install(privateDir, output);
             } finally {
                 removeTemporaryFiles(stage);
@@ -140,14 +150,14 @@ final class DeviceSetup {
     }
 
     private static void runTools(Context app, Path rom, Path stage, Path capsule, Path output,
-            Consumer<String> progress) throws IOException {
+            Progress progress) throws IOException {
         String nativeDir = app.getApplicationInfo().nativeLibraryDir;
         Path launcher = new File(nativeDir, "libpython-launcher.so").toPath();
         if (!Files.isRegularFile(launcher) || !Files.isExecutable(launcher)) {
             throw new IOException("Android could not find the installed setup launcher.");
         }
         Path temp = Files.createDirectory(stage.resolve("tmp"));
-        ProcessBuilder command = new ProcessBuilder(launcher.toString(), capsule.resolve("build_on_phone.py").toString(),
+        ProcessBuilder command = new ProcessBuilder(launcher.toString(), "-I", capsule.resolve("build_on_phone.py").toString(),
                 "--capsule", capsule.toString(), "--rom", rom.toString(), "--output", output.toString(),
                 "--native-lib-dir", nativeDir);
         command.directory(stage.toFile());
@@ -158,28 +168,65 @@ final class DeviceSetup {
         env.put("TMPDIR", temp.toString());
         env.put("HOME", stage.toString());
         Process process = command.start();
-        String phase = "preparing the tools";
+        String phase = "starting Python";
         String lastLine = "";
+        String failureDetail = "";
         try {
             process.getOutputStream().close();
             try (BufferedReader log = new BufferedReader(new InputStreamReader(process.getInputStream(),
                     StandardCharsets.UTF_8))) {
                 for (String line; (line = log.readLine()) != null;) {
-                    if (line.equals("SOTS_SETUP:generate")) {
+                    if (line.equals("SOTS_SETUP:verify")) {
+                        phase = "verifying the packaged tools";
+                        progress.phase("Verifying the packaged tools...");
+                    } else if (line.equals("SOTS_SETUP:runtime")) {
+                        phase = "checking the runtime sources";
+                        progress.phase("Checking the runtime sources...");
+                    } else if (line.equals("SOTS_SETUP:preflight")) {
+                        phase = "checking the generator inputs";
+                        progress.phase("Checking the generator inputs...");
+                    } else if (line.equals("SOTS_SETUP:generate")) {
                         phase = "generating code from the ROM";
-                        progress.accept("Generating game code on this phone...");
+                        progress.phase("Generating game code from the ROM...");
+                    } else if (line.equals("SOTS_SETUP:headers")) {
+                        phase = "preparing the generated headers";
+                        progress.phase("Preparing the generated headers...");
+                    } else if (line.equals("SOTS_SETUP:validate")) {
+                        phase = "checking the generated code";
+                        progress.phase("Checking the generated code against the ROM...");
+                    } else if (line.equals("SOTS_SETUP:cpu")) {
+                        phase = "generating native CPU code";
+                        progress.phase("Generating native CPU code...");
                     } else if (line.equals("SOTS_SETUP:compile")) {
                         phase = "compiling the native game";
-                        progress.accept("Compiling the native game. Keep this screen open.");
-                    } else if (!line.isEmpty()) {
+                        progress.phase("Compiling the native game. Keep this screen open.");
+                    } else if (line.equals("Linking game")) {
+                        phase = "linking the native game";
+                        progress.phase("Linking the native game...");
+                    } else if (line.startsWith("SOTS_UNITS:")) {
+                        Matcher counts = COMPILE_COUNTS.matcher(line);
+                        if (counts.matches()) {
+                            int completed = Integer.parseInt(counts.group(1));
+                            int total = Integer.parseInt(counts.group(2));
+                            if (total > 0 && completed <= total) {
+                                progress.update("Compiling the native game. " + completed + " of " + total
+                                        + " source files compiled.", completed, total);
+                            }
+                        }
+                    } else if (line.startsWith("SOTS_ERROR:")) {
+                        int start = "SOTS_ERROR:".length();
+                        failureDetail = line.substring(start, Math.min(start + 600, line.length()));
+                    } else if (!line.trim().isEmpty()) {
                         lastLine = line.substring(0, Math.min(800, line.length()));
                     }
                 }
             }
             int result = process.waitFor();
             if (result != 0) {
-                Log.w(TAG, "Setup failed while " + phase + " (exit " + result + "): " + lastLine);
-                throw new IOException("Setup stopped while " + phase + " (code " + result + "). Tap Play to retry.");
+                String detail = failureDetail.isEmpty() ? lastLine : failureDetail;
+                Log.w(TAG, "Setup failed while " + phase + " (exit " + result + "): " + detail);
+                throw new IOException("Setup stopped while " + phase + " (code " + result + ")."
+                        + (detail.isEmpty() ? " The setup tool returned no diagnostic output." : "\n\n" + detail));
             }
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();

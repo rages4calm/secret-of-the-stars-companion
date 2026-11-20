@@ -14,7 +14,7 @@ The port is feature-complete and available through the ROM-free launcher/source 
 
 Linux and Android testers can prepare and build with their own ROM. [Platform preview instructions](docs/PLATFORMS.md).
 
-**Android ARM64 community preview:** install the signed APK and choose your own clean USA ROM. First-time setup builds the game locally on the device. [Android download](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14.3-platform-preview.2).
+**Android ARM64 community preview 13:** install the signed APK and choose your own clean USA ROM. First-time setup builds the game locally on the device. [Android download](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14.3-platform-preview.13).
 
 **Discord:** chrono.trigger
 

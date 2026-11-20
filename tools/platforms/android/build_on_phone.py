@@ -48,13 +48,19 @@ def generate(capsule, work, rom, analyzer, bundle):
         raise ValueError('Use the exact unheadered USA ROM')
     if helper.RUNTIME_PIN != bundle['runtime_pin']:
         raise ValueError('Pinned runtime revision differs')
+    print('SOTS_SETUP:runtime', flush=True)
     helper.validate_final_runtime(runtime)
+    from optimize_emitter import apply as optimize_emitter
+    if '_sots_digest_snapshot' not in sys.builtin_module_names:
+        raise RuntimeError('The packaged Android setup launcher is missing its proof cache')
+    patched_sources = optimize_emitter(runtime, bundle['patched_sources'])
     _, authored = helper.snapshot_authored(source, project)
     identity = dict(line.split('=', 1) for line in (source / 'rom_identity.txt').read_text().splitlines()
                     if '=' in line and not line.lstrip().startswith('#'))
     identity = {key.strip(): value.strip() for key, value in identity.items()}
     if identity['expected_sha256'].lower() != expected:
         raise ValueError('ROM source identity differs')
+    print('SOTS_SETUP:preflight', flush=True)
     helper.reviewed_roots_preflight(runtime, project, identity, True)
     helper.validate_selected_task_recipe(source / 'recomp')
     helper.validate_source_redirect_recipe(source / 'recomp')
@@ -62,11 +68,21 @@ def generate(capsule, work, rom, analyzer, bundle):
     env.update(SNESRECOMP_NATIVE_ANALYZER=str(analyzer), PYTHONDONTWRITEBYTECODE='1')
     print('SOTS_SETUP:generate', flush=True)
     commands = helper.generation_commands(runtime, project, rom, identity)
-    with (work / 'generate.log').open('x', encoding='utf-8') as log:
-        for command in commands:
-            subprocess.run(list(map(str, command)), cwd=project, env=env,
-                           stdout=log, stderr=subprocess.STDOUT, check=True, timeout=5400)
-    print('Verifying generated source against the ROM...', flush=True)
+    with (work / 'generate.log').open('x+b') as log:
+        for index, command in enumerate(commands):
+            if index == 1:
+                print('SOTS_SETUP:headers', flush=True)
+            try:
+                subprocess.run(list(map(str, command)), cwd=project, env=env,
+                               stdout=log, stderr=subprocess.STDOUT, check=True, timeout=5400)
+            except subprocess.CalledProcessError as error:
+                end = log.seek(0, os.SEEK_END)
+                log.seek(max(0, end - 8192))
+                detail = log.read().decode('utf-8', errors='replace').strip()
+                raise RuntimeError(detail or f'Generator exited with code {error.returncode}.') from error
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError('This setup step timed out after 90 minutes.') from error
+    print('SOTS_SETUP:validate', flush=True)
     generated = project / 'src/gen'
     cache = json.loads((generated / '.snesrecomp-cache.json').read_bytes())
     regions = json.loads((generated / 'native_regions.json').read_bytes())
@@ -78,9 +94,10 @@ def generate(capsule, work, rom, analyzer, bundle):
         if sha256(checked_path(generated, name)) != digest:
             raise ValueError('Generated source hash mismatch: ' + name)
     results = validator.validate_current_outputs(generated, cache, rom, runtime, project / 'recomp',
-                                                  source_hashes=bundle['patched_sources'])
+                                                  source_hashes=patched_sources)
     helper.validate_source_redirect_outputs(generated, cache, expected, rom)
     helper.generate_profile_seed_auxiliary_outputs(project, work, rom, expected, authored)
+    print('SOTS_SETUP:cpu', flush=True)
     architecture = helper.prepare_architectural_native(SimpleNamespace(
         project=project, out=work, runtime=runtime, rom=rom, architectural_native_preparation=None))
     (work / 'generator-result.json').write_text(json.dumps({'normal_rows': results['normal_rows'],
@@ -97,19 +114,24 @@ def main():
     capsule = args.capsule.resolve(strict=True)
     native_dir = args.native_lib_dir.resolve(strict=True)
     rom = args.rom.resolve(strict=True)
-    output = args.output.absolute()
-    if output.name != 'libmain.so' or output.exists():
+    # Android's private directory can have an OS-owned user-storage alias.
+    # Resolve the trusted staging parent like the other roots, preserving the output leaf check.
+    output = args.output.parent.resolve(strict=True) / args.output.name
+    if output.name != 'libmain.so' or output.is_symlink() or output.exists():
         raise ValueError('Use a fresh libmain.so staging path')
+    print('SOTS_SETUP:verify', flush=True)
     bundle = verified_inputs(capsule, native_dir)
     work = output.parent / 'native-build'
     work.mkdir(exist_ok=False)
     os.environ['TMPDIR'] = str(work)
+    sys.path.insert(0, str(capsule))
     generate(capsule, work, rom, native_dir / 'libanalyzer.so', bundle)
     print('SOTS_SETUP:compile', flush=True)
     from phone_compile import compile_module
     compile_dir = work / 'compile'
     compile_dir.mkdir()
-    compile_module(capsule / 'recipe.json', capsule, work, native_dir, compile_dir, output)
+    compile_module(capsule / 'recipe.json', capsule, work, native_dir, compile_dir, output,
+                   unit_progress=lambda done, total: print(f'SOTS_UNITS:{done}/{total}', flush=True))
     if not output.is_file() or output.stat().st_size < 64:
         raise RuntimeError('Native linker did not create a shared library')
     print('Native build complete.', flush=True)
@@ -119,5 +141,6 @@ if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
-        print(f'Error: {error}', file=sys.stderr)
+        detail = str(error).strip().splitlines()
+        print(f'SOTS_ERROR:{detail[-1] if detail else type(error).__name__}', file=sys.stderr, flush=True)
         raise SystemExit(1)

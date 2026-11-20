@@ -98,18 +98,24 @@ gradle --project-dir /tmp/sots-android-setup-shell assembleDebug
 
 The preview setup worker writes the read-only module and a receipt under the app's
 private no-backup directory. The receipt binds the module bytes, ROM identity, and
-setup package. The document picker only imports the ROM. `prepare_android_phone.py`
+setup package. The worker starts after the document picker imports the ROM. `prepare_android_phone.py`
 stages the ROM-free build capsule and builds a Gradle project with the pinned tool
 inputs. Developers can export its compiler recipe with `android/phone_compile.py`
-from a matching NDK configuration. The third-party notices travel with the tools.
+from a matching NDK configuration. Build `libpython-launcher.so` with both
+`android/python_launcher.c` and `android/digest_snapshot.c`, using the pinned
+Android CPython headers and library. The setup runs the same source checks as the
+pinned emitter and caches their results only after an exact content comparison.
+The phone compiler builds large generated dispatch tables in smaller pieces so
+it can optimize their code within the phone's memory budget. The third-party
+notices travel with the tools.
 
-The original touch HUD follows the same SNES controls used in the other ports:
-direction buttons, A/B/X/Y, L/R, Select/Start, plus Journal, Map, Boost and Turbo.
-**Controls** hides or restores the overlay and persists that preference, so a
-controller can be used without covering the picture. Hiding, pausing or losing
-focus releases held touch keys. SDL continues to own physical gamepad input.
-Touches use the native default keyboard mapping; custom remaps must be matched
-by a future remapping UI. Layout/phone usability has not been visually tested.
+The landscape touch overlay puts a sliding D-pad on the left and the SNES face
+buttons on the right. **Tools** opens Journal, Map, Boost and Turbo. The
+top-right controls button hides or restores the overlay and remembers your
+choice for controller play. Hiding, pausing or losing focus releases held touch
+keys. SDL continues to handle physical gamepads. Touches follow the game's
+default keyboard mapping, so changing a corresponding key binding also changes
+whether the touch control can trigger it.
 
 EarthBound's Android code was inspected as a behavior reference. Its Java touch
 implementation is GPL-licensed, so it was not copied into this repository's
@@ -124,10 +130,12 @@ Java code is supplied by the external pinned SDL source tree at build time.
   runs exited cleanly and rendered offscreen. The battle run produced nonzero
   game audio. Physical playback, desktop graphics drivers, and physical input
   checks remain open.
-- The Android ARM64 native library, SDL3, and Java Activities compiled, and a
-  signed local test APK assembled successfully. Gradle also configured the
-  native build from the new private-source preparation command. Testing on a
-  physical Android device remains open.
+- A fresh emulator install imported the ROM, built the private ARM64 library,
+  and played the opening scene. The optimized compiler also completed a separate
+  ARM64 rebuild from the same generated sources and reached the title screen.
+  Muted emulator playback checks covered the touch overlay and hide/show behavior.
+  Testing setup, audio and
+  controller use on a physical Android device remains open.
 - To report a problem, include the platform and version, the device or Linux
   distribution, your input device, and the steps to reproduce it. Share text
   diagnostics with personal paths removed. Keep ROMs and saves private.

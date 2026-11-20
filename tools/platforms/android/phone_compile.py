@@ -22,7 +22,12 @@ LEGACY_REGIONS_C = "project/src/gen/native_regions_v2.c"
 ARCHITECTURE_PART_SIZE = 4096
 ARCHITECTURE_BLOCK = re.compile(rb"static void nb69_block_(\d+)\(CpuState \*cpu,NativeBlockScope \*scope\) \{\r?\n")
 ARCHITECTURE_TABLE = b"static const NativeBlockInstruction nb69_instructions[]={"
-ARCHITECTURE_LINKAGE = b'__attribute__((visibility("hidden"))) '
+HIDDEN_LINKAGE = b'__attribute__((visibility("hidden"))) '
+LEGACY_STEP = b"bool cpu_native_region_step(CpuState *cpu,uint32 pc24,uint8 mx,uint32 *next_pc) {\n"
+LEGACY_SWITCH = b"  switch (((pc24&0x7fffffu)<<2)|mx) {\n"
+LEGACY_SWITCH_END = b"    default: return false;\n  }\n}\n"
+LEGACY_CASE = re.compile(rb"^    case (\d+)u: \{ /\* ([0-9a-f]{6}) M([01])X([01]) ", re.MULTILINE)
+LEGACY_BUCKET_SHIFT = 13
 COMPILER_FLAGS = frozenset({
     "-fdata-sections", "-ffunction-sections", "-funwind-tables", "-fstack-protector-strong",
     "-no-canonical-prefixes", "-Wformat", "-Werror=format-security", "-O1", "-O3",
@@ -187,8 +192,10 @@ def _run(command: list, work: Path) -> None:
         result = subprocess.run(command, cwd=work, stdout=log, stderr=subprocess.STDOUT, check=False)
         if result.returncode:
             log.seek(max(0, log.tell() - 8192))
-            detail = log.read().decode("utf-8", errors="replace").strip()
-            raise RuntimeError(f"{command[1]} exited with {result.returncode}\n{detail}")
+            lines = log.read().decode("utf-8", errors="replace").strip().splitlines()
+            detail = next((line.strip() for line in lines if "error:" in line.lower()),
+                          lines[-1].strip() if lines else "No compiler output was available.")
+            raise RuntimeError(f"{command[1]} exited with {result.returncode}: {detail}")
 
 
 def _compile(zig: Path, capsule: Path, source: Path, output: Path, flags: list[str], work: Path) -> None:
@@ -234,8 +241,8 @@ def _architecture_parts(source: Path, directory: Path):
                         if not match or int(match.group(1)) != expected:
                             raise ValueError(f"Unexpected architectural instruction body {expected}")
                         signature = line.removeprefix(b"static ").rstrip(b"\r\n").removesuffix(b" {")
-                        table_file.write(b"extern " + ARCHITECTURE_LINKAGE + signature + b";\n")
-                        part_file.write(ARCHITECTURE_LINKAGE + line.removeprefix(b"static "))
+                        table_file.write(b"extern " + HIDDEN_LINKAGE + signature + b";\n")
+                        part_file.write(HIDDEN_LINKAGE + line.removeprefix(b"static "))
                         for line in original:
                             part_file.write(line)
                             if line.rstrip(b"\r\n") == b"}":
@@ -252,7 +259,61 @@ def _architecture_parts(source: Path, directory: Path):
         table.unlink()
 
 
-def compile_module(recipe_path, capsule_dir, generated_dir, native_dir, work_dir, output_path, *, progress=print, zig_path=None):
+def _legacy_region_parts(source: Path, directory: Path):
+    """Keep scheduler admission in its original entry point and optimize small case switches."""
+    original = source.read_bytes().replace(b"\r\n", b"\n")
+    prefix, step, remainder = original.partition(LEGACY_STEP)
+    guards, switch, remainder = remainder.partition(LEGACY_SWITCH)
+    cases, end, trailing = remainder.partition(LEGACY_SWITCH_END)
+    includes, bootstrap, bootstrap_body = prefix.partition(b"bool cpu_source_reset_bootstrap_match(")
+    if not (step and switch and end and bootstrap and trailing.startswith(b"bool cpu_source_architecture_member(")):
+        raise ValueError("Legacy region generator's dispatch boundary changed")
+
+    matches = list(LEGACY_CASE.finditer(cases))
+    headers = re.findall(rb"^    case ", cases, re.MULTILINE)
+    if not matches or matches[0].start() or len(matches) != len(headers):
+        raise ValueError("Legacy region generator's case boundary changed")
+    blocks = {}
+    previous = -1
+    for index, match in enumerate(matches):
+        key, pc, m_flag, x_flag = match.groups()
+        key = int(key)
+        expected_key = ((int(pc, 16) & 0x7fffff) << 2) | (int(m_flag) << 1) | int(x_flag)
+        if key != expected_key or key <= previous:
+            raise ValueError(f"Unexpected legacy region dispatch key {key}")
+        previous = key
+        next_case = matches[index + 1].start() if index + 1 < len(matches) else len(cases)
+        blocks.setdefault(key >> LEGACY_BUCKET_SHIFT, []).append(cases[match.start():next_case])
+
+    declarations = []
+    routes = []
+    for bucket, region_cases in blocks.items():
+        name = f"sots_legacy_region_{bucket}"
+        signature = HIDDEN_LINKAGE + f"bool {name}(CpuState *cpu,uint32 pc24,uint8 mx,uint32 *next_pc)".encode()
+        declarations.append(signature + b";\n")
+        routes.append(f"    case {bucket}u: return {name}(cpu,pc24,mx,next_pc);\n".encode())
+        part = directory / f"legacy-region-{bucket:04d}.c"
+        with part.open("wb") as out:
+            out.write(includes + signature + b" {\n" + LEGACY_SWITCH)
+            out.writelines(region_cases)
+            out.write(LEGACY_SWITCH_END)
+        yield part
+        part.unlink()
+
+    dispatch = directory / "legacy-region-dispatch.c"
+    with dispatch.open("wb") as out:
+        out.write(includes)
+        out.writelines(declarations)
+        out.write(bootstrap + bootstrap_body + step + guards)
+        out.write(f"  switch ((((pc24&0x7fffffu)<<2)|mx)>>{LEGACY_BUCKET_SHIFT}) {{\n".encode())
+        out.writelines(routes)
+        out.write(LEGACY_SWITCH_END + trailing)
+    yield dispatch
+    dispatch.unlink()
+
+
+def compile_module(recipe_path, capsule_dir, generated_dir, native_dir, work_dir, output_path, *,
+                   progress=print, unit_progress=None, zig_path=None):
     """Compile sequentially, then atomically move the private ELF into place."""
     recipe = json.loads(Path(recipe_path).read_text(encoding="utf-8"))
     if recipe["format"] != 1 or recipe["target"] != TARGET:
@@ -262,7 +323,10 @@ def compile_module(recipe_path, capsule_dir, generated_dir, native_dir, work_dir
     native = Path(native_dir).resolve()
     zig = Path(zig_path).resolve() if zig_path else native / "libzig.so"
     output = Path(output_path).resolve()
+    generated_source = _located(roots, "generated", "project/src")
     total = len(recipe["units"])
+    if unit_progress is not None:
+        unit_progress(0, total)
     with tempfile.TemporaryDirectory(prefix="compile-", dir=work_dir) as temp:
         work = Path(temp).resolve()
         objects = []
@@ -275,21 +339,23 @@ def compile_module(recipe_path, capsule_dir, generated_dir, native_dir, work_dir
                 else:
                     option, owner, relative = flag
                     flags.extend((option, str(_located(roots, owner, relative))))
+            # The NDK source tree keeps game C and its gen/ headers together.
+            # The APK's authored and generated files have separate roots.
+            flags.extend(("-I", str(generated_source)))
             progress(f"Compiling game {number}/{total}: {source.name}")
-            if unit["owner"] == "generated" and unit["source"] == ARCHITECTURE_C:
-                for part in _architecture_parts(source, work):
+            if unit["owner"] == "generated" and unit["source"] in (ARCHITECTURE_C, LEGACY_REGIONS_C):
+                split = _architecture_parts if unit["source"] == ARCHITECTURE_C else _legacy_region_parts
+                for part in split(source, work):
                     progress(f"Compiling native CPU {part.stem}")
                     obj = work / f"{part.stem}.o"
                     _compile(zig, capsule, part, obj, flags, work)
                     objects.append(obj)
             else:
                 obj = work / f"unit-{number:03d}.o"
-                # Keep the legacy fallback's single 19,000-case function within the
-                # phone's compile budget. The primary typed-IR CPU path stays optimized.
-                if unit["owner"] == "generated" and unit["source"] == LEGACY_REGIONS_C:
-                    flags.append("-O0")
                 _compile(zig, capsule, source, obj, flags, work)
                 objects.append(obj)
+            if unit_progress is not None:
+                unit_progress(number, total)
         progress("Linking game")
         linked = work / "libmain.so"
         _link(zig, capsule, native / "libSDL3.so", objects, linked, work)

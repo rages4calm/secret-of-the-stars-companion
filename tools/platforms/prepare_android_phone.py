@@ -12,7 +12,7 @@ from android_project import ANDROID, android_sdl_sources, write_android_project
 REPO = Path(__file__).resolve().parents[2]
 TOOL_NAMES = {
     'libanalyzer.so', 'libzig.so', 'libpython-launcher.so', 'libpython3.14.so',
-    'libcrypto_python.so', 'libssl_python.so', 'libsqlite3.so',
+    'libcrypto_python.so', 'libssl_python.so', 'libsqlite3_python.so',
 }
 
 
@@ -74,7 +74,7 @@ def stage(args):
         if name in patches or (runtime / name).is_file():
             checked_copy(runtime, capsule / 'runtime', name, patches.get(name))
     checked_copy(runtime, capsule / 'runtime', 'LICENSE')
-    for name in ('build_on_phone.py',):
+    for name in ('build_on_phone.py', 'optimize_emitter.py'):
         checked_copy(ANDROID, capsule, name)
     python = args.python_prefix.resolve(strict=True)
     # Preserve the stdlib layout expected by PyConfig, including Android extension modules.

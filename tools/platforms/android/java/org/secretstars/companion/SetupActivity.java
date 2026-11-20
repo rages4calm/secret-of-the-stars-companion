@@ -3,16 +3,22 @@ package org.secretstars.companion;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Insets;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.File;
 import java.io.IOException;
@@ -20,7 +26,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Consumer;
+import java.util.Locale;
 
 /** Imports a player's own ROM using Android's document picker. */
 public final class SetupActivity extends Activity {
@@ -32,21 +38,43 @@ public final class SetupActivity extends Activity {
     private static boolean running;
     private static String message;
     private static String launchRom;
+    private static long setupStarted;
+    private static int completedUnits;
+    private static int totalUnits;
 
     private TextView status;
+    private TextView elapsed;
     private ProgressBar progress;
     private Button choose;
     private Button play;
+    private final Runnable clock = new Runnable() {
+        @Override public void run() {
+            if (resumed != SetupActivity.this || !running) return;
+            updateElapsed();
+            UI.postDelayed(this, 1000);
+        }
+    };
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         int padding = Math.round(20 * getResources().getDisplayMetrics().density);
         page.setPadding(padding, padding, padding, padding);
+        TextView title = new TextView(this);
+        title.setText(getTitle());
+        title.setTextAppearance(android.R.style.TextAppearance_Material_Title);
+        title.setPadding(0, 0, 0, padding);
+        page.addView(title);
         status = new TextView(this);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        status.setTextIsSelectable(true);
         page.addView(status);
+        elapsed = new TextView(this);
+        page.addView(elapsed);
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         page.addView(progress);
@@ -63,7 +91,15 @@ public final class SetupActivity extends Activity {
         play.setText("Play");
         play.setOnClickListener(view -> play());
         page.addView(play);
-        setContentView(page);
+        scroll.addView(page);
+        if (Build.VERSION.SDK_INT >= 35) {
+            scroll.setOnApplyWindowInsetsListener((view, insets) -> {
+                Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                return insets;
+            });
+        }
+        setContentView(scroll);
     }
 
     @Override protected void onResume() {
@@ -74,6 +110,7 @@ public final class SetupActivity extends Activity {
 
     @Override protected void onPause() {
         if (resumed == this) resumed = null;
+        UI.removeCallbacks(clock);
         super.onPause();
     }
 
@@ -93,6 +130,14 @@ public final class SetupActivity extends Activity {
 
     private void refresh() {
         progress.setVisibility(running ? View.VISIBLE : View.GONE);
+        progress.setIndeterminate(totalUnits == 0);
+        if (totalUnits > 0) {
+            progress.setMax(totalUnits);
+            progress.setProgress(completedUnits);
+        }
+        elapsed.setVisibility(running ? View.VISIBLE : View.GONE);
+        UI.removeCallbacks(clock);
+        if (running) clock.run();
         choose.setEnabled(!running);
         boolean imported = false;
         try {
@@ -109,6 +154,11 @@ public final class SetupActivity extends Activity {
             launchRom = null;
             startActivity(game);
         }
+    }
+
+    private void updateElapsed() {
+        long seconds = (SystemClock.elapsedRealtime() - setupStarted) / 1000;
+        elapsed.setText(String.format(Locale.ROOT, "Setup time %d:%02d", seconds / 60, seconds % 60));
     }
 
     private static Path directory(Context app) throws IOException {
@@ -128,11 +178,13 @@ public final class SetupActivity extends Activity {
     }
 
     private interface SetupTask {
-        String run(Context app, Consumer<String> progress) throws IOException;
+        String run(Context app, DeviceSetup.Progress progress) throws IOException;
     }
 
-    private static void update(String text) {
+    private static void update(String text, int completed, int total) {
         message = text;
+        completedUnits = completed;
+        totalUnits = total;
         if (resumed != null) resumed.refresh();
     }
 
@@ -140,12 +192,13 @@ public final class SetupActivity extends Activity {
         if (running) return;
         Context app = getApplicationContext();
         running = true;
-        update(text);
+        setupStarted = SystemClock.elapsedRealtime();
+        update(text, 0, 0);
         new Thread(() -> {
             String game = null;
             String result = success;
             try {
-                game = task.run(app, next -> UI.post(() -> update(next)));
+                game = task.run(app, (next, completed, total) -> UI.post(() -> update(next, completed, total)));
             } catch (IOException | RuntimeException e) {
                 Log.w("SecretStarsSetup", "Could not complete setup", e);
                 result = e.getMessage() != null ? e.getMessage() : "Setup stopped. Try again.";
@@ -155,7 +208,7 @@ public final class SetupActivity extends Activity {
             UI.post(() -> {
                 running = false;
                 launchRom = readyRom;
-                update(finalStatus);
+                update(finalStatus, 0, 0);
             });
         }, "SOTS-ROM-setup").start();
     }
