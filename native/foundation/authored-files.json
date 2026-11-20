@@ -1,6 +1,6 @@
 {
   ".gitmodules": "d75d80e840891a8e8723d38134165f166c6d8236b0e7ed718d39c9c751937743",
-  "CMakeLists.txt": "c78cb8274c08d870f2618869b9fb1ce263e980e5008befd804de3999817c4547",
+  "CMakeLists.txt": "ee9fb1ac88b92cdf4eeaafd5bddba5cc906135b9e99cf09a4778305d52194d7f",
   "VERSION": "ad646fff8237e8f32c695ddb986bf6927ec75aae94aed795405c6a8770c081d8",
   "assets/achievements/catalog.json": "b47cf298ca25bcb64e386b7e48693ae48a3684b5012b86d349e745bfdf0970d6",
   "config/architectural-native/manifest.json": "6c39f1fe83fdd27d398717531e0e743428995bae35dbe59416cd2124381f0d12",
@@ -25,7 +25,7 @@
   "src/foundation_current_data.h": "208d2c583bad5c53f521afdd7e191ee60f3d6da95cb5b75e7176bcc6880013e0",
   "src/foundation_diagnostics.c": "cbbcd3e355ac32b7d287f152f9c619c27e6285b12a74c7aa3b4a117d62978028",
   "src/foundation_diagnostics.h": "28bc95fb292c651325a19fd30c2779a34315826c4173ea462879bf78e8dcb491",
-  "src/foundation_field.c": "a2aab0a112d425ef7db00373284bb841b25d0943ca2473f93136fe06bd7cbd2c",
+  "src/foundation_field.c": "c50f1af90c1a29e86c73c9454a89c3858e38fdc0fae25b4900b400761d8fd3b3",
   "src/foundation_field.h": "f774eb8833427762ee920e7e40a7d3f2c2070edc19e20c2f6faffa9d206720a1",
   "src/foundation_guide_data.h": "61c68c241fda6957a1b61576b04e7354986aa5d608ef4ee07516abaf3c4fc214",
   "src/foundation_hd_ui.c": "c59ab9fc2c89d34dac51222b69f91805cbe71a6528baef91f40529379e9a7418",
@@ -58,7 +58,7 @@
   "src/foundation_shop.h": "5075d5fc3f8bfbe3362a12e389f631b36ed943f43ff0d0728a31079f6fd85f8e",
   "src/foundation_state.c": "e00a313b1b8bc9e8b4cec38637d381dd853dc882f86442ea9dd10a6690e6a148",
   "src/foundation_state.h": "ed1262bce8f8915e82801cf45d0d94886b165453e35911adf134565cae6716db",
-  "src/foundation_wide.c": "1a6befcf4e764c6b9e8501f383766da1057a60eb046137f07bd2597f77d92dd9",
+  "src/foundation_wide.c": "7a32c58ea84f1d16429c237ae36953b93a1fad3e13cc854186a2a2ccd411a8a8",
   "src/foundation_wide.h": "fde97f82f5385a1efe4dcae48f99fe6a87636ad3b88117425708a761d40afdd6",
   "src/foundation_wide_actors.c": "c2ee434c224325223093ebb38f079172a3d6b0fb4208f77627c49646ad0442ab",
   "src/foundation_wide_actors.h": "ccfa687f694597bd1e99511461707ace764ab924f288de211fab31dc46834b36",
@@ -81,5 +81,7 @@
   "tools/generate_architectural_native.py": "1e30b1f499512c14be224889d2f99c207688c02271d997ced53f09fd82191fe8",
   "tools/generate_constructor.py": "f160d9af519d47543e0e8b9be182bc7120127dc963422442d1797ebaba06eaae",
   "tools/generate_faithful_clear.py": "0161be56bffd28f0158957685ba6b769a40d5053cd9630e180f8f53acf82866b",
-  "tools/regen.sh": "50aecc8ddedd3ffbeaba0a497bc4bea180bb4e2de244efce674986f8c1056d95"
+  "tools/regen.sh": "50aecc8ddedd3ffbeaba0a497bc4bea180bb4e2de244efce674986f8c1056d95",
+  "platforms/application.cmake": "aaee8b0bab5fd13ed2dbe114e45b78830de2c1299653e2c68c5e128a9f30418e",
+  "platforms/android_host_compat.h": "5c5260fc371761c48d77727604286b064d57402f69b7c7bfb25d11a6e5657201"
 }

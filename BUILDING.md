@@ -1,6 +1,6 @@
 # Developer builds on Windows
 
-Current package: **0.5.14.2**, native **0.5.14 / Companion 0.3.8**.
+Current package: **0.5.14.3**, native **0.5.14 / Companion 0.3.8**.
 [Current scope and focused checks](docs/NATIVE-PROGRESS-0.5.12.md).
 
 This repository is a source snapshot. Source-first Companion can build the native

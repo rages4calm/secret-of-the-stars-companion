@@ -8,10 +8,7 @@ Further work is driven by concrete player bugs and newly observed failures. Exis
 
 ## Planned platforms
 
-After the current Windows fixes, Linux and Android ports are planned.
-Android should reuse the EarthBound/Lagoon touch-control approach and offer
-an option to hide the touch overlay when playing with a controller.
-Neither platform is released or qualified yet.
+Linux and Android development builds have started. [Build preparation and limits](docs/PLATFORMS.md). Android includes original touch-control source following the familiar SNES layout, ROM import and a persistent overlay hide/show option for controllers. Neither platform has a released or gameplay-qualified binary yet.
 
 ---
 

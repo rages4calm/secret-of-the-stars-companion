@@ -6,11 +6,11 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-244b6b)](BUILDING.md)
 [![Contents](https://img.shields.io/badge/contents-ROM--free%20source-244b6b)](docs/VALIDATION.md)
 
-**Latest package: 0.5.14.2 pacing fix (native 0.5.14 / Companion 0.3.8).** Removes an unnecessary full-frame wait when the PC is already behind. This helps CPU-limited machines, but does not guarantee 60 FPS on every system. Also keeps supported scenery wide during ordinary fades and clarifies the early Winds/Beegees journal directions. Includes previous fixes, 16 offline achievements and custom icons. [Pacing fix notes](docs/RELEASE-0.5.14.2.md).
+**Latest package: 0.5.14.3 (native 0.5.14 / Companion 0.3.8).** Supports coherent mosaic transitions and avoids treating black loading frames as failed widescreen scenery. Includes previous pacing, journal and battle-effect fixes. Linux/Android build preparation and Android ROM import/touch controls are now available as development source. [Release notes](docs/RELEASE-0.5.14.3.md); [platform development](docs/PLATFORMS.md).
 
 The port is feature-complete and available through the ROM-free launcher/source package. Campaign playtesting and bug fixes continue. Setup builds it locally from your own ROM. Player reports guide further bug fixes; campaign and story feedback is separate from the developer checks described below.
 
-**[Download 0.5.14.2](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14.2)** | [Build requirements](BUILDING.md)
+**[Download 0.5.14.3](https://github.com/rages4calm/secret-of-the-stars-companion/releases/tag/v0.5.14.3)** | [Build requirements](BUILDING.md)
 
 **Discord:** chrono.trigger
 

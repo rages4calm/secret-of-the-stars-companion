@@ -355,7 +355,7 @@ int FoundationFieldBind(const uint8_t *rom, size_t image_size) {
 static int CheckView(const FoundationFieldView *view, int check_scroll) {
     eligible = 0;
     if (!identity_ok || !view || !view->ram || view->ram_size != 0x20000 ||
-        view->inidisp > 15 || view->bgmode != 9 || (view->mosaic & 0xf0) || view->setini ||
+        view->inidisp > 15 || view->bgmode != 9 || view->setini ||
         view->tm != 0x17 || (view->ts & ~16u) || view->bg_tile_adr != 0x0400 ||
         view->bgsc[0] != 0x49 || view->bgsc[1] != 0x59 || view->bgsc[2] != 0x51) return 0;
     const uint8_t *ram = view->ram;

@@ -37,7 +37,8 @@ set(SNESRECOMP_ENABLE_MODS ON CACHE BOOL
     "Mod package loader + trusted plugins (required for every title)" FORCE)
 include(${SNESRECOMP_ROOT}/runner/runner.cmake)
 
-add_executable(SecretOfTheStarsSNESRecomp
+include(${CMAKE_CURRENT_SOURCE_DIR}/platforms/application.cmake)
+sots_add_application(SecretOfTheStarsSNESRecomp
     ${SNESRECOMP_RUNNER_SOURCES}
     src/main.c
     src/foundation_native_backend.c

@@ -131,9 +131,10 @@ static void clear_margins(Ppu *ppu) {
 static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
     (void)unused;
     FoundationHdUiObserve(ppu, line, NULL);
-    /* Original forced-blank scanlines are deliberately black. They
-     * must not erase valid side scenery on the rest of the same frame. */
-    if (PPU_forcedBlank(ppu)) { ++accepted; return; }
+    /* Forced blank and zero brightness make the actual entire scanline black,
+     * including during partially loaded scenes. No asset inference is needed.
+     * Keep those authentic black margins without rejecting other live rows. */
+    if (PPU_forcedBlank(ppu) || !PPU_brightness(ppu)) { ++accepted; return; }
     if (ppu->setini || !(ppu->renderFlags & kPpuRenderFlags_NewRenderer)) {
         ++rejected; return;
     }
@@ -161,7 +162,7 @@ static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
         } else ++battle_lines;
         return;
     }
-    if ((ppu->mosaic & 0xf0) || !FoundationFieldSceneEligible(ppu)) { ++rejected; return; }
+    if (!FoundationFieldSceneEligible(ppu)) { ++rejected; return; }
     /* Current VRAM supplies every character, including animated tiles. Only
      * private BG1/BG2 tilemap words are reconstructed from the full map. */
     for (int layer = 0; layer < 2; ++layer) {
@@ -188,7 +189,11 @@ static void draw_line(const Ppu *ppu, unsigned line, void *unused) {
                 cx=full_x; cy=full_y;
             }
         }
-        int wy = cy + (int)line;
+        /* The original line renderer has already refreshed mosaicModulo for the
+         * current raster MOSAIC register. Each BG chooses its own enabled bit;
+         * reconstruct exactly the row it samples, not the visible output row. */
+        int sample_y = PPU_mosaicEnabled(ppu, layer) ? ppu->mosaicModulo[line] : (int)line;
+        int wy = cy + sample_y;
         unsigned base = layer ? 0x5800 : 0x4800;
         int first = floor8(cx - 72), last = floor8(cx + 327);
         int center_first = floor8(cx), center_last = floor8(cx + 255);

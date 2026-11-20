@@ -1736,8 +1736,8 @@ def snapshot_authored(source,project):
     reject_links(source.absolute());reject_links(project.absolute())
     path=source/'authored-files.json';reject_links(path)
     manifest=json.loads(path.read_text());actual={}
-    if not isinstance(manifest,dict) or len(manifest)!=83 or REVIEWED_ROOTS_INPUT not in manifest or 'src/foundation_guide_data.h' not in manifest or 'src/foundation_current_data.h' not in manifest:
-        raise ValueError('Expected83 authored inputs including original guide/advice and the five declared architectural backend inputs; preserve source')
+    if not isinstance(manifest,dict) or len(manifest)!=85 or 'platforms/android_host_compat.h' not in manifest or 'platforms/application.cmake' not in manifest or REVIEWED_ROOTS_INPUT not in manifest or 'src/foundation_guide_data.h' not in manifest or 'src/foundation_current_data.h' not in manifest:
+        raise ValueError('Expected85 authored inputs including original guide/advice and the five declared architectural backend inputs; preserve source')
     for name,expected in manifest.items():
         if not isinstance(name,str) or Path(name).is_absolute() or '..' in Path(name).parts:
             raise ValueError('Authored input escapes snapshot')
